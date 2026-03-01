@@ -1,0 +1,304 @@
+"use client"
+
+import { useState } from "react"
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
+  BarChart, Bar,
+} from "recharts"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { delay } from "@/lib/async-delay"
+import { showToastPreset } from "@/lib/app-toast"
+import {
+  categoryTrendData, categoryDistribution,
+} from "@/lib/superadmin-data"
+import {
+  Users, TrendingUp, AlertTriangle, BarChart3,
+} from "lucide-react"
+
+const barData = [
+  { name: "Seniors", value: 2341, color: "#0C2340" },
+  { name: "Adults", value: 8225, color: "#2a5080" },
+  { name: "Minors", value: 1892, color: "#C5A55A" },
+  { name: "Voters", value: 7234, color: "#10b981" },
+  { name: "Non-Voters", value: 5224, color: "#3b82f6" },
+  { name: "Expired", value: 423, color: "#ef4444" },
+]
+
+const totalPop = categoryDistribution.reduce((s, c) => s + c.value, 0)
+
+export default function CategoryReports() {
+  const [selectedCategory, setSelectedCategory] = useState("voters")
+  const [selectedColumns, setSelectedColumns] = useState({
+    fullName: true, address: true, age: true, contactNumber: false,
+    registrationDate: true, accountStatus: false, expiryDate: false, otherCategories: false,
+  })
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+
+  const handleConfirmDownload = async () => {
+    if (isDownloadingPdf) return
+
+    setIsDownloadingPdf(true)
+    await delay(1000)
+    setShowDownloadDialog(false)
+    setIsDownloadingPdf(false)
+    showToastPreset("categoryReportDownloaded")
+  }
+
+  const categories = [
+    { id: "seniors", title: "Senior Citizens", count: "2,341 residents", icon: "SC", reportTitle: "LIST OF SENIOR CITIZENS" },
+    { id: "minors", title: "Minors (Under 18)", count: "1,892 residents", icon: "18", reportTitle: "LIST OF MINORS" },
+    { id: "adults", title: "Adults", count: "8,225 residents", icon: "A", reportTitle: "LIST OF ADULTS" },
+    { id: "voters", title: "Registered Voters", count: "7,234 residents", icon: "V", reportTitle: "LIST OF REGISTERED VOTERS" },
+    { id: "non-voters", title: "Non-Voters", count: "955 residents", icon: "NV", reportTitle: "LIST OF NON-VOTERS" },
+    { id: "expired", title: "Expired Accounts", count: "423 residents", icon: "EX", reportTitle: "LIST OF EXPIRED ACCOUNTS" },
+    { id: "full", title: "Full Population", count: "12,458 residents", icon: "All", reportTitle: "FULL POPULATION LIST" },
+  ]
+
+  const selectedCategoryObj = categories.find((c) => c.id === selectedCategory) || categories[3]
+  const categoryResidentCount = selectedCategoryObj.count.split(" ")[0]
+
+  const toggleColumn = (column: keyof typeof selectedColumns) => {
+    setSelectedColumns((prev) => ({ ...prev, [column]: !prev[column] }))
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Category Reports</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Generate PDF reports by resident category with analytics</p>
+      </div>
+
+      {/* Insight KPIs */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="p-4 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
+            <Users className="w-4 h-4 text-[#0C2340]" />
+          </div>
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Total Population</p>
+          <span className="text-2xl font-bold text-[#0C2340]">12,458</span>
+        </Card>
+        <Card className="p-4 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
+            <BarChart3 className="w-4 h-4 text-[#0C2340]" />
+          </div>
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Largest Category</p>
+          <span className="text-lg font-bold text-[#0C2340]">Adults (18-59)</span>
+          <p className="text-[10px] text-[#C5A55A] font-semibold mt-0.5">66.0% of population</p>
+        </Card>
+        <Card className="p-4 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
+          </div>
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Fastest Growing</p>
+          <span className="text-lg font-bold text-[#0C2340]">Minors</span>
+          <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">+3.2% growth</p>
+        </Card>
+        <Card className="p-4 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center mb-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+          </div>
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Expiring Soon</p>
+          <span className="text-2xl font-bold text-amber-600">423</span>
+          <p className="text-[10px] text-slate-400 mt-0.5">Need renewal</p>
+        </Card>
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-12 gap-6">
+        {/* Population Trend */}
+        <Card className="col-span-5 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Population Trend</h2>
+          <p className="text-[11px] text-slate-500 mb-4">Category growth over 8 months</p>
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart data={categoryTrendData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} labelStyle={{ fontWeight: 600, color: "#0C2340" }} />
+              <Area type="monotone" dataKey="adults" stroke="#0C2340" strokeWidth={1.5} fill="none" name="Adults" />
+              <Area type="monotone" dataKey="voters" stroke="#10b981" strokeWidth={1.5} fill="none" name="Voters" />
+              <Area type="monotone" dataKey="seniors" stroke="#2a5080" strokeWidth={1.5} fill="none" name="Seniors" />
+              <Area type="monotone" dataKey="minors" stroke="#C5A55A" strokeWidth={1.5} fill="none" name="Minors" />
+            </AreaChart>
+          </ResponsiveContainer>
+          <div className="flex flex-wrap gap-3 mt-2 text-[10px]">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#0C2340]" />Adults</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#10b981]" />Voters</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#2a5080]" />Seniors</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#C5A55A]" />Minors</span>
+          </div>
+        </Card>
+
+        {/* Distribution Pie */}
+        <Card className="col-span-3 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Age Distribution</h2>
+          <p className="text-[11px] text-slate-500 mb-3">Population breakdown</p>
+          <ResponsiveContainer width="100%" height={130}>
+            <PieChart>
+              <Pie data={categoryDistribution} cx="50%" cy="50%" innerRadius={35} outerRadius={55} dataKey="value" stroke="none" paddingAngle={3}>
+                {categoryDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-bold" fill="#0C2340">{totalPop.toLocaleString()}</text>
+              <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" className="text-[8px]" fill="#94a3b8">total</text>
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="space-y-1.5 mt-2">
+            {categoryDistribution.map((c, i) => (
+              <div key={i} className="flex items-center justify-between text-[10px]">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                  <span className="text-slate-600">{c.name}</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-[#0C2340]">{c.value.toLocaleString()}</span>
+                  <span className="text-emerald-600 font-medium">+{c.change}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Comparative Bar */}
+        <Card className="col-span-4 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Category Comparison</h2>
+          <p className="text-[11px] text-slate-500 mb-4">Resident count by category</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={barData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} labelStyle={{ fontWeight: 600, color: "#0C2340" }} />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={20} name="Residents">
+                {barData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
+      {/* Category Selector */}
+      <div>
+        <h3 className="text-sm font-semibold text-[#0C2340] mb-3">Select Category</h3>
+        <div className="grid grid-cols-4 gap-3">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              className={`text-left rounded-lg border-2 transition-all p-4 ${selectedCategory === category.id
+                  ? "border-[#0C2340] bg-[#0C2340]/[0.03] ring-1 ring-[#0C2340]/20"
+                  : "border-slate-200 hover:border-slate-300 bg-white"
+                }`}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${selectedCategory === category.id ? "bg-[#0C2340]/10" : "bg-slate-100"}`}>
+                <span className={`text-[11px] font-bold ${selectedCategory === category.id ? "text-[#0C2340]" : "text-slate-500"}`}>{category.icon}</span>
+              </div>
+              <h4 className="text-[12px] font-semibold text-[#0C2340] mb-0.5">{category.title}</h4>
+              <p className={`text-[10px] ${selectedCategory === category.id ? "text-[#0C2340]" : "text-slate-500"}`}>{category.count}</p>
+              {selectedCategory === category.id && (
+                <div className="flex items-center justify-end mt-1">
+                  <div className="w-4 h-4 rounded-full bg-[#0C2340] flex items-center justify-center">
+                    <span className="text-white text-[8px]">✓</span>
+                  </div>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Report Config + Preview */}
+      <div className="grid grid-cols-12 gap-6">
+        <Card className="col-span-7 shadow-sm overflow-hidden">
+          <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
+            <h3 className="text-[12px] font-semibold text-[#0C2340]">Report Configuration: {selectedCategoryObj.title}</h3>
+          </div>
+          <div className="p-5 space-y-5">
+            <div>
+              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Include Columns</h4>
+              <div className="grid grid-cols-2 gap-3">
+                {(Object.keys(selectedColumns) as (keyof typeof selectedColumns)[]).map((col) => (
+                  <button key={col} onClick={() => toggleColumn(col)} className="flex items-center gap-2.5 text-[12px] text-slate-800">
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${selectedColumns[col] ? "bg-[#0C2340] border-[#0C2340]" : "border-slate-300 bg-white hover:border-slate-400"
+                      }`}>
+                      {selectedColumns[col] && <span className="text-white text-[8px]">✓</span>}
+                    </div>
+                    {col.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Sort By</h4>
+              <select className="w-52 px-3 py-2 border border-slate-200 rounded-md text-sm">
+                <option>Last Name (A-Z)</option>
+                <option>Last Name (Z-A)</option>
+                <option>Age (Youngest First)</option>
+                <option>Age (Oldest First)</option>
+              </select>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="col-span-5 shadow-sm overflow-hidden">
+          <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
+            <h3 className="text-[12px] font-semibold text-[#0C2340]">PDF Preview</h3>
+          </div>
+          <div className="p-5">
+            <div className="bg-slate-50 border border-slate-200 rounded p-4 h-56">
+              <div className="text-center space-y-1.5 mb-3">
+                <p className="text-[8px] text-slate-500">Republic of the Philippines</p>
+                <p className="text-[8px] text-slate-500">Barangay Sample</p>
+                <div className="w-5 h-5 bg-slate-200 rounded mx-auto" />
+              </div>
+              <div className="h-px bg-slate-200 mb-2" />
+              <p className="text-[9px] font-bold text-[#0C2340] text-center mb-0.5">{selectedCategoryObj.reportTitle}</p>
+              <p className="text-[7px] text-slate-500 text-center mb-2">As of February 20, 2026</p>
+              <div className="bg-slate-200 h-3 rounded mb-1 flex gap-0.5 px-1">
+                {selectedColumns.fullName && <div className="flex-1 h-full rounded bg-slate-300" />}
+                {selectedColumns.address && <div className="flex-1 h-full rounded bg-slate-300" />}
+                {selectedColumns.age && <div className="flex-1 h-full rounded bg-slate-300" />}
+                {selectedColumns.contactNumber && <div className="flex-1 h-full rounded bg-slate-300" />}
+              </div>
+              <div className="space-y-0.5">
+                <div className="h-2.5 bg-slate-100 rounded" />
+                <div className="h-2.5 bg-slate-100 rounded" />
+                <div className="h-2.5 bg-slate-100 rounded" />
+              </div>
+              <p className="text-[6px] text-slate-400 text-center mt-2">
+                ... {Number.parseInt(categoryResidentCount.replace(/,/g, "")) - 3} more rows
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Download Buttons */}
+      <div className="flex gap-3">
+        <Button onClick={() => setShowDownloadDialog(true)} className="bg-[#0C2340] hover:bg-[#0a1c33] px-8">Download PDF</Button>
+        <Button variant="outline" className="bg-transparent">Preview</Button>
+      </div>
+
+      {/* Download Dialog */}
+      {showDownloadDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-[#0C2340] mb-3">Download PDF Report?</h3>
+            <p className="text-sm text-slate-600 mb-6">
+              This will download a PDF report for {selectedCategoryObj.title} ({categoryResidentCount} residents) with the selected columns sorted by Last Name (A-Z).
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowDownloadDialog(false)} disabled={isDownloadingPdf}>Cancel</Button>
+              <Button onClick={handleConfirmDownload} className="bg-[#0C2340] hover:bg-[#0a1c33]" disabled={isDownloadingPdf}>
+                {isDownloadingPdf ? "Downloading..." : "Confirm Download"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

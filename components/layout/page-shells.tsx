@@ -1,0 +1,35 @@
+import type { ReactNode } from "react"
+import { Header } from "@/components/layout/header"
+import { Sidebar } from "@/components/layout/sidebar"
+import { AdminHeader } from "@/components/layout/admin-header"
+import { AdminSidebar } from "@/components/layout/admin-sidebar"
+import { MainContentStage } from "@/components/layout/main-content-stage"
+
+interface ShellProps {
+  children: ReactNode
+  mainClassName?: string
+}
+
+export function ResidentPageShell({ children, mainClassName = "flex-1 p-10" }: ShellProps) {
+  return (
+    <div className="min-h-screen bg-slate-50 overflow-x-hidden">
+      <Header />
+      <div className="flex min-w-0">
+        <Sidebar />
+        <MainContentStage className={`${mainClassName} pb-24 md:pb-10`}>{children}</MainContentStage>
+      </div>
+    </div>
+  )
+}
+
+export function AdminPageShell({ children, mainClassName = "flex-1 p-8 max-h-screen overflow-y-auto" }: ShellProps) {
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <AdminHeader />
+      <div className="flex flex-1">
+        <AdminSidebar />
+        <MainContentStage className={mainClassName}>{children}</MainContentStage>
+      </div>
+    </div>
+  )
+}
