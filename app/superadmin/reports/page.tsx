@@ -9,17 +9,17 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import {
-  reportGenerationTrend, reportTypeBreakdown,
-} from "@/lib/superadmin-data"
+const reportGenerationTrend: any[] = []; const reportTypeBreakdown: any[] = [];
+import { useAdminData } from "@/hooks/use-admin-data"
 import {
   FileText, TrendingUp, Clock, BarChart3, Download,
   Users, Shield, Activity,
 } from "lucide-react"
 
-const reportTotal = reportTypeBreakdown.reduce((s, r) => s + r.value, 0)
+const reportTotal = 0
 
 export default function SystemReports() {
+  const { documentRequests, stats: adminStats } = useAdminData()
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
 
@@ -33,19 +33,23 @@ export default function SystemReports() {
     showToastPreset("reportGenerated")
   }
 
+  const nonVoterCount = adminStats.totalResidents - adminStats.voterCount
+
   const reports = [
-    { title: "Full Population", description: "All registered residents", count: "12,458 records", icon: Users, color: "#0C2340", pct: 31 },
-    { title: "Seniors Summary", description: "60 years old and above", count: "2,341 records", icon: Users, color: "#2a5080", pct: 19 },
-    { title: "Adults Summary", description: "18 years old and above", count: "8,225 records", icon: Users, color: "#3b82f6", pct: 66 },
-    { title: "Minors Summary", description: "Under 18 years old", count: "3,892 records", icon: Users, color: "#C5A55A", pct: 31 },
-    { title: "Voters List", description: "Registered voters", count: "7,234 records", icon: Shield, color: "#10b981", pct: 58 },
-    { title: "Non-Voters List", description: "Not registered to vote", count: "5,224 records", icon: Shield, color: "#ef4444", pct: 42 },
-    { title: "Expired Accounts", description: "Accounts needing renewal", count: "423 records", icon: Clock, color: "#f59e0b", pct: 3 },
+    { title: "Full Population", description: "All registered residents", count: `${adminStats.totalResidents} records`, icon: Users, color: "#0C2340", pct: 100 },
+    { title: "Seniors Summary", description: "60 years old and above", count: `${adminStats.seniorCount} records`, icon: Users, color: "#2a5080", pct: adminStats.totalResidents ? Math.round((adminStats.seniorCount / adminStats.totalResidents) * 100) : 0 },
+    { title: "Adults Summary", description: "18 years old and above", count: `${adminStats.adultCount} records`, icon: Users, color: "#3b82f6", pct: adminStats.totalResidents ? Math.round((adminStats.adultCount / adminStats.totalResidents) * 100) : 0 },
+    { title: "Minors Summary", description: "Under 18 years old", count: `${adminStats.minorCount} records`, icon: Users, color: "#C5A55A", pct: adminStats.totalResidents ? Math.round((adminStats.minorCount / adminStats.totalResidents) * 100) : 0 },
+    { title: "Voters List", description: "Registered voters", count: `${adminStats.voterCount} records`, icon: Shield, color: "#10b981", pct: adminStats.totalResidents ? Math.round((adminStats.voterCount / adminStats.totalResidents) * 100) : 0 },
+    { title: "Non-Voters List", description: "Not registered to vote", count: `${nonVoterCount} records`, icon: Shield, color: "#ef4444", pct: adminStats.totalResidents ? Math.round((nonVoterCount / adminStats.totalResidents) * 100) : 0 },
+    { title: "Expired Accounts", description: "Accounts needing renewal", count: `${adminStats.expiredResidents} records`, icon: Clock, color: "#f59e0b", pct: adminStats.totalResidents ? Math.round((adminStats.expiredResidents / adminStats.totalResidents) * 100) : 0 },
   ]
+
+  const rejectedCount = documentRequests.filter(r => r.status === "Rejected").length
 
   const documentReports = [
     { title: "Documents by Date Range", description: "All generated documents", icon: FileText, color: "#0C2340", hasDatePicker: true },
-    { title: "Rejected Requests", description: "All rejected with reasons", count: "87 records", icon: Activity, color: "#ef4444" },
+    { title: "Rejected Requests", description: "All rejected with reasons", count: `${rejectedCount} records`, icon: Activity, color: "#ef4444" },
     { title: "Full Analytics PDF", description: "Complete system analytics", details: "Charts, stats, trends", icon: BarChart3, color: "#C5A55A" },
   ]
 
@@ -66,8 +70,7 @@ export default function SystemReports() {
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Reports Generated</p>
           <span className="text-2xl font-bold text-[#0C2340]">{reportTotal}</span>
           <div className="flex items-center gap-1 mt-1">
-            <TrendingUp className="w-3 h-3 text-emerald-600" />
-            <span className="text-[10px] font-medium text-emerald-600">+24% this month</span>
+            <span className="text-[10px] font-medium text-slate-400">-</span>
           </div>
         </Card>
         <Card className="p-4 shadow-sm">
@@ -76,14 +79,14 @@ export default function SystemReports() {
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Most Requested</p>
           <span className="text-lg font-bold text-[#0C2340]">Document Reports</span>
-          <p className="text-[10px] text-slate-400 mt-1">{reportTypeBreakdown[1].value} of {reportTotal} total</p>
+          <p className="text-[10px] text-slate-400 mt-1">0 of {reportTotal} total</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
             <Clock className="w-4 h-4 text-[#0C2340]" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Avg Generation</p>
-          <span className="text-2xl font-bold text-[#0C2340]">12s</span>
+          <span className="text-2xl font-bold text-[#0C2340]">0s</span>
           <p className="text-[10px] text-slate-400 mt-1">Processing time</p>
         </Card>
         <Card className="p-4 shadow-sm">
@@ -91,8 +94,8 @@ export default function SystemReports() {
             <BarChart3 className="w-4 h-4 text-[#0C2340]" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">This Month</p>
-          <span className="text-2xl font-bold text-[#0C2340]">83</span>
-          <p className="text-[10px] text-slate-400 mt-1">Reports in February</p>
+          <span className="text-2xl font-bold text-[#0C2340]">0</span>
+          <p className="text-[10px] text-slate-400 mt-1">Reports this month</p>
         </Card>
       </div>
 

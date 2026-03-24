@@ -8,9 +8,8 @@ import {
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  adminAccounts, adminActivityTrend, roleDistribution, adminRecentActions,
-} from "@/lib/superadmin-data"
+const adminActivityTrend: any[] = []; const adminRecentActions: any[] = [];
+import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import {
   Users, ShieldCheck, Lock, Wifi, TrendingUp, TrendingDown,
   CheckCircle, Eye, AlertTriangle, Settings,
@@ -36,6 +35,7 @@ const activityDotColors: Record<string, string> = {
 }
 
 export default function AdminManagement() {
+  const { adminAccounts, stats, addAdmin, updateAdmin, deleteAdmin } = useSuperAdminData()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -45,10 +45,15 @@ export default function AdminManagement() {
   const [selectedAdminForEdit, setSelectedAdminForEdit] = useState<string | null>(null)
   const [showEditPrivilegesModal, setShowEditPrivilegesModal] = useState(false)
   const [showActionDialog, setShowActionDialog] = useState(false)
-  const [actionType, setActionType] = useState<"reset" | "lock" | null>(null)
+  const [actionType, setActionType] = useState<"reset" | "lock" | "unlock" | "delete" | null>(null)
   const [selectedAdminName, setSelectedAdminName] = useState("")
   const [selectedAdminId, setSelectedAdminId] = useState("")
   const [actionMessage, setActionMessage] = useState("")
+
+  // Form states for creating admin
+  const [newAdminName, setNewAdminName] = useState("")
+  const [newAdminEmail, setNewAdminEmail] = useState("")
+  const [newAdminPassword, setNewAdminPassword] = useState("")
 
   const filteredAdmins = adminAccounts.filter((admin) => {
     const matchesSearch =
@@ -84,22 +89,62 @@ export default function AdminManagement() {
     setShowActionsDropdown(null)
   }
 
-  const handleLockAccount = (adminId: string, adminName: string) => {
+  const handleLockAccount = (adminId: string, adminName: string, isLocked: boolean) => {
     setSelectedAdminId(adminId)
     setSelectedAdminName(adminName)
-    setActionType("lock")
-    setActionMessage(`Are you sure you want to lock ${adminName}'s account? This action can be reversed.`)
+    setActionType(isLocked ? "unlock" : "lock")
+    setActionMessage(
+      isLocked
+        ? `Are you sure you want to unlock ${adminName}'s account?`
+        : `Are you sure you want to lock ${adminName}'s account? This action can be reversed.`
+    )
+    setShowActionDialog(true)
+    setShowActionsDropdown(null)
+  }
+
+  const handleDeleteAccount = (adminId: string, adminName: string) => {
+    setSelectedAdminId(adminId)
+    setSelectedAdminName(adminName)
+    setActionType("delete")
+    setActionMessage(`Are you sure you want to delete ${adminName}'s account? This action is permanent.`)
     setShowActionDialog(true)
     setShowActionsDropdown(null)
   }
 
   const confirmAction = () => {
     if (actionType === "reset") {
+      updateAdmin(selectedAdminId, { password: "NewPassword123!" }) // mock password reset
       setActionMessage(`Password reset successful for ${selectedAdminName}`)
     } else if (actionType === "lock") {
+      updateAdmin(selectedAdminId, { status: "Locked" })
       setActionMessage(`Account locked successfully for ${selectedAdminName}`)
+    } else if (actionType === "unlock") {
+      updateAdmin(selectedAdminId, { status: "Active" })
+      setActionMessage(`Account unlocked successfully for ${selectedAdminName}`)
+    } else if (actionType === "delete") {
+      deleteAdmin(selectedAdminId)
+      setActionMessage(`Account deleted successfully for ${selectedAdminName}`)
     }
-    setActionType(null)
+    setTimeout(() => {
+      setShowActionDialog(false)
+      setActionType(null)
+    }, 1500)
+  }
+
+  const handleCreateAdmin = () => {
+    if (!newAdminName || !newAdminEmail || !newAdminPassword || selectedRole === "Select role...") return
+    addAdmin({
+      name: newAdminName,
+      email: newAdminEmail,
+      password: newAdminPassword,
+      role: selectedRole as any,
+      status: "Active"
+    })
+    setShowCreateModal(false)
+    setNewAdminName("")
+    setNewAdminEmail("")
+    setNewAdminPassword("")
+    setSelectedRole("Select role...")
   }
 
   const kpis = [
@@ -187,8 +232,8 @@ export default function AdminManagement() {
           <p className="text-[11px] text-slate-500 mb-3">Admin access levels</p>
           <ResponsiveContainer width="100%" height={120}>
             <PieChart>
-              <Pie data={roleDistribution} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={3}>
-                {roleDistribution.map((entry, i) => (
+              <Pie data={stats.roleDistribution} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={3}>
+                {stats.roleDistribution.map((entry, i) => (
                   <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
@@ -197,7 +242,7 @@ export default function AdminManagement() {
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-1">
-            {roleDistribution.map((r, i) => (
+            {stats.roleDistribution.map((r, i) => (
               <div key={i} className="flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
@@ -311,7 +356,9 @@ export default function AdminManagement() {
                       <div className="h-px bg-slate-200" />
                       <button onClick={() => handleResetPassword(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50">Reset Password</button>
                       <div className="h-px bg-slate-200" />
-                      <button onClick={() => handleLockAccount(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-slate-50">Lock Account</button>
+                      <button onClick={() => handleLockAccount(admin.id, admin.name, admin.status === "Locked")} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50">{admin.status === "Locked" ? "Unlock Account" : "Lock Account"}</button>
+                      <div className="h-px bg-slate-200" />
+                      <button onClick={() => handleDeleteAccount(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-slate-50">Delete Account</button>
                     </div>
                   )}
                 </div>
@@ -333,8 +380,8 @@ export default function AdminManagement() {
               <div>
                 <h3 className="text-sm font-bold text-[#0C2340] mb-4">Personal Information</h3>
                 <div className="space-y-4">
-                  <div><label className="block text-xs text-slate-600 mb-2">Full Name *</label><Input placeholder="Enter full name" /></div>
-                  <div><label className="block text-xs text-slate-600 mb-2">Email Address *</label><Input placeholder="admin@barangay.gov.ph" /></div>
+                  <div><label className="block text-xs text-slate-600 mb-2">Full Name *</label><Input value={newAdminName} onChange={e => setNewAdminName(e.target.value)} placeholder="Enter full name" /></div>
+                  <div><label className="block text-xs text-slate-600 mb-2">Email Address *</label><Input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="admin@barangay.gov.ph" /></div>
                   <div><label className="block text-xs text-slate-600 mb-2">Contact Number</label><Input placeholder="+63 9XX XXX XXXX" /></div>
                 </div>
               </div>
@@ -362,14 +409,14 @@ export default function AdminManagement() {
               <div>
                 <label className="block text-xs text-slate-600 mb-2">Temporary Password *</label>
                 <div className="flex gap-3">
-                  <Input placeholder="Auto-generated or enter manually" className="flex-1" />
-                  <Button variant="outline" className="px-6 bg-transparent">Generate</Button>
+                  <Input value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder="Auto-generated or enter manually" className="flex-1" />
+                  <Button variant="outline" onClick={() => setNewAdminPassword("Tal@sys" + Math.floor(Math.random() * 1000))} className="px-6 bg-transparent">Generate</Button>
                 </div>
               </div>
             </div>
             <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-              <Button className="bg-[#0C2340] hover:bg-[#0a1c33]">Create Admin</Button>
+              <Button onClick={handleCreateAdmin} className="bg-[#0C2340] hover:bg-[#0a1c33]">Create Admin</Button>
             </div>
           </div>
         </div>
@@ -387,7 +434,7 @@ export default function AdminManagement() {
               <label className="block text-xs text-slate-600 mb-3 font-semibold">SELECT ROLE</label>
               <div className="space-y-2">
                 {roles.map((role) => (
-                  <button key={role.label} className="w-full text-left px-4 py-2.5 border border-slate-200 rounded-md hover:bg-slate-50 text-sm">
+                  <button key={role.label} onClick={() => { updateAdmin(selectedAdminForEdit!, { role: role.label as any }); setShowEditPrivilegesModal(false) }} className="w-full text-left px-4 py-2.5 border border-slate-200 rounded-md hover:bg-slate-50 text-sm">
                     <p className="font-medium text-slate-900">{role.label}</p>
                     <p className="text-xs text-slate-600">{role.description}</p>
                   </button>
@@ -396,7 +443,6 @@ export default function AdminManagement() {
             </div>
             <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowEditPrivilegesModal(false)}>Cancel</Button>
-              <Button className="bg-[#0C2340] hover:bg-[#0a1c33]" onClick={() => setShowEditPrivilegesModal(false)}>Save Changes</Button>
             </div>
           </div>
         </div>
@@ -408,17 +454,17 @@ export default function AdminManagement() {
           <div className="bg-white rounded-xl w-full max-w-md">
             <div className="p-6 border-b border-slate-200">
               <h2 className="text-xl font-bold text-[#0C2340]">
-                {actionType === "reset" ? "Reset Password" : "Lock Account"}
+                {actionType === "reset" ? "Reset Password" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
               </h2>
             </div>
             <div className="p-6"><p className="text-sm text-slate-700">{actionMessage}</p></div>
             <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowActionDialog(false)}>Cancel</Button>
               <Button
-                className={actionType === "lock" ? "bg-red-600 hover:bg-red-700" : "bg-[#0C2340] hover:bg-[#0a1c33]"}
-                onClick={() => { confirmAction(); setTimeout(() => setShowActionDialog(false), 1500) }}
+                className={actionType === "lock" || actionType === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-[#0C2340] hover:bg-[#0a1c33]"}
+                onClick={() => { confirmAction() }}
               >
-                {actionType === "reset" ? "Confirm Reset" : "Lock Account"}
+                {actionType === "reset" ? "Confirm Reset" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
               </Button>
             </div>
           </div>

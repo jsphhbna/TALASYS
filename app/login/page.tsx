@@ -4,15 +4,14 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { DEMO_CREDENTIALS, useAuth } from "@/lib/auth-context"
+import { useAuth } from "@/lib/auth-context"
 import { BrandMark } from "@/components/layout/brand-mark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { delay } from "@/lib/async-delay"
 
-const credentialHint = `Invalid credentials. Use your registered email/password, or try "${DEMO_CREDENTIALS.resident.username}/${DEMO_CREDENTIALS.resident.password}", "${DEMO_CREDENTIALS.admin.username}/${DEMO_CREDENTIALS.admin.password}", or "${DEMO_CREDENTIALS.superadmin.username}/${DEMO_CREDENTIALS.superadmin.password}"`
-
+const credentialHint = "Invalid credentials. Please check your username and password."
 export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -29,11 +28,11 @@ export default function LoginPage() {
     setIsSigningIn(true)
     await delay(650)
 
-    const success = login(username, password)
-    if (success) {
-      if (username === DEMO_CREDENTIALS.superadmin.username) {
+    const user = login(username, password)
+    if (user) {
+      if (user.role === "superadmin") {
         router.push("/superadmin/dashboard")
-      } else if (username === DEMO_CREDENTIALS.admin.username) {
+      } else if (user.role === "admin") {
         router.push("/admin/dashboard")
       } else {
         router.push("/dashboard")
@@ -108,13 +107,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center space-y-3">
             <div className="space-y-1 bg-slate-50 rounded-md p-3 border border-slate-100">
-              <p className="text-xs text-slate-500 font-medium mb-1.5">Demo Credentials</p>
-              <p className="text-sm text-slate-600">
-                Resident: <span className="font-mono font-semibold text-[#0C2340]">user / user123</span>
-              </p>
-              <p className="text-sm text-slate-600">
-                Admin: <span className="font-mono font-semibold text-[#0C2340]">admin / admin123</span>
-              </p>
+              <p className="text-xs text-slate-500 font-medium mb-1.5">Bootstrap Login</p>
               <p className="text-sm text-slate-600">
                 Super Admin: <span className="font-mono font-semibold text-[#0C2340]">superadmin / superadmin123</span>
               </p>

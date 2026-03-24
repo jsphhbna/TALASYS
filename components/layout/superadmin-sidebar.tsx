@@ -62,7 +62,7 @@ export function SuperAdminSidebar() {
 
   return (
     <>
-      <aside className="w-[232px] shrink-0 bg-[#0C2340] h-screen sticky top-0 flex flex-col" role="navigation">
+      <aside className="w-[232px] shrink-0 bg-[#0C2340] h-[calc(100vh-4rem)] sticky top-16 flex flex-col" role="navigation">
         <nav className="py-3 flex-1 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = activePath === item.href

@@ -10,9 +10,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import {
-  reasonAnalytics, reasonTrendData, reasonByDocType,
-} from "@/lib/superadmin-data"
+const reasonAnalytics: any[] = []; const reasonTrendData: any[] = []; const reasonByDocType: any[] = [];
 import {
   TrendingUp, BarChart3, AlertTriangle, Target, Layers, FileText,
 } from "lucide-react"

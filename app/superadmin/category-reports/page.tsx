@@ -10,25 +10,27 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import {
-  categoryTrendData, categoryDistribution,
-} from "@/lib/superadmin-data"
+const categoryTrendData: any[] = []; const categoryDistribution: any[] = [];
+import { useAdminData } from "@/hooks/use-admin-data"
 import {
   Users, TrendingUp, AlertTriangle, BarChart3,
 } from "lucide-react"
 
-const barData = [
-  { name: "Seniors", value: 2341, color: "#0C2340" },
-  { name: "Adults", value: 8225, color: "#2a5080" },
-  { name: "Minors", value: 1892, color: "#C5A55A" },
-  { name: "Voters", value: 7234, color: "#10b981" },
-  { name: "Non-Voters", value: 5224, color: "#3b82f6" },
-  { name: "Expired", value: 423, color: "#ef4444" },
-]
-
-const totalPop = categoryDistribution.reduce((s, c) => s + c.value, 0)
-
 export default function CategoryReports() {
+  const { stats: adminStats } = useAdminData()
+  const nonVoterCount = adminStats.totalResidents - adminStats.voterCount
+
+  const barData = [
+    { name: "Seniors", value: adminStats.seniorCount, color: "#0C2340" },
+    { name: "Adults", value: adminStats.adultCount, color: "#2a5080" },
+    { name: "Minors", value: adminStats.minorCount, color: "#C5A55A" },
+    { name: "Voters", value: adminStats.voterCount, color: "#10b981" },
+    { name: "Non-Voters", value: nonVoterCount, color: "#3b82f6" },
+    { name: "Expired", value: adminStats.expiredResidents, color: "#ef4444" },
+  ]
+
+  const totalPop = adminStats.totalResidents
+
   const [selectedCategory, setSelectedCategory] = useState("voters")
   const [selectedColumns, setSelectedColumns] = useState({
     fullName: true, address: true, age: true, contactNumber: false,
@@ -48,13 +50,13 @@ export default function CategoryReports() {
   }
 
   const categories = [
-    { id: "seniors", title: "Senior Citizens", count: "2,341 residents", icon: "SC", reportTitle: "LIST OF SENIOR CITIZENS" },
-    { id: "minors", title: "Minors (Under 18)", count: "1,892 residents", icon: "18", reportTitle: "LIST OF MINORS" },
-    { id: "adults", title: "Adults", count: "8,225 residents", icon: "A", reportTitle: "LIST OF ADULTS" },
-    { id: "voters", title: "Registered Voters", count: "7,234 residents", icon: "V", reportTitle: "LIST OF REGISTERED VOTERS" },
-    { id: "non-voters", title: "Non-Voters", count: "955 residents", icon: "NV", reportTitle: "LIST OF NON-VOTERS" },
-    { id: "expired", title: "Expired Accounts", count: "423 residents", icon: "EX", reportTitle: "LIST OF EXPIRED ACCOUNTS" },
-    { id: "full", title: "Full Population", count: "12,458 residents", icon: "All", reportTitle: "FULL POPULATION LIST" },
+    { id: "seniors", title: "Senior Citizens", count: `${adminStats.seniorCount} residents`, icon: "SC", reportTitle: "LIST OF SENIOR CITIZENS" },
+    { id: "minors", title: "Minors (Under 18)", count: `${adminStats.minorCount} residents`, icon: "18", reportTitle: "LIST OF MINORS" },
+    { id: "adults", title: "Adults", count: `${adminStats.adultCount} residents`, icon: "A", reportTitle: "LIST OF ADULTS" },
+    { id: "voters", title: "Registered Voters", count: `${adminStats.voterCount} residents`, icon: "V", reportTitle: "LIST OF REGISTERED VOTERS" },
+    { id: "non-voters", title: "Non-Voters", count: `${nonVoterCount} residents`, icon: "NV", reportTitle: "LIST OF NON-VOTERS" },
+    { id: "expired", title: "Expired Accounts", count: `${adminStats.expiredResidents} residents`, icon: "EX", reportTitle: "LIST OF EXPIRED ACCOUNTS" },
+    { id: "full", title: "Full Population", count: `${adminStats.totalResidents} residents`, icon: "All", reportTitle: "FULL POPULATION LIST" },
   ]
 
   const selectedCategoryObj = categories.find((c) => c.id === selectedCategory) || categories[3]
@@ -79,7 +81,7 @@ export default function CategoryReports() {
             <Users className="w-4 h-4 text-[#0C2340]" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Total Population</p>
-          <span className="text-2xl font-bold text-[#0C2340]">12,458</span>
+          <span className="text-2xl font-bold text-[#0C2340]">{adminStats.totalResidents.toLocaleString()}</span>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
@@ -102,7 +104,7 @@ export default function CategoryReports() {
             <AlertTriangle className="w-4 h-4 text-amber-600" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Expiring Soon</p>
-          <span className="text-2xl font-bold text-amber-600">423</span>
+          <span className="text-2xl font-bold text-amber-600">{adminStats.expiringResidents}</span>
           <p className="text-[10px] text-slate-400 mt-0.5">Need renewal</p>
         </Card>
       </div>
@@ -189,8 +191,8 @@ export default function CategoryReports() {
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
               className={`text-left rounded-lg border-2 transition-all p-4 ${selectedCategory === category.id
-                  ? "border-[#0C2340] bg-[#0C2340]/[0.03] ring-1 ring-[#0C2340]/20"
-                  : "border-slate-200 hover:border-slate-300 bg-white"
+                ? "border-[#0C2340] bg-[#0C2340]/[0.03] ring-1 ring-[#0C2340]/20"
+                : "border-slate-200 hover:border-slate-300 bg-white"
                 }`}
             >
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${selectedCategory === category.id ? "bg-[#0C2340]/10" : "bg-slate-100"}`}>
@@ -269,7 +271,7 @@ export default function CategoryReports() {
                 <div className="h-2.5 bg-slate-100 rounded" />
               </div>
               <p className="text-[6px] text-slate-400 text-center mt-2">
-                ... {Number.parseInt(categoryResidentCount.replace(/,/g, "")) - 3} more rows
+                ... {Math.max(0, Number.parseInt(categoryResidentCount.replace(/,/g, "")) - 3)} more rows
               </p>
             </div>
           </div>

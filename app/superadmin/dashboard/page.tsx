@@ -6,17 +6,14 @@ import {
   PieChart, Pie, Cell, BarChart, Bar,
 } from "recharts"
 import { Card } from "@/components/ui/card"
-import {
-  kpiMetrics,
-  dailyRequests, weeklyRequests, monthlyRequests,
-  documentTypeBreakdown, requestPurposes,
-  systemAlerts,
-  processingPipeline,
-  recentAdminActivity,
-  performanceMetrics,
-  populationSparkline, requestsSparkline, verificationsSparkline,
-  processingSparkline, approvalSparkline,
-} from "@/lib/superadmin-data"
+const dailyRequests: any[] = []; const weeklyRequests: any[] = []; const monthlyRequests: any[] = [];
+const processingPipeline: any = { submitted: 0, underReview: 0, approved: 0, rejected: 0 };
+const recentAdminActivity: any[] = [];
+const performanceMetrics: any = { approvalRate: 0, avgTurnaroundHours: 0, todayProcessed: 0, todayPending: 0, satisfactionScore: 0 };
+const populationSparkline: any[] = [0, 0, 0, 0, 0, 0, 0]; const requestsSparkline: any[] = [0, 0, 0, 0, 0, 0, 0]; const verificationsSparkline: any[] = [0, 0, 0, 0, 0, 0, 0];
+const processingSparkline: any[] = [0, 0, 0, 0, 0, 0, 0]; const approvalSparkline: any[] = [0, 0, 0, 0, 0, 0, 0];
+import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useAdminData } from "@/hooks/use-admin-data"
 import {
   TrendingUp, TrendingDown, Users, FileText, ShieldCheck, Clock, CheckCircle,
   AlertTriangle, AlertCircle, Info, ArrowRight, Activity,
@@ -107,11 +104,32 @@ type TimePeriod = "daily" | "weekly" | "monthly"
 
 export default function SuperAdminDashboard() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("weekly")
+  const { systemAlerts } = useSuperAdminData()
+  const { documentRequests, stats: adminStats } = useAdminData()
 
   const chartData = timePeriod === "daily" ? dailyRequests : timePeriod === "weekly" ? weeklyRequests : monthlyRequests
   const xKey = timePeriod === "daily" ? "day" : timePeriod === "weekly" ? "week" : "month"
 
-  const totalDocuments = documentTypeBreakdown.reduce((s, d) => s + d.value, 0)
+  // Compute dynamic document type breakdown
+  const documentCounts: Record<string, number> = {}
+  documentRequests.forEach((r: any) => documentCounts[r.documentType] = (documentCounts[r.documentType] || 0) + 1)
+  const docColors = { "Barangay Clearance": "#0C2340", "Certificate of Indigency": "#10b981", "Certificate of Residency": "#C5A55A", "Other": "#94a3b8" }
+  const documentTypeBreakdown = Object.entries(documentCounts).map(([name, value]) => ({
+    name, value, color: docColors[name as keyof typeof docColors] || "#94a3b8"
+  }))
+  if (documentTypeBreakdown.length === 0) {
+    documentTypeBreakdown.push({ name: "No Data", value: 1, color: "#f1f5f9" })
+  }
+
+  // Compute dynamic request purposes
+  const purposeCounts: Record<string, number> = {}
+  documentRequests.forEach((r: any) => purposeCounts[r.purpose] = (purposeCounts[r.purpose] || 0) + 1)
+  const totalRequestsForPurpose = documentRequests.length || 1
+  const requestPurposes = Object.entries(purposeCounts).map(([purpose, count]) => ({
+    purpose, count, percentage: Math.round((count / totalRequestsForPurpose) * 100)
+  })).sort((a, b) => b.count - a.count).slice(0, 5)
+
+  const totalDocuments = documentTypeBreakdown.filter(d => d.name !== "No Data").reduce((s, d) => s + d.value, 0)
   const pipelineTotal = processingPipeline.submitted + processingPipeline.underReview + processingPipeline.approved + processingPipeline.rejected
 
   return (
@@ -128,8 +146,8 @@ export default function SuperAdminDashboard() {
               key={p}
               onClick={() => setTimePeriod(p)}
               className={`px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors ${timePeriod === p
-                  ? "bg-[#0C2340] text-white"
-                  : "text-slate-600 hover:bg-slate-50"
+                ? "bg-[#0C2340] text-white"
+                : "text-slate-600 hover:bg-slate-50"
                 }`}
             >
               {p === "daily" ? "7 Days" : p === "weekly" ? "8 Weeks" : "12 Months"}
@@ -140,11 +158,11 @@ export default function SuperAdminDashboard() {
 
       {/* KPI Strip */}
       <div className="grid grid-cols-5 gap-4">
-        <KpiCard label="Total Population" value={kpiMetrics.totalPopulation.value.toLocaleString()} change={kpiMetrics.totalPopulation.change} trend={kpiMetrics.totalPopulation.trend} icon={Users} sparkData={populationSparkline} sparkColor="#0C2340" />
-        <KpiCard label="Active Requests" value={kpiMetrics.activeRequests.value.toString()} change={kpiMetrics.activeRequests.change} trend={kpiMetrics.activeRequests.trend} icon={FileText} sparkData={requestsSparkline} sparkColor="#2a5080" />
-        <KpiCard label="Pending Verify" value={kpiMetrics.pendingVerifications.value.toString()} change={kpiMetrics.pendingVerifications.change} trend={kpiMetrics.pendingVerifications.trend} icon={ShieldCheck} sparkData={verificationsSparkline} sparkColor="#C5A55A" />
-        <KpiCard label="Avg Processing" value={kpiMetrics.avgProcessingDays.value.toString()} unit="days" change={kpiMetrics.avgProcessingDays.change} trend={kpiMetrics.avgProcessingDays.trend} icon={Clock} sparkData={processingSparkline} sparkColor="#10b981" />
-        <KpiCard label="Approval Rate" value={kpiMetrics.approvalRate.value.toString()} unit="%" change={kpiMetrics.approvalRate.change} trend={kpiMetrics.approvalRate.trend} icon={CheckCircle} sparkData={approvalSparkline} sparkColor="#0C2340" />
+        <KpiCard label="Total Population" value={adminStats.totalResidents.toLocaleString()} change={0} trend={"up"} icon={Users} sparkData={populationSparkline} sparkColor="#0C2340" />
+        <KpiCard label="Active Requests" value={adminStats.pendingRequests.toString()} change={0} trend={"up"} icon={FileText} sparkData={requestsSparkline} sparkColor="#2a5080" />
+        <KpiCard label="Pending Verify" value={adminStats.pendingVerifications.toString()} change={0} trend={"up"} icon={ShieldCheck} sparkData={verificationsSparkline} sparkColor="#C5A55A" />
+        <KpiCard label="Avg Processing" value={"0"} unit="days" change={0} trend={"up"} icon={Clock} sparkData={processingSparkline} sparkColor="#10b981" />
+        <KpiCard label="Approval Rate" value={"0"} unit="%" change={0} trend={"up"} icon={CheckCircle} sparkData={approvalSparkline} sparkColor="#0C2340" />
       </div>
 
       {/* Primary Charts Row */}
@@ -233,8 +251,10 @@ export default function SuperAdminDashboard() {
             </span>
           </div>
           <div className="space-y-3">
-            {systemAlerts.map((alert) => {
-              const config = alertConfig[alert.severity]
+            {systemAlerts.length === 0 ? (
+              <div className="p-4 text-center text-slate-500 text-xs bg-slate-50 rounded-lg">No alerts at this time</div>
+            ) : systemAlerts.map((alert) => {
+              const config = alertConfig[alert.severity] || alertConfig.info
               const AlertIcon = config.icon
               return (
                 <div key={alert.id} className={`${config.bg} border ${config.border} rounded-lg p-3`}>
@@ -400,7 +420,7 @@ export default function SuperAdminDashboard() {
             </div>
             <div className="bg-slate-50 rounded-lg p-3.5">
               <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Active Admins</p>
-              <p className="text-lg font-bold text-[#0C2340]">4</p>
+              <p className="text-lg font-bold text-[#0C2340]">0</p>
               <p className="text-[10px] text-slate-400">Online now</p>
             </div>
           </div>

@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import {
-  systemHealthMetrics, configChangeLog,
-} from "@/lib/superadmin-data"
+const systemHealthMetrics: any = { uptime: 0, storageUsed: 0, storageTotal: 100, responseTime: 0, activeModules: 0, totalModules: 0, activeDocTypes: 0, totalDocTypes: 0 };
+const configChangeLog: any[] = [];
+import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import {
   Server, HardDrive, Clock, Activity, Shield, FileText,
   Palette, LayoutTemplate, Files, Settings, CheckCircle, Pencil,
@@ -22,11 +22,21 @@ const changeTypeIcons: Record<string, typeof Palette> = {
 }
 
 export default function SystemConfig() {
+  const { systemConfig, updateConfig } = useSuperAdminData()
   const [activeTab, setActiveTab] = useState<"branding" | "templates" | "documents">("branding")
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [isSavingChanges, setIsSavingChanges] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState("clearance")
   const [editingTemplate, setEditingTemplate] = useState(false)
+
+  // Local state for edits
+  const [formData, setFormData] = useState({
+    barangayName: systemConfig.barangayName,
+    address: systemConfig.address,
+    contactNumber: systemConfig.contactNumber,
+    emailAddress: systemConfig.emailAddress,
+    barangayCaptainName: systemConfig.barangayCaptainName,
+  })
 
   const tabs = [
     { id: "branding" as const, label: "Branding", icon: Palette },
@@ -57,7 +67,8 @@ export default function SystemConfig() {
     if (isSavingChanges) return
 
     setIsSavingChanges(true)
-    await delay(900)
+    updateConfig(formData)
+    await delay(500)
     setShowSaveDialog(false)
     setIsSavingChanges(false)
     showToastPreset("configSaved")
@@ -145,8 +156,8 @@ export default function SystemConfig() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${activeTab === tab.id
-                  ? "border-[#0C2340] text-[#0C2340]"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
+                ? "border-[#0C2340] text-[#0C2340]"
+                : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -164,24 +175,20 @@ export default function SystemConfig() {
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Barangay Name</label>
-                <Input defaultValue="Barangay Sample" />
+                <Input value={formData.barangayName} onChange={e => setFormData({ ...formData, barangayName: e.target.value })} placeholder="Barangay Sample" />
               </div>
               <div>
                 <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Municipality / City</label>
-                <Input defaultValue="City of Sample" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Province</label>
-                <Input defaultValue="Sample Province" />
+                <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="City of Sample" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Contact Number</label>
-                  <Input defaultValue="(02) 8123-4567" />
+                  <Input value={formData.contactNumber} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} placeholder="(02) 8123-4567" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Email</label>
-                  <Input defaultValue="barangay@sample.gov.ph" />
+                  <Input value={formData.emailAddress} onChange={e => setFormData({ ...formData, emailAddress: e.target.value })} placeholder="barangay@sample.gov.ph" />
                 </div>
               </div>
             </div>
@@ -203,7 +210,7 @@ export default function SystemConfig() {
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Barangay Captain</label>
                   <div className="flex gap-2">
-                    <Input defaultValue="Hon. Juan Dela Cruz" className="flex-1" />
+                    <Input value={formData.barangayCaptainName} onChange={e => setFormData({ ...formData, barangayCaptainName: e.target.value })} placeholder="Hon. Juan Dela Cruz" className="flex-1" />
                     <Button variant="outline" className="text-xs bg-transparent">Upload Sig</Button>
                   </div>
                 </div>
@@ -229,8 +236,8 @@ export default function SystemConfig() {
                 key={t.id}
                 onClick={() => { setSelectedTemplate(t.id); setEditingTemplate(false) }}
                 className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${selectedTemplate === t.id
-                    ? "border-[#0C2340] bg-[#0C2340]/[0.03] ring-1 ring-[#0C2340]/20"
-                    : "border-slate-200 hover:border-slate-300 bg-white"
+                  ? "border-[#0C2340] bg-[#0C2340]/[0.03] ring-1 ring-[#0C2340]/20"
+                  : "border-slate-200 hover:border-slate-300 bg-white"
                   }`}
               >
                 <div className="flex items-center justify-between">

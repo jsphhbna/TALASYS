@@ -9,10 +9,11 @@ import {
   saveSessionUser,
   updateResidentUser,
 } from "@/lib/local-storage-store"
+import { findAdminByCredentials } from "@/lib/superadmin-store"
 
 interface AuthContextType {
   user: AuthUser | null
-  login: (username: string, password: string) => boolean
+  login: (username: string, password: string) => AuthUser | null
   logout: () => void
   updateUser: (updates: Partial<AuthUser>) => void
   isAuthenticated: boolean
@@ -21,20 +22,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const ADMIN_USER: AuthUser = {
-  id: "admin-1",
-  name: "Juan Dela Cruz",
-  email: "admin@barangay.gov.ph",
-  initials: "JD",
-  role: "admin",
-  dateOfBirth: "",
-  contactNumber: "",
-  address: "",
-  accountExpiry: "",
-}
-
-const SUPERADMIN_USER: AuthUser = {
-  id: "superadmin-1",
+// Bootstrap superadmin — always available so the system is never locked out
+const BOOTSTRAP_SUPERADMIN: AuthUser = {
+  id: "superadmin-bootstrap",
   name: "Super Admin",
   email: "superadmin@barangay.gov.ph",
   initials: "SA",
@@ -44,12 +34,8 @@ const SUPERADMIN_USER: AuthUser = {
   address: "",
   accountExpiry: "",
 }
-
-export const DEMO_CREDENTIALS = {
-  resident: { username: "user", password: "user123" },
-  admin: { username: "admin", password: "admin123" },
-  superadmin: { username: "superadmin", password: "superadmin123" },
-}
+const BOOTSTRAP_USERNAME = "superadmin"
+const BOOTSTRAP_PASSWORD = "superadmin123"
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -64,27 +50,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsReady(true)
   }, [])
 
-  const login = (username: string, password: string): boolean => {
-    if (username === DEMO_CREDENTIALS.admin.username && password === DEMO_CREDENTIALS.admin.password) {
-      setUser(ADMIN_USER)
-      saveSessionUser(ADMIN_USER)
-      return true
+  const login = (username: string, password: string): AuthUser | null => {
+    // 1. Bootstrap superadmin (always works)
+    if (username === BOOTSTRAP_USERNAME && password === BOOTSTRAP_PASSWORD) {
+      setUser(BOOTSTRAP_SUPERADMIN)
+      saveSessionUser(BOOTSTRAP_SUPERADMIN)
+      return BOOTSTRAP_SUPERADMIN
     }
 
-    if (username === DEMO_CREDENTIALS.superadmin.username && password === DEMO_CREDENTIALS.superadmin.password) {
-      setUser(SUPERADMIN_USER)
-      saveSessionUser(SUPERADMIN_USER)
-      return true
+    // 2. Admin accounts from localStorage (created by superadmin)
+    const adminAccount = findAdminByCredentials(username, password)
+    if (adminAccount) {
+      const adminUser: AuthUser = {
+        id: adminAccount.id,
+        name: adminAccount.name,
+        email: adminAccount.email,
+        initials: adminAccount.initials,
+        role: "admin",
+        dateOfBirth: "",
+        contactNumber: "",
+        address: "",
+        accountExpiry: "",
+      }
+      setUser(adminUser)
+      saveSessionUser(adminUser)
+      return adminUser
     }
 
+    // 3. Resident accounts from localStorage (registered through the app)
     const residentAccount = findResidentByCredentials(username, password)
     if (residentAccount) {
       setUser(residentAccount.user)
       saveSessionUser(residentAccount.user)
-      return true
+      return residentAccount.user
     }
 
-    return false
+    return null
   }
 
   const updateUser = (updates: Partial<AuthUser>) => {

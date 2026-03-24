@@ -64,7 +64,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] h-screen sticky top-0 flex-col" role="navigation">
+      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
         <nav className="flex-1 pt-4 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = activePath === item.href

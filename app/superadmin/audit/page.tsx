@@ -11,9 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import {
-  auditLogs, auditHourlyActivity, auditActionBreakdown, auditWeeklyTrend,
-} from "@/lib/superadmin-data"
+const auditHourlyActivity: any[] = []; const auditWeeklyTrend: any[] = [];
+import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import {
   Activity, FileText, Users, Shield, AlertTriangle,
   TrendingUp,
@@ -34,6 +33,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 }
 
 export default function AuditLogs() {
+  const { auditLogs, stats: { auditActionBreakdown, totalAuditLogs } } = useSuperAdminData()
   const [searchTerm, setSearchTerm] = useState("")
   const [adminFilter, setAdminFilter] = useState("all")
   const [actionFilter, setActionFilter] = useState("all")
@@ -81,14 +81,14 @@ export default function AuditLogs() {
     }
   }
 
-  const totalActions = auditActionBreakdown.reduce((s, a) => s + a.value, 0)
-  const suspiciousCount = 3 // flagged items
+  const suspiciousCount = auditLogs.filter(l => l.actionType === "Deleted Admin" || l.actionType === "Config Edit").length
 
+  const todaysActions = auditLogs.filter(l => l.date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })).length
   const kpis = [
-    { label: "Today's Actions", value: "147", icon: Activity, color: "#0C2340", spark: [120, 135, 128, 142, 139, 155, 147] },
-    { label: "This Week", value: "892", icon: FileText, color: "#2a5080", spark: [780, 810, 845, 870, 860, 880, 892] },
-    { label: "Active Admins", value: "6", icon: Users, color: "#10b981", spark: [4, 5, 5, 6, 5, 6, 6] },
-    { label: "Flagged", value: suspiciousCount.toString(), icon: AlertTriangle, color: "#ef4444", spark: [1, 2, 1, 3, 2, 2, 3] },
+    { label: "Today's Actions", value: todaysActions.toString(), icon: Activity, color: "#0C2340", spark: [0, 0, 0, 0, 0, 0, 0] },
+    { label: "This Week", value: auditLogs.length.toString(), icon: FileText, color: "#2a5080", spark: [0, 0, 0, 0, 0, 0, 0] },
+    { label: "Active Admins", value: "0", icon: Users, color: "#10b981", spark: [0, 0, 0, 0, 0, 0, 0] },
+    { label: "Flagged", value: suspiciousCount.toString(), icon: AlertTriangle, color: "#ef4444", spark: [0, 0, 0, 0, 0, 0, 0] },
   ]
 
   return (
@@ -136,7 +136,7 @@ export default function AuditLogs() {
               <Bar dataKey="actions" fill="#0C2340" radius={[3, 3, 0, 0]} barSize={18} name="Actions" />
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[10px] text-slate-400 mt-2">Peak activity: 2PM (58 actions)</p>
+          <p className="text-[10px] text-slate-400 mt-2">Peak activity: - (0 actions)</p>
         </Card>
 
         {/* Action Type Breakdown */}
@@ -148,7 +148,7 @@ export default function AuditLogs() {
               <Pie data={auditActionBreakdown} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={2}>
                 {auditActionBreakdown.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
-              <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="text-sm font-bold" fill="#0C2340">{totalActions}</text>
+              <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="text-sm font-bold" fill="#0C2340">{totalAuditLogs}</text>
               <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" className="text-[9px]" fill="#94a3b8">total</text>
             </PieChart>
           </ResponsiveContainer>
@@ -169,9 +169,8 @@ export default function AuditLogs() {
         <Card className="col-span-4 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-sm font-semibold text-[#0C2340]">Weekly Trend</h2>
-            <div className="flex items-center gap-1 text-[10px] text-emerald-600">
-              <TrendingUp className="w-3 h-3" />
-              <span className="font-medium">+8.4%</span>
+            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+              <span className="font-medium">-</span>
             </div>
           </div>
           <p className="text-[11px] text-slate-500 mb-4">Daily action volume this week</p>
@@ -198,9 +197,9 @@ export default function AuditLogs() {
         <div className="grid grid-cols-4 gap-4">
           <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="px-4 py-2 border border-slate-200 rounded-md text-sm">
             <option value="all">All Admins</option>
-            <option value="Juan Dela Cruz">Juan Dela Cruz</option>
-            <option value="Maria Reyes">Maria Reyes</option>
-            <option value="Pedro Santos">Pedro Santos</option>
+            {Array.from(new Set(auditLogs.map((l: any) => l.admin.name || typeof l.admin === "string" ? l.admin : "System"))).map(name => (
+              <option key={name as string} value={name as string}>{name as string}</option>
+            ))}
           </select>
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="px-4 py-2 border border-slate-200 rounded-md text-sm">
             <option value="all">All Actions</option>
@@ -231,7 +230,9 @@ export default function AuditLogs() {
           </div>
         </div>
         <div className="divide-y divide-slate-100">
-          {filteredLogs.map((log) => (
+          {filteredLogs.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">No logs found matching filters.</div>
+          ) : filteredLogs.map((log) => (
             <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
               <div className="grid grid-cols-12 gap-4 items-center">
                 <div className="col-span-2">
