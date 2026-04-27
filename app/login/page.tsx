@@ -28,7 +28,7 @@ export default function LoginPage() {
     setIsSigningIn(true)
     await delay(650)
 
-    const user = login(username, password)
+    const user = await login(username, password)
     if (user) {
       if (user.role === "superadmin") {
         router.push("/superadmin/dashboard")
@@ -106,12 +106,6 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center space-y-3">
-            <div className="space-y-1 bg-slate-50 rounded-md p-3 border border-slate-100">
-              <p className="text-xs text-slate-500 font-medium mb-1.5">Bootstrap Login</p>
-              <p className="text-sm text-slate-600">
-                Super Admin: <span className="font-mono font-semibold text-[#0C2340]">superadmin / superadmin123</span>
-              </p>
-            </div>
             <p className="text-sm text-slate-500">
               Don&apos;t have an account?{" "}
               <Link href="/register" className="text-[#0C2340] font-semibold hover:underline">

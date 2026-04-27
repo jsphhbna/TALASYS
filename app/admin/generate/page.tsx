@@ -55,10 +55,10 @@ export default function GenerateDocuments() {
       <div className="grid grid-cols-12 gap-6 mb-6">
         <div className="col-span-8 grid grid-cols-4 gap-4">
           {[
-            { label: "Generated Today", value: "14", icon: Printer, color: "text-[#0C2340]", bg: "bg-[#0C2340]/[0.06]" },
-            { label: "This Week", value: "68", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-            { label: "Most Requested", value: "Clearance", icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
-            { label: "Avg Per Day", value: "9.7", icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+            { label: "Generated Today", value: "0", icon: Printer, color: "text-[#0C2340]", bg: "bg-[#0C2340]/[0.06]" },
+            { label: "This Week", value: "0", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Most Requested", value: "-", icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Avg Per Day", value: "0", icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
           ].map((kpi, i) => (
             <Card key={i} className="p-4 shadow-sm">
               <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center mb-2`}>

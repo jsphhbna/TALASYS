@@ -103,7 +103,11 @@ export const findResidentByEmail = (email: string) => {
   ) ?? null
 }
 
-export const registerResidentAccount = (input: CreateResidentAccountInput) => {
+export const registerResidentAccount = async (input: CreateResidentAccountInput) => {
+  const { auth, db } = await import("@/lib/firebase")
+  const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth")
+  const { doc, setDoc } = await import("firebase/firestore")
+
   const storage = readMasterStorage()
   const normalizedEmail = input.email.trim().toLowerCase()
   const username = normalizedEmail
@@ -115,7 +119,12 @@ export const registerResidentAccount = (input: CreateResidentAccountInput) => {
     throw new Error("An account with this email already exists.")
   }
 
-  const id = `resident-${generateId()}`
+  // CREATE IN FIREBASE AUTH
+  const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, input.password)
+  await updateProfile(userCredential.user, { displayName: input.name.trim() })
+
+  const id = userCredential.user.uid
+  
   const user: AuthUser = {
     id,
     name: input.name.trim(),
@@ -133,9 +142,13 @@ export const registerResidentAccount = (input: CreateResidentAccountInput) => {
   const residentAccount: ResidentAccountRecord = {
     id,
     username,
-    password: input.password,
+    password: "", // Handled by Firebase Auth now
     user,
   }
+
+  // ALSO STORE IN FIRESTORE DIRECTLY SO NEXT LOGIN PICKS IT UP
+  const userDocRef = doc(db, "users", id)
+  await setDoc(userDocRef, user)
 
   storage.residents.push(residentAccount)
 

@@ -3,17 +3,17 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import type { AuthUser, UserRole } from "@/lib/auth-types"
-import {
-  findResidentByCredentials,
-  loadSessionUser,
-  saveSessionUser,
-  updateResidentUser,
-} from "@/lib/local-storage-store"
-import { findAdminByCredentials } from "@/lib/superadmin-store"
+import { auth, db } from "@/lib/firebase"
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  signOut as firebaseSignOut 
+} from "firebase/auth"
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
 
 interface AuthContextType {
   user: AuthUser | null
-  login: (username: string, password: string) => AuthUser | null
+  login: (username: string, password: string) => Promise<AuthUser | null>
   logout: () => void
   updateUser: (updates: Partial<AuthUser>) => void
   isAuthenticated: boolean
@@ -34,7 +34,7 @@ const BOOTSTRAP_SUPERADMIN: AuthUser = {
   address: "",
   accountExpiry: "",
 }
-const BOOTSTRAP_USERNAME = "superadmin"
+const BOOTSTRAP_USERNAME = "superadmin@barangay.gov.ph"
 const BOOTSTRAP_PASSWORD = "superadmin123"
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -43,71 +43,158 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    const storedSession = loadSessionUser()
-    if (storedSession) {
-      setUser(storedSession)
-    }
-    setIsReady(true)
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          // Fetch user document from Firestore (users collection)
+          const userDocRef = doc(db, "users", firebaseUser.uid)
+          const userDoc = await getDoc(userDocRef)
+          
+          if (userDoc.exists()) {
+            setUser(userDoc.data() as AuthUser)
+          } else {
+            // Check if they are an admin or superadmin
+            let role: UserRole = "resident"
+            
+            if (firebaseUser.email === "superadmin@barangay.gov.ph") {
+               role = "superadmin"
+            } else {
+              const { getDocs, query, collection, where } = await import("firebase/firestore")
+              const adminQ = query(collection(db, "admins"), where("email", "==", firebaseUser.email))
+              const qSnap = await getDocs(adminQ)
+              if (!qSnap.empty) {
+                role = "admin"
+              }
+            }
+
+            // Unlikely, but create fallback if record is missing
+            const fallback: AuthUser = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || firebaseUser.email || "User",
+              email: firebaseUser.email || "",
+              initials: (firebaseUser.displayName || firebaseUser.email || "U")[0].toUpperCase(),
+              role: role,
+              dateOfBirth: "",
+              contactNumber: "",
+              address: "",
+              accountExpiry: "",
+            }
+            setUser(fallback)
+            // also create in firestore so it doesnt do this again
+            await setDoc(doc(db, "users", firebaseUser.uid), fallback)
+          }
+        } catch (error) {
+          console.error("Failed to load user document:", error)
+          setUser(null)
+        }
+      } else {
+        // Fallback for bootstrap superadmin session in local storage
+        const local = window.localStorage.getItem("talasys.superadmin")
+        if (local) {
+          setUser(JSON.parse(local))
+        } else {
+          setUser(null)
+        }
+      }
+      setIsReady(true)
+    })
+
+    return () => unsubscribe()
   }, [])
 
-  const login = (username: string, password: string): AuthUser | null => {
-    // 1. Bootstrap superadmin (always works)
-    if (username === BOOTSTRAP_USERNAME && password === BOOTSTRAP_PASSWORD) {
-      setUser(BOOTSTRAP_SUPERADMIN)
-      saveSessionUser(BOOTSTRAP_SUPERADMIN)
-      return BOOTSTRAP_SUPERADMIN
-    }
-
-    // 2. Admin accounts from localStorage (created by superadmin)
-    const adminAccount = findAdminByCredentials(username, password)
-    if (adminAccount) {
-      const adminUser: AuthUser = {
-        id: adminAccount.id,
-        name: adminAccount.name,
-        email: adminAccount.email,
-        initials: adminAccount.initials,
-        role: "admin",
-        dateOfBirth: "",
-        contactNumber: "",
-        address: "",
-        accountExpiry: "",
+  const login = async (username: string, password: string): Promise<AuthUser | null> => {
+    // 1. Authenticate with Firebase Auth
+    try {
+      // Normalizing username since it might have been stored as email
+      const email = username.includes("@") ? username : `${username}@barangay.gov.ph`
+      
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, email, password)
+      } catch (authError: any) {
+        // If this is the bootstrap superadmin and it doesn't exist yet, automatically create it in Firebase!
+        if (
+          (email === BOOTSTRAP_USERNAME || email === "superadmin@barangay.gov.ph") && 
+          password === BOOTSTRAP_PASSWORD && 
+          authError.code === "auth/invalid-credential"
+        ) {
+          const { createUserWithEmailAndPassword } = await import("firebase/auth")
+          userCredential = await createUserWithEmailAndPassword(auth, email, password)
+        } else {
+          throw authError // Rethrow if it's a normal invalid login
+        }
       }
-      setUser(adminUser)
-      saveSessionUser(adminUser)
-      return adminUser
-    }
+      
+      const userDocRef = doc(db, "users", userCredential.user.uid)
+      const userDoc = await getDoc(userDocRef)
+      
+      let userData: AuthUser
+      if (userDoc.exists()) {
+        userData = userDoc.data() as AuthUser
+      } else {
+        // Automatically create user doc if missing after auth
+        let role: UserRole = "resident"
+        
+        // If it's the exact superadmin email, force superadmin role
+        if (email === "superadmin@barangay.gov.ph") {
+           role = "superadmin"
+        } else {
+           // Otherwise, check if the email is in the admin collection
+           const { getDocs, query, collection, where } = await import("firebase/firestore")
+           const adminQ = query(collection(db, "admins"), where("email", "==", email))
+           const qSnap = await getDocs(adminQ)
+           if (!qSnap.empty) {
+             role = "admin"
+           }
+        }
 
-    // 3. Resident accounts from localStorage (registered through the app)
-    const residentAccount = findResidentByCredentials(username, password)
-    if (residentAccount) {
-      setUser(residentAccount.user)
-      saveSessionUser(residentAccount.user)
-      return residentAccount.user
+        userData = {
+          id: userCredential.user.uid,
+          name: email === "superadmin@barangay.gov.ph" ? "Super Admin" : (userCredential.user.displayName || email),
+          email: userCredential.user.email || email,
+          initials: email === "superadmin@barangay.gov.ph" ? "SA" : (email)[0].toUpperCase(),
+          role: role,
+          dateOfBirth: "",
+          contactNumber: "",
+          address: "",
+          accountExpiry: "",
+        }
+        await setDoc(userDocRef, userData)
+      }
+      setUser(userData)
+      return userData
+    } catch (error) {
+      console.error("Firebase Login Error:", error)
+      return null
     }
-
-    return null
   }
 
-  const updateUser = (updates: Partial<AuthUser>) => {
-    setUser((previous) => {
-      if (!previous) {
-        return previous
+  const updateUser = async (updates: Partial<AuthUser>) => {
+    if (!user) return
+
+    const nextUser = { ...user, ...updates }
+    setUser(nextUser)
+
+    if (user.id !== "superadmin-bootstrap") {
+      try {
+        const userDocRef = doc(db, "users", user.id)
+        await updateDoc(userDocRef, updates)
+      } catch (error) {
+        console.error("Error updating user document in Firebase:", error)
       }
-
-      const nextUser = { ...previous, ...updates }
-      saveSessionUser(nextUser)
-
-      if (previous.role === "resident") {
-        updateResidentUser(previous.id, updates)
-      }
-
-      return nextUser
-    })
+    } else {
+      window.localStorage.setItem("talasys.superadmin", JSON.stringify(nextUser))
+    }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await firebaseSignOut(auth)
+    } catch (e) {
+      console.error("Error during firebase signout:", e)
+    }
+    window.localStorage.removeItem("talasys.superadmin")
     setUser(null)
-    saveSessionUser(null)
     router.push("/login")
   }
 

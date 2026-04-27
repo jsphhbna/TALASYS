@@ -222,7 +222,7 @@ export default function RegisterPage() {
     await delay(1200)
 
     try {
-      registerResidentAccount({
+      await registerResidentAccount({
         name: formData.fullName,
         email: formData.email,
         password: formData.password,

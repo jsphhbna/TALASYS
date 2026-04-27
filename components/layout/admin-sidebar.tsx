@@ -30,11 +30,11 @@ import {
 const navigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Resident Management", href: "/admin/residents", icon: Users },
-  { name: "Verifications", href: "/admin/verifications", icon: ShieldCheck, badge: 12 },
-  { name: "Document Requests", href: "/admin/requests", icon: FileText, badge: 8 },
+  { name: "Verifications", href: "/admin/verifications", icon: ShieldCheck },
+  { name: "Document Requests", href: "/admin/requests", icon: FileText },
   { name: "Generate Documents", href: "/admin/generate", icon: FilePlus },
   { name: "Category Reports", href: "/admin/reports", icon: BarChart3 },
-  { name: "Notifications", href: "/admin/notifications", icon: Bell, badge: 5 },
+  { name: "Notifications", href: "/admin/notifications", icon: Bell },
   { name: "Activity Logs", href: "/admin/logs", icon: ClipboardList },
 ]
 

@@ -41,9 +41,9 @@ export default function Verifications() {
         <div className="col-span-8 grid grid-cols-4 gap-4">
           {[
             { label: "Pending", value: pendingVerifications.length, icon: ClipboardCheck, color: "text-amber-600", bg: "bg-amber-50" },
-            { label: "Approved Today", value: "5", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
-            { label: "Rejected Today", value: "1", icon: XCircle, color: "text-red-600", bg: "bg-red-50" },
-            { label: "Avg Process Time", value: "1.2d", icon: Clock, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Approved Today", value: "0", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Rejected Today", value: "0", icon: XCircle, color: "text-red-600", bg: "bg-red-50" },
+            { label: "Avg Process Time", value: "0d", icon: Clock, color: "text-blue-600", bg: "bg-blue-50" },
           ].map((kpi, i) => (
             <Card key={i} className="p-4 shadow-sm">
               <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center mb-2`}>

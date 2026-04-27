@@ -178,10 +178,32 @@ export default function ProfilePage() {
       setIsUploadingPicture(true)
       await delay(1200)
       const nextProfilePicture = event.target?.result as string
-      setProfilePicture(nextProfilePicture)
-      saveProfilePicture(nextProfilePicture)
-      setIsUploadingPicture(false)
-      showToastPreset("profileUpdated")
+      setProfilePicture(nextProfilePicture) // Optimistic update
+
+      if (user) {
+        // Upload to Firebase Storage
+        import("@/lib/firebase").then(async ({ storage, db }) => {
+          const { ref, uploadString, getDownloadURL } = await import("firebase/storage")
+          const { doc, updateDoc } = await import("firebase/firestore")
+          
+          try {
+            const storageRef = ref(storage, `profiles/${user.id}`)
+            await uploadString(storageRef, nextProfilePicture, 'data_url')
+            const downloadUrl = await getDownloadURL(storageRef)
+            
+            await updateDoc(doc(db, "users", user.id), { profilePicture: downloadUrl })
+            saveProfilePicture(downloadUrl)
+            showToastPreset("profileUpdated")
+          } catch (error) {
+            console.error("Failed to upload profile picture:", error)
+            showToastPreset("uploadFailedSize") // Re-use an existing preset instead of importing toast
+          } finally {
+            setIsUploadingPicture(false)
+          }
+        })
+      } else {
+         setIsUploadingPicture(false)
+      }
     }
     reader.readAsDataURL(file)
   }
