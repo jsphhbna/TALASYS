@@ -5,7 +5,6 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
-const generationVolumeTrend: any[] = []
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -15,6 +14,20 @@ import jsPDF from "jspdf"
 
 export default function GenerateDocuments() {
   const { residents: allResidents, documentRequests: adminDocumentRequests } = useAdminData()
+  
+  const now = Date.now()
+  const dayMs = 1000 * 60 * 60 * 24
+  
+  const generationVolumeTrend = Array.from({ length: 7 }).map((_, i) => {
+    const start = now - (6 - i) * dayMs;
+    const end = start + dayMs;
+    const reqs = adminDocumentRequests.filter(r => r.createdAt >= start && r.createdAt < end && r.status === "Completed");
+    return {
+      day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }),
+      volume: reqs.length
+    }
+  });
+
   const [activeTab, setActiveTab] = useState("manual")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedResident, setSelectedResident] = useState<any>(null)

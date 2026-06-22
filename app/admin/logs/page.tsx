@@ -5,7 +5,6 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
-const logActionFrequency: any[] = []
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -16,6 +15,17 @@ export default function ActivityLogs() {
   const [activeFilter, setActiveFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [undoingIds, setUndoingIds] = useState<Record<string, boolean>>({})
+
+  const groupedLogs = activityLogs.reduce((acc, log) => {
+    const action = log.action.split(' ')[0] || "Other"
+    acc[action] = (acc[action] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+  
+  const logActionFrequency = Object.entries(groupedLogs).map(([name, count]) => ({
+    action: name,
+    count
+  })).sort((a, b) => b.count - a.count).slice(0, 5)
 
   const filters = [
     { id: "all", label: "All Actions" },

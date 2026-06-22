@@ -5,7 +5,6 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
-const requestTypeTrend: any[] = []
 import {
   PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -13,6 +12,20 @@ import { ClipboardList, CheckCircle2, XCircle, FileText } from "lucide-react"
 
 export default function DocumentRequests() {
   const { documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
+  const now = Date.now()
+  const dayMs = 1000 * 60 * 60 * 24
+  
+  const requestTypeTrend = Array.from({ length: 6 }).map((_, i) => {
+    const start = now - (5 - i) * 30 * dayMs;
+    const end = start + 30 * dayMs;
+    const reqs = adminDocumentRequests.filter(r => r.createdAt >= start && r.createdAt < end);
+    return {
+      month: new Date(start).toLocaleDateString('en-US', { month: 'short' }),
+      clearance: reqs.filter(r => r.documentType.includes("Clearance")).length,
+      residency: reqs.filter(r => r.documentType.includes("Residency")).length,
+      indigency: reqs.filter(r => r.documentType.includes("Indigency")).length
+    }
+  });
   const [activeFilter, setActiveFilter] = useState("all")
   const [showApproveDialog, setShowApproveDialog] = useState(false)
   const [showRejectDialog, setShowRejectDialog] = useState(false)

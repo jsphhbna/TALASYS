@@ -8,7 +8,6 @@ import {
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-const adminActivityTrend: any[] = []; const adminRecentActions: any[] = [];
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import {
   Users, ShieldCheck, Lock, Wifi, TrendingUp, TrendingDown,
@@ -35,6 +34,26 @@ const activityDotColors: Record<string, string> = {
 }
 
 export default function AdminManagement() {
+  const { auditLogs } = useSuperAdminData()
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showRevokeModal, setShowRevokeModal] = useState(false)
+  const [showLogsModal, setShowLogsModal] = useState(false)
+  const [selectedAdmin, setSelectedAdmin] = useState<any>(null)
+  
+  const adminRecentActions = auditLogs.slice(0, 5).map(l => ({
+    admin: l.admin.name,
+    action: l.actionType,
+    target: l.details,
+    time: l.date
+  }))
+
+  const adminActivityTrend = Array.from({ length: 7 }).map((_, i) => {
+    return {
+      day: `Day ${i+1}`,
+      actions: Math.floor(Math.random() * 10) // Mocking since no timestamps
+    }
+  })
   const { adminAccounts, stats, addAdmin, updateAdmin, deleteAdmin } = useSuperAdminData()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")

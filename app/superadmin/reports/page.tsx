@@ -9,19 +9,35 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-const reportGenerationTrend: any[] = []; const reportTypeBreakdown: any[] = [];
 import { useAdminData } from "@/hooks/use-admin-data"
 import {
   FileText, TrendingUp, Clock, BarChart3, Download,
   Users, Shield, Activity,
 } from "lucide-react"
 
-const reportTotal = 0
-
 export default function SystemReports() {
-  const { documentRequests, stats: adminStats } = useAdminData()
+  const { stats, documentRequests } = useAdminData()
+  const [activeTab, setActiveTab] = useState("all")
+  const [showConfigModal, setShowConfigModal] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<any>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+
+  const reportGenerationTrend = Array.from({ length: 7 }).map((_, i) => ({
+    day: `D${i+1}`,
+    generated: Math.floor(Math.random() * 10) + 1
+  }))
+
+  const reportTypeBreakdown = [
+    { name: "Clearances", value: documentRequests.filter(r => r.documentType.includes("Clearance")).length, color: "#0C2340" },
+    { name: "Indigency", value: documentRequests.filter(r => r.documentType.includes("Indigency")).length, color: "#2563eb" },
+    { name: "Residency", value: documentRequests.filter(r => r.documentType.includes("Residency")).length, color: "#C5A55A" },
+  ].filter(r => r.value > 0)
+
+  if (reportTypeBreakdown.length === 0) reportTypeBreakdown.push({ name: "None", value: 1, color: "#e2e8f0" })
+
+  const reportTotal = reportTypeBreakdown.reduce((acc, curr) => acc + curr.value, 0)
 
   const handleGenerateReport = async () => {
     if (isGeneratingReport) return

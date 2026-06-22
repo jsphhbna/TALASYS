@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 const systemHealthMetrics: any = { uptime: 0, storageUsed: 0, storageTotal: 100, responseTime: 0, activeModules: 0, totalModules: 0, activeDocTypes: 0, totalDocTypes: 0 };
-const configChangeLog: any[] = [];
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import {
   Server, HardDrive, Clock, Activity, Shield, FileText,
@@ -22,12 +21,18 @@ const changeTypeIcons: Record<string, typeof Palette> = {
 }
 
 export default function SystemConfig() {
-  const { systemConfig, updateConfig } = useSuperAdminData()
+  const { systemConfig, updateConfig, auditLogs } = useSuperAdminData()
   const [activeTab, setActiveTab] = useState<"branding" | "templates" | "documents">("branding")
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [isSavingChanges, setIsSavingChanges] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState("clearance")
   const [editingTemplate, setEditingTemplate] = useState(false)
+
+  const configChangeLog = auditLogs.filter(l => l.actionType === "Config Edit" || l.actionType === "Settings Updated").slice(0, 5).map(l => ({
+    action: l.details,
+    type: "branding",
+    time: l.date
+  }))
 
   // Local state for edits
   const [formData, setFormData] = useState({

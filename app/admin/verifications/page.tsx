@@ -5,7 +5,6 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
-const verificationFlowTrend: any[] = []
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts"
@@ -17,6 +16,20 @@ export default function Verifications() {
   const [selectedItem, setSelectedItem] = useState<any>(pendingVerifications[0] || rejectedVerifications[0])
   const [showRejectConfirm, setShowRejectConfirm] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
+
+  const now = Date.now()
+  const dayMs = 1000 * 60 * 60 * 24
+  
+  const verificationFlowTrend = Array.from({ length: 7 }).map((_, i) => {
+    const start = now - (6 - i) * dayMs;
+    const end = start + dayMs;
+    const vers = pendingVerifications.filter(v => (v as any).createdAt >= start && (v as any).createdAt < end);
+    return {
+      day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }),
+      incoming: vers.length,
+      approved: vers.filter(v => v.status === "Approved").length
+    }
+  });
 
   const tabs = [
     { id: "registration", label: "New Registrations", count: pendingVerifications.filter(v => v.type === "registration").length },
