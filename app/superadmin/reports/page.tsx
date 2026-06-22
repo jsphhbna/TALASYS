@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   FileText, TrendingUp, Clock, BarChart3, Download,
   Users, Shield, Activity,
@@ -23,6 +24,11 @@ export default function SystemReports() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+  const mounted = useMounted()
+
+  if (!mounted) {
+    return <div className="flex h-full items-center justify-center p-8">Loading reports...</div>
+  }
 
   const reportGenerationTrend = Array.from({ length: 7 }).map((_, i) => ({
     day: `D${i+1}`,

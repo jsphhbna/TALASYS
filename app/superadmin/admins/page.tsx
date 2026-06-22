@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   Users, ShieldCheck, Lock, Wifi, TrendingUp, TrendingDown,
   CheckCircle, Eye, AlertTriangle, Settings,
@@ -54,7 +55,6 @@ export default function AdminManagement() {
       actions: Math.floor(Math.random() * 10) // Mocking since no timestamps
     }
   })
-  const { adminAccounts, stats, addAdmin, updateAdmin, deleteAdmin } = useSuperAdminData()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -181,6 +181,10 @@ export default function AdminManagement() {
     { label: "Locked", value: lockedCount, icon: Lock, color: "#ef4444", spark: [1, 1, 0, 1, 1, 1], change: 0 },
     { label: "Online Now", value: onlineCount, icon: Wifi, color: "#3b82f6", spark: [1, 2, 3, 2, 3, 3], change: +50 },
   ]
+
+  if (!mounted) {
+    return <div className="flex h-full items-center justify-center p-8">Loading admins...</div>
+  }
 
   return (
     <div className="space-y-6">

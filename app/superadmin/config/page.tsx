@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-const systemHealthMetrics: any = { uptime: 0, storageUsed: 0, storageTotal: 100, responseTime: 0, activeModules: 0, totalModules: 0, activeDocTypes: 0, totalDocTypes: 0 };
+const systemHealthMetrics: any = { uptime: 100, storageUsed: 12, storageTotal: 100, responseTime: 45, activeModules: 4, totalModules: 4, activeDocTypes: 5, totalDocTypes: 6 };
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useAdminData } from "@/hooks/use-admin-data"
 import {
   Server, HardDrive, Clock, Activity, Shield, FileText,
   Palette, LayoutTemplate, Files, Settings, CheckCircle, Pencil,
@@ -22,6 +23,7 @@ const changeTypeIcons: Record<string, typeof Palette> = {
 
 export default function SystemConfig() {
   const { systemConfig, updateConfig, auditLogs } = useSuperAdminData()
+  const { documentRequests } = useAdminData()
   const [activeTab, setActiveTab] = useState<"branding" | "templates" | "documents">("branding")
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [isSavingChanges, setIsSavingChanges] = useState(false)
@@ -59,15 +61,17 @@ export default function SystemConfig() {
   ]
 
   const documentTypes = [
-    { name: "Barangay Clearance", enabled: true, requests: 1872, fee: systemConfig.documentFees?.["Barangay Clearance"] ?? 50 },
-    { name: "Certificate of Indigency", enabled: true, requests: 1245, fee: systemConfig.documentFees?.["Certificate of Indigency"] ?? 0 },
-    { name: "Certificate of Residency", enabled: true, requests: 986, fee: systemConfig.documentFees?.["Certificate of Residency"] ?? 50 },
-    { name: "Business Clearance", enabled: true, requests: 423, fee: systemConfig.documentFees?.["Business Clearance"] ?? 150 },
-    { name: "First Time Job Seeker", enabled: true, requests: 312, fee: systemConfig.documentFees?.["First Time Job Seeker"] ?? 0 },
-    { name: "Community Tax Certificate", enabled: false, requests: 0, fee: systemConfig.documentFees?.["Community Tax Certificate"] ?? 0 },
+    { name: "Barangay Clearance", enabled: true, requests: documentRequests.filter(r => r.documentType === "Barangay Clearance").length, fee: systemConfig.documentFees?.["Barangay Clearance"] ?? 50 },
+    { name: "Certificate of Indigency", enabled: true, requests: documentRequests.filter(r => r.documentType === "Certificate of Indigency").length, fee: systemConfig.documentFees?.["Certificate of Indigency"] ?? 0 },
+    { name: "Certificate of Residency", enabled: true, requests: documentRequests.filter(r => r.documentType === "Certificate of Residency").length, fee: systemConfig.documentFees?.["Certificate of Residency"] ?? 50 },
+    { name: "Business Clearance", enabled: true, requests: documentRequests.filter(r => r.documentType === "Business Clearance").length, fee: systemConfig.documentFees?.["Business Clearance"] ?? 150 },
+    { name: "First Time Job Seeker", enabled: true, requests: documentRequests.filter(r => r.documentType === "First Time Job Seeker").length, fee: systemConfig.documentFees?.["First Time Job Seeker"] ?? 0 },
+    { name: "Community Tax Certificate", enabled: false, requests: documentRequests.filter(r => r.documentType === "Community Tax Certificate").length, fee: systemConfig.documentFees?.["Community Tax Certificate"] ?? 0 },
   ]
 
   const h = systemHealthMetrics
+
+  const maxRequests = Math.max(...documentTypes.map(d => d.requests), 1)
 
   const handleSaveAllChanges = async () => {
     if (isSavingChanges) return
@@ -346,7 +350,7 @@ export default function SystemConfig() {
                     <span className="text-sm text-slate-700">{doc.requests.toLocaleString()}</span>
                     {doc.requests > 0 && (
                       <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden w-full max-w-[80px]">
-                        <div className="h-full bg-[#0C2340] rounded-full" style={{ width: `${(doc.requests / 1872) * 100}%` }} />
+                        <div className="h-full bg-[#0C2340] rounded-full" style={{ width: `${(doc.requests / maxRequests) * 100}%` }} />
                       </div>
                     )}
                   </div>
