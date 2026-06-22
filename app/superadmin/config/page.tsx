@@ -347,6 +347,7 @@ export default function SystemConfig() {
                           if (!isNaN(val)) {
                             const newFees = { ...(formData as any).documentFees, [doc.name]: val }
                             setFormData({ ...formData, documentFees: newFees } as any)
+                            updateConfig({ documentFees: newFees })
                           }
                         }}
                         className="h-8 w-20 pl-6 text-xs text-slate-900 border-slate-200"
@@ -369,6 +370,7 @@ export default function SystemConfig() {
                           ? formData.documentTypes.filter(t => t !== doc.name)
                           : [...formData.documentTypes, doc.name];
                         setFormData({ ...formData, documentTypes: newTypes });
+                        updateConfig({ documentTypes: newTypes });
                       }}
                       className={`text-sm font-medium ${doc.enabled ? "text-red-500 hover:text-red-600" : "text-emerald-600 hover:text-emerald-700"}`}
                     >

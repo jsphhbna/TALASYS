@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   TrendingUp, BarChart3, AlertTriangle, Target, Layers, FileText,
 } from "lucide-react"
@@ -19,6 +20,7 @@ const PIE_COLORS = ["#0C2340", "#1a3a5c", "#2a5080", "#3b82f6", "#C5A55A", "#94a
 
 export default function ReasonAnalytics() {
   const { documentRequests } = useAdminData()
+  const mounted = useMounted()
   const [showExportCSV, setShowExportCSV] = useState(false)
   const [showExportPDF, setShowExportPDF] = useState(false)
   const [isExportingCsv, setIsExportingCsv] = useState(false)
@@ -65,22 +67,55 @@ export default function ReasonAnalytics() {
 
   const topReason = reasonAnalytics.length > 0 ? reasonAnalytics[0] : { reason: "None", percentage: 0 }
 
-  // reasonTrendData (mocked structure, but ideally mapped from timestamps)
-  const reasonTrendData = [
-    { month: "Jan", employment: 12, school: 8, bank: 5, govId: 2 },
-    { month: "Feb", employment: 15, school: 10, bank: 6, govId: 3 },
-    { month: "Mar", employment: 18, school: 12, bank: 8, govId: 5 },
-    { month: "Apr", employment: 14, school: 15, bank: 7, govId: 6 },
-    { month: "May", employment: 22, school: 9, bank: 10, govId: 4 },
-    { month: "Jun", employment: 25, school: 11, bank: 12, govId: 8 },
-  ]
+  // Build reasonTrendData from real documentRequests grouped by month
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  const monthCounts: Record<string, Record<string, number>> = {}
+  documentRequests.forEach(r => {
+    const ts = r.createdAt ? new Date(r.createdAt) : null
+    if (!ts || isNaN(ts.getTime())) return
+    const monthKey = monthNames[ts.getMonth()]
+    if (!monthCounts[monthKey]) monthCounts[monthKey] = {}
+    const p = r.purpose || "Other"
+    monthCounts[monthKey][p] = (monthCounts[monthKey][p] || 0) + 1
+  })
+  // Get top 4 purposes for trend lines
+  const top4Purposes = reasonAnalytics.slice(0, 4).map(r => r.reason)
+  const reasonTrendData = Object.entries(monthCounts).map(([month, purposes]) => {
+    const entry: any = { month }
+    top4Purposes.forEach((p, i) => { entry[`reason${i}`] = purposes[p] || 0 })
+    return entry
+  })
 
-  // reasonByDocType dynamically
-  const reasonByDocType = [
-    { docType: "Barangay Clearance", employment: 40, school: 30, bank: 20, other: 10 },
-    { docType: "Indigency", employment: 10, school: 50, bank: 10, other: 30 },
-    { docType: "Residency", employment: 60, school: 10, bank: 20, other: 10 }
-  ]
+  // Build reasonByDocType from real documentRequests
+  const docTypes = ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency"]
+  const reasonByDocType = docTypes.map(docType => {
+    const subset = documentRequests.filter(r => r.documentType === docType)
+    const total = subset.length || 1
+    const purposeBreakdown: Record<string, number> = {}
+    subset.forEach(r => {
+      const p = r.purpose || "Other"
+      purposeBreakdown[p] = (purposeBreakdown[p] || 0) + 1
+    })
+    // Get top 3 purposes + other
+    const sorted = Object.entries(purposeBreakdown).sort((a, b) => b[1] - a[1])
+    const top3 = sorted.slice(0, 3)
+    const otherCount = sorted.slice(3).reduce((s, [, v]) => s + v, 0)
+    const entry: any = { docType: docType.replace("Certificate of ", "") }
+    top3.forEach(([p, count], i) => { entry[`cat${i}`] = Math.round((count / total) * 100) })
+    entry.other = Math.round((otherCount / total) * 100)
+    return entry
+  }).filter(d => documentRequests.some(r => r.documentType === docTypes[reasonByDocType?.indexOf?.(d)] || true))
+
+  // Calculate real growth
+  const now = Date.now()
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+  const thisMonth = documentRequests.filter(r => r.createdAt && (now - r.createdAt) < thirtyDaysMs).length
+  const lastMonth = documentRequests.filter(r => r.createdAt && (now - r.createdAt) >= thirtyDaysMs && (now - r.createdAt) < thirtyDaysMs * 2).length
+  const growthPct = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : thisMonth > 0 ? 100 : 0
+
+  if (!mounted) {
+    return <div className="flex h-full items-center justify-center p-8">Loading analytics...</div>
+  }
 
   return (
     <div className="space-y-6">
@@ -159,7 +194,7 @@ export default function ReasonAnalytics() {
             </div>
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Growth Trend</p>
-          <span className="text-2xl font-bold text-emerald-600">+18%</span>
+          <span className="text-2xl font-bold text-emerald-600">{growthPct >= 0 ? "+" : ""}{growthPct}%</span>
           <p className="text-[10px] text-slate-400 mt-1">vs previous period</p>
         </Card>
       </div>
@@ -227,17 +262,16 @@ export default function ReasonAnalytics() {
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} labelStyle={{ fontWeight: 600, color: "#0C2340" }} />
-              <Area type="monotone" dataKey="employment" stroke="#0C2340" strokeWidth={1.5} fill="none" name="Employment" />
-              <Area type="monotone" dataKey="school" stroke="#3b82f6" strokeWidth={1.5} fill="none" name="School" />
-              <Area type="monotone" dataKey="bank" stroke="#10b981" strokeWidth={1.5} fill="none" name="Bank/Loan" />
-              <Area type="monotone" dataKey="govId" stroke="#C5A55A" strokeWidth={1.5} fill="none" name="Gov't ID" />
+              <Area type="monotone" dataKey="reason0" stroke="#0C2340" strokeWidth={1.5} fill="none" name={top4Purposes[0] || "Reason 1"} />
+              <Area type="monotone" dataKey="reason1" stroke="#3b82f6" strokeWidth={1.5} fill="none" name={top4Purposes[1] || "Reason 2"} />
+              <Area type="monotone" dataKey="reason2" stroke="#10b981" strokeWidth={1.5} fill="none" name={top4Purposes[2] || "Reason 3"} />
+              <Area type="monotone" dataKey="reason3" stroke="#C5A55A" strokeWidth={1.5} fill="none" name={top4Purposes[3] || "Reason 4"} />
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex flex-wrap gap-3 mt-3">
-            <span className="flex items-center gap-1.5 text-[10px]"><span className="w-2 h-2 rounded-full bg-[#0C2340]" />Employment</span>
-            <span className="flex items-center gap-1.5 text-[10px]"><span className="w-2 h-2 rounded-full bg-[#3b82f6]" />School</span>
-            <span className="flex items-center gap-1.5 text-[10px]"><span className="w-2 h-2 rounded-full bg-[#10b981]" />Bank/Loan</span>
-            <span className="flex items-center gap-1.5 text-[10px]"><span className="w-2 h-2 rounded-full bg-[#C5A55A]" />Gov&apos;t ID</span>
+            {top4Purposes.map((p, i) => (
+              <span key={i} className="flex items-center gap-1.5 text-[10px]"><span className={`w-2 h-2 rounded-full ${["bg-[#0C2340]", "bg-[#3b82f6]", "bg-[#10b981]", "bg-[#C5A55A]"][i]}`} />{p}</span>
+            ))}
           </div>
         </Card>
       </div>
@@ -250,9 +284,9 @@ export default function ReasonAnalytics() {
             <p className="text-[11px] text-slate-500 mt-0.5">Reason distribution per document (percentage)</p>
           </div>
           <div className="flex items-center gap-4 text-[10px]">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0C2340]" />Employment</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />School</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981]" />Bank</span>
+            {top4Purposes.slice(0, 3).map((p, i) => (
+              <span key={i} className="flex items-center gap-1.5"><span className={`w-2.5 h-2.5 rounded-full ${["bg-[#0C2340]", "bg-[#3b82f6]", "bg-[#10b981]"][i]}`} />{p}</span>
+            ))}
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#94a3b8]" />Other</span>
           </div>
         </div>
@@ -261,9 +295,9 @@ export default function ReasonAnalytics() {
             <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} unit="%" />
             <YAxis type="category" dataKey="docType" width={100} tick={{ fontSize: 11, fill: "#0C2340" }} axisLine={false} tickLine={false} />
             <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} labelStyle={{ fontWeight: 600, color: "#0C2340" }} formatter={(value: number) => `${value}%`} />
-            <Bar dataKey="employment" stackId="a" fill="#0C2340" name="Employment" />
-            <Bar dataKey="school" stackId="a" fill="#3b82f6" name="School" />
-            <Bar dataKey="bank" stackId="a" fill="#10b981" name="Bank" />
+            <Bar dataKey="cat0" stackId="a" fill="#0C2340" name={top4Purposes[0] || "Cat 1"} />
+            <Bar dataKey="cat1" stackId="a" fill="#3b82f6" name={top4Purposes[1] || "Cat 2"} />
+            <Bar dataKey="cat2" stackId="a" fill="#10b981" name={top4Purposes[2] || "Cat 3"} />
             <Bar dataKey="other" stackId="a" fill="#94a3b8" name="Other" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>

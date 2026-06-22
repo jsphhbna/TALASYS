@@ -30,10 +30,20 @@ export default function SystemReports() {
     return <div className="flex h-full items-center justify-center p-8">Loading reports...</div>
   }
 
-  const reportGenerationTrend = Array.from({ length: 7 }).map((_, i) => ({
-    day: `D${i+1}`,
-    generated: Math.floor(Math.random() * 10) + 1
-  }))
+  const now = Date.now()
+  const dayMs = 1000 * 60 * 60 * 24
+  const reportGenerationTrend = Array.from({ length: 7 }).map((_, i) => {
+    const start = now - (6 - i) * dayMs
+    const end = start + dayMs
+    const dayReqs = documentRequests.filter(r => r.createdAt && r.createdAt >= start && r.createdAt < end)
+    return {
+      day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }),
+      generated: dayReqs.length,
+      documents: dayReqs.filter(r => r.status === 'Approved' || r.status === 'Completed').length,
+      population: 0,
+      analytics: 0,
+    }
+  })
 
   const reportTypeBreakdown = [
     { name: "Clearances", value: documentRequests.filter(r => r.documentType.includes("Clearance")).length, color: "#0C2340" },

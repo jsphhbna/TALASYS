@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   Activity, FileText, Users, Shield, AlertTriangle,
   TrendingUp,
@@ -33,6 +34,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 
 export default function AuditLogs() {
   const { auditLogs, stats: { auditActionBreakdown, totalAuditLogs } } = useSuperAdminData()
+  const mounted = useMounted()
   const [searchTerm, setSearchTerm] = useState("")
   const [adminFilter, setAdminFilter] = useState("all")
   const [actionFilter, setActionFilter] = useState("all")
@@ -103,8 +105,17 @@ export default function AuditLogs() {
   });
 
   const auditHourlyActivity = Array.from({ length: 12 }).map((_, i) => {
-    return { hour: `${i + 8}am`, value: Math.floor(Math.random() * 5) + 1 } // Simulated hourly based on static distribution since we lack exact hours in mock
+    const hour = i + 8 // 8am to 7pm
+    const count = auditLogs.filter(l => {
+      const ts = typeof l.timestamp === 'number' ? l.timestamp : 0
+      if (ts === 0) return false
+      const d = new Date(ts)
+      return d.getHours() === hour
+    }).length
+    return { hour: `${hour > 12 ? hour - 12 : hour}${hour >= 12 ? 'pm' : 'am'}`, actions: count }
   });
+
+  const peakHour = auditHourlyActivity.reduce((max, h) => h.actions > max.actions ? h : max, auditHourlyActivity[0]);
 
   const sparklineData = auditWeeklyTrend.map(d => d.approvals + d.verifications + d.generations);
 
@@ -114,6 +125,10 @@ export default function AuditLogs() {
     { label: "Active Admins", value: activeAdminCount.toString(), icon: Users, color: "#10b981", spark: sparklineData },
     { label: "Flagged", value: suspiciousCount.toString(), icon: AlertTriangle, color: "#ef4444", spark: sparklineData },
   ]
+
+  if (!mounted) {
+    return <div className="flex h-full items-center justify-center p-8">Loading audit logs...</div>
+  }
 
   return (
     <div className="space-y-6">
@@ -160,7 +175,7 @@ export default function AuditLogs() {
               <Bar dataKey="actions" fill="#0C2340" radius={[3, 3, 0, 0]} barSize={18} name="Actions" />
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[10px] text-slate-400 mt-2">Peak activity: - (0 actions)</p>
+          <p className="text-[10px] text-slate-400 mt-2">Peak activity: {peakHour.hour} ({peakHour.actions} actions)</p>
         </Card>
 
         {/* Action Type Breakdown */}

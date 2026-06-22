@@ -35,7 +35,8 @@ const activityDotColors: Record<string, string> = {
 }
 
 export default function AdminManagement() {
-  const { auditLogs } = useSuperAdminData()
+  const { adminAccounts, auditLogs, addAdmin, updateAdmin, deleteAdmin } = useSuperAdminData()
+  const mounted = useMounted()
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showRevokeModal, setShowRevokeModal] = useState(false)
@@ -49,10 +50,19 @@ export default function AdminManagement() {
     time: l.date
   }))
 
+  // Real activity trend from audit logs grouped by day
+  const now = Date.now()
+  const dayMs = 1000 * 60 * 60 * 24
   const adminActivityTrend = Array.from({ length: 7 }).map((_, i) => {
+    const start = now - (6 - i) * dayMs
+    const end = start + dayMs
+    const count = auditLogs.filter(l => {
+      const ts = typeof l.timestamp === 'number' ? l.timestamp : new Date(l.timestamp).getTime()
+      return ts >= start && ts < end
+    }).length
     return {
-      day: `Day ${i+1}`,
-      actions: Math.floor(Math.random() * 10) // Mocking since no timestamps
+      day: new Date(now - (6 - i) * dayMs).toLocaleDateString('en-US', { weekday: 'short' }),
+      actions: count
     }
   })
   const [searchTerm, setSearchTerm] = useState("")
