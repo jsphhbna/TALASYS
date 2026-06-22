@@ -5,6 +5,7 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -14,6 +15,11 @@ import jsPDF from "jspdf"
 
 export default function GenerateDocuments() {
   const { residents: allResidents, documentRequests: adminDocumentRequests } = useAdminData()
+  const mounted = useMounted()
+
+  if (!mounted) {
+    return <AdminPageShell><div className="flex h-full items-center justify-center p-8">Loading...</div></AdminPageShell>
+  }
   
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24

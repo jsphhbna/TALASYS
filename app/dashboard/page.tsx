@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useAuthGuard } from "@/hooks/use-auth-guard"
 import { useResidentData } from "@/hooks/use-resident-data"
+import { useMounted } from "@/hooks/use-mounted"
 import { ResidentPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,8 +11,9 @@ import { Button } from "@/components/ui/button"
 export default function DashboardPage() {
   const { user, isAuthorized } = useAuthGuard()
   const { requests, notifications, cancelRequest } = useResidentData()
+  const mounted = useMounted()
 
-  if (!isAuthorized || !user) {
+  if (!isAuthorized || !user || !mounted) {
     return null
   }
 

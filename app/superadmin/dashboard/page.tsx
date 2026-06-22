@@ -8,6 +8,7 @@ import {
 import { Card } from "@/components/ui/card"
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   TrendingUp, TrendingDown, Users, FileText, ShieldCheck, Clock, CheckCircle,
   AlertTriangle, AlertCircle, Info, ArrowRight, Activity,
@@ -100,6 +101,11 @@ export default function SuperAdminDashboard() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("weekly")
   const { systemAlerts } = useSuperAdminData()
   const { documentRequests, stats: adminStats } = useAdminData()
+  const mounted = useMounted()
+
+  if (!mounted) {
+    return <div className="flex h-full items-center justify-center p-8">Loading dashboard...</div>
+  }
 
   // Generate dynamic chart data based on documentRequests
   const now = Date.now()

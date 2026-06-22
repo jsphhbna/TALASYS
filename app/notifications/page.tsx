@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuthGuard } from "@/hooks/use-auth-guard"
 import { useResidentData } from "@/hooks/use-resident-data"
+import { useMounted } from "@/hooks/use-mounted"
 import { ResidentPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { delay } from "@/lib/async-delay"
@@ -26,12 +27,16 @@ function formatRelativeTime(createdAt: number): string {
 }
 
 export default function NotificationsPage() {
-  const { isAuthorized } = useAuthGuard()
-  const { notifications, markAllNotificationsRead } = useResidentData()
+  const { user, isAuthorized } = useAuthGuard()
+  const { notifications, markNotificationRead } = useResidentData()
   const router = useRouter()
+  const mounted = useMounted()
+  
+  const [filter, setFilter] = useState("all") // all, unread
+  const [processingId, setProcessingId] = useState<string | null>(null)
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
 
-  if (!isAuthorized) {
+  if (!isAuthorized || !user || !mounted) {
     return null
   }
 

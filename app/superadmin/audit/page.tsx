@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   Activity, FileText, Users, Shield, AlertTriangle,
   TrendingUp,
@@ -33,6 +34,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 
 export default function AuditLogs() {
   const { auditLogs, stats: { auditActionBreakdown, totalAuditLogs } } = useSuperAdminData()
+  const mounted = useMounted()
   const [searchTerm, setSearchTerm] = useState("")
   const [adminFilter, setAdminFilter] = useState("all")
   const [actionFilter, setActionFilter] = useState("all")
@@ -84,6 +86,10 @@ export default function AuditLogs() {
 
   const todaysActions = auditLogs.filter(l => l.date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })).length
   const activeAdminCount = new Set(auditLogs.map(l => l.admin.name)).size
+
+  if (!mounted) {
+    return <div className="flex h-full items-center justify-center p-8">Loading audit logs...</div>
+  }
 
   // Generate dynamic data based on auditLogs
   const now = Date.now()

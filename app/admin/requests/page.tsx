@@ -5,6 +5,7 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -12,6 +13,12 @@ import { ClipboardList, CheckCircle2, XCircle, FileText } from "lucide-react"
 
 export default function DocumentRequests() {
   const { documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
+  const mounted = useMounted()
+
+  if (!mounted) {
+    return <AdminPageShell><div className="flex h-full items-center justify-center p-8">Loading requests...</div></AdminPageShell>
+  }
+
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
   

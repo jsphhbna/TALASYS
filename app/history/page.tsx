@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useAuthGuard } from "@/hooks/use-auth-guard"
+import { useMounted } from "@/hooks/use-mounted"
 import { ResidentPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,8 +23,9 @@ export default function RequestHistoryPage() {
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<ResidentRequest | null>(null)
   const itemsPerPage = 5
+  const mounted = useMounted()
 
-  if (!isAuthorized) {
+  if (!isAuthorized || !mounted) {
     return null
   }
 

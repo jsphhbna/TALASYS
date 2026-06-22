@@ -5,6 +5,7 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useMounted } from "@/hooks/use-mounted"
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts"
@@ -16,6 +17,11 @@ export default function Verifications() {
   const [selectedItem, setSelectedItem] = useState<any>(pendingVerifications[0] || rejectedVerifications[0])
   const [showRejectConfirm, setShowRejectConfirm] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
+  const mounted = useMounted()
+
+  if (!mounted) {
+    return <AdminPageShell><div className="flex h-full items-center justify-center p-8">Loading verifications...</div></AdminPageShell>
+  }
 
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
