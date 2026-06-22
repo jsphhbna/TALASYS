@@ -26,7 +26,7 @@ function formatRelativeTime(createdAt: number): string {
 }
 
 export default function NotificationsPage() {
-  const { isAuthorized } = useAuthGuard()
+  const { isAuthorized, user } = useAuthGuard()
   const { notifications, markAllNotificationsRead } = useResidentData()
   const router = useRouter()
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
@@ -145,7 +145,7 @@ export default function NotificationsPage() {
               </div>
 
               <p className="text-xl font-bold text-green-600 mb-2">Account Active</p>
-              <p className="text-sm text-slate-600 mb-1 text-center">Valid until May 27, 2026</p>
+              <p className="text-sm text-slate-600 mb-1 text-center">Valid until {user?.accountExpiry || "N/A"}</p>
               <p className="text-xs text-slate-600 text-center">You can request documents normally</p>
             </div>
           </Card>

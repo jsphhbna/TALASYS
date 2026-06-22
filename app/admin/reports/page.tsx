@@ -13,16 +13,7 @@ import { Users, TrendingUp, Award } from "lucide-react"
 export default function CategoryReports() {
   const { stats, residents } = useAdminData()
 
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"]
-  const categoryPopulationTrend = months.map((month, i) => {
-    const factor = 1 - ((7 - i) * 0.02)
-    return {
-      month,
-      adult: Math.round(stats.adultCount * factor),
-      senior: Math.round(stats.seniorCount * factor),
-      minor: Math.round(stats.minorCount * factor),
-    }
-  })
+
 
   const [selectedCategory, setSelectedCategory] = useState("voters")
   const [selectedColumns, setSelectedColumns] = useState({
@@ -110,7 +101,7 @@ export default function CategoryReports() {
             </div>
           </Card>
         </div>
-        <Card className="col-span-4 p-4 shadow-sm">
+        <Card className="col-span-8 p-4 shadow-sm">
           <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Category Distribution</h3>
           <div className="flex items-center gap-4">
             <div className="w-28 h-28">
@@ -134,20 +125,7 @@ export default function CategoryReports() {
             </div>
           </div>
         </Card>
-        <Card className="col-span-4 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Population Trend</h3>
-          <ResponsiveContainer width="100%" height={130}>
-            <AreaChart data={categoryPopulationTrend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="month" tick={{ fontSize: 9 }} stroke="#94a3b8" />
-              <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" />
-              <Tooltip contentStyle={{ fontSize: 10, borderRadius: 8 }} />
-              <Area type="monotone" dataKey="senior" stroke="#2563eb" fill="#2563eb" fillOpacity={0.06} strokeWidth={1.5} />
-              <Area type="monotone" dataKey="minor" stroke="#d97706" fill="#d97706" fillOpacity={0.06} strokeWidth={1.5} />
-              <Area type="monotone" dataKey="adult" stroke="#16a34a" fill="#16a34a" fillOpacity={0.06} strokeWidth={1.5} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Card>
+
       </div>
 
       {/* Category Selection */}

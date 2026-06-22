@@ -40,18 +40,7 @@ export default function CategoryReports() {
     categoryDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9", change: 0 })
   }
 
-  // Generate a realistic trend leading up to current adminStats
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"]
-  const categoryTrendData = months.map((month, i) => {
-    const factor = 1 - ((7 - i) * 0.02) // Gradual 2% growth per month to reach current
-    return {
-      month,
-      adults: Math.round(adminStats.adultCount * factor),
-      seniors: Math.round(adminStats.seniorCount * factor),
-      minors: Math.round(adminStats.minorCount * factor),
-      voters: Math.round(adminStats.voterCount * factor)
-    }
-  })
+
 
   const [selectedCategory, setSelectedCategory] = useState("voters")
   const [selectedColumns, setSelectedColumns] = useState({
@@ -133,32 +122,8 @@ export default function CategoryReports() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Population Trend */}
-        <Card className="col-span-5 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Population Trend</h2>
-          <p className="text-[11px] text-slate-500 mb-4">Category growth over 8 months</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={categoryTrendData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} labelStyle={{ fontWeight: 600, color: "#0C2340" }} />
-              <Area type="monotone" dataKey="adults" stroke="#0C2340" strokeWidth={1.5} fill="none" name="Adults" />
-              <Area type="monotone" dataKey="voters" stroke="#10b981" strokeWidth={1.5} fill="none" name="Voters" />
-              <Area type="monotone" dataKey="seniors" stroke="#2a5080" strokeWidth={1.5} fill="none" name="Seniors" />
-              <Area type="monotone" dataKey="minors" stroke="#C5A55A" strokeWidth={1.5} fill="none" name="Minors" />
-            </AreaChart>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap gap-3 mt-2 text-[10px]">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#0C2340]" />Adults</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#10b981]" />Voters</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#2a5080]" />Seniors</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#C5A55A]" />Minors</span>
-          </div>
-        </Card>
-
         {/* Distribution Pie */}
-        <Card className="col-span-3 p-5 shadow-sm">
+        <Card className="col-span-5 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Age Distribution</h2>
           <p className="text-[11px] text-slate-500 mb-3">Population breakdown</p>
           <ResponsiveContainer width="100%" height={130}>
@@ -187,7 +152,7 @@ export default function CategoryReports() {
         </Card>
 
         {/* Comparative Bar */}
-        <Card className="col-span-4 p-5 shadow-sm">
+        <Card className="col-span-7 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Category Comparison</h2>
           <p className="text-[11px] text-slate-500 mb-4">Resident count by category</p>
           <ResponsiveContainer width="100%" height={200}>

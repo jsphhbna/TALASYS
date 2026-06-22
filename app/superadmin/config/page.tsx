@@ -76,7 +76,6 @@ export default function SystemConfig() {
     fee: formData.documentFees[d.name] ?? systemConfig.documentFees?.[d.name] ?? (d.name === "Certificate of Indigency" || d.name === "First Time Job Seeker" || d.name === "Community Tax Certificate" ? 0 : d.name === "Business Clearance" ? 150 : 50)
   }))
 
-  const h = systemHealthMetrics
 
   const maxRequests = Math.max(...documentTypes.map(d => d.requests), 1)
 
@@ -102,49 +101,9 @@ export default function SystemConfig() {
         <Button onClick={() => setShowSaveDialog(true)} className="bg-[#0C2340] hover:bg-[#0a1c33]">Save All Changes</Button>
       </div>
 
-      {/* System Health Overview */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Health Metrics */}
-        <div className="col-span-8 grid grid-cols-4 gap-4">
-          <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
-              <Server className="w-4 h-4 text-emerald-600" />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Uptime</p>
-            <span className="text-2xl font-bold text-emerald-600">{h.uptime}%</span>
-            <p className="text-[10px] text-slate-400 mt-0.5">System availability</p>
-          </Card>
-          <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-              <HardDrive className="w-4 h-4 text-[#0C2340]" />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Storage</p>
-            <span className="text-2xl font-bold text-[#0C2340]">{h.storageUsed}%</span>
-            <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-[#0C2340] rounded-full" style={{ width: `${h.storageUsed}%` }} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">{h.storageUsed}GB of {h.storageTotal}GB</p>
-          </Card>
-          <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-              <Activity className="w-4 h-4 text-[#0C2340]" />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Response Time</p>
-            <span className="text-2xl font-bold text-[#0C2340]">{h.responseTime}ms</span>
-            <p className="text-[10px] text-slate-400 mt-0.5">Avg server response</p>
-          </Card>
-          <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-              <Shield className="w-4 h-4 text-[#0C2340]" />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Modules</p>
-            <span className="text-2xl font-bold text-[#0C2340]">{h.activeModules}/{h.totalModules}</span>
-            <p className="text-[10px] text-slate-400 mt-0.5">Active modules</p>
-          </Card>
-        </div>
-
         {/* Recent Changes */}
-        <Card className="col-span-4 p-5 shadow-sm">
+        <Card className="col-span-12 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] mb-3">Recent Config Changes</h2>
           <div className="space-y-3">
             {configChangeLog.slice(0, 4).map((change, i) => {

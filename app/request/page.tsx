@@ -140,13 +140,19 @@ function RequestDocumentContent() {
     router.push("/history")
   }
 
-  // Inject dynamic fees from SystemConfig
+  // Inject dynamic fees from SystemConfig and filter by enabled types
   const dynamicDocumentTypes = documentTypes.map(doc => {
     const dynamicFee = systemConfig?.documentFees?.[doc.title]
     return {
       ...doc,
       fee: dynamicFee !== undefined ? dynamicFee : doc.fee
     }
+  }).filter(doc => {
+    // If systemConfig is loaded, only show types that are enabled
+    if (systemConfig?.documentTypes) {
+      return systemConfig.documentTypes.includes(doc.title)
+    }
+    return true // fallback if not loaded yet
   })
 
   const selectedDoc = dynamicDocumentTypes.find((doc) => doc.id === selectedType)
