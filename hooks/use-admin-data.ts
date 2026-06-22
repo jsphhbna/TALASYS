@@ -1,70 +1,124 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import {
-    getAdminResidents,
-    getAdminVerifications,
-    getAdminDocumentRequests,
-    getAdminNotifications,
-    getAdminActivityLogs,
-    getAdminDashboardStats,
-    addAdminResident,
-    updateAdminResident,
-    deleteAdminResident,
-    addAdminVerification,
-    approveVerification,
-    rejectVerification,
-    addAdminDocumentRequest,
-    updateDocumentRequestStatus,
-    deleteAdminDocumentRequest,
-    addAdminNotification,
-    markAdminNotificationRead,
-    markAllAdminNotificationsRead,
-    deleteAdminNotification,
-    addAdminActivityLog,
-    clearAdminActivityLogs,
-    subscribeToAdminStorage,
-    type AdminResident,
-    type PendingVerification,
-    type AdminDocumentRequest,
-    type AdminNotification,
-    type ActivityLog,
+import { db } from "@/lib/firebase"
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer } from "firebase/firestore"
+import type {
+    AdminResident,
+    PendingVerification,
+    AdminDocumentRequest,
+    AdminNotification,
+    ActivityLog,
 } from "@/lib/admin-store"
-import { subscribeToResidentStorage } from "@/lib/local-storage-store"
 
 export function useAdminData() {
     const [residents, setResidents] = useState<AdminResident[]>([])
     const [verifications, setVerifications] = useState<PendingVerification[]>([])
+    const [rejectedVerifications, setRejectedVerifications] = useState<PendingVerification[]>([])
     const [documentRequests, setDocumentRequests] = useState<AdminDocumentRequest[]>([])
     const [notifications, setNotifications] = useState<AdminNotification[]>([])
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
     const [isLoaded, setIsLoaded] = useState(false)
 
-    const refresh = useCallback(() => {
-        setResidents(getAdminResidents())
-        setVerifications(getAdminVerifications())
-        setDocumentRequests(getAdminDocumentRequests())
-        setNotifications(getAdminNotifications())
-        setActivityLogs(getAdminActivityLogs())
-        setIsLoaded(true)
-    }, [])
+    const [stats, setStats] = useState({
+        totalResidents: 0,
+        activeResidents: 0,
+        expiringResidents: 0,
+        expiredResidents: 0,
+        pendingVerifications: 0,
+        pendingRequests: 0,
+        approvedRequests: 0,
+        rejectedRequests: 0,
+        totalRequests: 0,
+        unreadNotifications: 0,
+        totalDocumentsGenerated: 0,
+        seniorCount: 0,
+        minorCount: 0,
+        adultCount: 0,
+        voterCount: 0,
+    })
 
     useEffect(() => {
-        refresh()
-        const unsubscribeAdmin = subscribeToAdminStorage(refresh)
-        const unsubscribeResident = subscribeToResidentStorage(refresh)
-        return () => {
-            unsubscribeAdmin()
-            unsubscribeResident()
-        }
-    }, [refresh])
+        const unsubs: (() => void)[] = []
 
-    const stats = getAdminDashboardStats()
+        unsubs.push(onSnapshot(collection(db, "users"), (snap) => {
+            const allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+            const res = allUsers.filter(u => u.role === "resident").map(u => ({
+                id: u.id,
+                name: u.name,
+                initials: u.initials || "U",
+                age: u.dateOfBirth ? Math.floor((new Date().getTime() - new Date(u.dateOfBirth).getTime()) / 31557600000) : 0,
+                gender: "Male" as const,
+                address: u.address || "",
+                categories: u.statuses || [u.status].filter(Boolean) || [],
+                status: "Active" as const,
+                isVoter: (u.statuses || []).includes("Registered Voter"),
+                expiryDate: u.accountExpiry || "",
+                dateOfBirth: u.dateOfBirth || "",
+                contactNumber: u.contactNumber || "",
+                email: u.email || "",
+            }))
+            setResidents(res)
+            
+            // Stats updates based on users
+            setStats(prev => ({ ...prev, 
+                totalResidents: res.length, 
+                activeResidents: res.length,
+                seniorCount: res.filter(r => r.categories.includes("Senior Citizen")).length,
+                minorCount: res.filter(r => r.categories.includes("Underage")).length,
+                adultCount: res.filter(r => r.categories.includes("Adult") || r.categories.includes("Resident")).length,
+                voterCount: res.filter(r => r.isVoter).length
+            }))
+        }))
+
+        unsubs.push(onSnapshot(collection(db, "verifications"), (snap) => {
+            const allVerif = snap.docs.map(d => ({ id: d.id, ...d.data() } as PendingVerification))
+            const pending = allVerif.filter(v => !v.status || v.status === "pending")
+            const rejected = allVerif.filter(v => v.status === "rejected")
+            setVerifications(pending)
+            setRejectedVerifications(rejected)
+            setStats(prev => ({ ...prev, pendingVerifications: pending.length }))
+        }))
+
+        unsubs.push(onSnapshot(query(collection(db, "documentRequests"), orderBy("createdAt", "desc")), (snap) => {
+            const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AdminDocumentRequest))
+            setDocumentRequests(reqs)
+            
+            const pending = reqs.filter(r => r.status === "Pending")
+            const approved = reqs.filter(r => r.status === "Approved" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Completed")
+            const rejected = reqs.filter(r => r.status === "Rejected")
+            
+            setStats(prev => ({
+                ...prev,
+                pendingRequests: pending.length,
+                approvedRequests: approved.length,
+                rejectedRequests: rejected.length,
+                totalRequests: reqs.length,
+                totalDocumentsGenerated: approved.length
+            }))
+        }))
+
+        unsubs.push(onSnapshot(query(collection(db, "notifications"), where("targetId", "==", "admin"), orderBy("createdAt", "desc")), (snap) => {
+            const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AdminNotification))
+            setNotifications(notifs)
+            setStats(prev => ({ ...prev, unreadNotifications: notifs.filter(n => !n.isRead).length }))
+        }))
+
+        unsubs.push(onSnapshot(query(collection(db, "activityLogs"), orderBy("timestamp", "desc")), (snap) => {
+            setActivityLogs(snap.docs.map(d => ({ id: d.id, ...d.data() } as ActivityLog)))
+        }))
+
+        setTimeout(() => setIsLoaded(true), 500)
+
+        return () => unsubs.forEach(u => u())
+    }, [])
+
+    const refresh = useCallback(() => {}, [])
 
     return {
-        // Data
         residents,
         verifications,
+        rejectedVerifications,
         documentRequests,
         notifications,
         activityLogs,
@@ -73,28 +127,101 @@ export function useAdminData() {
         refresh,
 
         // Residents
-        addResident: useCallback((input: Omit<AdminResident, "id" | "initials">) => { const r = addAdminResident(input); refresh(); return r }, [refresh]),
-        updateResident: useCallback((id: string, updates: Partial<AdminResident>) => { const r = updateAdminResident(id, updates); refresh(); return r }, [refresh]),
-        deleteResident: useCallback((id: string) => { deleteAdminResident(id); refresh() }, [refresh]),
+        addResident: useCallback(async () => { throw new Error("Add via Auth flow only.") }, []),
+        updateResident: useCallback(async (id: string, updates: Partial<AdminResident>) => {
+            await updateDoc(doc(db, "users", id), updates)
+        }, []),
+        deleteResident: useCallback(async (id: string) => {
+            await deleteDoc(doc(db, "users", id))
+        }, []),
 
         // Verifications
-        addVerification: useCallback((input: Omit<PendingVerification, "id" | "initials">) => { const v = addAdminVerification(input); refresh(); return v }, [refresh]),
-        approveVerification: useCallback((id: string) => { const v = approveVerification(id); refresh(); return v }, [refresh]),
-        rejectVerification: useCallback((id: string) => { const v = rejectVerification(id); refresh(); return v }, [refresh]),
+        addVerification: useCallback(async () => { throw new Error("Residents only.") }, []),
+        approveVerification: useCallback(async (id: string) => {
+            await updateDoc(doc(db, "verifications", id), { status: "approved" })
+            const v = verifications.find(ver => ver.id === id)
+            if (v && v.residentId) {
+                await updateDoc(doc(db, "users", v.residentId), { isVerified: true })
+                await addDoc(collection(db, "notifications"), {
+                    targetId: v.residentId,
+                    type: "success",
+                    title: "Verification Approved",
+                    message: "Your account verification has been approved.",
+                    timestamp: "Just now",
+                    isRead: false,
+                    createdAt: Date.now()
+                })
+            }
+        }, [verifications]),
+        rejectVerification: useCallback(async (id: string, reason: string) => {
+            await updateDoc(doc(db, "verifications", id), { status: "rejected", rejectReason: reason })
+            const v = verifications.find(ver => ver.id === id)
+            if (v && v.residentId) {
+                await addDoc(collection(db, "notifications"), {
+                    targetId: v.residentId,
+                    type: "error",
+                    title: "Verification Rejected",
+                    message: `Your verification was rejected: ${reason}`,
+                    timestamp: "Just now",
+                    isRead: false,
+                    createdAt: Date.now()
+                })
+            }
+        }, [verifications]),
 
         // Document Requests
-        addDocumentRequest: useCallback((input: Omit<AdminDocumentRequest, "id" | "residentInitials">) => { const r = addAdminDocumentRequest(input); refresh(); return r }, [refresh]),
-        updateRequestStatus: useCallback((id: string, status: "Approved" | "Rejected") => { const r = updateDocumentRequestStatus(id, status); refresh(); return r }, [refresh]),
-        deleteDocumentRequest: useCallback((id: string) => { deleteAdminDocumentRequest(id); refresh() }, [refresh]),
+        addDocumentRequest: useCallback(async () => { throw new Error("Residents only.") }, []),
+        updateRequestStatus: useCallback(async (id: string, status: "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected") => {
+            await updateDoc(doc(db, "documentRequests", id), { status })
+            
+            // Optionally, add a notification for the resident here.
+            const req = documentRequests.find(r => r.id === id)
+            if (req && req.residentId) {
+                await addDoc(collection(db, "notifications"), {
+                    targetId: req.residentId,
+                    type: "info",
+                    title: "Document Update",
+                    message: `Your request for ${req.documentType} is now ${status}.`,
+                    timestamp: "Just now",
+                    isRead: false,
+                    createdAt: Date.now()
+                })
+            }
+        }, [documentRequests]),
+        deleteDocumentRequest: useCallback(async (id: string) => {
+            await deleteDoc(doc(db, "documentRequests", id))
+        }, []),
 
         // Notifications
-        addNotification: useCallback((input: Omit<AdminNotification, "id">) => { const n = addAdminNotification(input); refresh(); return n }, [refresh]),
-        markNotificationRead: useCallback((id: string) => { markAdminNotificationRead(id); refresh() }, [refresh]),
-        markAllNotificationsRead: useCallback(() => { markAllAdminNotificationsRead(); refresh() }, [refresh]),
-        deleteNotification: useCallback((id: string) => { deleteAdminNotification(id); refresh() }, [refresh]),
+        addNotification: useCallback(async (input: Omit<AdminNotification, "id">) => {
+            await addDoc(collection(db, "notifications"), { ...input, createdAt: Date.now() })
+        }, []),
+        markNotificationRead: useCallback(async (id: string) => {
+            await updateDoc(doc(db, "notifications", id), { isRead: true })
+        }, []),
+        markAllNotificationsRead: useCallback(async () => {
+            for (const n of notifications.filter(n => !n.isRead)) {
+                await updateDoc(doc(db, "notifications", n.id), { isRead: true })
+            }
+        }, [notifications]),
+        deleteNotification: useCallback(async (id: string) => {
+            await deleteDoc(doc(db, "notifications", id))
+        }, []),
 
         // Activity Logs
-        addActivityLog: useCallback((input: Omit<ActivityLog, "id" | "time">) => { const l = addAdminActivityLog(input); refresh(); return l }, [refresh]),
-        clearActivityLogs: useCallback(() => { clearAdminActivityLogs(); refresh() }, [refresh]),
+        addActivityLog: useCallback(async (input: Omit<ActivityLog, "id" | "time">) => {
+            await addDoc(collection(db, "activityLogs"), {
+                ...input,
+                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                timestamp: Date.now()
+            })
+        }, []),
+        clearActivityLogs: useCallback(async () => {
+             // In Firestore, you shouldn't clear logs from the client easily for security, 
+             // but if needed we iterate and delete.
+             for (const l of activityLogs) {
+                 await deleteDoc(doc(db, "activityLogs", l.id))
+             }
+        }, [activityLogs]),
     }
 }

@@ -13,6 +13,10 @@ const presets = {
     description: "Please fill in all required fields before continuing.",
     variant: "destructive",
   },
+  actionRequired: {
+    title: "Coming soon",
+    description: "This feature is currently under development.",
+  },
   missingDocuments: {
     title: "Missing documents",
     description: "Please upload all required documents before continuing.",

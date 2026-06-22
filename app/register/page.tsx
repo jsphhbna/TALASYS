@@ -24,23 +24,33 @@ const RegisterStepTwoDocuments = dynamic(
 )
 
 type RegisterFormData = {
-  fullName: string
+  firstName: string
+  lastName: string
+  middleInitial: string
   dateOfBirth: string
   contactNumber: string
-  address: string
+  street: string
+  barangay: string
+  city: string
   statuses: string[]
   email: string
   password: string
+  confirmPassword: string
 }
 
 const defaultFormData: RegisterFormData = {
-  fullName: "",
+  firstName: "",
+  lastName: "",
+  middleInitial: "",
   dateOfBirth: "",
   contactNumber: "",
-  address: "",
+  street: "",
+  barangay: "",
+  city: "",
   statuses: [],
   email: "",
   password: "",
+  confirmPassword: "",
 }
 
 const defaultUploadState: Record<UploadField, File | null> = {
@@ -80,7 +90,8 @@ export default function RegisterPage() {
   }, [formData.dateOfBirth])
 
   const validateContactNumber = (value: string): boolean => {
-    return /^\d+$/.test(value.replace(/\s/g, ""))
+    const digits = value.replace(/\s/g, "")
+    return /^\d{11}$/.test(digits)
   }
 
   const validateEmail = (value: string): boolean => {
@@ -88,15 +99,17 @@ export default function RegisterPage() {
   }
 
   const validatePassword = (value: string): boolean => {
+    const hasMinLength = value.length >= 8
     const hasLowercase = /[a-z]/.test(value)
     const hasUppercase = /[A-Z]/.test(value)
     const hasNumber = /\d/.test(value)
     const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(value)
-    return hasLowercase && hasUppercase && hasNumber && hasSpecialChar
+    return hasMinLength && hasLowercase && hasUppercase && hasNumber && hasSpecialChar
   }
 
   const getPasswordStrengthMessage = (): string[] => {
     const messages: string[] = []
+    if (formData.password.length < 8) messages.push("• Minimum 8 characters")
     if (!/[a-z]/.test(formData.password)) messages.push("• Lowercase letter")
     if (!/[A-Z]/.test(formData.password)) messages.push("• Uppercase letter")
     if (!/\d/.test(formData.password)) messages.push("• Number")
@@ -104,7 +117,7 @@ export default function RegisterPage() {
     return messages
   }
 
-  const handleInputChange = (field: keyof RegisterFormData, value: string) => {
+  const handleInputChange = (field: string, value: string) => {
     if (field === "contactNumber") {
       const numbersOnly = value.replace(/\D/g, "")
       setFormData((prev) => ({ ...prev, [field]: numbersOnly }))
@@ -142,20 +155,28 @@ export default function RegisterPage() {
     setUploadingFiles((prev) => ({ ...prev, [field]: false }))
   }
 
+  const computedFullName = [formData.firstName, formData.middleInitial ? formData.middleInitial + "." : "", formData.lastName].filter(Boolean).join(" ")
+  const computedAddress = [formData.street, formData.barangay, formData.city].filter(Boolean).join(", ")
+
   const canProceedFromStep1 = () => {
     const emailValid = validateEmail(formData.email)
     const passwordValid = validatePassword(formData.password)
     const contactValid = validateContactNumber(formData.contactNumber)
+    const passwordsMatch = formData.password === formData.confirmPassword
 
     return (
-      formData.fullName.trim() !== "" &&
+      formData.firstName.trim() !== "" &&
+      formData.lastName.trim() !== "" &&
       formData.dateOfBirth !== "" &&
       contactValid &&
       formData.contactNumber.trim() !== "" &&
-      formData.address.trim() !== "" &&
+      formData.street.trim() !== "" &&
+      formData.barangay.trim() !== "" &&
+      formData.city.trim() !== "" &&
       formData.statuses.length > 0 &&
       emailValid &&
-      passwordValid
+      passwordValid &&
+      passwordsMatch
     )
   }
 
@@ -223,14 +244,20 @@ export default function RegisterPage() {
 
     try {
       await registerResidentAccount({
-        name: formData.fullName,
+        name: computedFullName,
         email: formData.email,
         password: formData.password,
         dateOfBirth: formData.dateOfBirth,
         contactNumber: formData.contactNumber,
-        address: formData.address,
+        address: computedAddress,
         statuses: formData.statuses,
         proofs: uploadedProofs,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        middleInitial: formData.middleInitial,
+        street: formData.street,
+        barangay: formData.barangay,
+        city: formData.city,
       })
     } catch {
       setIsCompleting(false)

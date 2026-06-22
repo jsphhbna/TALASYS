@@ -48,7 +48,15 @@ export function RegisterStepTwoDocuments({
         <div className="flex items-start gap-2">
           <Checkbox checked={termsAccepted} onCheckedChange={(checked) => onTermsChange(checked as boolean)} />
           <label className="text-xs text-slate-600 cursor-pointer">
-            I agree to the terms and conditions and certify that all information provided is true and accurate.
+            I agree to the{" "}
+            <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#0C2340] font-semibold hover:underline">
+              Terms and Conditions
+            </a>
+            {" "}and{" "}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#0C2340] font-semibold hover:underline">
+              Privacy Policy
+            </a>
+            , and certify that all information provided is true and accurate.
           </label>
         </div>
       </div>

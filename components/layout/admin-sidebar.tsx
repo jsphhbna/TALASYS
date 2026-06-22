@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
+import { useAdminData } from "@/hooks/use-admin-data"
 import {
   LayoutDashboard,
   Users,
@@ -27,7 +28,7 @@ import {
   LogOut,
 } from "lucide-react"
 
-const navigation = [
+const baseNavigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Resident Management", href: "/admin/residents", icon: Users },
   { name: "Verifications", href: "/admin/verifications", icon: ShieldCheck },
@@ -45,6 +46,21 @@ export function AdminSidebar() {
   const { beginNavigation, pendingPath } = useNavigationLoading()
   const activePath = pendingPath ?? pathname
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+
+  const { stats } = useAdminData()
+  const badges = {
+    pendingVerifs: stats.pendingVerifications || 0,
+    pendingRequests: stats.pendingRequests || 0
+  }
+
+  const navigation = baseNavigation.map(item => ({
+    ...item,
+    badge: item.name === "Verifications" && badges.pendingVerifs > 0
+      ? badges.pendingVerifs
+      : item.name === "Document Requests" && badges.pendingRequests > 0
+        ? badges.pendingRequests
+        : undefined,
+  }))
 
   const handleLogout = () => {
     setShowLogoutDialog(false)
@@ -109,8 +125,8 @@ export function AdminSidebar() {
       <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Sign Out</DialogTitle>
-            <DialogDescription>Are you sure you want to sign out of your account?</DialogDescription>
+            <DialogTitle>Sign Out</DialogTitle>
+            <DialogDescription>Are you sure you want to sign out? You will need to enter your credentials to access your account again.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>

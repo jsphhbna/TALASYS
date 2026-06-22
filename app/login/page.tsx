@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [resetSent, setResetSent] = useState(false)
   const [isSigningIn, setIsSigningIn] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
@@ -59,14 +60,14 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="username" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Username
+                Username or Email
               </label>
               <Input
                 id="username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                placeholder="Enter your username or email address"
                 className="w-full h-11"
                 disabled={isSigningIn}
                 required
@@ -74,9 +75,33 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!username.trim()) {
+                      setError("Please enter your email address first.")
+                      return
+                    }
+                    try {
+                      const { sendPasswordResetEmail } = await import("firebase/auth")
+                      const { auth } = await import("@/lib/firebase")
+                      const email = username.includes("@") ? username : `${username}@barangay.gov.ph`
+                      await sendPasswordResetEmail(auth, email)
+                      setError("")
+                      setResetSent(true)
+                    } catch {
+                      setError("Unable to send reset email. Please check your email address.")
+                    }
+                  }}
+                  className="text-xs text-[#0C2340] font-semibold hover:underline"
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -91,6 +116,12 @@ export default function LoginPage() {
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">{error}</div>
+            )}
+
+            {resetSent && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
+                Password reset email sent! Check your inbox.
+              </div>
             )}
 
             <div className="relative">

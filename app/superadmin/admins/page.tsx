@@ -111,10 +111,19 @@ export default function AdminManagement() {
     setShowActionsDropdown(null)
   }
 
-  const confirmAction = () => {
+  const confirmAction = async () => {
     if (actionType === "reset") {
-      updateAdmin(selectedAdminId, { password: "NewPassword123!" }) // mock password reset
-      setActionMessage(`Password reset successful for ${selectedAdminName}`)
+      try {
+        const { sendPasswordResetEmail } = await import("firebase/auth")
+        const { auth } = await import("@/lib/firebase")
+        const adminToReset = adminAccounts.find(a => a.id === selectedAdminId)
+        if (adminToReset) {
+          await sendPasswordResetEmail(auth, adminToReset.email)
+          setActionMessage(`Password reset email sent to ${selectedAdminName}`)
+        }
+      } catch (e) {
+        setActionMessage(`Failed to send password reset email.`)
+      }
     } else if (actionType === "lock") {
       updateAdmin(selectedAdminId, { status: "Locked" })
       setActionMessage(`Account locked successfully for ${selectedAdminName}`)
@@ -295,19 +304,20 @@ export default function AdminManagement() {
       </div>
 
       {/* Admin Table */}
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
-        <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Admin</p></div>
-            <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email</p></div>
-            <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Role</p></div>
-            <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</p></div>
-            <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Last Active</p></div>
-            <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Actions</p></div>
+      <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto shadow-sm">
+        <div className="min-w-[800px]">
+          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Admin</p></div>
+              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Role</p></div>
+              <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Last Active</p></div>
+              <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Actions</p></div>
+            </div>
           </div>
-        </div>
 
-        <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100">
           {filteredAdmins.map((admin) => (
             <div key={admin.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
               <div className="grid grid-cols-12 gap-4 items-center">
@@ -363,8 +373,9 @@ export default function AdminManagement() {
                   )}
                 </div>
               </div>
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

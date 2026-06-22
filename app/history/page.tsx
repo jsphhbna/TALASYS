@@ -14,11 +14,13 @@ import type { ResidentRequest } from "@/lib/local-storage-store"
 
 export default function RequestHistoryPage() {
   const { isAuthorized } = useAuthGuard()
-  const { requests } = useResidentData()
+  const { requests, cancelRequest } = useResidentData()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [downloadingRequestId, setDownloadingRequestId] = useState<string | null>(null)
+  const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState<ResidentRequest | null>(null)
   const itemsPerPage = 5
 
   if (!isAuthorized) {
@@ -47,6 +49,12 @@ export default function RequestHistoryPage() {
       await delay(700)
       showDownloadStarted(request.documentType)
       setDownloadingRequestId(null)
+    }
+  }
+
+  const handleCancelRequest = async (id: string) => {
+    if (confirm("Are you sure you want to cancel this request?")) {
+      cancelRequest(id)
     }
   }
 
@@ -79,8 +87,11 @@ export default function RequestHistoryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="on process">On Process</SelectItem>
+                <SelectItem value="ready for pick up">Ready for Pick Up</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="approved">Approved (Legacy)</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
@@ -123,12 +134,13 @@ export default function RequestHistoryPage() {
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{request.dateRequested}</td>
                     <td className="px-6 py-4">
                       <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${request.status === "Approved"
-                          ? "bg-green-100 text-green-700"
-                          : request.status === "Pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-700"
-                          }`}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${
+                          request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                          request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 text-blue-800" :
+                          request.status === "Ready for Pick Up" ? "bg-emerald-100 text-emerald-800" :
+                          request.status === "Completed" ? "bg-slate-200 text-slate-800" :
+                          "bg-red-100 text-red-800"
+                        }`}
                       >
                         {request.status}
                       </span>
@@ -136,6 +148,16 @@ export default function RequestHistoryPage() {
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{request.purpose}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
+                        {request.status === "Pending" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCancelRequest(request.id)}
+                            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 text-[10px] h-7 px-3 bg-transparent"
+                          >
+                            Cancel
+                          </Button>
+                        )}
                         {request.status === "Rejected" && (
                           <>
                             <Button
@@ -153,6 +175,16 @@ export default function RequestHistoryPage() {
                               Retry
                             </Button>
                           </>
+                        )}
+                        {request.authorizationLetter && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setSelectedRequest(request); setShowAuthDialog(true) }}
+                            className="border-slate-300 text-slate-600 text-[10px] h-7 px-3 bg-transparent"
+                          >
+                            Auth Letter
+                          </Button>
                         )}
                         <Button
                           size="sm"
@@ -216,6 +248,36 @@ export default function RequestHistoryPage() {
           </div>
         </div>
       </Card>
+
+      {/* Authorization Letter Dialog */}
+      {showAuthDialog && selectedRequest && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg p-0 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-[#0C2340]">Authorization Letter Details</h3>
+              <button onClick={() => setShowAuthDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3 mb-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Requested For</p><p className="text-sm text-[#0C2340]">{selectedRequest.requestedByName}</p></div>
+                  <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Relationship</p><p className="text-sm text-[#0C2340]">{selectedRequest.relationship}</p></div>
+                  <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Contact</p><p className="text-sm text-[#0C2340]">{selectedRequest.requestedByContact}</p></div>
+                  <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">File Uploaded</p><p className="text-sm text-[#0C2340]">{selectedRequest.authorizationLetter}</p></div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <div className="aspect-video bg-slate-100 rounded flex items-center justify-center border border-slate-200">
+                    <p className="text-sm text-slate-400">Document Viewer Placeholder</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={() => setShowAuthDialog(false)} className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-900">Close</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </ResidentPageShell>
   )
 }

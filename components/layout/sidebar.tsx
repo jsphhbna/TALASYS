@@ -108,8 +108,8 @@ export function Sidebar() {
       <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Sign Out</DialogTitle>
-            <DialogDescription>Are you sure you want to sign out of your account?</DialogDescription>
+            <DialogTitle>Sign Out</DialogTitle>
+            <DialogDescription>Are you sure you want to sign out? You will need to enter your credentials to access your account again.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>

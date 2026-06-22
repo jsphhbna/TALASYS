@@ -10,6 +10,7 @@ import {
   signOut as firebaseSignOut 
 } from "firebase/auth"
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
+import { initializeFirebaseStorage } from "@/lib/master-store"
 
 interface AuthContextType {
   user: AuthUser | null
@@ -51,7 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userDoc = await getDoc(userDocRef)
           
           if (userDoc.exists()) {
-            setUser(userDoc.data() as AuthUser)
+            const userData = userDoc.data() as AuthUser
+            setUser(userData)
+            initializeFirebaseStorage(userData.role, userData.id)
           } else {
             // Check if they are an admin or superadmin
             let role: UserRole = "resident"
@@ -80,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               accountExpiry: "",
             }
             setUser(fallback)
+            initializeFirebaseStorage(fallback.role, fallback.id)
             // also create in firestore so it doesnt do this again
             await setDoc(doc(db, "users", firebaseUser.uid), fallback)
           }
@@ -91,9 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Fallback for bootstrap superadmin session in local storage
         const local = window.localStorage.getItem("talasys.superadmin")
         if (local) {
-          setUser(JSON.parse(local))
+          const u = JSON.parse(local)
+          setUser(u)
+          initializeFirebaseStorage(u.role, u.id)
         } else {
           setUser(null)
+          initializeFirebaseStorage(null, null)
         }
       }
       setIsReady(true)

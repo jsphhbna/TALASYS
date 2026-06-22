@@ -4,6 +4,7 @@ import type { ResidentProofDocument } from "@/lib/local-storage-store"
 
 interface ProfileProofsCardProps {
   proofs: ResidentProofDocument[]
+  verification: any | null
   isRequestSubmitted: boolean
   isOpeningDialog: boolean
   onRequestProfileEdit: () => void
@@ -11,10 +12,31 @@ interface ProfileProofsCardProps {
 
 export function ProfileProofsCard({
   proofs,
+  verification,
   isRequestSubmitted,
   isOpeningDialog,
   onRequestProfileEdit,
 }: ProfileProofsCardProps) {
+  const isRejected = verification?.status === "rejected"
+
+  const handleResubmit = async () => {
+    try {
+      const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore")
+      const db = (await import("@/lib/firebase")).db
+      if (!verification) return
+      
+      const docRef = doc(db, "verifications", verification.id)
+      await updateDoc(docRef, {
+        status: "pending",
+        rejectionReason: "",
+        updatedAt: serverTimestamp()
+      })
+      window.location.reload() // Force UI refresh
+    } catch (error) {
+      console.error("Failed to re-submit verification", error)
+    }
+  }
+
   return (
     <Card className="p-6">
       <h3 className="text-base font-semibold text-[#0C2340] mb-5">Uploaded Proofs</h3>
@@ -42,6 +64,16 @@ export function ProfileProofsCard({
           ))
         )}
       </div>
+
+      {isRejected && (
+        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-xs font-semibold text-red-700 mb-1">Verification Rejected</p>
+          <p className="text-[11px] text-red-600 mb-3">{verification?.rejectionReason || "Please review and re-submit your documents."}</p>
+          <Button onClick={handleResubmit} className="w-full bg-red-600 hover:bg-red-700 text-white" size="sm">
+            Re-Submit Verification
+          </Button>
+        </div>
+      )}
 
       <Button
         onClick={onRequestProfileEdit}

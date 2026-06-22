@@ -71,10 +71,10 @@ export default function AuditLogs() {
 
   const getActionColor = (type: string) => {
     switch (type) {
-      case "Approved Doc": return "bg-emerald-50 text-emerald-700 border-emerald-200"
-      case "Verified Account": return "bg-blue-50 text-blue-700 border-blue-200"
-      case "Rejected Doc": return "bg-red-50 text-red-700 border-red-200"
-      case "Generated Doc": return "bg-amber-50 text-amber-700 border-amber-200"
+      case "approved": return "bg-emerald-50 text-emerald-700 border-emerald-200"
+      case "verified": return "bg-blue-50 text-blue-700 border-blue-200"
+      case "rejected": return "bg-red-50 text-red-700 border-red-200"
+      case "generated": return "bg-amber-50 text-amber-700 border-amber-200"
       case "Config Edit": return "bg-[#C5A55A]/10 text-[#8a7430] border-[#C5A55A]/20"
       case "Login": return "bg-slate-50 text-slate-600 border-slate-200"
       default: return "bg-slate-50 text-slate-600 border-slate-200"
@@ -203,10 +203,10 @@ export default function AuditLogs() {
           </select>
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="px-4 py-2 border border-slate-200 rounded-md text-sm">
             <option value="all">All Actions</option>
-            <option value="Approved Doc">Approved Doc</option>
-            <option value="Rejected Doc">Rejected Doc</option>
-            <option value="Verified Account">Verified Account</option>
-            <option value="Generated Doc">Generated Doc</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="verified">Verified</option>
+            <option value="generated">Generated</option>
             <option value="Config Edit">Config Edit</option>
             <option value="Login">Login</option>
           </select>
@@ -219,17 +219,18 @@ export default function AuditLogs() {
       </Card>
 
       {/* Log Table */}
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
-        <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Timestamp</p></div>
-            <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Admin</p></div>
-            <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Action</p></div>
-            <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Details</p></div>
-            <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">IP Address</p></div>
+      <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto shadow-sm">
+        <div className="min-w-[800px]">
+          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Timestamp</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Admin</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Action</p></div>
+              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Details</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">IP Address</p></div>
+            </div>
           </div>
-        </div>
-        <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100">
           {filteredLogs.length === 0 ? (
             <div className="p-8 text-center text-slate-500">No logs found matching filters.</div>
           ) : filteredLogs.map((log) => (
@@ -247,7 +248,7 @@ export default function AuditLogs() {
                 </div>
                 <div className="col-span-2">
                   <span className={`inline-block px-2.5 py-1 rounded-md border text-[10px] font-semibold ${getActionColor(log.actionType)}`}>
-                    {log.actionType}
+                    {log.actionType.toUpperCase()}
                   </span>
                 </div>
                 <div className="col-span-4"><p className="text-sm text-slate-700">{log.details}</p></div>
@@ -255,6 +256,7 @@ export default function AuditLogs() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       </div>
 

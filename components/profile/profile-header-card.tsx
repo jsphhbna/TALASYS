@@ -55,9 +55,15 @@ export function ProfileHeaderCard({
         <div className="flex-1">
           <h2 className="text-[22px] font-bold text-slate-900 mb-2">{user.name}</h2>
           <p className="text-sm text-slate-600 mb-3">{user.status ?? "Resident"}</p>
-          <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
-            Verified
-          </span>
+          {user.isVerified ? (
+            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
+              ✓ Verified
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-700">
+              ⏳ Pending Verification
+            </span>
+          )}
         </div>
       </div>
     </Card>

@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==============================================================
+    // CORE ROLE-BASED ACCESS CONTROL (RBAC) FUNCTIONS
+    // ==============================================================
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (getUserRole() == "admin" || getUserRole() == "SuperAdmin");
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserRole() == "SuperAdmin";
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ==============================================================
+    // USERS COLLECTION
+    // ==============================================================
+    match /users/{userId} {
+      // Admins can read all. Residents can read their own profiles.
+      allow read: if isAdmin() || isOwner(userId);
+      
+      // Creating an account is allowed during registration if the UID matches.
+      // Admins/SuperAdmins can write to any user.
+      allow create: if isOwner(userId) || isAdmin();
+      
+      // Updates are allowed for the owner or an admin.
+      allow update: if isOwner(userId) || isAdmin();
+      
+      // Only Admins/SuperAdmins can delete users.
+      allow delete: if isAdmin();
+    }
+
+    // ==============================================================
+    // DOCUMENT REQUESTS COLLECTION
+    // ==============================================================
+    match /documentRequests/{requestId} {
+      // Admins can see all. Residents can only see their own.
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
+      
+      // Residents can create requests for themselves. Admins can create for anyone.
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.residentId == request.auth.uid);
+      
+      // Updates and deletions are allowed by Admins, or residents managing their own unapproved requests.
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
+    }
+
+    // ==============================================================
+    // VERIFICATIONS COLLECTION
+    // ==============================================================
+    match /verifications/{verificationId} {
+      // Admins can see all. Residents can only see their own.
+      allow read: if isAdmin() || (isAuthenticated() && (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid));
+      
+      // Residents can create verifications for themselves.
+      allow create: if isAdmin() || (isAuthenticated() && (request.resource.data.residentId == request.auth.uid || request.resource.data.userId == request.auth.uid));
+      
+      // Only admins can update or delete verifications (to prevent residents from self-approving).
+      allow update, delete: if isAdmin();
+    }
+
+    // ==============================================================
+    // NOTIFICATIONS COLLECTION
+    // ==============================================================
+    match /notifications/{notificationId} {
+      // Users can read notifications directed to them. Admins can read notifications directed to "admin".
+      allow read: if isAuthenticated() && (resource.data.targetId == request.auth.uid || (resource.data.targetId == "admin" && isAdmin()));
+      
+      // Anyone can create a notification (e.g. system generating them, resident pinging admin).
+      allow create: if isAuthenticated();
+      
+      // Only the target user (or admins for "admin" notifications) can mark as read/delete.
+      allow update, delete: if isAuthenticated() && (resource.data.targetId == request.auth.uid || (resource.data.targetId == "admin" && isAdmin()));
+    }
+
+    // ==============================================================
+    // ACTIVITY LOGS COLLECTION
+    // ==============================================================
+    match /activityLogs/{logId} {
+      // Only Admins and SuperAdmins can read logs.
+      allow read: if isAdmin();
+      
+      // System and Admins can create logs.
+      allow create: if isAdmin();
+      
+      // Only SuperAdmins can clear/delete logs.
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // ==============================================================
+    // SYSTEM ALERTS COLLECTION
+    // ==============================================================
+    match /systemAlerts/{alertId} {
+      // Anyone authenticated can read system-wide alerts.
+      allow read: if isAuthenticated();
+      
+      // Only SuperAdmins can create, update, or delete system alerts.
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // ==============================================================
+    // SYSTEM CONFIGURATION COLLECTION
+    // ==============================================================
+    match /systemConfig/{configId} {
+      // Anyone authenticated can read configuration (document fees, etc).
+      allow read: if isAuthenticated();
+      
+      // Only SuperAdmins can modify configuration.
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+  }
+}

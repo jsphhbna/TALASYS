@@ -15,7 +15,12 @@ export default function DashboardPage() {
     return null
   }
 
-  const approvedRequests = requests.filter((request) => request.status === "Approved")
+  const approvedRequests = requests.filter((request) => 
+    request.status === "Approved" || 
+    request.status === "On Process" || 
+    request.status === "Ready for Pick Up" || 
+    request.status === "Completed"
+  )
   const pendingRequests = requests.filter((request) => request.status === "Pending")
   const recentRequests = requests.slice(0, 3)
   const recentNotifications = notifications.slice(0, 2)
@@ -118,12 +123,13 @@ export default function DashboardPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">{request.dateRequested}</td>
                     <td className="px-6 py-4">
                       <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${request.status === "Approved"
-                          ? "bg-green-100 text-green-700"
-                          : request.status === "Pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-700"
-                          }`}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${
+                          request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                          request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 text-blue-800" :
+                          request.status === "Ready for Pick Up" ? "bg-emerald-100 text-emerald-800" :
+                          request.status === "Completed" ? "bg-slate-200 text-slate-800" :
+                          "bg-red-100 text-red-800"
+                        }`}
                       >
                         {request.status}
                       </span>

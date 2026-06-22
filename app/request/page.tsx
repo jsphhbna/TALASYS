@@ -21,6 +21,7 @@ interface DocumentOption {
   icon: string
   title: string
   description: string
+  fee: number
 }
 
 const documentTypes: DocumentOption[] = [
@@ -29,18 +30,21 @@ const documentTypes: DocumentOption[] = [
     icon: "📄",
     title: "Barangay Clearance",
     description: "For employment, business, or legal purposes",
+    fee: 50,
   },
   {
     id: "indigency",
     icon: "📋",
     title: "Certificate of Indigency",
     description: "For medical or financial assistance programs",
+    fee: 0,
   },
   {
     id: "residency",
     icon: "🏠",
     title: "Certificate of Residency",
     description: "Proof of residence for banking or government use",
+    fee: 50,
   },
 ]
 
@@ -59,7 +63,7 @@ const purposeOptions: Record<DocumentType, string[]> = {
 function RequestDocumentContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { addRequest } = useResidentData()
+  const { addRequest, systemConfig, requests } = useResidentData()
   const typeParam = searchParams.get("type") as DocumentType | null
 
   const [selectedType, setSelectedType] = useState<DocumentType | null>(typeParam || null)
@@ -67,6 +71,7 @@ function RequestDocumentContent() {
   const [purpose, setPurpose] = useState("")
   const [customPurpose, setCustomPurpose] = useState("")
   const [additionalDetails, setAdditionalDetails] = useState("")
+  const [paymentMethod, setPaymentMethod] = useState("cash")
   const [otherPersonName, setOtherPersonName] = useState("")
   const [otherPersonContact, setOtherPersonContact] = useState("")
   const [relationship, setRelationship] = useState("")
@@ -93,6 +98,7 @@ function RequestDocumentContent() {
     if (requestFor === "other") {
       if (!otherPersonName) newErrors.otherPersonName = "Full name is required"
       if (!otherPersonContact) newErrors.otherPersonContact = "Contact number is required"
+      else if (otherPersonContact.length !== 11) newErrors.otherPersonContact = "Contact number must be exactly 11 digits"
       if (!relationship) newErrors.relationship = "Relationship is required"
       if (!authorizationLetter) newErrors.authorizationLetter = "Authorization letter is required"
     }
@@ -100,6 +106,16 @@ function RequestDocumentContent() {
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
+    }
+
+    if (selectedDoc && requestFor === "myself") {
+      const hasDuplicatePending = requests.some(
+        (r) => r.documentType === selectedDoc.title && r.status === "Pending" && r.requestFor !== "other"
+      )
+      if (hasDuplicatePending) {
+        setErrors({ submitError: `You already have a pending request for ${selectedDoc.title}.` })
+        return
+      }
     }
 
     setErrors({})
@@ -110,6 +126,13 @@ function RequestDocumentContent() {
       addRequest({
         documentType: selectedDoc.title,
         purpose: finalPurpose,
+        requestFor,
+        ...(requestFor === "other" && {
+          requestedByName: otherPersonName,
+          requestedByContact: otherPersonContact,
+          relationship,
+          authorizationLetter: authorizationLetter?.name,
+        }),
       })
     }
 
@@ -117,7 +140,16 @@ function RequestDocumentContent() {
     router.push("/history")
   }
 
-  const selectedDoc = documentTypes.find((doc) => doc.id === selectedType)
+  // Inject dynamic fees from SystemConfig
+  const dynamicDocumentTypes = documentTypes.map(doc => {
+    const dynamicFee = systemConfig?.documentFees?.[doc.title]
+    return {
+      ...doc,
+      fee: dynamicFee !== undefined ? dynamicFee : doc.fee
+    }
+  })
+
+  const selectedDoc = dynamicDocumentTypes.find((doc) => doc.id === selectedType)
 
   return (
     <>
@@ -131,7 +163,7 @@ function RequestDocumentContent() {
       <div className="mb-8">
         <h2 className="text-base font-semibold text-[#0C2340] mb-4">Select Document Type</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {documentTypes.map((doc) => (
+          {dynamicDocumentTypes.map((doc) => (
             <Card
               key={doc.id}
               onClick={() => setSelectedType(doc.id)}
@@ -168,11 +200,29 @@ function RequestDocumentContent() {
               disabled={isSubmittingRequest}
               className="w-64 h-12 bg-[#0C2340] hover:bg-[#1a3a5c] text-sm font-semibold"
             >
-              {isSubmittingRequest ? "Submitting Request..." : "Submit Request"}
+              {isSubmittingRequest ? "Processing..." : (paymentMethod === "gcash" && selectedDoc.fee > 0) ? `Pay ₱${selectedDoc.fee.toFixed(2)} & Submit` : "Submit Request"}
             </Button>
           </div>
 
           <div className="space-y-6">
+            {errors.submitError && (
+              <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm border border-red-200">
+                {errors.submitError}
+              </div>
+            )}
+            
+            {/* Payment Summary */}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-700">Document Fee</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Standard processing fee for {selectedDoc.title}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-bold text-[#0C2340]">
+                  {selectedDoc.fee === 0 ? "FREE" : `₱${selectedDoc.fee.toFixed(2)}`}
+                </span>
+              </div>
+            </div>
             {/* Who is this document for? */}
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-3">Who is this document for? *</label>
@@ -386,6 +436,43 @@ function RequestDocumentContent() {
                 className="w-full min-h-24 bg-white border-slate-300"
               />
             </div>
+
+            {/* Payment Method */}
+            {selectedDoc && selectedDoc.fee > 0 && (
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-3">Payment Method *</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === "cash" ? "border-[#0C2340] bg-[#0C2340]/[0.02]" : "border-slate-200 hover:border-slate-300"}`}>
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="cash"
+                      checked={paymentMethod === "cash"}
+                      onChange={() => setPaymentMethod("cash")}
+                      className="w-4 h-4"
+                    />
+                    <div>
+                      <span className="block text-sm font-semibold text-slate-900">Cash on Pick-up</span>
+                      <span className="block text-xs text-slate-500 mt-0.5">Pay at the Barangay Hall</span>
+                    </div>
+                  </label>
+                  <label className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === "gcash" ? "border-[#0C2340] bg-[#0C2340]/[0.02]" : "border-slate-200 hover:border-slate-300"}`}>
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="gcash"
+                      checked={paymentMethod === "gcash"}
+                      onChange={() => setPaymentMethod("gcash")}
+                      className="w-4 h-4"
+                    />
+                    <div>
+                      <span className="block text-sm font-semibold text-slate-900">GCash</span>
+                      <span className="block text-xs text-slate-500 mt-0.5">Pay now via GCash</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
 
             {/* Processing Info */}
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">

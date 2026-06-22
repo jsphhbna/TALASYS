@@ -36,6 +36,7 @@ export default function SystemConfig() {
     contactNumber: systemConfig.contactNumber,
     emailAddress: systemConfig.emailAddress,
     barangayCaptainName: systemConfig.barangayCaptainName,
+    documentFees: systemConfig.documentFees || {},
   })
 
   const tabs = [
@@ -53,12 +54,12 @@ export default function SystemConfig() {
   ]
 
   const documentTypes = [
-    { name: "Barangay Clearance", enabled: true, requests: 1872 },
-    { name: "Certificate of Indigency", enabled: true, requests: 1245 },
-    { name: "Certificate of Residency", enabled: true, requests: 986 },
-    { name: "Business Clearance", enabled: true, requests: 423 },
-    { name: "First Time Job Seeker", enabled: true, requests: 312 },
-    { name: "Community Tax Certificate", enabled: false, requests: 0 },
+    { name: "Barangay Clearance", enabled: true, requests: 1872, fee: systemConfig.documentFees?.["Barangay Clearance"] ?? 50 },
+    { name: "Certificate of Indigency", enabled: true, requests: 1245, fee: systemConfig.documentFees?.["Certificate of Indigency"] ?? 0 },
+    { name: "Certificate of Residency", enabled: true, requests: 986, fee: systemConfig.documentFees?.["Certificate of Residency"] ?? 50 },
+    { name: "Business Clearance", enabled: true, requests: 423, fee: systemConfig.documentFees?.["Business Clearance"] ?? 150 },
+    { name: "First Time Job Seeker", enabled: true, requests: 312, fee: systemConfig.documentFees?.["First Time Job Seeker"] ?? 0 },
+    { name: "Community Tax Certificate", enabled: false, requests: 0, fee: systemConfig.documentFees?.["Community Tax Certificate"] ?? 0 },
   ]
 
   const h = systemHealthMetrics
@@ -294,9 +295,10 @@ export default function SystemConfig() {
         <Card className="shadow-sm overflow-hidden">
           <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
             <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-5"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Document Type</p></div>
+              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Document Type</p></div>
               <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</p></div>
-              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Requests</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fee (₱)</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Requests</p></div>
               <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Actions</p></div>
             </div>
           </div>
@@ -304,7 +306,7 @@ export default function SystemConfig() {
             {documentTypes.map((doc) => (
               <div key={doc.name} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
-                  <div className="col-span-5 flex items-center gap-3">
+                  <div className="col-span-4 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center">
                       <FileText className="w-4 h-4 text-[#0C2340]" />
                     </div>
@@ -317,10 +319,28 @@ export default function SystemConfig() {
                       {doc.enabled ? "Enabled" : "Disabled"}
                     </div>
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-2">
+                    <div className="relative flex items-center">
+                      <span className="absolute left-2 text-slate-500 text-xs font-semibold">₱</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        defaultValue={doc.fee}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value)
+                          if (!isNaN(val)) {
+                            const newFees = { ...(formData as any).documentFees, [doc.name]: val }
+                            setFormData({ ...formData, documentFees: newFees } as any)
+                          }
+                        }}
+                        className="h-8 w-20 pl-6 text-xs text-slate-900 border-slate-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-span-2">
                     <span className="text-sm text-slate-700">{doc.requests.toLocaleString()}</span>
                     {doc.requests > 0 && (
-                      <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden w-24">
+                      <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden w-full max-w-[80px]">
                         <div className="h-full bg-[#0C2340] rounded-full" style={{ width: `${(doc.requests / 1872) * 100}%` }} />
                       </div>
                     )}

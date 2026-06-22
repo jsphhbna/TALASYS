@@ -12,22 +12,32 @@ import {
 import { ClipboardCheck, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react"
 
 export default function Verifications() {
-  const { verifications: pendingVerifications, approveVerification, rejectVerification } = useAdminData()
+  const { verifications: pendingVerifications, rejectedVerifications, activityLogs, approveVerification, rejectVerification } = useAdminData()
   const [activeTab, setActiveTab] = useState("registration")
-  const [selectedItem, setSelectedItem] = useState<any>(pendingVerifications[0])
+  const [selectedItem, setSelectedItem] = useState<any>(pendingVerifications[0] || rejectedVerifications[0])
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
 
   const tabs = [
     { id: "registration", label: "New Registrations", count: pendingVerifications.filter(v => v.type === "registration").length },
     { id: "profile-edit", label: "Profile Edits", count: pendingVerifications.filter(v => v.type === "profile-edit").length },
     { id: "reactivation", label: "Reactivation", count: pendingVerifications.filter(v => v.type === "reactivation").length },
+    { id: "rejected", label: "Rejected History", count: rejectedVerifications.length },
   ]
 
-  const filteredItems = pendingVerifications.filter(v => v.type === activeTab)
+  const filteredItems = activeTab === "rejected" 
+    ? rejectedVerifications 
+    : pendingVerifications.filter(v => v.type === activeTab)
 
   const isOlderThan3Days = (dateStr: string) => {
     const day = parseInt(dateStr.replace("Nov ", ""))
     return day <= 25
   }
+
+  // Compute actual KPI stats from activity logs
+  const today = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date())
+  const approvedToday = activityLogs.filter(log => log.date === today && log.actionType === "approved" && log.action.includes("Verification")).length
+  const rejectedToday = activityLogs.filter(log => log.date === today && log.actionType === "rejected" && log.action.includes("Verification")).length
 
   return (
     <AdminPageShell>
@@ -41,9 +51,9 @@ export default function Verifications() {
         <div className="col-span-8 grid grid-cols-4 gap-4">
           {[
             { label: "Pending", value: pendingVerifications.length, icon: ClipboardCheck, color: "text-amber-600", bg: "bg-amber-50" },
-            { label: "Approved Today", value: "0", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
-            { label: "Rejected Today", value: "0", icon: XCircle, color: "text-red-600", bg: "bg-red-50" },
-            { label: "Avg Process Time", value: "0d", icon: Clock, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Approved Today", value: approvedToday.toString(), icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Rejected Today", value: rejectedToday.toString(), icon: XCircle, color: "text-red-600", bg: "bg-red-50" },
+            { label: "Avg Process Time", value: "<1d", icon: Clock, color: "text-blue-600", bg: "bg-blue-50" },
           ].map((kpi, i) => (
             <Card key={i} className="p-4 shadow-sm">
               <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center mb-2`}>
@@ -88,7 +98,7 @@ export default function Verifications() {
         {/* List */}
         <Card className="col-span-5 shadow-sm">
           <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg">
-            <h3 className="text-sm font-semibold text-[#0C2340]">Pending Items</h3>
+            <h3 className="text-sm font-semibold text-[#0C2340]">{activeTab === "rejected" ? "Rejected Items" : "Pending Items"}</h3>
           </div>
           <div className="divide-y divide-slate-100">
             {filteredItems.map((item) => {
@@ -177,6 +187,12 @@ export default function Verifications() {
                     <p className="text-[11px] text-slate-700 bg-slate-50 p-3 rounded italic">&ldquo;{selectedItem.reason}&rdquo;</p>
                   </div>
                 )}
+                {selectedItem.status === "rejected" && selectedItem.rejectionReason && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider mb-1">Rejection Reason</p>
+                    <p className="text-[11px] text-red-700 bg-red-50 p-3 rounded italic">&ldquo;{selectedItem.rejectionReason}&rdquo;</p>
+                  </div>
+                )}
 
                 {/* Documents */}
                 <div>
@@ -193,10 +209,49 @@ export default function Verifications() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 pt-2">
-                  <Button onClick={() => { approveVerification(selectedItem.id); setSelectedItem(null) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Approve</Button>
-                  <Button onClick={() => { rejectVerification(selectedItem.id); setSelectedItem(null) }} className="flex-1 h-10 bg-red-600 hover:bg-red-700">Reject</Button>
-                </div>
+                {selectedItem.status !== "rejected" && (
+                  <div className="flex gap-3 pt-2">
+                    <Button onClick={() => { approveVerification(selectedItem.id); setSelectedItem(null) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Approve</Button>
+                    <Button onClick={() => setShowRejectConfirm(true)} className="flex-1 h-10 bg-red-600 hover:bg-red-700">Reject</Button>
+                  </div>
+                )}
+
+                {/* Reject Confirmation Dialog */}
+                {showRejectConfirm && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm font-semibold text-red-800 mb-2">Confirm Rejection</p>
+                    <p className="text-xs text-red-700 mb-3">Please provide a reason for rejecting this verification:</p>
+                    <textarea
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Enter rejection reason..."
+                      className="w-full p-3 border border-red-200 rounded-lg text-sm mb-3 focus:outline-none focus:border-red-400 bg-white"
+                      rows={3}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          if (!rejectReason.trim()) return
+                          rejectVerification(selectedItem.id, rejectReason)
+                          setSelectedItem(null)
+                          setShowRejectConfirm(false)
+                          setRejectReason("")
+                        }}
+                        disabled={!rejectReason.trim()}
+                        className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-xs disabled:opacity-50"
+                      >
+                        Confirm Reject
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => { setShowRejectConfirm(false); setRejectReason("") }}
+                        className="flex-1 h-9 bg-transparent text-xs"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           ) : (

@@ -9,6 +9,22 @@ import { Card } from "@/components/ui/card"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 
+function formatRelativeTime(createdAt: number): string {
+  const now = Date.now()
+  const diff = now - createdAt
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (seconds < 60) return "Just now"
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days === 1) return "Yesterday"
+  if (days < 7) return `${days}d ago`
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(createdAt))
+}
+
 export default function NotificationsPage() {
   const { isAuthorized } = useAuthGuard()
   const { notifications, markAllNotificationsRead } = useResidentData()
@@ -28,11 +44,6 @@ export default function NotificationsPage() {
     setIsMarkingAllRead(false)
   }
 
-  const handleReactivation = () => {
-    showToastPreset("reactivationStarted")
-    router.push("/register")
-  }
-
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
   return (
@@ -47,11 +58,23 @@ export default function NotificationsPage() {
             {/* Left: Notifications List */}
             <div className="lg:col-span-2">
               <Card>
-                {notifications.map((notification, index) => (
-                  <div
+                {notifications.map((notification, index) => {
+                  const relativeTime = formatRelativeTime(notification.createdAt)
+                  return (
+                  <button
                     key={notification.id}
-                    className={`p-4 flex items-start gap-4 ${index < notifications.length - 1 ? "border-b border-slate-100" : ""
-                      } ${notification.type === "urgent" ? "bg-red-50" : notification.isRead ? "bg-white" : "bg-slate-50"}`}
+                    onClick={() => {
+                      // Navigate based on notification type
+                      if (notification.title.includes("Request")) {
+                        router.push("/history")
+                      } else if (notification.title.includes("Verified") || notification.title.includes("Verification")) {
+                        router.push("/profile")
+                      } else if (notification.title.includes("Document")) {
+                        router.push("/history")
+                      }
+                    }}
+                    className={`w-full text-left p-4 flex items-start gap-4 transition-colors hover:bg-slate-100/50 ${index < notifications.length - 1 ? "border-b border-slate-100" : ""
+                      } ${notification.type === "urgent" ? "bg-red-50 hover:bg-red-100/50" : notification.isRead ? "bg-white" : "bg-slate-50"}`}
                   >
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${notification.type === "urgent"
@@ -96,10 +119,11 @@ export default function NotificationsPage() {
                     </div>
 
                     <span className="text-[11px] text-slate-400 whitespace-nowrap flex-shrink-0">
-                      {notification.timestamp}
+                      {relativeTime}
                     </span>
-                  </div>
-                ))}
+                  </button>
+                  )
+                })}
 
                 <div className="p-4 text-right border-t border-slate-100">
                   <button onClick={handleMarkAllRead} className="text-xs text-[#0C2340] font-medium hover:underline" disabled={isMarkingAllRead || unreadCount === 0}>
@@ -126,51 +150,6 @@ export default function NotificationsPage() {
                 </div>
               </Card>
 
-              {/* Reactivation Process Preview (Optional Display) */}
-              <Card className="p-6 shadow-sm">
-                <h3 className="text-sm font-semibold text-[#0C2340] mb-4">Reactivation Process</h3>
-
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-[#0C2340] flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-[10px] font-medium">1</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-[#0C2340] font-medium">Re-upload Documents</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-slate-600 text-[10px]">2</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-slate-600">Admin Verification</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-slate-600 text-[10px]">3</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-slate-600">Account Reactivated</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="relative group">
-                  <button
-                    disabled
-                    className="w-full mt-6 py-2.5 px-4 text-sm font-medium text-slate-500 bg-slate-200 rounded cursor-not-allowed"
-                  >
-                    Request Activation
-                  </button>
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                    Account still active...
-                  </div>
-                </div>
-              </Card>
             </div>
           </div>
     </ResidentPageShell>

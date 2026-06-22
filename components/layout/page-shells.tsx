@@ -3,7 +3,10 @@ import { Header } from "@/components/layout/header"
 import { Sidebar } from "@/components/layout/sidebar"
 import { AdminHeader } from "@/components/layout/admin-header"
 import { AdminSidebar } from "@/components/layout/admin-sidebar"
+import { SuperAdminHeader } from "@/components/layout/superadmin-header"
+import { SuperAdminSidebar } from "@/components/layout/superadmin-sidebar"
 import { MainContentStage } from "@/components/layout/main-content-stage"
+import { useInactivityTimeout } from "@/hooks/use-inactivity-timeout"
 
 interface ShellProps {
   children: ReactNode

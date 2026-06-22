@@ -51,7 +51,7 @@ const defaultUploadingState: Record<UploadField, boolean> = {
 
 export default function ProfilePage() {
   const { user, isAuthorized } = useAuthGuard()
-  const { proofs, saveProfilePicture } = useResidentData()
+  const { proofs, verification, addRequest, isLoaded, saveProfilePicture, deleteAccount } = useResidentData()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isOpeningDialog, setIsOpeningDialog] = useState(false)
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
@@ -233,13 +233,20 @@ export default function ProfilePage() {
           <ProfilePersonalInfoCard user={user} />
           <ProfileProofsCard
             proofs={proofs}
+            verification={verification}
             isRequestSubmitted={isRequestSubmitted}
             isOpeningDialog={isOpeningDialog}
             onRequestProfileEdit={handleRequestProfileEdit}
           />
         </div>
 
-        <ProfileAccountInfoCard user={user} />
+        <ProfileAccountInfoCard user={user} onDeleteAccount={async () => {
+          if (confirm("Are you sure you want to permanently delete your account and all associated records? This cannot be undone.")) {
+            if (await deleteAccount()) {
+              window.location.href = "/login"
+            }
+          }
+        }} />
       </div>
 
       <ProfileEditRequestDialog

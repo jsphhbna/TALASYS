@@ -41,6 +41,8 @@ export interface ActivityLog {
   details: string
   ipAddress?: string
   role: "Admin" | "SuperAdmin"
+  targetId?: string
+  targetCollection?: "documentRequests" | "verifications" | "residents"
 }
 
 export interface SystemConfig {
@@ -51,6 +53,7 @@ export interface SystemConfig {
   address: string
   enabledModules: string[]
   documentTypes: string[]
+  documentFees: Record<string, number>
 }
 
 export interface ResidentProofDocument {
@@ -64,7 +67,6 @@ export interface ResidentProofDocument {
 export interface ResidentAccountRecord {
   id: string
   username: string
-  password: string
   user: AuthUser
 }
 
@@ -77,7 +79,7 @@ export interface MasterDocumentRequest {
   documentType: string
   purpose: string
   dateRequested: string
-  status: "Pending" | "Approved" | "Rejected"
+  status: "Pending" | "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected"
   refNumber?: string
   downloadUrl?: string
   createdAt: number
@@ -108,6 +110,8 @@ export interface MasterVerification {
   initials: string
   type: "registration" | "profile-edit" | "reactivation"
   submittedDate: string
+  status?: "pending" | "approved" | "rejected"
+  rejectionReason?: string
   categories: string[]
   age?: number
   gender?: "Male" | "Female"
@@ -154,6 +158,11 @@ const createDefaultMasterStorage = (): MasterStorage => ({
     address: "",
     enabledModules: [],
     documentTypes: ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency"],
+    documentFees: {
+      "Barangay Clearance": 50,
+      "Certificate of Indigency": 0,
+      "Certificate of Residency": 20,
+    }
   },
 })
 
@@ -166,78 +175,16 @@ export const notifyMasterUpdated = () => {
   window.dispatchEvent(new Event(MASTER_STORAGE_EVENT))
 }
 
+export const initializeFirebaseStorage = (userRole: "resident" | "admin" | "superadmin" | null, userId: string | null) => {
+    // No-op. Hook subscriptions handle this natively now.
+}
+
 export const readMasterStorage = (): MasterStorage => {
-  if (!isFirebaseInitialized && canUseStorage()) {
-    isFirebaseInitialized = true
-    
-    try {
-      const stored = window.localStorage.getItem("talasys.master.storage.v1")
-      if (stored) memoryStore = JSON.parse(stored) as MasterStorage
-    } catch (e) { }
-
-    import("firebase/firestore").then(({ collection, onSnapshot }) => {
-      // Split into discrete realtime collections to avoid the 1MB document limit
-      const attachListener = (key: keyof MasterStorage) => {
-        onSnapshot(collection(db, key), (snapshot) => {
-          // If it's a configurable singleton like systemConfig, read the first doc
-          if (key === "systemConfig") {
-            if (!snapshot.empty) {
-              const cfg = snapshot.docs[0].data() as SystemConfig
-              memoryStore.systemConfig = cfg
-              if (canUseStorage()) window.localStorage.setItem("talasys.master.storage.v1", JSON.stringify(memoryStore))
-              notifyMasterUpdated()
-            }
-          } else {
-             const items = snapshot.docs.map(d => d.data())
-             // @ts-ignore
-             memoryStore[key] = items
-             if (canUseStorage()) window.localStorage.setItem("talasys.master.storage.v1", JSON.stringify(memoryStore))
-             notifyMasterUpdated()
-          }
-        }, console.error)
-      }
-
-      attachListener("residents")
-      attachListener("admins")
-      attachListener("documentRequests")
-      attachListener("verifications")
-      attachListener("notifications")
-      attachListener("auditLogs")
-      attachListener("systemAlerts")
-      attachListener("systemConfig")
-    })
-  }
-
   return memoryStore
 }
 
 export const writeMasterStorage = (next: MasterStorage) => {
-  memoryStore = next
-  
-  if (canUseStorage()) {
-    window.localStorage.setItem("talasys.master.storage.v1", JSON.stringify(next))
-    notifyMasterUpdated()
-  }
-
-  // Persist to Firebase in separate collections
-  if (isFirebaseInitialized) {
-    import("firebase/firestore").then(({ doc, setDoc }) => {
-       const keys: (keyof MasterStorage)[] = [
-         "residents", "admins", "documentRequests", "verifications", 
-         "notifications", "auditLogs", "systemAlerts"
-       ]
-       
-       keys.forEach((key) => {
-          const list = next[key] as any[]
-          list.forEach((item: any) => {
-             if (item.id) setDoc(doc(db, key, item.id), item, { merge: true })
-          })
-       })
-
-       // System config handles differently
-       setDoc(doc(db, "systemConfig", "global_config"), next.systemConfig, { merge: true })
-    })
-  }
+  // Deprecated. We write to firestore directly now.
 }
 
 export const subscribeToMasterStorage = (callback: () => void) => {

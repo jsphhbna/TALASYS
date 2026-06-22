@@ -17,13 +17,14 @@ export default function DocumentRequests() {
   const [showApproveDialog, setShowApproveDialog] = useState(false)
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [showViewDialog, setShowViewDialog] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
 
   const filters = [
     { id: "all", label: "All Requests" },
-    { id: "Brgy. Clearance", label: "Clearance" },
-    { id: "Cert. of Residency", label: "Residency" },
-    { id: "Cert. of Indigency", label: "Indigency" },
+    { id: "Barangay Clearance", label: "Clearance" },
+    { id: "Certificate of Residency", label: "Residency" },
+    { id: "Certificate of Indigency", label: "Indigency" },
   ]
 
   const filteredRequests = adminDocumentRequests.filter(r =>
@@ -120,21 +121,21 @@ export default function DocumentRequests() {
       </div>
 
       {/* Table */}
-      <Card className="shadow-sm">
-        <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 rounded-t-lg">
-          <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-            <div className="col-span-2">RESIDENT</div>
-            <div className="col-span-2">DOCUMENT</div>
-            <div className="col-span-2">PURPOSE</div>
-            <div className="col-span-1">DATE</div>
-            <div className="col-span-2">STATUS</div>
-            <div className="col-span-3">ACTIONS</div>
+      <Card className="shadow-sm overflow-x-auto">
+        <div className="min-w-[800px]">
+          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 rounded-t-lg">
+            <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              <div className="col-span-2">RESIDENT</div>
+              <div className="col-span-2">DOCUMENT</div>
+              <div className="col-span-2">PURPOSE</div>
+              <div className="col-span-1">DATE</div>
+              <div className="col-span-2">STATUS</div>
+              <div className="col-span-3">ACTIONS</div>
+            </div>
           </div>
-        </div>
-        <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100">
           {filteredRequests.map((request) => (
-            <div key={request.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
-              <div className="grid grid-cols-12 gap-4 items-center">
+            <div key={request.id} className="grid grid-cols-12 gap-4 items-center px-6 py-3.5 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => { setSelectedRequest(request); setShowViewDialog(true) }}>
                 <div className="col-span-2 flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-full bg-[#0C2340]/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340]">{request.residentInitials}</div>
                   <div>
@@ -152,14 +153,20 @@ export default function DocumentRequests() {
                   <span className="text-[11px] text-slate-500">{request.dateRequested}</span>
                 </div>
                 <div className="col-span-2">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${request.status === "Pending" ? "bg-amber-50 text-amber-700" :
-                    request.status === "Approved" ? "bg-emerald-50 text-emerald-700" :
-                      "bg-red-50 text-red-700"
-                    }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${request.status === "Pending" ? "bg-amber-500" :
-                      request.status === "Approved" ? "bg-emerald-500" :
-                        "bg-red-500"
-                      }`} />
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${
+                    request.status === "Pending" ? "bg-amber-50 text-amber-700" :
+                    request.status === "On Process" || request.status === "Approved" ? "bg-blue-50 text-blue-700" :
+                    request.status === "Ready for Pick Up" ? "bg-emerald-50 text-emerald-700" :
+                    request.status === "Completed" ? "bg-slate-100 text-slate-700" :
+                    "bg-red-50 text-red-700"
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      request.status === "Pending" ? "bg-amber-500" :
+                      request.status === "On Process" || request.status === "Approved" ? "bg-blue-500" :
+                      request.status === "Ready for Pick Up" ? "bg-emerald-500" :
+                      request.status === "Completed" ? "bg-slate-400" :
+                      "bg-red-500"
+                    }`} />
                     {request.status}
                   </span>
                   {request.requestFor === "other" && (
@@ -167,31 +174,79 @@ export default function DocumentRequests() {
                   )}
                 </div>
                 <div className="col-span-3 flex items-center gap-2">
-                  {request.status === "Pending" ? (
+                  {request.status === "Pending" && (
                     <>
-                      <Button size="sm" onClick={() => { setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Approve</Button>
-                      <Button size="sm" onClick={() => { setSelectedRequest(request); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>
-                      {request.authorizationLetter && (
-                        <Button variant="outline" size="sm" onClick={() => { setSelectedRequest(request); setShowAuthDialog(true) }} className="h-6 px-3 text-[10px] bg-transparent">
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Approve</Button>
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>
+                      {request.requestFor === "other" && request.authorizationLetter && (
+                        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowAuthDialog(true) }} className="h-6 px-3 text-[10px] bg-transparent">
                           📎 Auth
                         </Button>
                       )}
                     </>
-                  ) : (
+                  )}
+                  {(request.status === "On Process" || request.status === "Approved") && (
+                    <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Ready for Pick Up") }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Mark Ready</Button>
+                  )}
+                  {request.status === "Ready for Pick Up" && (
+                    <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Completed") }} className="h-6 px-3 text-[10px] bg-[#0C2340] hover:bg-[#1a3a5c]">Complete</Button>
+                  )}
+                  {(request.status === "Completed" || request.status === "Rejected") && (
                     <span className="text-[10px] text-slate-400">Processed</span>
                   )}
                 </div>
-              </div>
             </div>
           ))}
-          {filteredRequests.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No document requests found</p>
-            </div>
-          )}
+            {filteredRequests.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No document requests found</p>
+              </div>
+            )}
+          </div>
         </div>
       </Card>
+
+      {/* View Details Dialog */}
+      {showViewDialog && selectedRequest && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg p-0 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-[#0C2340]">Request Details</h3>
+              <button onClick={() => setShowViewDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Reference Number</p>
+                  <p className="text-sm font-mono text-slate-900">{selectedRequest.id.substring(0, 8).toUpperCase()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date Requested</p>
+                  <p className="text-sm text-slate-900">{selectedRequest.dateRequested}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Document Type</p>
+                  <p className="text-sm font-semibold text-[#0C2340]">{selectedRequest.documentType}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Purpose</p>
+                  <p className="text-sm text-slate-900">{selectedRequest.purpose}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Resident</p>
+                  <p className="text-sm text-slate-900">{selectedRequest.residentName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Status</p>
+                  <p className="text-sm text-slate-900">{selectedRequest.status}</p>
+                </div>
+              </div>
+              <Button onClick={() => setShowViewDialog(false)} className="w-full h-10 bg-slate-100 hover:bg-slate-200 text-slate-900">Close</Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Approve Dialog */}
       {showApproveDialog && selectedRequest && (
@@ -203,9 +258,12 @@ export default function DocumentRequests() {
             </div>
             <div className="p-6">
               <p className="text-sm text-slate-600 mb-4">Approve <strong>{selectedRequest.documentType}</strong> for <strong>{selectedRequest.residentName}</strong>?</p>
-              <div className="flex gap-3">
-                <Button onClick={() => { updateRequestStatus(selectedRequest.id, "Approved"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Confirm Approve</Button>
-                <Button variant="outline" onClick={() => setShowApproveDialog(false)} className="flex-1 h-10 bg-transparent">Cancel</Button>
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <Button onClick={() => { updateRequestStatus(selectedRequest.id, "On Process"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-blue-600 hover:bg-blue-700">Mark On Process</Button>
+                  <Button onClick={() => { updateRequestStatus(selectedRequest.id, "Ready for Pick Up"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Mark Ready for Pick Up</Button>
+                </div>
+                <Button variant="outline" onClick={() => setShowApproveDialog(false)} className="w-full h-10 bg-transparent">Cancel</Button>
               </div>
             </div>
           </Card>

@@ -29,11 +29,22 @@ export interface CreateResidentAccountInput {
   address: string
   statuses: string[]
   proofs: ResidentProofDocument[]
+  firstName?: string
+  lastName?: string
+  middleInitial?: string
+  street?: string
+  barangay?: string
+  city?: string
 }
 
 export interface CreateResidentRequestInput {
   documentType: string
   purpose: string
+  requestFor?: "myself" | "other"
+  requestedByName?: string
+  requestedByContact?: string
+  relationship?: string
+  authorizationLetter?: string
 }
 
 // ─── Helpers ───
@@ -89,10 +100,10 @@ export const saveSessionUser = (user: AuthUser | null) => {
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(user))
 }
 
-export const findResidentByCredentials = (username: string, password: string) => {
+export const findResidentByCredentials = (username: string) => {
   const storage = readMasterStorage()
   return storage.residents.find((account) =>
-    account.username.toLowerCase() === username.toLowerCase() && account.password === password
+    account.username.toLowerCase() === username.toLowerCase()
   ) ?? null
 }
 
@@ -106,16 +117,14 @@ export const findResidentByEmail = (email: string) => {
 export const registerResidentAccount = async (input: CreateResidentAccountInput) => {
   const { auth, db } = await import("@/lib/firebase")
   const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth")
-  const { doc, setDoc } = await import("firebase/firestore")
+  const { doc, setDoc, addDoc, collection, query, where, getDocs } = await import("firebase/firestore")
 
-  const storage = readMasterStorage()
   const normalizedEmail = input.email.trim().toLowerCase()
-  const username = normalizedEmail
-
-  const usernameTaken = storage.residents.some((account) => account.username === username)
-  const emailTaken = storage.residents.some((account) => account.user.email.toLowerCase() === normalizedEmail)
-
-  if (usernameTaken || emailTaken) {
+  
+  // Basic validation check in Firestore
+  const qEmail = query(collection(db, "users"), where("email", "==", normalizedEmail))
+  const snap = await getDocs(qEmail)
+  if (!snap.empty) {
     throw new Error("An account with this email already exists.")
   }
 
@@ -132,29 +141,27 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     initials: getInitials(input.name),
     role: "resident",
     status: resolvePrimaryStatus(input.statuses),
+    statuses: input.statuses,
     dateOfBirth: input.dateOfBirth,
     contactNumber: input.contactNumber,
     address: input.address,
-    accountExpiry: formatDate(addDays(new Date(), 365)),
+    accountExpiry: formatDate(addDays(new Date(), 180)),
     isVerified: false,
+    createdAt: Date.now(),
+    firstName: input.firstName,
+    lastName: input.lastName,
+    middleInitial: input.middleInitial,
+    street: input.street,
+    barangay: input.barangay,
+    city: input.city,
   }
 
-  const residentAccount: ResidentAccountRecord = {
-    id,
-    username,
-    password: "", // Handled by Firebase Auth now
-    user,
-  }
-
-  // ALSO STORE IN FIRESTORE DIRECTLY SO NEXT LOGIN PICKS IT UP
+  // STORE IN FIRESTORE DIRECTLY SO NEXT LOGIN PICKS IT UP
   const userDocRef = doc(db, "users", id)
   await setDoc(userDocRef, user)
 
-  storage.residents.push(residentAccount)
-
-  // IMPORTANT CROSS-MODULE SYNC: Also push a Universal Verification to the Admin Queue!
-  storage.verifications.push({
-    id: generateId(),
+  // IMPORTANT CROSS-MODULE SYNC: Push a Universal Verification to the Admin Queue!
+  await setDoc(doc(db, "verifications", id), {
     residentId: id,
     name: input.name.trim(),
     initials: getInitials(input.name),
@@ -164,11 +171,11 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     age: input.dateOfBirth ? Math.floor((new Date().getTime() - new Date(input.dateOfBirth).getTime()) / 31557600000) : 0,
     address: input.address,
     documents: input.proofs.map(p => ({ name: p.name, status: "pending", uploadDate: p.uploadDate })),
+    status: "pending"
   })
 
   // Universal Notification to Resident natively
-  storage.notifications.push({
-    id: generateId(),
+  await addDoc(collection(db, "notifications"), {
     targetId: id,
     type: "success",
     title: "Welcome to TALASYS",
@@ -179,8 +186,7 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
   })
 
   // Universal Notification to Admins!
-  storage.notifications.push({
-    id: generateId(),
+  await addDoc(collection(db, "notifications"), {
     targetId: "admin",
     type: "registration",
     title: "New Resident Registration",
@@ -192,8 +198,38 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     actionUrl: "/admin/verifications"
   })
 
-  writeMasterStorage(storage)
   return user
+}
+
+export const cancelResidentRequest = (requestId: string) => {
+  const storage = readMasterStorage()
+  const idx = storage.documentRequests.findIndex((r) => r.id === requestId)
+  if (idx !== -1 && storage.documentRequests[idx].status === "Pending") {
+    // Delete the request from the database entirely or mark as cancelled.
+    // For Data Privacy, the user requested "cancel", so we'll remove it or mark "Cancelled".
+    // We'll remove it entirely for cleaner data.
+    storage.documentRequests.splice(idx, 1)
+    writeMasterStorage(storage)
+    return true
+  }
+  return false
+}
+
+export const deleteResidentAccount = (residentId: string) => {
+  const storage = readMasterStorage()
+  // Remove resident
+  const idx = storage.residents.findIndex(r => r.id === residentId)
+  if (idx !== -1) {
+    storage.residents.splice(idx, 1)
+  }
+  
+  // Remove associated data (cascading delete)
+  storage.documentRequests = storage.documentRequests.filter(r => r.residentId !== residentId)
+  storage.notifications = storage.notifications.filter(n => n.targetId !== residentId)
+  storage.verifications = storage.verifications.filter(v => v.residentId !== residentId)
+  
+  writeMasterStorage(storage)
+  return true
 }
 
 export const updateResidentUser = (residentId: string, updates: Partial<AuthUser>) => {
@@ -218,11 +254,26 @@ export const getResidentNotifications = (residentId: string) => {
     .sort((a, b) => b.createdAt - a.createdAt)
 }
 
+export const getResidentVerification = (residentId: string) => {
+  const storage = readMasterStorage()
+  return storage.verifications.find((v) => v.residentId === residentId) || null
+}
+
+export const getResidentSystemConfig = () => {
+  return readMasterStorage().systemConfig
+}
+
 export const getResidentProofs = (residentId: string) => {
-  // We didn't keep proofsByResidentId in master because they are attached to verifications usually.
-  // Wait, let's just grab the ResidentAccount Record which could hold it? Or we can query from verifications!
-  // For backwards compatibility let's just create a dummy return, since users upload proofs upon registration
-  // and they are transferred to verifications. 
+  const verification = getResidentVerification(residentId)
+  if (verification && verification.documents.length > 0) {
+    return verification.documents.map((doc, i) => ({
+      id: `proof-${residentId}-${i}`,
+      name: doc.name,
+      filename: doc.name,
+      uploadDate: doc.uploadDate || "N/A",
+      status: doc.status === "verified" || doc.status === "valid" ? "Valid" as const : "Pending" as const,
+    }))
+  }
   return []
 }
 

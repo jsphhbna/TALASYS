@@ -9,7 +9,9 @@ const generationVolumeTrend: any[] = []
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
-import { Printer, TrendingUp, FileText, Clock } from "lucide-react"
+import { Printer, TrendingUp, FileText, Clock, Loader2 } from "lucide-react"
+import html2canvas from "html2canvas"
+import jsPDF from "jspdf"
 
 export default function GenerateDocuments() {
   const { residents: allResidents, documentRequests: adminDocumentRequests } = useAdminData()
@@ -17,12 +19,13 @@ export default function GenerateDocuments() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedResident, setSelectedResident] = useState<any>(null)
   const [selectedDocType, setSelectedDocType] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const searchResults = searchQuery.length >= 2
     ? allResidents.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : []
 
-  const approvedRequests = adminDocumentRequests.filter(r => r.status === "Approved")
+  const pendingGeneration = adminDocumentRequests.filter(r => r.status === "On Process" || r.status === "Approved")
 
   const docTypes = [
     { id: "clearance", label: "Barangay Clearance", icon: "📋", desc: "Official clearance certificate" },
@@ -32,17 +35,16 @@ export default function GenerateDocuments() {
   ]
 
   const mostGenerated = [
-    { name: "Clearance", count: 52 },
-    { name: "Residency", count: 30 },
-    { name: "Indigency", count: 26 },
-    { name: "Business", count: 12 },
+    { name: "Clearance", count: adminDocumentRequests.filter(r => r.documentType.includes("Clearance") && (r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Completed")).length },
+    { name: "Residency", count: adminDocumentRequests.filter(r => r.documentType.includes("Residency") && (r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Completed")).length },
+    { name: "Indigency", count: adminDocumentRequests.filter(r => r.documentType.includes("Indigency") && (r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Completed")).length },
   ]
 
-  const recentGenerations = [
-    { name: "Pedro Reyes", doc: "Brgy. Clearance", time: "2:45 PM" },
-    { name: "Maria Santos", doc: "Cert. of Indigency", time: "2:30 PM" },
-    { name: "Juan Carlos", doc: "Cert. of Residency", time: "1:15 PM" },
-  ]
+  const recentGenerations = pendingGeneration.slice(0, 3).map(r => ({
+    name: r.residentName,
+    doc: r.documentType,
+    time: r.dateRequested,
+  }))
 
   return (
     <AdminPageShell>
@@ -87,7 +89,7 @@ export default function GenerateDocuments() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Printer className="w-4 h-4 text-[#0C2340]" />
-            <h3 className="text-[11px] font-semibold text-[#0C2340]">Recent Generations</h3>
+            <h3 className="text-[11px] font-semibold text-[#0C2340]">Generation History</h3>
           </div>
           <div className="flex items-center gap-4">
             {recentGenerations.map((g, i) => (
@@ -100,14 +102,13 @@ export default function GenerateDocuments() {
         </div>
       </Card>
 
-      {/* Tabs */}
       <div className="flex gap-2 mb-6">
         <button onClick={() => setActiveTab("manual")} className={`px-4 py-2 rounded-lg text-xs transition-colors ${activeTab === "manual" ? "bg-[#0C2340] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
           Manual Generation
         </button>
-        <button onClick={() => setActiveTab("approved")} className={`px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 ${activeTab === "approved" ? "bg-[#0C2340] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-          From Approved Requests
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === "approved" ? "bg-white/20" : "bg-amber-100 text-amber-700"}`}>{approvedRequests.length}</span>
+        <button onClick={() => setActiveTab("processing")} className={`px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 ${activeTab === "processing" ? "bg-[#0C2340] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+          Processing Queue
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === "processing" ? "bg-white/20" : "bg-amber-100 text-amber-700"}`}>{pendingGeneration.length}</span>
         </button>
       </div>
 
@@ -161,21 +162,25 @@ export default function GenerateDocuments() {
             </div>
             <div className="p-6">
               {selectedResident && selectedDocType ? (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 min-h-[400px]">
-                  <div className="text-center space-y-2 mb-6">
-                    <p className="text-[10px] text-slate-500">Republic of the Philippines</p>
-                    <p className="text-[10px] text-slate-500">Province of &mdash; / City of &mdash;</p>
-                    <p className="text-[10px] font-bold text-slate-700">BARANGAY SAMPLE</p>
-                    <hr className="border-slate-300 my-3" />
-                    <p className="text-xs font-bold text-[#0C2340] tracking-wide">
+                <div id="pdf-preview-container" className="bg-white border border-slate-200 p-12 min-h-[500px]">
+                  <div className="text-center space-y-2 mb-8">
+                    <p className="text-xs text-slate-500">Republic of the Philippines</p>
+                    <p className="text-xs text-slate-500">Province of &mdash; / City of &mdash;</p>
+                    <p className="text-sm font-bold text-slate-700">BARANGAY SAMPLE</p>
+                    <hr className="border-slate-300 my-4" />
+                    <p className="text-lg font-bold text-[#0C2340] tracking-wide">
                       {selectedDocType === "clearance" ? "BARANGAY CLEARANCE" : selectedDocType === "residency" ? "CERTIFICATE OF RESIDENCY" : selectedDocType === "indigency" ? "CERTIFICATE OF INDIGENCY" : "BUSINESS PERMIT CLEARANCE"}
                     </p>
                   </div>
-                  <div className="text-[11px] text-slate-700 leading-relaxed space-y-3">
+                  <div className="text-sm text-slate-800 leading-loose space-y-4">
                     <p>TO WHOM IT MAY CONCERN:</p>
-                    <p>This is to certify that <strong className="text-[#0C2340]">{selectedResident.name}</strong>, {selectedResident.age} years old, {selectedResident.gender}, a resident of <strong>{selectedResident.address}</strong>, is known to be a person of good moral character and a law-abiding citizen in this barangay.</p>
-                    <p>This certification is issued upon the request of the above-named person for whatever legal purpose it may serve.</p>
-                    <p className="text-slate-400 text-[10px] mt-8">Issued this [date] at Barangay Sample.</p>
+                    <p className="indent-8">
+                      This is to certify that <strong className="text-[#0C2340]">{selectedResident.name}</strong>, {selectedResident.age} years old, {selectedResident.gender || "a resident"}, residing at <strong>{selectedResident.address}</strong>, is known to be a person of good moral character and a law-abiding citizen in this barangay.
+                    </p>
+                    <p className="indent-8">
+                      This certification is issued upon the request of the above-named person for whatever legal purpose it may serve.
+                    </p>
+                    <p className="mt-12 text-slate-600">Issued this {new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())} at Barangay Sample.</p>
                   </div>
                 </div>
               ) : (
@@ -188,22 +193,80 @@ export default function GenerateDocuments() {
               )}
               {selectedResident && selectedDocType && (
                 <div className="flex gap-3 mt-4">
-                  <Button className="flex-1 h-10 bg-[#0C2340] hover:bg-[#0a1c33]">Generate PDF</Button>
-                  <Button variant="outline" className="flex-1 h-10 bg-transparent">Print</Button>
+                  <Button
+                    onClick={async () => {
+                      setIsGenerating(true)
+                      try {
+                        const element = document.getElementById("pdf-preview-container")
+                        if (!element) return
+
+                        // Render element to canvas
+                        const canvas = await html2canvas(element, {
+                          scale: 2, // Higher resolution
+                          useCORS: true,
+                        })
+
+                        const imgData = canvas.toDataURL("image/png")
+                        // A4 is 210x297mm
+                        const pdf = new jsPDF("p", "mm", "a4")
+                        
+                        const pdfWidth = pdf.internal.pageSize.getWidth()
+                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+
+                        pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
+                        
+                        const docTitle = selectedDocType === "clearance" ? "Clearance" : selectedDocType === "residency" ? "Residency" : selectedDocType === "indigency" ? "Indigency" : "Permit"
+                        pdf.save(`${docTitle}_${selectedResident.name.replace(/\s+/g, "_")}.pdf`)
+                      } catch (error) {
+                        console.error("PDF Generation failed:", error)
+                      } finally {
+                        setIsGenerating(false)
+                      }
+                    }}
+                    disabled={isGenerating}
+                    className="flex-1 h-10 bg-[#0C2340] hover:bg-[#0a1c33]"
+                  >
+                    {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Generate PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={isGenerating}
+                    onClick={() => {
+                      const element = document.getElementById("pdf-preview-container")
+                      if (!element) return
+                      const printWindow = window.open("", "_blank")
+                      printWindow?.document.write(`
+                        <html>
+                          <head>
+                            <title>Print Document</title>
+                            <script src="https://cdn.tailwindcss.com"></script>
+                          </head>
+                          <body onload="window.print();window.close()">
+                            ${element.outerHTML}
+                          </body>
+                        </html>
+                      `)
+                      printWindow?.document.close()
+                    }}
+                    className="flex-1 h-10 bg-transparent"
+                  >
+                    Print Document
+                  </Button>
                 </div>
               )}
             </div>
           </Card>
         </div>
       ) : (
-        /* Approved Requests Tab */
+        /* Processing Queue Tab */
         <Card className="shadow-sm">
           <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#0C2340]">Approved Requests — Ready for Generation</h3>
+            <h3 className="text-sm font-semibold text-[#0C2340]">Processing Queue — Ready for Generation</h3>
             <Button size="sm" className="h-7 px-4 text-[10px] bg-[#0C2340] hover:bg-[#0a1c33]">Generate All</Button>
           </div>
           <div className="divide-y divide-slate-100">
-            {approvedRequests.map((req) => (
+            {pendingGeneration.map((req) => (
               <div key={req.id} className="px-5 py-3.5 hover:bg-slate-50/50 transition-colors flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#0C2340]/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340]">{req.residentInitials}</div>
@@ -215,9 +278,9 @@ export default function GenerateDocuments() {
                 <Button size="sm" className="h-7 px-4 text-[10px] bg-emerald-600 hover:bg-emerald-700">Generate</Button>
               </div>
             ))}
-            {approvedRequests.length === 0 && (
+            {pendingGeneration.length === 0 && (
               <div className="p-8 text-center">
-                <p className="text-sm text-slate-400">No approved requests pending generation</p>
+                <p className="text-sm text-slate-400">No requests in the processing queue</p>
               </div>
             )}
           </div>

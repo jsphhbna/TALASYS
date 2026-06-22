@@ -205,17 +205,18 @@ export default function ResidentManagement() {
       </p>
 
       {/* Residents Table */}
-      <Card className="shadow-sm">
-        <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 rounded-t-lg">
-          <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-            <div className="col-span-3">RESIDENT</div>
-            <div className="col-span-2">CATEGORY</div>
-            <div className="col-span-2">STATUS</div>
-            <div className="col-span-2">EXPIRES</div>
-            <div className="col-span-3">ACTIONS</div>
+      <Card className="shadow-sm overflow-x-auto">
+        <div className="min-w-[800px]">
+          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 rounded-t-lg">
+            <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              <div className="col-span-3">RESIDENT</div>
+              <div className="col-span-2">CATEGORY</div>
+              <div className="col-span-2">STATUS</div>
+              <div className="col-span-2">EXPIRES</div>
+              <div className="col-span-3">ACTIONS</div>
+            </div>
           </div>
-        </div>
-        <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100">
           {filteredResidents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <Inbox className="w-8 h-8 mb-2" />
@@ -236,10 +237,15 @@ export default function ResidentManagement() {
                       <p className="text-[10px] text-slate-400">{resident.gender}</p>
                     </div>
                   </div>
-                  <div className="col-span-2">
-                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-medium ${categoryDisplay.color}`}>
-                      {categoryDisplay.label}
-                    </span>
+                  <div className="col-span-2 flex flex-wrap gap-1">
+                    {resident.categories.map((cat, ci) => {
+                      const d = getCategoryDisplay([cat])
+                      return (
+                        <span key={ci} className={`px-2.5 py-0.5 rounded text-[10px] font-medium ${d.color}`}>
+                          {d.label}
+                        </span>
+                      )
+                    })}
                   </div>
                   <div className="col-span-2">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${resident.status === "Active" ? "bg-emerald-50 text-emerald-700" :
@@ -266,7 +272,7 @@ export default function ResidentManagement() {
                     </button>
                     {showActionsMenu === resident.id && (
                       <div className="absolute right-0 top-8 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
-                        <button onClick={() => { setSelectedResident(resident); setShowViewDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-slate-900">View Full Profile</button>
+                        <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-amber-600">Deactivate Account</button>
                         <div className="border-t border-slate-200" />
                         <button onClick={() => { deleteResident(resident.id); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-red-600">Delete Resident</button>
                       </div>
@@ -276,6 +282,7 @@ export default function ResidentManagement() {
               </div>
             )
           })}
+          </div>
         </div>
         <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200">
           <p className="text-[10px] text-slate-500">Showing 1-{Math.min(10, filteredResidents.length)} of {filteredResidents.length} residents</p>
@@ -325,14 +332,76 @@ export default function ResidentManagement() {
       {/* Edit Dialog */}
       {showEditDialog && selectedResident && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <Card className="w-full max-w-2xl p-0 shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <Card className="w-full max-w-2xl p-0 shadow-2xl max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white">
               <h3 className="text-lg font-bold text-[#0C2340]">Edit Resident</h3>
               <button onClick={() => setShowEditDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
-            <div className="p-6">
-              <p className="text-sm text-slate-600 mb-4">Edit functionality would be implemented here with form fields for all resident data.</p>
-              <Button onClick={() => setShowEditDialog(false)} className="w-full h-11 bg-[#0C2340] hover:bg-[#0a1c33]">Save Changes</Button>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    defaultValue={selectedResident.name}
+                    id="edit-name"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Contact Number</label>
+                  <input
+                    type="text"
+                    defaultValue={selectedResident.contactNumber}
+                    id="edit-contact"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                    maxLength={11}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Email</label>
+                  <input
+                    type="email"
+                    defaultValue={selectedResident.email}
+                    id="edit-email"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    defaultValue={selectedResident.dateOfBirth}
+                    id="edit-dob"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Address</label>
+                  <input
+                    type="text"
+                    defaultValue={selectedResident.address}
+                    id="edit-address"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  const nameEl = document.getElementById('edit-name') as HTMLInputElement
+                  const addressEl = document.getElementById('edit-address') as HTMLInputElement
+                  if (nameEl && addressEl) {
+                    updateResident(selectedResident.id, {
+                      name: nameEl.value,
+                      address: addressEl.value,
+                    })
+                  }
+                  setShowEditDialog(false)
+                }}
+                className="w-full h-11 bg-[#0C2340] hover:bg-[#0a1c33]"
+              >
+                Save Changes
+              </Button>
             </div>
           </Card>
         </div>
