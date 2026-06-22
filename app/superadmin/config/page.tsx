@@ -44,6 +44,7 @@ export default function SystemConfig() {
     emailAddress: systemConfig.emailAddress,
     barangayCaptainName: systemConfig.barangayCaptainName,
     documentFees: systemConfig.documentFees || {},
+    documentTypes: systemConfig.documentTypes?.length ? systemConfig.documentTypes : ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency", "Business Clearance", "First Time Job Seeker"],
   })
 
   const tabs = [
@@ -60,14 +61,20 @@ export default function SystemConfig() {
     { id: "fistjob", name: "First Time Job Seeker", lastEdited: "3 weeks ago" },
   ]
 
-  const documentTypes = [
-    { name: "Barangay Clearance", enabled: true, requests: documentRequests.filter(r => r.documentType === "Barangay Clearance").length, fee: systemConfig.documentFees?.["Barangay Clearance"] ?? 50 },
-    { name: "Certificate of Indigency", enabled: true, requests: documentRequests.filter(r => r.documentType === "Certificate of Indigency").length, fee: systemConfig.documentFees?.["Certificate of Indigency"] ?? 0 },
-    { name: "Certificate of Residency", enabled: true, requests: documentRequests.filter(r => r.documentType === "Certificate of Residency").length, fee: systemConfig.documentFees?.["Certificate of Residency"] ?? 50 },
-    { name: "Business Clearance", enabled: true, requests: documentRequests.filter(r => r.documentType === "Business Clearance").length, fee: systemConfig.documentFees?.["Business Clearance"] ?? 150 },
-    { name: "First Time Job Seeker", enabled: true, requests: documentRequests.filter(r => r.documentType === "First Time Job Seeker").length, fee: systemConfig.documentFees?.["First Time Job Seeker"] ?? 0 },
-    { name: "Community Tax Certificate", enabled: false, requests: documentRequests.filter(r => r.documentType === "Community Tax Certificate").length, fee: systemConfig.documentFees?.["Community Tax Certificate"] ?? 0 },
+  const documentTypesList = [
+    { name: "Barangay Clearance", requests: documentRequests.filter(r => r.documentType === "Barangay Clearance").length },
+    { name: "Certificate of Indigency", requests: documentRequests.filter(r => r.documentType === "Certificate of Indigency").length },
+    { name: "Certificate of Residency", requests: documentRequests.filter(r => r.documentType === "Certificate of Residency").length },
+    { name: "Business Clearance", requests: documentRequests.filter(r => r.documentType === "Business Clearance").length },
+    { name: "First Time Job Seeker", requests: documentRequests.filter(r => r.documentType === "First Time Job Seeker").length },
+    { name: "Community Tax Certificate", requests: documentRequests.filter(r => r.documentType === "Community Tax Certificate").length },
   ]
+
+  const documentTypes = documentTypesList.map(d => ({
+    ...d,
+    enabled: formData.documentTypes.includes(d.name),
+    fee: formData.documentFees[d.name] ?? systemConfig.documentFees?.[d.name] ?? (d.name === "Certificate of Indigency" || d.name === "First Time Job Seeker" || d.name === "Community Tax Certificate" ? 0 : d.name === "Business Clearance" ? 150 : 50)
+  }))
 
   const h = systemHealthMetrics
 
@@ -355,7 +362,16 @@ export default function SystemConfig() {
                     )}
                   </div>
                   <div className="col-span-2">
-                    <button className={`text-sm font-medium ${doc.enabled ? "text-red-500 hover:text-red-600" : "text-emerald-600 hover:text-emerald-700"}`}>
+                    <button 
+                      onClick={() => {
+                        const isCurrentlyEnabled = formData.documentTypes.includes(doc.name);
+                        const newTypes = isCurrentlyEnabled 
+                          ? formData.documentTypes.filter(t => t !== doc.name)
+                          : [...formData.documentTypes, doc.name];
+                        setFormData({ ...formData, documentTypes: newTypes });
+                      }}
+                      className={`text-sm font-medium ${doc.enabled ? "text-red-500 hover:text-red-600" : "text-emerald-600 hover:text-emerald-700"}`}
+                    >
                       {doc.enabled ? "Disable" : "Enable"}
                     </button>
                   </div>
