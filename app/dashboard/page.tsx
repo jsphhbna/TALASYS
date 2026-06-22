@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useAuthGuard } from "@/hooks/use-auth-guard"
 import { useResidentData } from "@/hooks/use-resident-data"
-import { useMounted } from "@/hooks/use-mounted"
 import { ResidentPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,16 +10,15 @@ import { Button } from "@/components/ui/button"
 export default function DashboardPage() {
   const { user, isAuthorized } = useAuthGuard()
   const { requests, notifications, cancelRequest } = useResidentData()
-  const mounted = useMounted()
 
-  if (!isAuthorized || !user || !mounted) {
+  if (!isAuthorized || !user) {
     return null
   }
 
-  const approvedRequests = requests.filter((request) => 
-    request.status === "Approved" || 
-    request.status === "On Process" || 
-    request.status === "Ready for Pick Up" || 
+  const approvedRequests = requests.filter((request) =>
+    request.status === "Approved" ||
+    request.status === "On Process" ||
+    request.status === "Ready for Pick Up" ||
     request.status === "Completed"
   )
   const pendingRequests = requests.filter((request) => request.status === "Pending")
@@ -125,13 +123,12 @@ export default function DashboardPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">{request.dateRequested}</td>
                     <td className="px-6 py-4">
                       <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${
-                          request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                          request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 text-blue-800" :
-                          request.status === "Ready for Pick Up" ? "bg-emerald-100 text-emerald-800" :
-                          request.status === "Completed" ? "bg-slate-200 text-slate-800" :
-                          "bg-red-100 text-red-800"
-                        }`}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                            request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 text-blue-800" :
+                              request.status === "Ready for Pick Up" ? "bg-emerald-100 text-emerald-800" :
+                                request.status === "Completed" ? "bg-slate-200 text-slate-800" :
+                                  "bg-red-100 text-red-800"
+                          }`}
                       >
                         {request.status}
                       </span>
@@ -150,7 +147,7 @@ export default function DashboardPage() {
                           size="sm"
                           variant="destructive"
                           onClick={() => {
-                            if(window.confirm("Are you sure you want to cancel this request?")) {
+                            if (window.confirm("Are you sure you want to cancel this request?")) {
                               cancelRequest(request.id);
                             }
                           }}

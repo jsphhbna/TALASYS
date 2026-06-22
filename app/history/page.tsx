@@ -136,13 +136,12 @@ export default function RequestHistoryPage() {
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{request.dateRequested}</td>
                     <td className="px-6 py-4">
                       <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${
-                          request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                          request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 text-blue-800" :
-                          request.status === "Ready for Pick Up" ? "bg-emerald-100 text-emerald-800" :
-                          request.status === "Completed" ? "bg-slate-200 text-slate-800" :
-                          "bg-red-100 text-red-800"
-                        }`}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                            request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 text-blue-800" :
+                              request.status === "Ready for Pick Up" ? "bg-emerald-100 text-emerald-800" :
+                                request.status === "Completed" ? "bg-slate-200 text-slate-800" :
+                                  "bg-red-100 text-red-800"
+                          }`}
                       >
                         {request.status}
                       </span>

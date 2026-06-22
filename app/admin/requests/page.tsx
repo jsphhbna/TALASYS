@@ -5,7 +5,6 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
-import { useMounted } from "@/hooks/use-mounted"
 import {
   PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -13,15 +12,9 @@ import { ClipboardList, CheckCircle2, XCircle, FileText } from "lucide-react"
 
 export default function DocumentRequests() {
   const { documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
-  const mounted = useMounted()
-
-  if (!mounted) {
-    return <AdminPageShell><div className="flex h-full items-center justify-center p-8">Loading requests...</div></AdminPageShell>
-  }
-
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
-  
+
   const requestTypeTrend = Array.from({ length: 6 }).map((_, i) => {
     const start = now - (5 - i) * 30 * dayMs;
     const end = start + 30 * dayMs;
@@ -155,8 +148,8 @@ export default function DocumentRequests() {
             </div>
           </div>
           <div className="divide-y divide-slate-100">
-          {filteredRequests.map((request) => (
-            <div key={request.id} className="grid grid-cols-12 gap-4 items-center px-6 py-3.5 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => { setSelectedRequest(request); setShowViewDialog(true) }}>
+            {filteredRequests.map((request) => (
+              <div key={request.id} className="grid grid-cols-12 gap-4 items-center px-6 py-3.5 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => { setSelectedRequest(request); setShowViewDialog(true) }}>
                 <div className="col-span-2 flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-full bg-[#0C2340]/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340]">{request.residentInitials}</div>
                   <div>
@@ -174,20 +167,18 @@ export default function DocumentRequests() {
                   <span className="text-[11px] text-slate-500">{request.dateRequested}</span>
                 </div>
                 <div className="col-span-2">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${
-                    request.status === "Pending" ? "bg-amber-50 text-amber-700" :
-                    request.status === "On Process" || request.status === "Approved" ? "bg-blue-50 text-blue-700" :
-                    request.status === "Ready for Pick Up" ? "bg-emerald-50 text-emerald-700" :
-                    request.status === "Completed" ? "bg-slate-100 text-slate-700" :
-                    "bg-red-50 text-red-700"
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      request.status === "Pending" ? "bg-amber-500" :
-                      request.status === "On Process" || request.status === "Approved" ? "bg-blue-500" :
-                      request.status === "Ready for Pick Up" ? "bg-emerald-500" :
-                      request.status === "Completed" ? "bg-slate-400" :
-                      "bg-red-500"
-                    }`} />
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${request.status === "Pending" ? "bg-amber-50 text-amber-700" :
+                      request.status === "On Process" || request.status === "Approved" ? "bg-blue-50 text-blue-700" :
+                        request.status === "Ready for Pick Up" ? "bg-emerald-50 text-emerald-700" :
+                          request.status === "Completed" ? "bg-slate-100 text-slate-700" :
+                            "bg-red-50 text-red-700"
+                    }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${request.status === "Pending" ? "bg-amber-500" :
+                        request.status === "On Process" || request.status === "Approved" ? "bg-blue-500" :
+                          request.status === "Ready for Pick Up" ? "bg-emerald-500" :
+                            request.status === "Completed" ? "bg-slate-400" :
+                              "bg-red-500"
+                      }`} />
                     {request.status}
                   </span>
                   {request.requestFor === "other" && (
@@ -216,8 +207,8 @@ export default function DocumentRequests() {
                     <span className="text-[10px] text-slate-400">Processed</span>
                   )}
                 </div>
-            </div>
-          ))}
+              </div>
+            ))}
             {filteredRequests.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                 <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -301,10 +292,10 @@ export default function DocumentRequests() {
             </div>
             <div className="p-6">
               <p className="text-sm text-slate-600 mb-3">Reject <strong>{selectedRequest.documentType}</strong> for <strong>{selectedRequest.residentName}</strong>?</p>
-              <textarea 
-                placeholder="Reason for rejection (min 10 characters)..." 
-                className="w-full p-3 border border-slate-200 rounded-lg text-sm mb-2 focus:outline-none focus:border-[#0C2340]" 
-                rows={3} 
+              <textarea
+                placeholder="Reason for rejection (min 10 characters)..."
+                className="w-full p-3 border border-slate-200 rounded-lg text-sm mb-2 focus:outline-none focus:border-[#0C2340]"
+                rows={3}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
               />
@@ -312,11 +303,11 @@ export default function DocumentRequests() {
                 {rejectReason.trim().length}/10 characters minimum
               </p>
               <div className="flex gap-3">
-                <Button 
-                  onClick={() => { updateRequestStatus(selectedRequest.id, "Rejected", rejectReason); setShowRejectDialog(false) }} 
+                <Button
+                  onClick={() => { updateRequestStatus(selectedRequest.id, "Rejected", rejectReason); setShowRejectDialog(false) }}
                   disabled={rejectReason.trim().length < 10}
                   className="flex-1 h-10 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Confirm Reject
+                  Confirm Reject
                 </Button>
                 <Button variant="outline" onClick={() => setShowRejectDialog(false)} className="flex-1 h-10 bg-transparent">Cancel</Button>
               </div>

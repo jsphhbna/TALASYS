@@ -5,7 +5,6 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
-import { useMounted } from "@/hooks/use-mounted"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -15,15 +14,10 @@ import jsPDF from "jspdf"
 
 export default function GenerateDocuments() {
   const { residents: allResidents, documentRequests: adminDocumentRequests } = useAdminData()
-  const mounted = useMounted()
 
-  if (!mounted) {
-    return <AdminPageShell><div className="flex h-full items-center justify-center p-8">Loading...</div></AdminPageShell>
-  }
-  
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
-  
+
   const generationVolumeTrend = Array.from({ length: 7 }).map((_, i) => {
     const start = now - (6 - i) * dayMs;
     const end = start + dayMs;
@@ -228,12 +222,12 @@ export default function GenerateDocuments() {
                         const imgData = canvas.toDataURL("image/png")
                         // A4 is 210x297mm
                         const pdf = new jsPDF("p", "mm", "a4")
-                        
+
                         const pdfWidth = pdf.internal.pageSize.getWidth()
                         const pdfHeight = (canvas.height * pdfWidth) / canvas.width
 
                         pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
-                        
+
                         const docTitle = selectedDocType === "clearance" ? "Clearance" : selectedDocType === "residency" ? "Residency" : selectedDocType === "indigency" ? "Indigency" : "Permit"
                         pdf.save(`${docTitle}_${selectedResident.name.replace(/\s+/g, "_")}.pdf`)
                       } catch (error) {

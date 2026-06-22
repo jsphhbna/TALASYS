@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
-import { useMounted } from "@/hooks/use-mounted"
 import {
   Activity, FileText, Users, Shield, AlertTriangle,
   TrendingUp,
@@ -34,7 +33,6 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 
 export default function AuditLogs() {
   const { auditLogs, stats: { auditActionBreakdown, totalAuditLogs } } = useSuperAdminData()
-  const mounted = useMounted()
   const [searchTerm, setSearchTerm] = useState("")
   const [adminFilter, setAdminFilter] = useState("all")
   const [actionFilter, setActionFilter] = useState("all")
@@ -87,14 +85,10 @@ export default function AuditLogs() {
   const todaysActions = auditLogs.filter(l => l.date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })).length
   const activeAdminCount = new Set(auditLogs.map(l => l.admin.name)).size
 
-  if (!mounted) {
-    return <div className="flex h-full items-center justify-center p-8">Loading audit logs...</div>
-  }
-
   // Generate dynamic data based on auditLogs
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
-  
+
   const auditWeeklyTrend = Array.from({ length: 7 }).map((_, i) => {
     const start = now - (6 - i) * dayMs;
     const end = start + dayMs;
@@ -109,7 +103,7 @@ export default function AuditLogs() {
   });
 
   const auditHourlyActivity = Array.from({ length: 12 }).map((_, i) => {
-    return { hour: `${i+8}am`, value: Math.floor(Math.random() * 5) + 1 } // Simulated hourly based on static distribution since we lack exact hours in mock
+    return { hour: `${i + 8}am`, value: Math.floor(Math.random() * 5) + 1 } // Simulated hourly based on static distribution since we lack exact hours in mock
   });
 
   const sparklineData = auditWeeklyTrend.map(d => d.approvals + d.verifications + d.generations);
@@ -261,31 +255,31 @@ export default function AuditLogs() {
             </div>
           </div>
           <div className="divide-y divide-slate-100">
-          {filteredLogs.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">No logs found matching filters.</div>
-          ) : filteredLogs.map((log) => (
-            <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
-              <div className="grid grid-cols-12 gap-4 items-center">
-                <div className="col-span-2">
-                  <p className="text-sm text-[#0C2340]">{log.date}</p>
-                  <p className="text-[10px] text-slate-500">{log.timestamp}</p>
-                </div>
-                <div className="col-span-2 flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: log.admin.color }}>
-                    <span className="text-[9px] text-white font-medium">{log.admin.initials}</span>
+            {filteredLogs.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">No logs found matching filters.</div>
+            ) : filteredLogs.map((log) => (
+              <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
+                <div className="grid grid-cols-12 gap-4 items-center">
+                  <div className="col-span-2">
+                    <p className="text-sm text-[#0C2340]">{log.date}</p>
+                    <p className="text-[10px] text-slate-500">{log.timestamp}</p>
                   </div>
-                  <span className="text-sm text-[#0C2340]">{log.admin.name}</span>
+                  <div className="col-span-2 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: log.admin.color }}>
+                      <span className="text-[9px] text-white font-medium">{log.admin.initials}</span>
+                    </div>
+                    <span className="text-sm text-[#0C2340]">{log.admin.name}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className={`inline-block px-2.5 py-1 rounded-md border text-[10px] font-semibold ${getActionColor(log.actionType)}`}>
+                      {log.actionType.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="col-span-4"><p className="text-sm text-slate-700">{log.details}</p></div>
+                  <div className="col-span-2"><p className="text-sm text-slate-500 font-mono text-[11px]">{log.ipAddress}</p></div>
                 </div>
-                <div className="col-span-2">
-                  <span className={`inline-block px-2.5 py-1 rounded-md border text-[10px] font-semibold ${getActionColor(log.actionType)}`}>
-                    {log.actionType.toUpperCase()}
-                  </span>
-                </div>
-                <div className="col-span-4"><p className="text-sm text-slate-700">{log.details}</p></div>
-                <div className="col-span-2"><p className="text-sm text-slate-500 font-mono text-[11px]">{log.ipAddress}</p></div>
               </div>
-            </div>
-          ))}
+            ))}
           </div>
         </div>
       </div>

@@ -25,7 +25,7 @@ export default function Verifications() {
 
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
-  
+
   const verificationFlowTrend = Array.from({ length: 7 }).map((_, i) => {
     const start = now - (6 - i) * dayMs;
     const end = start + dayMs;
@@ -33,7 +33,7 @@ export default function Verifications() {
     return {
       day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }),
       incoming: vers.length,
-      approved: vers.filter(v => v.status === "Approved").length
+      approved: vers.filter(v => v.status === "verified").length
     }
   });
 
@@ -44,8 +44,8 @@ export default function Verifications() {
     { id: "rejected", label: "Rejected History", count: rejectedVerifications.length },
   ]
 
-  const filteredItems = activeTab === "rejected" 
-    ? rejectedVerifications 
+  const filteredItems = activeTab === "rejected"
+    ? rejectedVerifications
     : pendingVerifications.filter(v => v.type === activeTab)
 
   const isOlderThan3Days = (dateStr: string) => {

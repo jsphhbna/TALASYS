@@ -99,7 +99,7 @@ type TimePeriod = "daily" | "weekly" | "monthly"
 
 export default function SuperAdminDashboard() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("weekly")
-  const { systemAlerts } = useSuperAdminData()
+  const { systemAlerts, auditLogs } = useSuperAdminData()
   const { documentRequests, stats: adminStats } = useAdminData()
   const mounted = useMounted()
 
@@ -110,7 +110,7 @@ export default function SuperAdminDashboard() {
   // Generate dynamic chart data based on documentRequests
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
-  
+
   const dailyRequests = Array.from({ length: 7 }).map((_, i) => {
     const start = now - (6 - i) * dayMs;
     const end = start + dayMs;
@@ -124,7 +124,7 @@ export default function SuperAdminDashboard() {
     const end = start + 7 * dayMs;
     const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end);
     const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status));
-    return { week: `W${i+1}`, requests: reqs.length, approvals: apps.length }
+    return { week: `W${i + 1}`, requests: reqs.length, approvals: apps.length }
   });
 
   const monthlyRequests = Array.from({ length: 12 }).map((_, i) => {
@@ -181,6 +181,16 @@ export default function SuperAdminDashboard() {
 
   const totalDocuments = documentTypeBreakdown.filter(d => d.name !== "No Data").reduce((s, d) => s + d.value, 0)
   const pipelineTotal = processingPipeline.submitted + processingPipeline.underReview + processingPipeline.approved + processingPipeline.rejected
+
+  // Map real audit logs to recent activity display
+  const recentAdminActivity = auditLogs.slice(0, 5).map(log => ({
+    admin: log.admin.name,
+    initials: log.admin.initials,
+    action: log.actionType,
+    detail: log.details,
+    timestamp: log.time,
+    type: log.actionType === "approved" ? "approval" : log.actionType === "rejected" ? "rejection" : log.actionType === "verified" ? "verification" : log.actionType === "generated" ? "generation" : "system"
+  }))
 
   return (
     <div className="space-y-6">
