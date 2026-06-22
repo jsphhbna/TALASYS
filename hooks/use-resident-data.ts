@@ -78,6 +78,20 @@ export function useResidentData() {
      // No-op for Firestore since onSnapshot handles reactivity
   }, [])
 
+  const cancelRequest = useCallback(
+    async (requestId: string) => {
+      try {
+        await updateDoc(doc(db, "documentRequests", requestId), {
+          status: "Cancelled",
+          cancelledAt: Date.now()
+        });
+      } catch (error) {
+        console.error("Error cancelling request:", error);
+      }
+    },
+    []
+  )
+
   const addRequest = useCallback(
     async (input: CreateResidentRequestInput) => {
       if (!residentId || !user) return null
@@ -135,15 +149,6 @@ export function useResidentData() {
     },
     [residentId, user]
   )
-
-  const cancelRequest = useCallback(async (requestId: string) => {
-    try {
-        await deleteDoc(doc(db, "documentRequests", requestId))
-        return true
-    } catch {
-        return false
-    }
-  }, [])
 
   const deleteAccount = useCallback(async () => {
     if (!residentId) return false

@@ -7,6 +7,7 @@ import { NavigationLoadingProvider } from "@/components/providers/navigation-loa
 import { Footer } from "@/components/layout/footer"
 import { ResidentMobileNavGate } from "@/components/layout/resident-mobile-nav-gate"
 import { Toaster } from "@/components/ui/toaster"
+import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -41,16 +42,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning className={`font-sans antialiased flex flex-col min-h-screen overflow-x-hidden`}>
-        <AuthProvider>
-          <NavigationLoadingProvider>
-            <div className="flex-1 flex flex-col">{children}</div>
-            <ResidentMobileNavGate />
-            <Footer />
-            <Toaster />
-          </NavigationLoadingProvider>
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <AuthProvider>
+            <NavigationLoadingProvider>
+              <div className="flex-1 flex flex-col">{children}</div>
+              <ResidentMobileNavGate />
+              <Footer />
+              <Toaster />
+            </NavigationLoadingProvider>
+          </AuthProvider>
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

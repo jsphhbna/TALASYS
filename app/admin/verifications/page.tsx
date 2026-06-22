@@ -237,20 +237,23 @@ export default function Verifications() {
                     <textarea
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder="Enter rejection reason..."
-                      className="w-full p-3 border border-red-200 rounded-lg text-sm mb-3 focus:outline-none focus:border-red-400 bg-white"
+                      placeholder="Enter rejection reason (min 10 characters)..."
+                      className="w-full p-3 border border-red-200 rounded-lg text-sm mb-2 focus:outline-none focus:border-red-400 bg-white"
                       rows={3}
                     />
+                    <p className={`text-[10px] mb-3 ${rejectReason.trim().length >= 10 ? 'text-green-600' : 'text-red-500'}`}>
+                      {rejectReason.trim().length}/10 characters minimum
+                    </p>
                     <div className="flex gap-2">
                       <Button
                         onClick={() => {
-                          if (!rejectReason.trim()) return
+                          if (rejectReason.trim().length < 10) return
                           rejectVerification(selectedItem.id, rejectReason)
                           setSelectedItem(null)
                           setShowRejectConfirm(false)
                           setRejectReason("")
                         }}
-                        disabled={!rejectReason.trim()}
+                        disabled={rejectReason.trim().length < 10}
                         className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-xs disabled:opacity-50"
                       >
                         Confirm Reject

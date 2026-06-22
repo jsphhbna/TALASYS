@@ -154,6 +154,9 @@ export function useAdminData() {
             }
         }, [verifications]),
         rejectVerification: useCallback(async (id: string, reason: string) => {
+            if (!reason || reason.trim().length < 10) {
+                throw new Error("Rejection requires a reason of at least 10 characters.");
+            }
             await updateDoc(doc(db, "verifications", id), { status: "rejected", rejectReason: reason })
             const v = verifications.find(ver => ver.id === id)
             if (v && v.residentId) {
@@ -166,26 +169,50 @@ export function useAdminData() {
                     isRead: false,
                     createdAt: Date.now()
                 })
+
+                await addDoc(collection(db, "activityLogs"), {
+                    admin: { name: "Admin", email: "admin@system.com" },
+                    actionType: "rejected",
+                    action: "Rejected Verification",
+                    details: `Rejected verification for Resident ID ${v.residentId}. Reason: ${reason}`,
+                    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    timestamp: Date.now()
+                })
             }
         }, [verifications]),
 
         // Document Requests
         addDocumentRequest: useCallback(async () => { throw new Error("Residents only.") }, []),
-        updateRequestStatus: useCallback(async (id: string, status: "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected") => {
-            await updateDoc(doc(db, "documentRequests", id), { status })
+        updateRequestStatus: useCallback(async (id: string, status: "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected", reason?: string) => {
+            if (status === "Rejected" && (!reason || reason.trim().length < 10)) {
+                throw new Error("Rejection requires a reason of at least 10 characters.");
+            }
+
+            await updateDoc(doc(db, "documentRequests", id), { status, ...(reason ? { rejectReason: reason } : {}) })
             
             // Optionally, add a notification for the resident here.
             const req = documentRequests.find(r => r.id === id)
             if (req && req.residentId) {
                 await addDoc(collection(db, "notifications"), {
                     targetId: req.residentId,
-                    type: "info",
-                    title: "Document Update",
-                    message: `Your request for ${req.documentType} is now ${status}.`,
+                    type: status === "Rejected" ? "error" : "info",
+                    title: `Document ${status}`,
+                    message: `Your request for ${req.documentType} is now ${status}.${reason ? ` Reason: ${reason}` : ""}`,
                     timestamp: "Just now",
                     isRead: false,
                     createdAt: Date.now()
                 })
+
+                if (status === "Rejected") {
+                    await addDoc(collection(db, "activityLogs"), {
+                        admin: { name: "Admin", email: "admin@system.com" },
+                        actionType: "rejected",
+                        action: "Rejected Document",
+                        details: `Rejected ${req.documentType} for ${req.residentName}. Reason: ${reason}`,
+                        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                        timestamp: Date.now()
+                    })
+                }
             }
         }, [documentRequests]),
         deleteDocumentRequest: useCallback(async (id: string) => {

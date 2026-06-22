@@ -31,6 +31,7 @@ export default function DocumentRequests() {
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [showViewDialog, setShowViewDialog] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
 
   const filters = [
@@ -190,7 +191,7 @@ export default function DocumentRequests() {
                   {request.status === "Pending" && (
                     <>
                       <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Approve</Button>
-                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setRejectReason(""); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>
                       {request.requestFor === "other" && request.authorizationLetter && (
                         <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowAuthDialog(true) }} className="h-6 px-3 text-[10px] bg-transparent">
                           📎 Auth
@@ -293,9 +294,23 @@ export default function DocumentRequests() {
             </div>
             <div className="p-6">
               <p className="text-sm text-slate-600 mb-3">Reject <strong>{selectedRequest.documentType}</strong> for <strong>{selectedRequest.residentName}</strong>?</p>
-              <textarea placeholder="Reason for rejection..." className="w-full p-3 border border-slate-200 rounded-lg text-sm mb-4 focus:outline-none focus:border-[#0C2340]" rows={3} />
+              <textarea 
+                placeholder="Reason for rejection (min 10 characters)..." 
+                className="w-full p-3 border border-slate-200 rounded-lg text-sm mb-2 focus:outline-none focus:border-[#0C2340]" 
+                rows={3} 
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+              <p className={`text-[10px] mb-4 ${rejectReason.trim().length >= 10 ? 'text-green-600' : 'text-red-500'}`}>
+                {rejectReason.trim().length}/10 characters minimum
+              </p>
               <div className="flex gap-3">
-                <Button onClick={() => { updateRequestStatus(selectedRequest.id, "Rejected"); setShowRejectDialog(false) }} className="flex-1 h-10 bg-red-600 hover:bg-red-700">Confirm Reject</Button>
+                <Button 
+                  onClick={() => { updateRequestStatus(selectedRequest.id, "Rejected", rejectReason); setShowRejectDialog(false) }} 
+                  disabled={rejectReason.trim().length < 10}
+                  className="flex-1 h-10 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Confirm Reject
+                </Button>
                 <Button variant="outline" onClick={() => setShowRejectDialog(false)} className="flex-1 h-10 bg-transparent">Cancel</Button>
               </div>
             </div>

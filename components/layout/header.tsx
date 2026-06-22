@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { BrandMark } from "@/components/layout/brand-mark"
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,8 +42,10 @@ export function Header() {
       >
         <BrandMark subtitle="Barangay Digital Services" />
 
-        {user && (
-          <DropdownMenu>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          {user && (
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 focus:outline-none group">
                 <span className="text-blue-100/80 text-sm hidden md:inline group-hover:text-white transition-colors">
@@ -76,6 +79,7 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+        </div>
       </header>
 
       <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>

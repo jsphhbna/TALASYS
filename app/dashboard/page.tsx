@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 
 export default function DashboardPage() {
   const { user, isAuthorized } = useAuthGuard()
-  const { requests, notifications } = useResidentData()
+  const { requests, notifications, cancelRequest } = useResidentData()
 
   if (!isAuthorized || !user) {
     return null
@@ -135,7 +135,7 @@ export default function DashboardPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">{request.purpose}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
@@ -143,6 +143,20 @@ export default function DashboardPage() {
                       >
                         Track
                       </Button>
+                      {request.status === "Pending" && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            if(window.confirm("Are you sure you want to cancel this request?")) {
+                              cancelRequest(request.id);
+                            }
+                          }}
+                          className="text-[11px] h-7 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:text-red-700 shadow-none"
+                        >
+                          Cancel
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
