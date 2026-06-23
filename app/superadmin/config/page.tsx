@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,16 +36,27 @@ export default function SystemConfig() {
     time: l.date
   }))
 
-  // Local state for edits
+  // Local state for branding edits
   const [formData, setFormData] = useState({
-    barangayName: systemConfig.barangayName,
-    address: systemConfig.address,
-    contactNumber: systemConfig.contactNumber,
-    emailAddress: systemConfig.emailAddress,
-    barangayCaptainName: systemConfig.barangayCaptainName,
-    documentFees: systemConfig.documentFees || {},
-    documentTypes: systemConfig.documentTypes?.length ? systemConfig.documentTypes : ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency", "Business Clearance", "First Time Job Seeker"],
+    barangayName: systemConfig.barangayName || "",
+    address: systemConfig.address || "",
+    contactNumber: systemConfig.contactNumber || "",
+    emailAddress: systemConfig.emailAddress || "",
+    barangayCaptainName: systemConfig.barangayCaptainName || "",
   })
+
+  // Sync formData when systemConfig loads
+  useEffect(() => {
+    if (systemConfig.barangayName !== undefined) {
+      setFormData({
+        barangayName: systemConfig.barangayName || "",
+        address: systemConfig.address || "",
+        contactNumber: systemConfig.contactNumber || "",
+        emailAddress: systemConfig.emailAddress || "",
+        barangayCaptainName: systemConfig.barangayCaptainName || "",
+      })
+    }
+  }, [systemConfig.barangayName, systemConfig.address, systemConfig.contactNumber, systemConfig.emailAddress, systemConfig.barangayCaptainName])
 
   const tabs = [
     { id: "branding" as const, label: "Branding", icon: Palette },
