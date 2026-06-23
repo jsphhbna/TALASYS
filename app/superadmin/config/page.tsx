@@ -70,7 +70,7 @@ export default function SystemConfig() {
     { name: "Community Tax Certificate", requests: documentRequests.filter(r => r.documentType === "Community Tax Certificate").length },
   ]
 
-  const currentDocumentTypes = systemConfig.documentTypes?.length ? systemConfig.documentTypes : ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency", "Business Clearance", "First Time Job Seeker"];
+  const currentDocumentTypes = systemConfig.documentTypes !== undefined ? systemConfig.documentTypes : ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency", "Business Clearance", "First Time Job Seeker"];
   const currentDocumentFees = systemConfig.documentFees || {};
 
   const documentTypes = documentTypesList.map(d => ({
