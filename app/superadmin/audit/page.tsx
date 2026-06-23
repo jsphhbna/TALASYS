@@ -65,7 +65,7 @@ export default function AuditLogs() {
 
   const filteredLogs = auditLogs.filter((log) => {
     const matchesSearch = log.details.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesAdmin = adminFilter === "all" || log.admin.name === adminFilter
+    const matchesAdmin = adminFilter === "all" || (log.admin?.name || "System") === adminFilter
     const matchesAction = actionFilter === "all" || log.actionType === actionFilter
     return matchesSearch && matchesAdmin && matchesAction
   })
@@ -85,7 +85,7 @@ export default function AuditLogs() {
   const suspiciousCount = auditLogs.filter(l => l.actionType === "Deleted Admin" || l.actionType === "Config Edit").length
 
   const todaysActions = auditLogs.filter(l => l.date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })).length
-  const activeAdminCount = new Set(auditLogs.map(l => l.admin.name)).size
+  const activeAdminCount = new Set(auditLogs.map(l => l.admin?.name || "System")).size
 
   // Generate dynamic data based on auditLogs
   const now = Date.now()
@@ -236,7 +236,7 @@ export default function AuditLogs() {
         <div className="grid grid-cols-4 gap-4">
           <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="px-4 py-2 border border-slate-200 rounded-md text-sm">
             <option value="all">All Admins</option>
-            {Array.from(new Set(auditLogs.map((l: any) => l.admin.name || typeof l.admin === "string" ? l.admin : "System"))).map(name => (
+            {Array.from(new Set(auditLogs.map((l: any) => l.admin?.name || (typeof l.admin === "string" ? l.admin : "System")))).map(name => (
               <option key={name as string} value={name as string}>{name as string}</option>
             ))}
           </select>
@@ -280,10 +280,10 @@ export default function AuditLogs() {
                     <p className="text-[10px] text-slate-500">{log.timestamp}</p>
                   </div>
                   <div className="col-span-2 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: log.admin.color }}>
-                      <span className="text-[9px] text-white font-medium">{log.admin.initials}</span>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: log.admin?.color || "#94a3b8" }}>
+                      <span className="text-[9px] text-white font-medium">{log.admin?.initials || "SY"}</span>
                     </div>
-                    <span className="text-sm text-[#0C2340]">{log.admin.name}</span>
+                    <span className="text-sm text-[#0C2340]">{log.admin?.name || "System"}</span>
                   </div>
                   <div className="col-span-2">
                     <span className={`inline-block px-2.5 py-1 rounded-md border text-[10px] font-semibold ${getActionColor(log.actionType)}`}>

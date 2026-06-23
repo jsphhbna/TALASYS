@@ -44,7 +44,7 @@ export default function AdminManagement() {
   const [selectedAdmin, setSelectedAdmin] = useState<any>(null)
   
   const adminRecentActions = auditLogs.slice(0, 5).map(l => ({
-    admin: l.admin.name,
+    admin: l.admin?.name || "System",
     action: l.actionType,
     target: l.details,
     time: l.date

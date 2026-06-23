@@ -184,8 +184,8 @@ export default function SuperAdminDashboard() {
 
   // Map real audit logs to recent activity display
   const recentAdminActivity = auditLogs.slice(0, 5).map(log => ({
-    admin: log.admin.name,
-    initials: log.admin.initials,
+    admin: log.admin?.name || "System",
+    initials: log.admin?.initials || "SY",
     action: log.actionType,
     detail: log.details,
     timestamp: log.time,
