@@ -70,10 +70,13 @@ export default function SystemConfig() {
     { name: "Community Tax Certificate", requests: documentRequests.filter(r => r.documentType === "Community Tax Certificate").length },
   ]
 
+  const currentDocumentTypes = systemConfig.documentTypes?.length ? systemConfig.documentTypes : ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency", "Business Clearance", "First Time Job Seeker"];
+  const currentDocumentFees = systemConfig.documentFees || {};
+
   const documentTypes = documentTypesList.map(d => ({
     ...d,
-    enabled: formData.documentTypes.includes(d.name),
-    fee: formData.documentFees[d.name] ?? systemConfig.documentFees?.[d.name] ?? (d.name === "Certificate of Indigency" || d.name === "First Time Job Seeker" || d.name === "Community Tax Certificate" ? 0 : d.name === "Business Clearance" ? 150 : 50)
+    enabled: currentDocumentTypes.includes(d.name),
+    fee: currentDocumentFees[d.name] ?? (d.name === "Certificate of Indigency" || d.name === "First Time Job Seeker" || d.name === "Community Tax Certificate" ? 0 : d.name === "Business Clearance" ? 150 : 50)
   }))
 
 
@@ -304,8 +307,7 @@ export default function SystemConfig() {
                         onChange={(e) => {
                           const val = parseFloat(e.target.value)
                           if (!isNaN(val)) {
-                            const newFees = { ...(formData as any).documentFees, [doc.name]: val }
-                            setFormData({ ...formData, documentFees: newFees } as any)
+                            const newFees = { ...currentDocumentFees, [doc.name]: val }
                             updateConfig({ documentFees: newFees })
                           }
                         }}
@@ -324,11 +326,10 @@ export default function SystemConfig() {
                   <div className="col-span-2">
                     <button 
                       onClick={() => {
-                        const isCurrentlyEnabled = formData.documentTypes.includes(doc.name);
+                        const isCurrentlyEnabled = currentDocumentTypes.includes(doc.name);
                         const newTypes = isCurrentlyEnabled 
-                          ? formData.documentTypes.filter(t => t !== doc.name)
-                          : [...formData.documentTypes, doc.name];
-                        setFormData({ ...formData, documentTypes: newTypes });
+                          ? currentDocumentTypes.filter(t => t !== doc.name)
+                          : [...currentDocumentTypes, doc.name];
                         updateConfig({ documentTypes: newTypes });
                       }}
                       className={`text-sm font-medium ${doc.enabled ? "text-red-500 hover:text-red-600" : "text-emerald-600 hover:text-emerald-700"}`}

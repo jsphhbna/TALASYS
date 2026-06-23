@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, where } from "firebase/firestore"
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, where, setDoc } from "firebase/firestore"
 import type {
     AdminAccount,
     AuditLog,
@@ -168,7 +168,7 @@ export function useSuperAdminData() {
 
         // System Config
         updateConfig: useCallback(async (updates: Partial<SystemConfig>) => {
-            await updateDoc(doc(db, "systemConfig", "global"), updates)
+            await setDoc(doc(db, "systemConfig", "global"), updates, { merge: true })
         }, []),
     }
 }
