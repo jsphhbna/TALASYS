@@ -104,7 +104,7 @@ export default function ReasonAnalytics() {
     top3.forEach(([p, count], i) => { entry[`cat${i}`] = Math.round((count / total) * 100) })
     entry.other = Math.round((otherCount / total) * 100)
     return entry
-  }).filter(d => documentRequests.some(r => r.documentType === docTypes[reasonByDocType?.indexOf?.(d)] || true))
+  }).filter((d, idx) => documentRequests.some(r => r.documentType === docTypes[idx] || true))
 
   // Calculate real growth
   const now = Date.now()
