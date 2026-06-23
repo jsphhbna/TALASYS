@@ -14,7 +14,15 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && (getUserRole() == "admin" || getUserRole() == "superadmin" || getUserRole() == "SuperAdmin");
+      return isAuthenticated() && (
+        getUserRole() == "admin" || 
+        getUserRole() == "superadmin" || 
+        getUserRole() == "SuperAdmin" ||
+        getUserRole() == "Full Access" ||
+        getUserRole() == "Verification Only" ||
+        getUserRole() == "Documents Only" ||
+        getUserRole() == "View Only"
+      );
     }
 
     function isSuperAdmin() {

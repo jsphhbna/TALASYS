@@ -40,7 +40,11 @@ export function useSuperAdminData() {
 
         unsubs.push(onSnapshot(collection(db, "users"), (snap) => {
             const allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-            const admins = allUsers.filter(u => u.role === "admin" || u.role === "SuperAdmin").map(a => ({
+            const admins = allUsers.filter(u => 
+                u.role === "admin" || u.role === "SuperAdmin" || u.role === "superadmin" ||
+                u.role === "Full Access" || u.role === "Verification Only" || 
+                u.role === "Documents Only" || u.role === "View Only"
+            ).map(a => ({
                 id: a.id,
                 name: a.name || "Admin",
                 email: a.email || "",
@@ -52,7 +56,7 @@ export function useSuperAdminData() {
                 lastActive: "Never",
                 createdDate: a.createdDate || "Unknown",
             }))
-            setAdminAccounts(admins.filter(a => a.role !== "SuperAdmin"))
+            setAdminAccounts(admins.filter(a => a.role !== "SuperAdmin" && a.role !== "superadmin"))
             setStats(prev => ({ ...prev, adminCount: admins.length }))
         }))
 

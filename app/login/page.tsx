@@ -31,9 +31,9 @@ export default function LoginPage() {
 
     const user = await login(username, password)
     if (user) {
-      if (user.role === "superadmin") {
+      if (user.role === "superadmin" || user.role === "SuperAdmin") {
         router.push("/superadmin/dashboard")
-      } else if (user.role === "admin") {
+      } else if (["admin", "Full Access", "Verification Only", "Documents Only", "View Only"].includes(user.role)) {
         router.push("/admin/dashboard")
       } else {
         router.push("/dashboard")

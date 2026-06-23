@@ -42,7 +42,7 @@ const baseNavigation = [
 export function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   const { beginNavigation, pendingPath } = useNavigationLoading()
   const activePath = pendingPath ?? pathname
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
@@ -53,7 +53,16 @@ export function AdminSidebar() {
     pendingRequests: stats.pendingRequests || 0
   }
 
-  const navigation = baseNavigation.map(item => ({
+  let allowedNavNames = baseNavigation.map(n => n.name)
+  if (user?.role === "Verification Only") {
+    allowedNavNames = ["Dashboard", "Resident Management", "Verifications", "Notifications", "Activity Logs"]
+  } else if (user?.role === "Documents Only") {
+    allowedNavNames = ["Dashboard", "Resident Management", "Document Requests", "Generate Documents", "Category Reports", "Notifications", "Activity Logs"]
+  }
+
+  const navigation = baseNavigation
+    .filter(item => allowedNavNames.includes(item.name))
+    .map(item => ({
     ...item,
     badge: item.name === "Verifications" && badges.pendingVerifs > 0
       ? badges.pendingVerifs

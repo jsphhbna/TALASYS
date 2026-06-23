@@ -10,9 +10,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts"
 import { ClipboardCheck, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
 
 export default function Verifications() {
   const { verifications: pendingVerifications, rejectedVerifications, activityLogs, approveVerification, rejectVerification } = useAdminData()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("registration")
   const [selectedItem, setSelectedItem] = useState<any>(pendingVerifications[0] || rejectedVerifications[0])
   const [showRejectConfirm, setShowRejectConfirm] = useState(false)
@@ -228,7 +230,7 @@ export default function Verifications() {
                 </div>
 
                 {/* Actions */}
-                {selectedItem.status !== "rejected" && (
+                {selectedItem.status !== "rejected" && user?.role !== "View Only" && (
                   <div className="flex gap-3 pt-2">
                     <Button onClick={() => { approveVerification(selectedItem.id); setSelectedItem(null) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Approve</Button>
                     <Button onClick={() => setShowRejectConfirm(true)} className="flex-1 h-10 bg-red-600 hover:bg-red-700">Reject</Button>

@@ -10,9 +10,11 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
 } from "recharts"
 import { Users, UserCheck, Clock, AlertTriangle, UserPlus, Inbox } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
 
 export default function ResidentManagement() {
   const { residents: allResidents, activityLogs, deleteResident, updateResident } = useAdminData()
+  const { user } = useAuth()
   type ResidentRecord = (typeof allResidents)[number]
 
   const [selectedCategory, setSelectedCategory] = useState("all")
@@ -266,16 +268,20 @@ export default function ResidentManagement() {
                   </div>
                   <div className="col-span-3 flex items-center gap-2 relative">
                     <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowViewDialog(true) }} className="h-6 text-[10px] bg-transparent">View</Button>
-                    <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowEditDialog(true) }} className="h-6 text-[10px] bg-transparent">Edit</Button>
-                    <button onClick={() => setShowActionsMenu(showActionsMenu === resident.id ? null : resident.id)} className="w-6 h-6 flex items-center justify-center border border-slate-200 rounded hover:bg-slate-100">
-                      <span className="text-slate-600">⋮</span>
-                    </button>
-                    {showActionsMenu === resident.id && (
-                      <div className="absolute right-0 top-8 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
-                        <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-amber-600">Deactivate Account</button>
-                        <div className="border-t border-slate-200" />
-                        <button onClick={() => { deleteResident(resident.id); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-red-600">Delete Resident</button>
-                      </div>
+                    {user?.role !== "View Only" && (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowEditDialog(true) }} className="h-6 text-[10px] bg-transparent">Edit</Button>
+                        <button onClick={() => setShowActionsMenu(showActionsMenu === resident.id ? null : resident.id)} className="w-6 h-6 flex items-center justify-center border border-slate-200 rounded hover:bg-slate-100">
+                          <span className="text-slate-600">⋮</span>
+                        </button>
+                        {showActionsMenu === resident.id && (
+                          <div className="absolute right-0 top-8 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
+                            <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-amber-600">Deactivate Account</button>
+                            <div className="border-t border-slate-200" />
+                            <button onClick={() => { deleteResident(resident.id); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-red-600">Delete Resident</button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

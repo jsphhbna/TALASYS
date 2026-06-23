@@ -1,4 +1,4 @@
-export type UserRole = "resident" | "admin" | "superadmin"
+export type UserRole = "resident" | "admin" | "superadmin" | "Super Admin" | "Full Access" | "Verification Only" | "Documents Only" | "View Only"
 
 export interface AuthUser {
   id: string

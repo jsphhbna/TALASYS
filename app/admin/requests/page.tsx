@@ -9,9 +9,11 @@ import {
   PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
 import { ClipboardList, CheckCircle2, XCircle, FileText } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
 
 export default function DocumentRequests() {
   const { documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
+  const { user } = useAuth()
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
 
@@ -186,22 +188,26 @@ export default function DocumentRequests() {
                   )}
                 </div>
                 <div className="col-span-3 flex items-center gap-2">
-                  {request.status === "Pending" && (
+                  {user?.role !== "View Only" && (
                     <>
-                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Approve</Button>
-                      <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setRejectReason(""); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>
-                      {request.requestFor === "other" && request.authorizationLetter && (
-                        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowAuthDialog(true) }} className="h-6 px-3 text-[10px] bg-transparent">
-                          📎 Auth
-                        </Button>
+                      {request.status === "Pending" && (
+                        <>
+                          <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Approve</Button>
+                          <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setRejectReason(""); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>
+                          {request.requestFor === "other" && request.authorizationLetter && (
+                            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowAuthDialog(true) }} className="h-6 px-3 text-[10px] bg-transparent">
+                              📎 Auth
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      {(request.status === "On Process" || request.status === "Approved") && (
+                        <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Ready for Pick Up") }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Mark Ready</Button>
+                      )}
+                      {request.status === "Ready for Pick Up" && (
+                        <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Completed") }} className="h-6 px-3 text-[10px] bg-[#0C2340] hover:bg-[#1a3a5c]">Complete</Button>
                       )}
                     </>
-                  )}
-                  {(request.status === "On Process" || request.status === "Approved") && (
-                    <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Ready for Pick Up") }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Mark Ready</Button>
-                  )}
-                  {request.status === "Ready for Pick Up" && (
-                    <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Completed") }} className="h-6 px-3 text-[10px] bg-[#0C2340] hover:bg-[#1a3a5c]">Complete</Button>
                   )}
                   {(request.status === "Completed" || request.status === "Rejected") && (
                     <span className="text-[10px] text-slate-400">Processed</span>
