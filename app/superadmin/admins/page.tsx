@@ -65,6 +65,17 @@ export default function AdminManagement() {
       actions: count
     }
   })
+
+  const roleDistribution = [
+    { name: "Full Access", value: adminAccounts.filter(a => a.role === "Full Access" || a.role === "Admin" || a.role === "Super Admin").length, color: "#0C2340" },
+    { name: "Verification", value: adminAccounts.filter(a => a.role === "Verification Only").length, color: "#3b82f6" },
+    { name: "Documents", value: adminAccounts.filter(a => a.role === "Documents Only").length, color: "#C5A55A" },
+    { name: "View Only", value: adminAccounts.filter(a => a.role === "View Only").length, color: "#94a3b8" },
+  ].filter(r => r.value > 0)
+  if (roleDistribution.length === 0) {
+    roleDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9" })
+  }
+
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -274,8 +285,8 @@ export default function AdminManagement() {
           <p className="text-[11px] text-slate-500 mb-3">Admin access levels</p>
           <ResponsiveContainer width="100%" height={120}>
             <PieChart>
-              <Pie data={stats.roleDistribution} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={3}>
-                {stats.roleDistribution.map((entry, i) => (
+              <Pie data={roleDistribution} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={3}>
+                {roleDistribution.map((entry, i) => (
                   <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
@@ -284,7 +295,7 @@ export default function AdminManagement() {
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-1">
-            {stats.roleDistribution.map((r, i) => (
+            {roleDistribution.map((r, i) => (
               <div key={i} className="flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
