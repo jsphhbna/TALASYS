@@ -14,11 +14,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && (getUserRole() == "admin" || getUserRole() == "SuperAdmin");
+      return isAuthenticated() && (getUserRole() == "admin" || getUserRole() == "superadmin" || getUserRole() == "SuperAdmin");
     }
 
     function isSuperAdmin() {
-      return isAuthenticated() && getUserRole() == "SuperAdmin";
+      return isAuthenticated() && (getUserRole() == "superadmin" || getUserRole() == "SuperAdmin");
     }
 
     function isOwner(userId) {
