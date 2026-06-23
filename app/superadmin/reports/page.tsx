@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 
 export default function SystemReports() {
-  const { stats, documentRequests } = useAdminData()
+  const { stats: adminStats, documentRequests } = useAdminData()
   const [activeTab, setActiveTab] = useState("all")
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState<any>(null)
