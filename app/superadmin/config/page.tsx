@@ -342,7 +342,7 @@ export default function SystemConfig() {
           </div>
           <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between">
             <p className="text-[11px] text-slate-500">
-              {h.activeDocTypes} of {h.totalDocTypes} document types enabled
+              {documentTypes.filter(d => d.enabled).length} of {documentTypes.length} document types enabled
             </p>
             <Button variant="outline" className="text-xs bg-transparent">+ Add Document Type</Button>
           </div>

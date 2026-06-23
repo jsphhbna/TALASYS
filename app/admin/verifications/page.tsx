@@ -33,7 +33,7 @@ export default function Verifications() {
     return {
       day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }),
       incoming: vers.length,
-      approved: vers.filter(v => v.status === "verified").length
+      approved: vers.filter(v => v.status === "approved").length
     }
   });
 
