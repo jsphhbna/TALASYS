@@ -8,10 +8,12 @@ import { useAdminData } from "@/hooks/use-admin-data"
 import { Bell, UserPlus, Clock, FileText, Mail } from "lucide-react"
 
 export default function Notifications() {
-  const { notifications: adminNotifications, markAllNotificationsRead, markNotificationRead } = useAdminData()
+  const { notifications: adminNotifications, markAllNotificationsRead, markNotificationRead, addNotification, residents } = useAdminData()
   const [activeFilter, setActiveFilter] = useState("all")
   const [selectedNotification, setSelectedNotification] = useState<any>(null)
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
+  const [broadcastMessage, setBroadcastMessage] = useState("")
+  const [isSending, setIsSending] = useState(false)
 
   const unreadCount = adminNotifications.filter(n => !n.isRead).length
 
@@ -49,6 +51,43 @@ export default function Notifications() {
     if (type === "registration") return <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-semibold">NEW</span>
     if (type === "reactivation") return <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[9px] font-semibold">ACTION</span>
     return null
+  }
+
+  const handleBroadcast = async () => {
+    if (!broadcastMessage.trim()) return;
+    setIsSending(true);
+    try {
+      const activeResidents = residents.filter(r => r.status === "Active");
+      const promises = activeResidents.map(r => 
+        addNotification({
+          targetId: r.id,
+          type: "info",
+          title: "Barangay Announcement",
+          message: broadcastMessage,
+          timestamp: "Just now",
+          isRead: false
+        })
+      );
+      
+      // Also add one for admin log visibility
+      promises.push(
+        addNotification({
+          targetId: "admin",
+          type: "info",
+          title: "Broadcast Sent",
+          message: `Sent: "${broadcastMessage}" to ${activeResidents.length} residents`,
+          timestamp: "Just now",
+          isRead: false
+        })
+      );
+
+      await Promise.all(promises);
+      setBroadcastMessage("");
+    } catch (error) {
+      console.error("Failed to send broadcast", error);
+    } finally {
+      setIsSending(false);
+    }
   }
 
   return (
@@ -164,10 +203,21 @@ export default function Notifications() {
         <div className="p-4 bg-[#0C2340]/[0.03] border-t border-slate-200 flex items-center gap-4">
           <input
             type="text"
-            placeholder="Send notification to resident..."
+            value={broadcastMessage}
+            onChange={(e) => setBroadcastMessage(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleBroadcast()}
+            disabled={isSending}
+            placeholder="Send notification to everyone..."
             className="flex-1 px-4 py-2 text-sm border-none bg-transparent focus:outline-none"
           />
-          <Button size="sm" className="h-9 px-6 bg-[#0C2340] hover:bg-[#0a1c33]">Send</Button>
+          <Button 
+            size="sm" 
+            onClick={handleBroadcast} 
+            disabled={isSending || !broadcastMessage.trim()} 
+            className="h-9 px-6 bg-[#0C2340] hover:bg-[#0a1c33]"
+          >
+            {isSending ? "Sending..." : "Send"}
+          </Button>
         </div>
       </Card>
 
