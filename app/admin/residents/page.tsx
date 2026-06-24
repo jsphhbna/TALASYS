@@ -65,7 +65,14 @@ export default function ResidentManagement() {
   const recentUpdates = activityLogs.slice(0, 4).map((log) => ({
     name: log.residentName || "System",
     action: log.action,
-    time: log.time,
+    time: (() => {
+      if (log.time && log.time !== "Just now") return log.time;
+      const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
+      if (ts && !isNaN(ts)) {
+        return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts));
+      }
+      return "Just now";
+    })(),
   }))
 
   return (

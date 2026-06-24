@@ -138,7 +138,16 @@ export default function AdminDashboard() {
                   <div className="flex-1">
                     <p className="text-[11px] font-semibold text-[#0C2340]">{log.action}</p>
                     <p className="text-[10px] text-slate-500 mt-0.5">{log.details}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{log.time}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {(() => {
+                        if (log.time && log.time !== "Just now") return log.time;
+                        const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
+                        if (ts && !isNaN(ts)) {
+                          return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts));
+                        }
+                        return "Just now";
+                      })()}
+                    </p>
                   </div>
                 </div>
               ))

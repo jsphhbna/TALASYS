@@ -196,7 +196,16 @@ export default function ActivityLogs() {
             <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
               <div className="grid grid-cols-12 gap-4 items-center">
                 <div className="col-span-1">
-                  <span className="text-[11px] text-slate-500 font-mono">{log.time}</span>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    {(() => {
+                      if (log.time && log.time !== "Just now") return log.time;
+                      const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
+                      if (ts && !isNaN(ts)) {
+                        return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts));
+                      }
+                      return "Just now";
+                    })()}
+                  </span>
                 </div>
                 <div className="col-span-2">
                   <span className="text-[12px] font-semibold text-[#0C2340]">{log.action}</span>

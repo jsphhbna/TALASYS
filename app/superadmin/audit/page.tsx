@@ -56,7 +56,17 @@ export default function AuditLogs() {
     setIsExportingCsv(true)
     try {
       const headers = ["Date", "Time", "Admin", "Action", "Details", "IP Address"]
-      const rows = filteredLogs.map(l => `"${l.date || (l as any).date || 'Unknown'}","${l.time}","${l.admin?.name || (l as any).adminName || 'System'}","${l.actionType || l.action || 'Unknown'}","${(l.details || (l as any).residentName || '').replace(/"/g, '""')}","${l.ipAddress || ''}"`)
+      const rows = filteredLogs.map(l => {
+        const dateStr = l.date || (l as any).date || (() => {
+          const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
+          return (ts && !isNaN(ts)) ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(ts)) : 'Unknown';
+        })();
+        const timeStr = l.time || (() => {
+          const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
+          return (ts && !isNaN(ts)) ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts)) : '';
+        })();
+        return `"${dateStr}","${timeStr}","${l.admin?.name || (l as any).adminName || 'System'}","${l.actionType || l.action || 'Unknown'}","${(l.details || (l as any).residentName || '').replace(/"/g, '""')}","${l.ipAddress || ''}"`
+      })
       const csvContent = [headers.join(","), ...rows].join("\n")
       
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
@@ -104,7 +114,17 @@ export default function AuditLogs() {
 
       autoTable(doc, {
         head: [['Date / Time', 'Admin', 'Action', 'Details']],
-        body: filteredLogs.map(l => [`${l.date || (l as any).date || 'Unknown'}\n${l.time}`, l.admin?.name || (l as any).adminName || 'System', l.actionType || l.action || 'Unknown', l.details || (l as any).residentName || '']),
+        body: filteredLogs.map(l => {
+          const dateStr = l.date || (l as any).date || (() => {
+            const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
+            return (ts && !isNaN(ts)) ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(ts)) : 'Unknown';
+          })();
+          const timeStr = l.time || (() => {
+            const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
+            return (ts && !isNaN(ts)) ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts)) : '';
+          })();
+          return [`${dateStr}\n${timeStr}`, l.admin?.name || (l as any).adminName || 'System', l.actionType || l.action || 'Unknown', l.details || (l as any).residentName || ''];
+        }),
         startY: 55,
         theme: 'grid',
         headStyles: { fillColor: [12, 35, 64] },
@@ -349,7 +369,17 @@ export default function AuditLogs() {
             ) : filteredLogs.map((log) => (
               <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
-                  <div className="col-span-2"><p className="text-sm font-semibold text-slate-700">{log.date || (log as any).date || "Unknown"}</p></div>
+                  <div className="col-span-2"><p className="text-sm font-semibold text-slate-700">
+                    {(() => {
+                      if (log.date) return log.date;
+                      if ((log as any).date) return (log as any).date;
+                      const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
+                      if (ts && !isNaN(ts)) {
+                        return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(ts));
+                      }
+                      return "Unknown";
+                    })()}
+                  </p></div>
                   <div className="col-span-2 flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: log.admin?.color || "#94a3b8" }}>
                       <span className="text-[9px] text-white font-medium">{log.admin?.initials || (log as any).adminName?.charAt(0)?.toUpperCase() || "SY"}</span>
