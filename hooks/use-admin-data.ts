@@ -138,11 +138,16 @@ export function useAdminData() {
             await updateDoc(doc(db, "users", id), { role: "Deleted" })
             if (adminName && residentName) {
                 await addDoc(collection(db, "activityLogs"), {
+                    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                    timestamp: Date.now().toString(),
+                    admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: "#ef4444" },
+                    role: "Admin",
                     action: "Deleted Resident",
-                    adminName: adminName,
-                    residentName: residentName,
-                    time: "Just now",
-                    timestamp: Date.now()
+                    actionType: "Deleted Resident",
+                    details: `Deleted resident account for ${residentName}`,
+                    targetId: id,
+                    targetCollection: "residents"
                 })
             }
         }, []),
