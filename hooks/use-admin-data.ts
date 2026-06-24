@@ -69,7 +69,7 @@ export function useAdminData() {
                 adultCount: res.filter(r => r.categories.includes("Adult") || r.categories.includes("Resident")).length,
                 voterCount: res.filter(r => r.isVoter).length
             }))
-        }))
+        }, (err) => console.error("users snapshot error:", err)))
 
         unsubs.push(onSnapshot(collection(db, "verifications"), (snap) => {
             const allVerif = snap.docs.map(d => ({ id: d.id, ...d.data() } as PendingVerification))
@@ -78,7 +78,7 @@ export function useAdminData() {
             setVerifications(pending)
             setRejectedVerifications(rejected)
             setStats(prev => ({ ...prev, pendingVerifications: pending.length }))
-        }))
+        }, (err) => console.error("verifications snapshot error:", err)))
 
         unsubs.push(onSnapshot(query(collection(db, "documentRequests"), orderBy("createdAt", "desc")), (snap) => {
             const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AdminDocumentRequest))
@@ -96,18 +96,18 @@ export function useAdminData() {
                 totalRequests: reqs.length,
                 totalDocumentsGenerated: approved.length
             }))
-        }))
+        }, (err) => console.error("documentRequests snapshot error:", err)))
 
         unsubs.push(onSnapshot(query(collection(db, "notifications"), where("targetId", "==", "admin")), (snap) => {
             const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AdminNotification))
             notifs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
             setNotifications(notifs)
             setStats(prev => ({ ...prev, unreadNotifications: notifs.filter(n => !n.isRead).length }))
-        }))
+        }, (err) => console.error("notifications snapshot error:", err)))
 
         unsubs.push(onSnapshot(query(collection(db, "activityLogs"), orderBy("timestamp", "desc")), (snap) => {
             setActivityLogs(snap.docs.map(d => ({ id: d.id, ...d.data() } as ActivityLog)))
-        }))
+        }, (err) => console.error("activityLogs snapshot error:", err)))
 
         setTimeout(() => setIsLoaded(true), 500)
 
