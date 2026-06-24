@@ -161,6 +161,11 @@ function toast({ ...props }: Toast) {
     },
   })
 
+  // Force dismissal exactly after 3000ms matching the progress bar
+  setTimeout(() => {
+    dismiss()
+  }, 3000)
+
   return {
     id: id,
     dismiss,
