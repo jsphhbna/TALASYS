@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import {
@@ -19,6 +20,8 @@ import {
 
 export default function CategoryReports() {
   const { stats: adminStats, residents } = useAdminData()
+  const { systemConfig } = useSuperAdminData()
+  const barangayName = systemConfig?.barangayName || "Barangay Sample"
   const nonVoterCount = adminStats.totalResidents - adminStats.voterCount
 
   const barData = [
@@ -80,7 +83,7 @@ export default function CategoryReports() {
       doc.setFontSize(10)
       doc.setTextColor(100, 100, 100)
       doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
-      doc.text("Barangay Sample", pageWidth / 2, 26, { align: "center" })
+      doc.text(barangayName, pageWidth / 2, 26, { align: "center" })
       
       // Title
       doc.setFontSize(14)
@@ -307,7 +310,7 @@ export default function CategoryReports() {
             <div className="bg-slate-50 border border-slate-200 rounded p-4 h-56">
               <div className="text-center space-y-1.5 mb-3">
                 <p className="text-[8px] text-slate-500">Republic of the Philippines</p>
-                <p className="text-[8px] text-slate-500">Barangay Sample</p>
+                <p className="text-[8px] text-slate-500">{barangayName}</p>
                 <div className="w-5 h-5 bg-slate-200 rounded mx-auto" />
               </div>
               <div className="h-px bg-slate-200 mb-2" />
