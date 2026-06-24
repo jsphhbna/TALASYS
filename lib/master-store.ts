@@ -22,6 +22,7 @@ export interface AdminAccount {
   initials: string
   email: string
   password: string
+  contactNumber?: string
   role: "Full Access" | "Verification Only" | "Documents Only" | "View Only" | "SuperAdmin"
   status: "Active" | "Locked"
   isOnline: boolean

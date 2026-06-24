@@ -91,7 +91,10 @@ export default function AdminManagement() {
   const [actionMessage, setActionMessage] = useState("")
 
   // Form states for creating admin
-  const [newAdminName, setNewAdminName] = useState("")
+  const [newAdminFirstName, setNewAdminFirstName] = useState("")
+  const [newAdminLastName, setNewAdminLastName] = useState("")
+  const [newAdminMiddleInitial, setNewAdminMiddleInitial] = useState("")
+  const [newAdminContact, setNewAdminContact] = useState("")
   const [newAdminEmail, setNewAdminEmail] = useState("")
   const [newAdminPassword, setNewAdminPassword] = useState("")
 
@@ -181,16 +184,23 @@ export default function AdminManagement() {
   }
 
   const handleCreateAdmin = () => {
-    if (!newAdminName || !newAdminEmail || !newAdminPassword || selectedRole === "Select role...") return
+    if (!newAdminFirstName || !newAdminLastName || !newAdminEmail || !newAdminContact || !newAdminPassword || selectedRole === "Select role...") return
+    
+    const fullName = `${newAdminFirstName} ${newAdminMiddleInitial ? newAdminMiddleInitial + '. ' : ''}${newAdminLastName}`
+    
     addAdmin({
-      name: newAdminName,
+      name: fullName,
       email: newAdminEmail,
       password: newAdminPassword,
+      contactNumber: newAdminContact,
       role: selectedRole as any,
       status: "Active"
     })
     setShowCreateModal(false)
-    setNewAdminName("")
+    setNewAdminFirstName("")
+    setNewAdminLastName("")
+    setNewAdminMiddleInitial("")
+    setNewAdminContact("")
     setNewAdminEmail("")
     setNewAdminPassword("")
     setSelectedRole("Select role...")
@@ -435,14 +445,18 @@ export default function AdminManagement() {
               <div>
                 <h3 className="text-sm font-bold text-[#0C2340] mb-4">Personal Information</h3>
                 <div className="space-y-4">
-                  <div><label className="block text-xs text-slate-600 mb-2">Full Name *</label><Input value={newAdminName} onChange={e => setNewAdminName(e.target.value)} placeholder="Enter full name" /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="block text-xs text-slate-600 mb-2">First Name *</label><Input value={newAdminFirstName} onChange={e => setNewAdminFirstName(e.target.value)} placeholder="First Name" /></div>
+                    <div><label className="block text-xs text-slate-600 mb-2">Last Name *</label><Input value={newAdminLastName} onChange={e => setNewAdminLastName(e.target.value)} placeholder="Last Name" /></div>
+                  </div>
+                  <div><label className="block text-xs text-slate-600 mb-2">Middle Initial (Optional)</label><Input value={newAdminMiddleInitial} onChange={e => setNewAdminMiddleInitial(e.target.value)} placeholder="e.g. A" maxLength={2} /></div>
                   <div><label className="block text-xs text-slate-600 mb-2">Email Address *</label><Input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="admin@barangay.gov.ph" /></div>
-                  <div><label className="block text-xs text-slate-600 mb-2">Contact Number</label><Input placeholder="+63 9XX XXX XXXX" /></div>
+                  <div><label className="block text-xs text-slate-600 mb-2">Contact Number *</label><Input value={newAdminContact} onChange={e => setNewAdminContact(e.target.value)} placeholder="+63 9XX XXX XXXX" /></div>
                 </div>
               </div>
               <div className="h-px bg-slate-200" />
               <div>
-                <h3 className="text-sm font-bold text-[#0C2340] mb-4">Access Privileges</h3>
+                <h3 className="text-sm font-bold text-[#0C2340] mb-4">Access Privileges *</h3>
                 <div className="relative">
                   <button onClick={() => setShowRoleDropdown(!showRoleDropdown)} className="w-full px-4 py-3 border border-slate-300 rounded-md text-left text-sm text-slate-900 flex justify-between items-center">
                     {selectedRole}
