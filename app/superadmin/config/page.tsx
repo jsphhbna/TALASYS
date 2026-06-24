@@ -34,7 +34,10 @@ export default function SystemConfig() {
     admin: l.admin?.name || (l as any).adminName || "System",
     action: l.actionType || l.action || "Unknown",
     detail: l.details || (l as any).residentName || "",
-    timestamp: l.date
+    timestamp: l.date,
+    type: (l.details || "").toLowerCase().includes("template") ? "template" : 
+          (l.details || "").toLowerCase().includes("branding") ? "branding" :
+          (l.details || "").toLowerCase().includes("document") ? "document" : "module"
   }))
 
   // Local state for branding edits
@@ -144,7 +147,7 @@ export default function SystemConfig() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] text-slate-800">{change.action}</p>
-                    <p className="text-[10px] text-slate-400">{change.time}</p>
+                    <p className="text-[10px] text-slate-400">{change.timestamp}</p>
                   </div>
                 </div>
               )

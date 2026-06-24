@@ -31,14 +31,14 @@ export default function LoginPage() {
 
     const user = await login(username, password)
     
-    if (user && user._error) {
-      setError(user._error)
+    if (user && (user as any)._error) {
+      setError((user as any)._error)
       setIsSigningIn(false)
       return
     }
 
     if (user) {
-      if (user.role === "superadmin" || user.role === "SuperAdmin") {
+      if (user.role === "superadmin" || (user.role as any) === "SuperAdmin" || (user.role as any) === "Super Admin") {
         router.push("/superadmin/dashboard")
       } else if (["admin", "Full Access", "Verification Only", "Documents Only", "View Only"].includes(user.role)) {
         router.push("/admin/dashboard")

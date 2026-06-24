@@ -65,7 +65,8 @@ export default function Notifications() {
           title: "Barangay Announcement",
           message: broadcastMessage,
           timestamp: "Just now",
-          isRead: false
+          isRead: false,
+          createdAt: Date.now()
         })
       );
       
@@ -77,7 +78,8 @@ export default function Notifications() {
           title: "Broadcast Sent",
           message: `Sent: "${broadcastMessage}" to ${activeResidents.length} residents`,
           timestamp: "Just now",
-          isRead: false
+          isRead: false,
+          createdAt: Date.now()
         })
       );
 
