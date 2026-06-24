@@ -128,9 +128,13 @@ export default function AuditLogs() {
   }
 
   const filteredLogs = auditLogs.filter((log) => {
-    const matchesSearch = log.details.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesAdmin = adminFilter === "all" || (log.admin?.name || "System") === adminFilter
-    const matchesAction = actionFilter === "all" || log.actionType === actionFilter
+    const details = log.details || (log as any).residentName || ""
+    const actionType = log.actionType || log.action || "Unknown"
+    const adminName = log.admin?.name || (log as any).adminName || "System"
+    
+    const matchesSearch = details.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesAdmin = adminFilter === "all" || adminName === adminFilter
+    const matchesAction = actionFilter === "all" || actionType === actionFilter
     return matchesSearch && matchesAdmin && matchesAction
   })
 

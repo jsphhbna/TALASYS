@@ -43,12 +43,16 @@ export default function AdminManagement() {
   const [showLogsModal, setShowLogsModal] = useState(false)
   const [selectedAdmin, setSelectedAdmin] = useState<any>(null)
   
-  const adminRecentActions = auditLogs.slice(0, 5).map(l => ({
-    admin: l.admin?.name || "System",
-    action: l.actionType,
-    target: l.details,
-    time: l.date
-  }))
+  const adminRecentActions = auditLogs.slice(0, 5).map(l => {
+    const actionType = l.actionType || l.action || "Unknown"
+    return {
+      admin: l.admin?.name || (l as any).adminName || "System",
+      action: actionType,
+      target: l.details || (l as any).residentName || "",
+      time: l.time || l.date,
+      type: actionType === "approved" ? "approval" : actionType === "rejected" ? "rejection" : actionType === "verified" ? "verification" : actionType === "generated" ? "generation" : "system"
+    }
+  })
 
   // Real activity trend from audit logs grouped by day
   const now = Date.now()
@@ -67,7 +71,7 @@ export default function AdminManagement() {
   })
 
   const roleDistribution = [
-    { name: "Full Access", value: adminAccounts.filter(a => a.role === "Full Access" || a.role === "Admin" || a.role === "Super Admin").length, color: "#0C2340" },
+    { name: "Full Access", value: adminAccounts.filter(a => a.role === "Full Access" || a.role === "SuperAdmin").length, color: "#0C2340" },
     { name: "Verification", value: adminAccounts.filter(a => a.role === "Verification Only").length, color: "#3b82f6" },
     { name: "Documents", value: adminAccounts.filter(a => a.role === "Documents Only").length, color: "#C5A55A" },
     { name: "View Only", value: adminAccounts.filter(a => a.role === "View Only").length, color: "#94a3b8" },
