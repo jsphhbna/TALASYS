@@ -74,14 +74,25 @@ export default function CategoryReports() {
       const doc = new jsPDF()
       const title = selectedCategoryObj.reportTitle
 
+      const pageWidth = doc.internal.pageSize.getWidth()
+
       // Header
-      doc.setFontSize(16)
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
+      doc.text("Barangay Sample", pageWidth / 2, 26, { align: "center" })
+      
+      // Title
+      doc.setFontSize(14)
       doc.setTextColor(12, 35, 64)
-      doc.text(title, 14, 20)
+      doc.setFont("helvetica", "bold")
+      doc.text(title.toUpperCase(), pageWidth / 2, 45, { align: "center" })
       
       doc.setFontSize(10)
       doc.setTextColor(100, 100, 100)
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28)
+      doc.setFont("helvetica", "normal")
+      const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      doc.text(`As of ${dateStr}`, pageWidth / 2, 51, { align: "center" })
 
       // Filter residents
       let filtered = residents;
@@ -113,7 +124,7 @@ export default function CategoryReports() {
       })
 
       autoTable(doc, {
-        startY: 35,
+        startY: 60,
         head: [cols],
         body: body,
         theme: 'grid',
