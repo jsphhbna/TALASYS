@@ -5,13 +5,25 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { showToastPreset } from "@/lib/app-toast"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 import {
   PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
-import { Users, TrendingUp, Award } from "lucide-react"
+import { Users, TrendingUp, Award, Loader2 } from "lucide-react"
 
 export default function CategoryReports() {
   const { stats, residents } = useAdminData()
+  const { systemConfig } = useSuperAdminData()
+  
+  const barangayName = systemConfig?.barangayName || "Barangay Sample"
+  const municipality = systemConfig?.address || "City of Sample"
+  const contactNumber = systemConfig?.contactNumber || "(02) 8123-4567"
+  const email = systemConfig?.emailAddress || "barangay@sample.gov.ph"
+
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
 
 
 
@@ -66,6 +78,89 @@ export default function CategoryReports() {
 
   const previewColumns = getPreviewColumns()
   const selectedCategoryInfo = getSelectedCategoryInfo()
+
+  const handleDownload = async () => {
+    if (isDownloadingPdf) return
+
+    setIsDownloadingPdf(true)
+    
+    try {
+      const doc = new jsPDF()
+      const title = getCategoryTitle()
+
+      const pageWidth = doc.internal.pageSize.getWidth()
+
+      // Header
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
+      doc.text(municipality, pageWidth / 2, 25, { align: "center" })
+      doc.text(barangayName, pageWidth / 2, 30, { align: "center" })
+      
+      // Title
+      doc.setFontSize(14)
+      doc.setTextColor(12, 35, 64)
+      doc.setFont("helvetica", "bold")
+      doc.text(title.toUpperCase(), pageWidth / 2, 45, { align: "center" })
+      
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.setFont("helvetica", "normal")
+      const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      doc.text(`As of ${dateStr}`, pageWidth / 2, 51, { align: "center" })
+
+      // Filter residents
+      let filtered = residents;
+      if (selectedCategory === "senior") filtered = residents.filter(r => (r.age || 0) >= 60)
+      else if (selectedCategory === "minor") filtered = residents.filter(r => (r.age || 0) < 18)
+      else if (selectedCategory === "adult") filtered = residents.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60)
+      else if (selectedCategory === "voters") filtered = residents.filter(r => r.isVoter)
+      else if (selectedCategory === "non-voters") filtered = residents.filter(r => !r.isVoter)
+      else if (selectedCategory === "expired") filtered = residents.filter(r => r.status === "Expired")
+      
+      // Map columns
+      const cols = []
+      if (selectedColumns.name) cols.push("Full Name")
+      if (selectedColumns.address) cols.push("Address")
+      if (selectedColumns.age) cols.push("Age")
+      if (selectedColumns.contact) cols.push("Contact")
+      if (selectedColumns.registration) cols.push("Reg. Date")
+      if (selectedColumns.status) cols.push("Status")
+
+      const body = filtered.map(r => {
+        const row = []
+        if (selectedColumns.name) row.push(r.name)
+        if (selectedColumns.address) row.push(r.address)
+        if (selectedColumns.age) row.push(r.age?.toString() || "N/A")
+        if (selectedColumns.contact) row.push(r.contactNumber || "N/A")
+        if (selectedColumns.registration) row.push((r as any).createdAt ? new Date((r as any).createdAt).toLocaleDateString() : "N/A")
+        if (selectedColumns.status) row.push(r.status)
+        return row
+      })
+
+      autoTable(doc, {
+        startY: 65,
+        head: [cols],
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [12, 35, 64] },
+        margin: { bottom: 30 },
+        didDrawPage: function (data) {
+          const pageHeight = doc.internal.pageSize.getHeight()
+          doc.setFontSize(8)
+          doc.setTextColor(150, 150, 150)
+          doc.text(`Contact Us: ${contactNumber} | Email: ${email}`, pageWidth / 2, pageHeight - 15, { align: "center" })
+        }
+      })
+
+      doc.save(`Category_Report_${selectedCategory}.pdf`)
+      showToastPreset("categoryReportDownloaded")
+    } catch(e) {
+      console.error(e)
+    }
+
+    setIsDownloadingPdf(false)
+  }
 
   return (
     <AdminPageShell>
@@ -202,8 +297,8 @@ export default function CategoryReports() {
             <div className="p-4 bg-slate-50 border border-slate-200 rounded min-h-[220px] overflow-y-auto text-[8px]">
               <div className="text-center space-y-2 mb-4">
                 <p className="text-[9px] text-slate-600">Republic of the Philippines</p>
-                <p className="text-[9px] text-slate-600">Barangay Sample</p>
-                <div className="w-6 h-6 bg-slate-200 rounded mx-auto my-2" />
+                <p className="text-[9px] text-slate-600">{municipality}</p>
+                <p className="text-[9px] text-slate-600">{barangayName}</p>
                 <hr className="border-slate-300" />
                 <p className="text-[10px] font-bold text-[#0C2340] my-3">{getCategoryTitle()}</p>
                 <p className="text-[8px] text-slate-600">As of November 27, 2025</p>
@@ -242,7 +337,20 @@ export default function CategoryReports() {
 
       {/* Action Buttons */}
       <div className="flex gap-4 mt-6">
-        <Button className="w-48 h-11 bg-[#0C2340] hover:bg-[#0a1c33]">Download PDF</Button>
+        <Button 
+          onClick={handleDownload} 
+          disabled={isDownloadingPdf}
+          className="w-48 h-11 bg-[#0C2340] hover:bg-[#0a1c33]"
+        >
+          {isDownloadingPdf ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            "Download PDF"
+          )}
+        </Button>
         <Button variant="outline" className="w-40 h-11 bg-transparent">Preview</Button>
       </div>
     </AdminPageShell>
