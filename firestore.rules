@@ -10,23 +10,32 @@ service cloud.firestore {
     }
 
     function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(userPath) ? get(userPath).data.get('role', 'none') : 'none';
     }
 
     function isAdmin() {
+      let role = getUserRole();
       return isAuthenticated() && (
-        getUserRole() == "admin" || 
-        getUserRole() == "superadmin" || 
-        getUserRole() == "SuperAdmin" ||
-        getUserRole() == "Full Access" ||
-        getUserRole() == "Verification Only" ||
-        getUserRole() == "Documents Only" ||
-        getUserRole() == "View Only"
+        role == "admin" || 
+        role == "Admin" ||
+        role == "superadmin" || 
+        role == "SuperAdmin" ||
+        role == "Super Admin" ||
+        role == "Full Access" ||
+        role == "Verification Only" ||
+        role == "Documents Only" ||
+        role == "View Only"
       );
     }
 
     function isSuperAdmin() {
-      return isAuthenticated() && (getUserRole() == "superadmin" || getUserRole() == "SuperAdmin");
+      let role = getUserRole();
+      return isAuthenticated() && (
+        role == "superadmin" || 
+        role == "SuperAdmin" || 
+        role == "Super Admin"
+      );
     }
 
     function isOwner(userId) {
