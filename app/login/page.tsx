@@ -30,6 +30,13 @@ export default function LoginPage() {
     await delay(650)
 
     const user = await login(username, password)
+    
+    if (user && user._error) {
+      setError(user._error)
+      setIsSigningIn(false)
+      return
+    }
+
     if (user) {
       if (user.role === "superadmin" || user.role === "SuperAdmin") {
         router.push("/superadmin/dashboard")

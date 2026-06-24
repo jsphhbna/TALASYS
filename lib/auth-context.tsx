@@ -193,9 +193,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setUser(userData)
       return userData
-    } catch (error) {
+    } catch (error: any) {
       console.error("Firebase Login Error:", error)
-      return null
+      // Return a special object containing the error message so the UI can display it
+      return { _error: error.message || "An unknown error occurred during login." } as any
     }
   }
 
