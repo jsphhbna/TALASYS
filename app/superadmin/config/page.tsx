@@ -30,10 +30,11 @@ export default function SystemConfig() {
   const [selectedTemplate, setSelectedTemplate] = useState("clearance")
   const [editingTemplate, setEditingTemplate] = useState(false)
 
-  const configChangeLog = auditLogs.filter(l => l.actionType === "Config Edit" || l.actionType === "Settings Updated").slice(0, 5).map(l => ({
-    action: l.details,
-    type: "branding",
-    time: l.date
+  const configChangeLog = auditLogs.filter(l => l.actionType === "Config Edit" || l.actionType === "Settings Updated" || l.action === "Config Edit" || l.action === "Settings Updated").slice(0, 5).map(l => ({
+    admin: l.admin?.name || (l as any).adminName || "System",
+    action: l.actionType || l.action || "Unknown",
+    detail: l.details || (l as any).residentName || "",
+    timestamp: l.date
   }))
 
   // Local state for branding edits

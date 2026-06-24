@@ -55,9 +55,9 @@ export default function AuditLogs() {
 
     setIsExportingCsv(true)
     try {
-      const headers = ["Date,Time,Admin,Action,Details,IP Address"]
-      const rows = filteredLogs.map(l => `"${l.date}","${l.time}","${l.admin?.name || 'System'}","${l.actionType}","${l.details.replace(/"/g, '""')}","${l.ipAddress || ''}"`)
-      const csvContent = headers.concat(rows).join("\n")
+      const headers = ["Date", "Time", "Admin", "Action", "Details", "IP Address"]
+      const rows = filteredLogs.map(l => `"${l.date || (l as any).date || 'Unknown'}","${l.time}","${l.admin?.name || (l as any).adminName || 'System'}","${l.actionType || l.action || 'Unknown'}","${(l.details || (l as any).residentName || '').replace(/"/g, '""')}","${l.ipAddress || ''}"`)
+      const csvContent = [headers.join(","), ...rows].join("\n")
       
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement("a")
@@ -103,9 +103,9 @@ export default function AuditLogs() {
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 52, { align: "center" })
 
       autoTable(doc, {
-        startY: 65,
-        head: [['Date/Time', 'Admin', 'Action', 'Details']],
-        body: filteredLogs.map(l => [`${l.date}\n${l.time}`, l.admin?.name || 'System', l.actionType, l.details]),
+        head: [['Date / Time', 'Admin', 'Action', 'Details']],
+        body: filteredLogs.map(l => [`${l.date || (l as any).date || 'Unknown'}\n${l.time}`, l.admin?.name || (l as any).adminName || 'System', l.actionType || l.action || 'Unknown', l.details || (l as any).residentName || '']),
+        startY: 55,
         theme: 'grid',
         headStyles: { fillColor: [12, 35, 64] },
         styles: { fontSize: 8, cellPadding: 2 },
@@ -150,7 +150,10 @@ export default function AuditLogs() {
     }
   }
 
-  const suspiciousCount = auditLogs.filter(l => l.actionType === "Deleted Admin" || l.actionType === "Config Edit").length
+  const suspiciousCount = auditLogs.filter(l => {
+    const act = l.actionType || l.action || ""
+    return act === "Deleted Admin" || act === "Config Edit"
+  }).length
 
   const todaysActions = auditLogs.filter(l => l.date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })).length
   const activeAdminCount = new Set(auditLogs.map(l => l.admin?.name || "System")).size
@@ -163,12 +166,15 @@ export default function AuditLogs() {
     const start = now - (6 - i) * dayMs;
     const end = start + dayMs;
     // We map createdAt to our date structure
-    const acts = auditLogs.filter(l => new Date(l.date).getTime() >= start && new Date(l.date).getTime() < end);
+    const acts = auditLogs.filter(l => {
+      const ts = typeof l.timestamp === 'number' ? l.timestamp : new Date(l.timestamp).getTime()
+      return ts >= start && ts < end
+    })
     return {
-      day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }),
-      approvals: acts.filter(l => l.actionType === "approved").length,
-      verifications: acts.filter(l => l.actionType === "verified").length,
-      generations: acts.filter(l => l.actionType === "generated").length,
+      day: new Date(now - (6 - i) * dayMs).toLocaleDateString('en-US', { weekday: 'short' }),
+      approvals: acts.filter(l => (l.actionType || l.action) === "approved").length,
+      verifications: acts.filter(l => (l.actionType || l.action) === "verified").length,
+      generations: acts.filter(l => (l.actionType || l.action) === "generated").length,
     }
   });
 
@@ -304,7 +310,7 @@ export default function AuditLogs() {
         <div className="grid grid-cols-4 gap-4">
           <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="px-4 py-2 border border-slate-200 rounded-md text-sm">
             <option value="all">All Admins</option>
-            {Array.from(new Set(auditLogs.map((l: any) => l.admin?.name || (typeof l.admin === "string" ? l.admin : "System")))).map(name => (
+            {Array.from(new Set(auditLogs.map((l: any) => l.admin?.name || l.adminName || (typeof l.admin === "string" ? l.admin : "System")))).map(name => (
               <option key={name as string} value={name as string}>{name as string}</option>
             ))}
           </select>
