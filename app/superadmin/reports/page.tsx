@@ -93,6 +93,7 @@ export default function SystemReports() {
       
       doc.save("TALASYS_System_Report.pdf")
       showToastPreset("reportGenerated")
+      setShowGenerateDialog(false)
     } catch (e) {
       console.error(e)
     }
