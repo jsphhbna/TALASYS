@@ -342,7 +342,7 @@ export default function AdminManagement() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] text-slate-800">
-                    <span className="font-semibold text-[#0C2340]">{act.admin}</span> {act.action.toLowerCase()}
+                    <span className="font-semibold text-[#0C2340]">{act.admin}</span> {(act.action || "").toLowerCase()}
                   </p>
                   <p className="text-[10px] text-slate-400">{act.time}</p>
                 </div>

@@ -426,7 +426,7 @@ export default function SuperAdminDashboard() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] text-slate-800">
                     <span className="font-semibold text-[#0C2340]">{activity.admin}</span>
-                    {" "}{activity.action.toLowerCase()}{" "}
+                    {" "}{(activity.action || "").toLowerCase()}{" "}
                     <span className="text-slate-600">{activity.detail}</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-0.5">{activity.timestamp}</p>

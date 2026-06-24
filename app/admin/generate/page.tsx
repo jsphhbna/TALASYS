@@ -35,7 +35,7 @@ export default function GenerateDocuments() {
   const [isGenerating, setIsGenerating] = useState(false)
 
   const searchResults = searchQuery.length >= 2
-    ? allResidents.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? allResidents.filter(r => (r.name || "").toLowerCase().includes(searchQuery.toLowerCase()))
     : []
 
   const pendingGeneration = adminDocumentRequests.filter(r => r.status === "On Process" || r.status === "Approved")

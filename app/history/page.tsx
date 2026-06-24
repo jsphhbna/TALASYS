@@ -31,10 +31,10 @@ export default function RequestHistoryPage() {
 
   // Filter requests
   const filteredRequests = requests.filter((request) => {
-    const matchesSearch =
-      request.documentType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      request.refNumber?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || request.status.toLowerCase() === statusFilter.toLowerCase()
+    const matchesSearch = searchQuery === "" ||
+      (request.documentType || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (request.refNumber || "").toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesStatus = statusFilter === "all" || (request.status || "").toLowerCase() === statusFilter.toLowerCase()
     return matchesSearch && matchesStatus
   })
 
