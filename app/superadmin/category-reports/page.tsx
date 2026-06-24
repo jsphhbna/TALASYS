@@ -103,11 +103,11 @@ export default function CategoryReports() {
 
       const body = filtered.map(r => {
         const row = []
-        if (selectedColumns.fullName) row.push(r.fullName)
+        if (selectedColumns.fullName) row.push(r.name)
         if (selectedColumns.address) row.push(r.address)
         if (selectedColumns.age) row.push(r.age?.toString() || "N/A")
         if (selectedColumns.contactNumber) row.push(r.contactNumber || "N/A")
-        if (selectedColumns.registrationDate) row.push(r.registrationDate)
+        if (selectedColumns.registrationDate) row.push((r as any).createdAt ? new Date((r as any).createdAt).toLocaleDateString() : "N/A")
         if (selectedColumns.accountStatus) row.push(r.status)
         return row
       })
