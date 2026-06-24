@@ -39,9 +39,9 @@ export default function ActivityLogs() {
   const filteredLogs = activityLogs.filter(log => {
     const matchesFilter = activeFilter === "all" || log.actionType === activeFilter
     const matchesSearch = searchQuery === "" ||
-      log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (log.action || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (log.residentName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchQuery.toLowerCase())
+      (log.details || "").toLowerCase().includes(searchQuery.toLowerCase())
     return matchesFilter && matchesSearch
   })
 

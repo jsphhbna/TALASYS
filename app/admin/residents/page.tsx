@@ -38,8 +38,8 @@ export default function ResidentManagement() {
       (selectedAccountStatus === "Expired" && r.status === "Expired")
     const matchesSearch =
       searchQuery === "" ||
-      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.contactNumber.toLowerCase().includes(searchQuery.toLowerCase())
+      (r.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.contactNumber || "").toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch && matchesStatus && matchesCategory && matchesAccountStatus
   })
 
