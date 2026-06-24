@@ -64,11 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
+          console.log("[DEBUG AUTH STATE] Auth state changed. UID:", firebaseUser.uid)
           // Fetch user document from Firestore (users collection)
           const userDocRef = doc(db, "users", firebaseUser.uid)
           const userDoc = await getDocWithRetry(userDocRef)
           
           if (userDoc.exists()) {
+            console.log("[DEBUG AUTH STATE] User doc EXISTS! Data:", userDoc.data())
             const userData = userDoc.data() as AuthUser
             setUser(userData)
             initializeFirebaseStorage(userData.role, userData.id)
@@ -143,12 +145,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const userDocRef = doc(db, "users", userCredential.user.uid)
+      console.log("[DEBUG LOGIN] Fetching user doc for UID:", userCredential.user.uid)
       const userDoc = await getDocWithRetry(userDocRef)
       
       let userData: AuthUser
       if (userDoc.exists()) {
+        console.log("[DEBUG LOGIN] User doc EXISTS! Data:", userDoc.data())
         userData = userDoc.data() as AuthUser
       } else {
+        console.log("[DEBUG LOGIN] User doc DOES NOT EXIST for UID:", userCredential.user.uid)
         // Automatically create user doc if missing after auth
         let role: UserRole = "resident"
         
