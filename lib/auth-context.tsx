@@ -125,7 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 1. Authenticate with Firebase Auth
     try {
       // Normalizing username since it might have been stored as email
-      const email = username.includes("@") ? username : `${username}@barangay.gov.ph`
+      const cleanUsername = username.trim().toLowerCase()
+      const email = cleanUsername.includes("@") ? cleanUsername : `${cleanUsername}@barangay.gov.ph`
       
       let userCredential;
       try {
