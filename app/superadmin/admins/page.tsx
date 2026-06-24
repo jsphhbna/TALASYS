@@ -97,6 +97,7 @@ export default function AdminManagement() {
   const [newAdminContact, setNewAdminContact] = useState("")
   const [newAdminEmail, setNewAdminEmail] = useState("")
   const [newAdminPassword, setNewAdminPassword] = useState("")
+  const [formError, setFormError] = useState("")
 
   const filteredAdmins = adminAccounts.filter((admin) => {
     const matchesSearch =
@@ -184,8 +185,12 @@ export default function AdminManagement() {
   }
 
   const handleCreateAdmin = () => {
-    if (!newAdminFirstName || !newAdminLastName || !newAdminEmail || !newAdminContact || !newAdminPassword || selectedRole === "Select role...") return
+    if (!newAdminFirstName || !newAdminLastName || !newAdminEmail || !newAdminContact || !newAdminPassword || selectedRole === "Select role...") {
+      setFormError("Please fill in all required fields and select a role.")
+      return
+    }
     
+    setFormError("")
     const fullName = `${newAdminFirstName} ${newAdminMiddleInitial ? newAdminMiddleInitial + '. ' : ''}${newAdminLastName}`
     
     addAdmin({
@@ -204,6 +209,7 @@ export default function AdminManagement() {
     setNewAdminEmail("")
     setNewAdminPassword("")
     setSelectedRole("Select role...")
+    setFormError("")
   }
 
   const kpis = [
@@ -358,7 +364,7 @@ export default function AdminManagement() {
       </div>
 
       {/* Admin Table */}
-      <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto shadow-sm">
+      <div className="bg-white rounded-lg border border-slate-200 overflow-visible shadow-sm">
         <div className="min-w-[800px]">
           <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
             <div className="grid grid-cols-12 gap-4">
@@ -442,6 +448,11 @@ export default function AdminManagement() {
               <button onClick={() => setShowCreateModal(false)} className="text-2xl text-slate-400 hover:text-slate-600">×</button>
             </div>
             <div className="p-6 space-y-6">
+              {formError && (
+                <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
+                  {formError}
+                </div>
+              )}
               <div>
                 <h3 className="text-sm font-bold text-[#0C2340] mb-4">Personal Information</h3>
                 <div className="space-y-4">
