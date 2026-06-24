@@ -176,7 +176,7 @@ export const notifyMasterUpdated = () => {
   window.dispatchEvent(new Event(MASTER_STORAGE_EVENT))
 }
 
-export const initializeFirebaseStorage = (userRole: "resident" | "admin" | "superadmin" | null, userId: string | null) => {
+export const initializeFirebaseStorage = (userRole: string | null, userId: string | null) => {
     // No-op. Hook subscriptions handle this natively now.
 }
 
