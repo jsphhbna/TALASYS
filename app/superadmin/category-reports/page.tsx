@@ -22,6 +22,9 @@ export default function CategoryReports() {
   const { stats: adminStats, residents } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const barangayName = systemConfig?.barangayName || "Barangay Sample"
+  const municipality = systemConfig?.address || "City of Sample"
+  const contactNumber = systemConfig?.contactNumber || "(02) 8123-4567"
+  const email = systemConfig?.emailAddress || "barangay@sample.gov.ph"
   const nonVoterCount = adminStats.totalResidents - adminStats.voterCount
 
   const barData = [
@@ -83,7 +86,8 @@ export default function CategoryReports() {
       doc.setFontSize(10)
       doc.setTextColor(100, 100, 100)
       doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
-      doc.text(barangayName, pageWidth / 2, 26, { align: "center" })
+      doc.text(municipality, pageWidth / 2, 25, { align: "center" })
+      doc.text(barangayName, pageWidth / 2, 30, { align: "center" })
       
       // Title
       doc.setFontSize(14)
@@ -127,11 +131,18 @@ export default function CategoryReports() {
       })
 
       autoTable(doc, {
-        startY: 60,
+        startY: 65,
         head: [cols],
         body: body,
         theme: 'grid',
         headStyles: { fillColor: [12, 35, 64] },
+        margin: { bottom: 30 },
+        didDrawPage: function (data) {
+          const pageHeight = doc.internal.pageSize.getHeight()
+          doc.setFontSize(8)
+          doc.setTextColor(150, 150, 150)
+          doc.text(`Contact Us: ${contactNumber} | Email: ${email}`, pageWidth / 2, pageHeight - 15, { align: "center" })
+        }
       })
 
       doc.save(`Category_Report_${selectedCategory}.pdf`)
@@ -307,11 +318,12 @@ export default function CategoryReports() {
             <h3 className="text-[12px] font-semibold text-[#0C2340]">PDF Preview</h3>
           </div>
           <div className="p-5">
-            <div className="bg-slate-50 border border-slate-200 rounded p-4 h-56">
-              <div className="text-center space-y-1.5 mb-3">
+            <div className="bg-slate-50 border border-slate-200 rounded p-4 h-64 flex flex-col">
+              <div className="text-center space-y-1 mb-3">
                 <p className="text-[8px] text-slate-500">Republic of the Philippines</p>
+                <p className="text-[8px] text-slate-500">{municipality}</p>
                 <p className="text-[8px] text-slate-500">{barangayName}</p>
-                <div className="w-5 h-5 bg-slate-200 rounded mx-auto" />
+                <div className="w-5 h-5 bg-slate-200 rounded mx-auto mt-1" />
               </div>
               <div className="h-px bg-slate-200 mb-2" />
               <p className="text-[9px] font-bold text-[#0C2340] text-center mb-0.5">{selectedCategoryObj.reportTitle}</p>
@@ -330,6 +342,10 @@ export default function CategoryReports() {
               <p className="text-[6px] text-slate-400 text-center mt-2">
                 ... {Math.max(0, Number.parseInt(categoryResidentCount.replace(/,/g, "")) - 3)} more rows
               </p>
+              <div className="flex-1" />
+              <div className="mt-3 border-t border-slate-200 pt-2 text-center">
+                <p className="text-[6px] text-slate-400">Contact Us: {contactNumber} | Email: {email}</p>
+              </div>
             </div>
           </div>
         </Card>
