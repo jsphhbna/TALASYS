@@ -151,6 +151,23 @@ export function useAdminData() {
                 })
             }
         }, []),
+        deactivateResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
+            await updateDoc(doc(db, "users", id), { status: "Expired" })
+            if (adminName && residentName) {
+                await addDoc(collection(db, "activityLogs"), {
+                    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                    timestamp: Date.now().toString(),
+                    admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: "#f59e0b" },
+                    role: "Admin",
+                    action: "Deactivated Resident",
+                    actionType: "Deactivated Resident",
+                    details: `Deactivated account for ${residentName}`,
+                    targetId: id,
+                    targetCollection: "residents"
+                })
+            }
+        }, []),
 
         // Verifications
         addVerification: useCallback(async () => { throw new Error("Residents only.") }, []),
@@ -204,7 +221,7 @@ export function useAdminData() {
             if (!reason || reason.trim().length < 10) {
                 throw new Error("Rejection requires a reason of at least 10 characters.");
             }
-            await updateDoc(doc(db, "verifications", id), { status: "rejected", rejectReason: reason })
+            await updateDoc(doc(db, "verifications", id), { status: "rejected", rejectionReason: reason })
             const v = verifications.find(ver => ver.id === id)
             if (v && v.residentId) {
                 await addDoc(collection(db, "notifications"), {

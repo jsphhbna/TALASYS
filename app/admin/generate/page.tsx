@@ -5,6 +5,7 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -13,7 +14,8 @@ import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 
 export default function GenerateDocuments() {
-  const { residents: allResidents, documentRequests: adminDocumentRequests } = useAdminData()
+  const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
+  const { systemConfig } = useSuperAdminData()
 
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
@@ -33,6 +35,41 @@ export default function GenerateDocuments() {
   const [selectedResident, setSelectedResident] = useState<any>(null)
   const [selectedDocType, setSelectedDocType] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  
+  // Custom Template Logic
+  const getTemplateContent = () => {
+    if (!selectedResident || !selectedDocType) return ""
+    const templates = systemConfig?.templates || {}
+    let template = ""
+    if (selectedDocType === "clearance") template = templates.clearance || "This is to certify that {{name}}, {{age}} years old, {{gender}}, residing at {{address}}, is known to be a person of good moral character."
+    if (selectedDocType === "residency") template = templates.residency || "This is to certify that {{name}}, {{age}} years old, {{gender}}, is a bonafide resident of {{address}}."
+    if (selectedDocType === "indigency") template = templates.indigency || "This is to certify that {{name}}, {{age}} years old, {{gender}}, residing at {{address}}, belongs to an indigent family in this barangay."
+    if (selectedDocType === "business") template = templates.business || "This business clearance is granted to {{name}} located at {{address}}."
+    
+    // Find matching request to inject specific data
+    const docLabel = selectedDocType === "clearance" ? "Barangay Clearance" : selectedDocType === "residency" ? "Certificate of Residency" : selectedDocType === "indigency" ? "Certificate of Indigency" : "Business Permit Clearance"
+    const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+    
+    const purpose = pendingReq?.purpose || "whatever legal purpose it may serve"
+    const dateStr = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())
+    const clearanceNumber = pendingReq?.id ? pendingReq.id.slice(0, 8).toUpperCase() : Math.floor(Math.random() * 1000000).toString()
+
+    // Replace placeholders
+    return template
+      .replace(/{{name}}/g, selectedResident.name)
+      .replace(/{{resident_name}}/g, selectedResident.name)
+      .replace(/{{age}}/g, selectedResident.age?.toString() || "N/A")
+      .replace(/{{gender}}/g, selectedResident.gender || "resident")
+      .replace(/{{address}}/g, selectedResident.address || "this barangay")
+      .replace(/{{barangay_name}}/g, systemConfig?.barangayName || "Barangay Sample")
+      .replace(/{{municipality}}/g, systemConfig?.address?.split(',')[0] || "City of Sample")
+      .replace(/{{province}}/g, systemConfig?.address?.split(',')[1]?.trim() || "Province of Sample")
+      .replace(/{{date_issued}}/g, dateStr)
+      .replace(/{{captain_name}}/g, systemConfig?.barangayCaptainName || "Hon. Juan Dela Cruz")
+      .replace(/{{purpose}}/g, purpose)
+      .replace(/{{clearance_number}}/g, clearanceNumber)
+  }
+
 
   const searchResults = searchQuery.length >= 2
     ? allResidents.filter(r => (r.name || "").toLowerCase().includes(searchQuery.toLowerCase()))
@@ -186,14 +223,22 @@ export default function GenerateDocuments() {
                     </p>
                   </div>
                   <div className="text-sm text-slate-800 leading-loose space-y-4">
-                    <p>TO WHOM IT MAY CONCERN:</p>
-                    <p className="indent-8">
-                      This is to certify that <strong className="text-[#0C2340]">{selectedResident.name}</strong>, {selectedResident.age} years old, {selectedResident.gender || "a resident"}, residing at <strong>{selectedResident.address}</strong>, is known to be a person of good moral character and a law-abiding citizen in this barangay.
+                    <p className="indent-8 text-justify whitespace-pre-line">
+                      {getTemplateContent()}
                     </p>
-                    <p className="indent-8">
+                    <p className="indent-8 mt-4">
                       This certification is issued upon the request of the above-named person for whatever legal purpose it may serve.
                     </p>
-                    <p className="mt-12 text-slate-600">Issued this {new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())} at Barangay Sample.</p>
+                    <p className="mt-12 text-slate-600">Issued this {new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())} at {systemConfig?.barangayName || "Barangay Sample"}.</p>
+                    
+                    <div className="mt-24 flex justify-end">
+                      <div className="text-center w-64">
+                        <div className="border-b border-[#0C2340] mb-2 px-4 py-1">
+                          <p className="font-bold text-[#0C2340] uppercase">{systemConfig?.barangayCaptainName || "Hon. Juan Dela Cruz"}</p>
+                        </div>
+                        <p className="text-sm text-slate-600">Punong Barangay</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -230,6 +275,12 @@ export default function GenerateDocuments() {
 
                         const docTitle = selectedDocType === "clearance" ? "Clearance" : selectedDocType === "residency" ? "Residency" : selectedDocType === "indigency" ? "Indigency" : "Permit"
                         pdf.save(`${docTitle}_${selectedResident.name.replace(/\s+/g, "_")}.pdf`)
+                        // Mark requests for this doc type as Completed
+                        const docLabel = selectedDocType === "clearance" ? "Barangay Clearance" : selectedDocType === "residency" ? "Certificate of Residency" : selectedDocType === "indigency" ? "Certificate of Indigency" : "Business Permit Clearance"
+                        const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+                        if (pendingReq) {
+                           await updateRequestStatus(pendingReq.id, "Completed")
+                        }
                       } catch (error) {
                         console.error("PDF Generation failed:", error)
                       } finally {
@@ -261,6 +312,12 @@ export default function GenerateDocuments() {
                         </html>
                       `)
                       printWindow?.document.close()
+                      
+                      const docLabel = selectedDocType === "clearance" ? "Barangay Clearance" : selectedDocType === "residency" ? "Certificate of Residency" : selectedDocType === "indigency" ? "Certificate of Indigency" : "Business Permit Clearance"
+                      const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+                      if (pendingReq) {
+                         updateRequestStatus(pendingReq.id, "Completed").catch(console.error)
+                      }
                     }}
                     className="flex-1 h-10 bg-transparent"
                   >
@@ -276,7 +333,6 @@ export default function GenerateDocuments() {
         <Card className="shadow-sm">
           <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg flex items-center justify-between">
             <h3 className="text-sm font-semibold text-[#0C2340]">Processing Queue — Ready for Generation</h3>
-            <Button size="sm" className="h-7 px-4 text-[10px] bg-[#0C2340] hover:bg-[#0a1c33]">Generate All</Button>
           </div>
           <div className="divide-y divide-slate-100">
             {pendingGeneration.map((req) => (
@@ -288,7 +344,22 @@ export default function GenerateDocuments() {
                     <p className="text-[10px] text-slate-400">{req.documentType} • {req.purpose}</p>
                   </div>
                 </div>
-                <Button size="sm" className="h-7 px-4 text-[10px] bg-emerald-600 hover:bg-emerald-700">Generate</Button>
+                <Button 
+                  size="sm" 
+                  onClick={() => {
+                    const r = allResidents.find(r => r.id === req.residentId)
+                    if (r) {
+                      setSelectedResident(r)
+                      setSearchQuery(r.name)
+                      const dt = req.documentType.includes("Clearance") ? "clearance" : req.documentType.includes("Residency") ? "residency" : req.documentType.includes("Indigency") ? "indigency" : "business"
+                      setSelectedDocType(dt)
+                      setActiveTab("manual")
+                    }
+                  }}
+                  className="h-7 px-4 text-[10px] bg-emerald-600 hover:bg-emerald-700"
+                >
+                  Generate
+                </Button>
               </div>
             ))}
             {pendingGeneration.length === 0 && (

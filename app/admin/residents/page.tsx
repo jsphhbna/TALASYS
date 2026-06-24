@@ -13,7 +13,7 @@ import { Users, UserCheck, Clock, AlertTriangle, UserPlus, Inbox } from "lucide-
 import { useAuth } from "@/lib/auth-context"
 
 export default function ResidentManagement() {
-  const { residents: allResidents, activityLogs, deleteResident, updateResident } = useAdminData()
+  const { residents: allResidents, activityLogs, deleteResident, deactivateResident, updateResident } = useAdminData()
   const { user } = useAuth()
   type ResidentRecord = (typeof allResidents)[number]
 
@@ -432,7 +432,7 @@ export default function ResidentManagement() {
             <div className="p-6">
               <p className="text-sm text-slate-600 mb-4">Are you sure you want to deactivate <strong>{selectedResident.name}</strong>&apos;s account? This action can be reversed later.</p>
               <div className="flex gap-4">
-                <Button onClick={() => { deleteResident(selectedResident.id); setShowDeactivateDialog(false) }} className="flex-1 h-11 bg-red-600 hover:bg-red-700">Deactivate</Button>
+                <Button onClick={() => { deactivateResident(selectedResident.id, user?.name || "Admin", selectedResident.name); setShowDeactivateDialog(false) }} className="flex-1 h-11 bg-red-600 hover:bg-red-700">Deactivate</Button>
                 <Button variant="outline" onClick={() => setShowDeactivateDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
               </div>
             </div>
