@@ -47,6 +47,7 @@ export default function ReasonAnalytics() {
       link.click()
       document.body.removeChild(link)
       showToastPreset("reasonCsvExported")
+      setShowExportCSV(false)
     } catch (e) {
       console.error(e)
     }
@@ -78,6 +79,7 @@ export default function ReasonAnalytics() {
 
       doc.save("Reason_Analytics_Report.pdf")
       showToastPreset("reasonPdfExported")
+      setShowExportPDF(false)
     } catch (e) {
       console.error(e)
     }

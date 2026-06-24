@@ -147,6 +147,7 @@ export default function CategoryReports() {
 
       doc.save(`Category_Report_${selectedCategory}.pdf`)
       showToastPreset("categoryReportDownloaded")
+      setShowDownloadDialog(false)
     } catch(e) {
       console.error(e)
     }

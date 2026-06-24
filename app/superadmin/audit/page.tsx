@@ -64,6 +64,7 @@ export default function AuditLogs() {
       link.click()
       document.body.removeChild(link)
       showToastPreset("auditCsvExported")
+      setShowExportCSV(false)
     } catch (e) {
       console.error(e)
     }
@@ -96,6 +97,7 @@ export default function AuditLogs() {
 
       doc.save("Audit_Logs_Report.pdf")
       showToastPreset("auditPdfExported")
+      setShowExportPDF(false)
     } catch (e) {
       console.error(e)
     }
