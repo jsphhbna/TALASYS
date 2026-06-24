@@ -25,6 +25,7 @@ export default function ResidentManagement() {
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [selectedResident, setSelectedResident] = useState<ResidentRecord | null>(null)
 
   const filteredResidents = allResidents.filter((r) => {
@@ -278,7 +279,7 @@ export default function ResidentManagement() {
                           <div className="absolute right-0 top-8 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
                             <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-amber-600">Deactivate Account</button>
                             <div className="border-t border-slate-200" />
-                            <button onClick={() => { deleteResident(resident.id); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-red-600">Delete Resident</button>
+                            <button onClick={() => { setSelectedResident(resident); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-red-600">Delete Resident</button>
                           </div>
                         )}
                       </>
@@ -426,6 +427,41 @@ export default function ResidentManagement() {
               <div className="flex gap-4">
                 <Button onClick={() => { deleteResident(selectedResident.id); setShowDeactivateDialog(false) }} className="flex-1 h-11 bg-red-600 hover:bg-red-700">Deactivate</Button>
                 <Button variant="outline" onClick={() => setShowDeactivateDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Delete Dialog */}
+      {showDeleteDialog && selectedResident && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md p-0 shadow-2xl border-red-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-red-100 bg-red-50">
+              <h3 className="text-lg font-bold text-red-700 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                Delete Resident
+              </h3>
+              <button onClick={() => setShowDeleteDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-700 mb-2">
+                This will remove a resident from your baranggay and will be logged. It will be seen by your head of baranggay.
+              </p>
+              <p className="text-sm font-semibold text-slate-900 mb-6">
+                Are you sure?
+              </p>
+              <div className="flex gap-4">
+                <Button 
+                  onClick={() => { 
+                    deleteResident(selectedResident.id, user?.name || "Admin", selectedResident.name); 
+                    setShowDeleteDialog(false) 
+                  }} 
+                  className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Yes, Delete Resident
+                </Button>
+                <Button variant="outline" onClick={() => setShowDeleteDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
               </div>
             </div>
           </Card>

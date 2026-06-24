@@ -132,8 +132,17 @@ export function useAdminData() {
         updateResident: useCallback(async (id: string, updates: Partial<AdminResident>) => {
             await updateDoc(doc(db, "users", id), updates)
         }, []),
-        deleteResident: useCallback(async (id: string) => {
+        deleteResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
             await deleteDoc(doc(db, "users", id))
+            if (adminName && residentName) {
+                await addDoc(collection(db, "activityLogs"), {
+                    action: "Deleted Resident",
+                    adminName: adminName,
+                    residentName: residentName,
+                    time: "Just now",
+                    timestamp: Date.now()
+                })
+            }
         }, []),
 
         // Verifications
