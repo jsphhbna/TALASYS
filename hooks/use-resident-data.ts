@@ -141,6 +141,52 @@ export function useResidentData() {
     [residentId, user]
   )
 
+  const requestProfileEdit = useCallback(
+    async (changes: { field: string; oldValue: string; newValue: string }[], reason: string, uploadedFiles: any) => {
+      if (!residentId || !user) return null
+
+      // Upload files if any exist (simulated for now, would use Firebase Storage)
+      const documents = []
+      if (uploadedFiles.validId) documents.push({ name: "Valid ID", status: "pending", uploadDate: new Date().toLocaleDateString('en-US') })
+      if (uploadedFiles.parentId) documents.push({ name: "Parent's ID", status: "pending", uploadDate: new Date().toLocaleDateString('en-US') })
+      if (uploadedFiles.seniorId) documents.push({ name: "Senior Citizen ID", status: "pending", uploadDate: new Date().toLocaleDateString('en-US') })
+      if (uploadedFiles.votersId) documents.push({ name: "Voter's ID", status: "pending", uploadDate: new Date().toLocaleDateString('en-US') })
+
+      const verificationPayload = {
+        residentId,
+        name: user.name,
+        initials: user.initials,
+        type: "profile-edit",
+        submittedDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+        status: "pending",
+        categories: user.statuses || ["Resident"],
+        changes,
+        reason,
+        documents,
+        createdAt: Date.now()
+      }
+
+      // Add to Verifications collection
+      const docRef = await addDoc(collection(db, "verifications"), verificationPayload)
+
+      // Notify Admin via Firestore
+      await addDoc(collection(db, "notifications"), {
+        targetId: "admin",
+        type: "info",
+        title: "Profile Edit Request",
+        message: `${user.name} submitted a profile edit request.`,
+        timestamp: "Just now",
+        isRead: false,
+        createdAt: Date.now(),
+        residentName: user.name,
+        actionUrl: "/admin/verifications"
+      })
+
+      return docRef.id
+    },
+    [residentId, user]
+  )
+
   const markAllNotificationsRead = useCallback(async () => {
     if (!residentId) return
     const unread = notifications.filter(n => !n.isRead)
@@ -180,6 +226,7 @@ export function useResidentData() {
     unreadCount,
     isLoaded,
     addRequest,
+    requestProfileEdit,
     markAllNotificationsRead,
     saveProfilePicture,
     refresh,

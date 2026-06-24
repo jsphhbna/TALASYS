@@ -51,7 +51,7 @@ const defaultUploadingState: Record<UploadField, boolean> = {
 
 export default function ProfilePage() {
   const { user, isAuthorized } = useAuthGuard()
-  const { proofs, verification, addRequest, isLoaded, saveProfilePicture, deleteAccount } = useResidentData()
+  const { proofs, verification, addRequest, requestProfileEdit, isLoaded, saveProfilePicture, deleteAccount } = useResidentData()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isOpeningDialog, setIsOpeningDialog] = useState(false)
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
@@ -145,18 +145,46 @@ export default function ProfilePage() {
       return
     }
 
+    if (!user) return
+
     setIsSubmittingRequest(true)
-    await delay(1000)
-    setIsDialogOpen(false)
-    setIsRequestSubmitted(true)
-    setUploadedFiles(defaultUploadState)
-    setIsSubmittingRequest(false)
+    
+    const changes: { field: string; oldValue: string; newValue: string }[] = []
+    if (user.name !== formData.fullName) changes.push({ field: "Full Name", oldValue: user.name, newValue: formData.fullName })
+    if (user.dateOfBirth !== formData.dateOfBirth) changes.push({ field: "Date of Birth", oldValue: user.dateOfBirth, newValue: formData.dateOfBirth })
+    if (user.contactNumber !== formData.contactNumber) changes.push({ field: "Contact Number", oldValue: user.contactNumber, newValue: formData.contactNumber })
+    if (user.email !== formData.email) changes.push({ field: "Email Address", oldValue: user.email, newValue: formData.email })
+    if (user.address !== formData.address) changes.push({ field: "Address", oldValue: user.address, newValue: formData.address })
+    
+    // Check statuses
+    const oldStatuses = [...(user.statuses || [])].sort().join(", ")
+    const newStatuses = [...(formData.statuses || [])].sort().join(", ")
+    if (oldStatuses !== newStatuses) {
+      changes.push({ field: "Resident Statuses", oldValue: oldStatuses || "None", newValue: newStatuses || "None" })
+    }
 
-    setTimeout(() => {
-      setIsRequestSubmitted(false)
-    }, 3000)
+    if (changes.length === 0) {
+      setIsSubmittingRequest(false)
+      setIsDialogOpen(false)
+      return
+    }
 
-    showToastPreset("profileRequestSubmitted")
+    try {
+      await requestProfileEdit(changes, formData.reason, uploadedFiles)
+      setIsDialogOpen(false)
+      setIsRequestSubmitted(true)
+      setUploadedFiles(defaultUploadState)
+      showToastPreset("profileRequestSubmitted")
+      
+      setTimeout(() => {
+        setIsRequestSubmitted(false)
+      }, 3000)
+    } catch (error) {
+      console.error("Failed to submit profile edit:", error)
+      showToastPreset("uploadFailedSize") // Temporary error toast
+    } finally {
+      setIsSubmittingRequest(false)
+    }
   }
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {

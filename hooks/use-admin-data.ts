@@ -158,16 +158,46 @@ export function useAdminData() {
             await updateDoc(doc(db, "verifications", id), { status: "approved" })
             const v = verifications.find(ver => ver.id === id)
             if (v && v.residentId) {
-                await updateDoc(doc(db, "users", v.residentId), { isVerified: true })
-                await addDoc(collection(db, "notifications"), {
-                    targetId: v.residentId,
-                    type: "success",
-                    title: "Verification Approved",
-                    message: "Your account verification has been approved.",
-                    timestamp: "Just now",
-                    isRead: false,
-                    createdAt: Date.now()
-                })
+                if (v.type === "profile-edit" && v.changes) {
+                    // Apply profile edits
+                    const updates: Record<string, any> = {}
+                    v.changes.forEach((c: any) => {
+                        if (c.field === "Full Name") updates.name = c.newValue
+                        if (c.field === "Date of Birth") updates.dateOfBirth = c.newValue
+                        if (c.field === "Contact Number") updates.contactNumber = c.newValue
+                        if (c.field === "Email Address") updates.email = c.newValue
+                        if (c.field === "Address") updates.address = c.newValue
+                        if (c.field === "Resident Statuses") {
+                            updates.statuses = c.newValue === "None" ? [] : c.newValue.split(", ")
+                            if (updates.statuses.length > 0) updates.status = updates.statuses[0] // Set primary status
+                        }
+                    })
+                    if (Object.keys(updates).length > 0) {
+                        await updateDoc(doc(db, "users", v.residentId), updates)
+                    }
+
+                    await addDoc(collection(db, "notifications"), {
+                        targetId: v.residentId,
+                        type: "success",
+                        title: "Profile Edit Approved",
+                        message: "Your profile changes have been approved and applied.",
+                        timestamp: "Just now",
+                        isRead: false,
+                        createdAt: Date.now()
+                    })
+                } else {
+                    // Standard registration approval
+                    await updateDoc(doc(db, "users", v.residentId), { isVerified: true })
+                    await addDoc(collection(db, "notifications"), {
+                        targetId: v.residentId,
+                        type: "success",
+                        title: "Verification Approved",
+                        message: "Your account verification has been approved.",
+                        timestamp: "Just now",
+                        isRead: false,
+                        createdAt: Date.now()
+                    })
+                }
             }
         }, [verifications]),
         rejectVerification: useCallback(async (id: string, reason: string) => {
