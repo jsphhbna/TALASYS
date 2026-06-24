@@ -12,6 +12,8 @@ import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useAdminData } from "@/hooks/use-admin-data"
 import { useMounted } from "@/hooks/use-mounted"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 import {
   TrendingUp, BarChart3, AlertTriangle, Target, Layers, FileText,
 } from "lucide-react"
@@ -30,20 +32,56 @@ export default function ReasonAnalytics() {
     if (isExportingCsv) return
 
     setIsExportingCsv(true)
-    await delay(900)
-    setShowExportCSV(false)
+    try {
+      const headers = ["Rank,Reason,Count,Percentage"]
+      const rows = reasonAnalytics.map(r => `${r.rank},"${r.reason}",${r.count},${r.percentage}%`)
+      const csvContent = headers.concat(rows).join("\n")
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement("a")
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", "Reason_Analytics.csv")
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      showToastPreset("reasonCsvExported")
+    } catch (e) {
+      console.error(e)
+    }
     setIsExportingCsv(false)
-    showToastPreset("reasonCsvExported")
   }
 
   const handleExportPdf = async () => {
     if (isExportingPdf) return
 
     setIsExportingPdf(true)
-    await delay(1000)
-    setShowExportPDF(false)
+    try {
+      const doc = new jsPDF()
+      
+      doc.setFontSize(16)
+      doc.setTextColor(12, 35, 64)
+      doc.text("Reason Analytics Report", 14, 20)
+      
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28)
+
+      autoTable(doc, {
+        startY: 35,
+        head: [['Rank', 'Reason', 'Count', 'Percentage']],
+        body: reasonAnalytics.map(r => [r.rank.toString(), r.reason, r.count.toString(), `${r.percentage}%`]),
+        theme: 'grid',
+        headStyles: { fillColor: [12, 35, 64] },
+      })
+
+      doc.save("Reason_Analytics_Report.pdf")
+      showToastPreset("reasonPdfExported")
+    } catch (e) {
+      console.error(e)
+    }
     setIsExportingPdf(false)
-    showToastPreset("reasonPdfExported")
   }
 
   // Calculate reasonAnalytics dynamically

@@ -11,12 +11,14 @@ import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useAdminData } from "@/hooks/use-admin-data"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 import {
   Users, TrendingUp, AlertTriangle, BarChart3,
 } from "lucide-react"
 
 export default function CategoryReports() {
-  const { stats: adminStats } = useAdminData()
+  const { stats: adminStats, residents } = useAdminData()
   const nonVoterCount = adminStats.totalResidents - adminStats.voterCount
 
   const barData = [
@@ -50,16 +52,6 @@ export default function CategoryReports() {
   const [showDownloadDialog, setShowDownloadDialog] = useState(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
 
-  const handleConfirmDownload = async () => {
-    if (isDownloadingPdf) return
-
-    setIsDownloadingPdf(true)
-    await delay(1000)
-    setShowDownloadDialog(false)
-    setIsDownloadingPdf(false)
-    showToastPreset("categoryReportDownloaded")
-  }
-
   const categories = [
     { id: "seniors", title: "Senior Citizens", count: `${adminStats.seniorCount} residents`, icon: "SC", reportTitle: "LIST OF SENIOR CITIZENS" },
     { id: "minors", title: "Minors (Under 18)", count: `${adminStats.minorCount} residents`, icon: "18", reportTitle: "LIST OF MINORS" },
@@ -72,6 +64,70 @@ export default function CategoryReports() {
 
   const selectedCategoryObj = categories.find((c) => c.id === selectedCategory) || categories[3]
   const categoryResidentCount = selectedCategoryObj.count.split(" ")[0]
+
+  const handleConfirmDownload = async () => {
+    if (isDownloadingPdf) return
+
+    setIsDownloadingPdf(true)
+    
+    try {
+      const doc = new jsPDF()
+      const title = selectedCategoryObj.reportTitle
+
+      // Header
+      doc.setFontSize(16)
+      doc.setTextColor(12, 35, 64)
+      doc.text(title, 14, 20)
+      
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28)
+
+      // Filter residents
+      let filtered = residents;
+      if (selectedCategory === "seniors") filtered = residents.filter(r => (r.age || 0) >= 60)
+      else if (selectedCategory === "minors") filtered = residents.filter(r => (r.age || 0) < 18)
+      else if (selectedCategory === "adults") filtered = residents.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60)
+      else if (selectedCategory === "voters") filtered = residents.filter(r => r.isVoter)
+      else if (selectedCategory === "non-voters") filtered = residents.filter(r => !r.isVoter)
+      else if (selectedCategory === "expired") filtered = residents.filter(r => r.status === "Expired")
+      
+      // Map columns
+      const cols = []
+      if (selectedColumns.fullName) cols.push("Full Name")
+      if (selectedColumns.address) cols.push("Address")
+      if (selectedColumns.age) cols.push("Age")
+      if (selectedColumns.contactNumber) cols.push("Contact")
+      if (selectedColumns.registrationDate) cols.push("Reg. Date")
+      if (selectedColumns.accountStatus) cols.push("Status")
+
+      const body = filtered.map(r => {
+        const row = []
+        if (selectedColumns.fullName) row.push(r.fullName)
+        if (selectedColumns.address) row.push(r.address)
+        if (selectedColumns.age) row.push(r.age?.toString() || "N/A")
+        if (selectedColumns.contactNumber) row.push(r.contactNumber || "N/A")
+        if (selectedColumns.registrationDate) row.push(r.registrationDate)
+        if (selectedColumns.accountStatus) row.push(r.status)
+        return row
+      })
+
+      autoTable(doc, {
+        startY: 35,
+        head: [cols],
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [12, 35, 64] },
+      })
+
+      doc.save(`Category_Report_${selectedCategory}.pdf`)
+      showToastPreset("categoryReportDownloaded")
+    } catch(e) {
+      console.error(e)
+    }
+
+    setIsDownloadingPdf(false)
+  }
 
   const toggleColumn = (column: keyof typeof selectedColumns) => {
     setSelectedColumns((prev) => ({ ...prev, [column]: !prev[column] }))

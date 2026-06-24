@@ -13,6 +13,8 @@ import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import { useMounted } from "@/hooks/use-mounted"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 import {
   Activity, FileText, Users, Shield, AlertTriangle,
   TrendingUp,
@@ -47,20 +49,57 @@ export default function AuditLogs() {
     if (isExportingCsv) return
 
     setIsExportingCsv(true)
-    await delay(900)
-    setShowExportCSV(false)
+    try {
+      const headers = ["Date,Time,Admin,Action,Details,IP Address"]
+      const rows = filteredLogs.map(l => `"${l.date}","${l.time}","${l.admin?.name || 'System'}","${l.actionType}","${l.details.replace(/"/g, '""')}","${l.ipAddress || ''}"`)
+      const csvContent = headers.concat(rows).join("\n")
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement("a")
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      link.setAttribute("download", "Audit_Logs.csv")
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      showToastPreset("auditCsvExported")
+    } catch (e) {
+      console.error(e)
+    }
     setIsExportingCsv(false)
-    showToastPreset("auditCsvExported")
   }
 
   const handleExportPdf = async () => {
     if (isExportingPdf) return
 
     setIsExportingPdf(true)
-    await delay(1000)
-    setShowExportPDF(false)
+    try {
+      const doc = new jsPDF()
+      
+      doc.setFontSize(16)
+      doc.setTextColor(12, 35, 64)
+      doc.text("System Audit Logs", 14, 20)
+      
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28)
+
+      autoTable(doc, {
+        startY: 35,
+        head: [['Date/Time', 'Admin', 'Action', 'Details']],
+        body: filteredLogs.map(l => [`${l.date}\n${l.time}`, l.admin?.name || 'System', l.actionType, l.details]),
+        theme: 'grid',
+        headStyles: { fillColor: [12, 35, 64] },
+        styles: { fontSize: 8, cellPadding: 2 },
+      })
+
+      doc.save("Audit_Logs_Report.pdf")
+      showToastPreset("auditPdfExported")
+    } catch (e) {
+      console.error(e)
+    }
     setIsExportingPdf(false)
-    showToastPreset("auditPdfExported")
   }
 
   const filteredLogs = auditLogs.filter((log) => {

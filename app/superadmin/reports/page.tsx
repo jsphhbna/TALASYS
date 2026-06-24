@@ -11,6 +11,8 @@ import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useAdminData } from "@/hooks/use-admin-data"
 import { useMounted } from "@/hooks/use-mounted"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 import {
   FileText, TrendingUp, Clock, BarChart3, Download,
   Users, Shield, Activity,
@@ -59,10 +61,43 @@ export default function SystemReports() {
     if (isGeneratingReport) return
 
     setIsGeneratingReport(true)
-    await delay(1100)
-    setShowGenerateDialog(false)
+    
+    try {
+      const doc = new jsPDF()
+      const title = "System Report - TALASYS"
+      
+      // Header
+      doc.setFontSize(20)
+      doc.setTextColor(12, 35, 64) // #0C2340
+      doc.text(title, 14, 22)
+      
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30)
+
+      // KPIs
+      autoTable(doc, {
+        startY: 40,
+        head: [['Metric', 'Value']],
+        body: [
+          ['Total Population', adminStats.totalResidents.toString()],
+          ['Registered Voters', adminStats.voterCount.toString()],
+          ['Senior Citizens', adminStats.seniorCount.toString()],
+          ['Adults', adminStats.adultCount.toString()],
+          ['Minors', adminStats.minorCount.toString()],
+          ['Total Documents Generated', reportTotal.toString()],
+        ],
+        theme: 'striped',
+        headStyles: { fillColor: [12, 35, 64] },
+      })
+      
+      doc.save("TALASYS_System_Report.pdf")
+      showToastPreset("reportGenerated")
+    } catch (e) {
+      console.error(e)
+    }
+
     setIsGeneratingReport(false)
-    showToastPreset("reportGenerated")
   }
 
   const nonVoterCount = adminStats.totalResidents - adminStats.voterCount
