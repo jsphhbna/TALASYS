@@ -343,23 +343,20 @@ export default function AuditLogs() {
             ) : filteredLogs.map((log) => (
               <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
-                  <div className="col-span-2">
-                    <p className="text-sm text-[#0C2340]">{log.date}</p>
-                    <p className="text-[10px] text-slate-500">{log.timestamp}</p>
-                  </div>
+                  <div className="col-span-2"><p className="text-sm font-semibold text-slate-700">{log.date || (log as any).date || "Unknown"}</p></div>
                   <div className="col-span-2 flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: log.admin?.color || "#94a3b8" }}>
-                      <span className="text-[9px] text-white font-medium">{log.admin?.initials || "SY"}</span>
+                      <span className="text-[9px] text-white font-medium">{log.admin?.initials || (log as any).adminName?.charAt(0)?.toUpperCase() || "SY"}</span>
                     </div>
-                    <span className="text-sm text-[#0C2340]">{log.admin?.name || "System"}</span>
+                    <span className="text-sm text-[#0C2340]">{log.admin?.name || (log as any).adminName || "System"}</span>
                   </div>
                   <div className="col-span-2">
-                    <span className={`inline-block px-2.5 py-1 rounded-md border text-[10px] font-semibold ${getActionColor(log.actionType)}`}>
-                      {log.actionType.toUpperCase()}
+                    <span className={`inline-block px-2.5 py-1 rounded-md border text-[10px] font-semibold ${getActionColor(log.actionType || log.action || "Unknown")}`}>
+                      {(log.actionType || log.action || "Unknown").toUpperCase()}
                     </span>
                   </div>
-                  <div className="col-span-4"><p className="text-sm text-slate-700">{log.details}</p></div>
-                  <div className="col-span-2"><p className="text-sm text-slate-500 font-mono text-[11px]">{log.ipAddress}</p></div>
+                  <div className="col-span-4"><p className="text-sm text-slate-700">{log.details || (log as any).residentName || ""}</p></div>
+                  <div className="col-span-2"><p className="text-sm text-slate-500 font-mono text-[11px]">{log.ipAddress || "localhost"}</p></div>
                 </div>
               </div>
             ))}
