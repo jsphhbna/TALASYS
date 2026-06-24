@@ -35,7 +35,12 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 }
 
 export default function AuditLogs() {
-  const { auditLogs, stats: { auditActionBreakdown, totalAuditLogs } } = useSuperAdminData()
+  const { auditLogs, stats: { auditActionBreakdown, totalAuditLogs }, systemConfig } = useSuperAdminData()
+  
+  const barangayName = systemConfig?.barangayName || "Barangay Sample"
+  const municipality = systemConfig?.address || "City of Sample"
+  const contactNumber = systemConfig?.contactNumber || "(02) 8123-4567"
+  const email = systemConfig?.emailAddress || "barangay@sample.gov.ph"
   const mounted = useMounted()
   const [searchTerm, setSearchTerm] = useState("")
   const [adminFilter, setAdminFilter] = useState("all")
@@ -77,22 +82,40 @@ export default function AuditLogs() {
     setIsExportingPdf(true)
     try {
       const doc = new jsPDF()
+      const pageWidth = doc.internal.pageSize.getWidth()
       
-      doc.setFontSize(16)
-      doc.setTextColor(12, 35, 64)
-      doc.text("System Audit Logs", 14, 20)
+      // Header
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
+      doc.text(municipality, pageWidth / 2, 25, { align: "center" })
+      doc.text(barangayName, pageWidth / 2, 30, { align: "center" })
+      
+      // Title
+      doc.setFontSize(14)
+      doc.setTextColor(12, 35, 64) // #0C2340
+      doc.setFont("helvetica", "bold")
+      doc.text("SYSTEM AUDIT LOGS", pageWidth / 2, 45, { align: "center" })
       
       doc.setFontSize(10)
       doc.setTextColor(100, 100, 100)
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 52, { align: "center" })
 
       autoTable(doc, {
-        startY: 35,
+        startY: 65,
         head: [['Date/Time', 'Admin', 'Action', 'Details']],
         body: filteredLogs.map(l => [`${l.date}\n${l.time}`, l.admin?.name || 'System', l.actionType, l.details]),
         theme: 'grid',
         headStyles: { fillColor: [12, 35, 64] },
         styles: { fontSize: 8, cellPadding: 2 },
+        margin: { bottom: 30 },
+        didDrawPage: function (data) {
+          const pageHeight = doc.internal.pageSize.getHeight()
+          doc.setFontSize(8)
+          doc.setTextColor(150, 150, 150)
+          doc.text(`Contact Us: ${contactNumber} | Email: ${email}`, pageWidth / 2, pageHeight - 15, { align: "center" })
+        }
       })
 
       doc.save("Audit_Logs_Report.pdf")

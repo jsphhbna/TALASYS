@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useAdminData } from "@/hooks/use-admin-data"
+import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import { useMounted } from "@/hooks/use-mounted"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
@@ -20,6 +21,13 @@ import {
 
 export default function SystemReports() {
   const { stats: adminStats, documentRequests } = useAdminData()
+  const { systemConfig } = useSuperAdminData()
+  
+  const barangayName = systemConfig?.barangayName || "Barangay Sample"
+  const municipality = systemConfig?.address || "City of Sample"
+  const contactNumber = systemConfig?.contactNumber || "(02) 8123-4567"
+  const email = systemConfig?.emailAddress || "barangay@sample.gov.ph"
+
   const [activeTab, setActiveTab] = useState("all")
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState<any>(null)
@@ -64,20 +72,29 @@ export default function SystemReports() {
     
     try {
       const doc = new jsPDF()
-      const title = "System Report - TALASYS"
+      const pageWidth = doc.internal.pageSize.getWidth()
       
       // Header
-      doc.setFontSize(20)
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
+      doc.text(municipality, pageWidth / 2, 25, { align: "center" })
+      doc.text(barangayName, pageWidth / 2, 30, { align: "center" })
+      
+      // Title
+      doc.setFontSize(14)
       doc.setTextColor(12, 35, 64) // #0C2340
-      doc.text(title, 14, 22)
+      doc.setFont("helvetica", "bold")
+      doc.text("SYSTEM REPORT", pageWidth / 2, 45, { align: "center" })
       
       doc.setFontSize(10)
       doc.setTextColor(100, 100, 100)
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 52, { align: "center" })
 
       // KPIs
       autoTable(doc, {
-        startY: 40,
+        startY: 65,
         head: [['Metric', 'Value']],
         body: [
           ['Total Population', adminStats.totalResidents.toString()],
@@ -89,6 +106,13 @@ export default function SystemReports() {
         ],
         theme: 'striped',
         headStyles: { fillColor: [12, 35, 64] },
+        margin: { bottom: 30 },
+        didDrawPage: function (data) {
+          const pageHeight = doc.internal.pageSize.getHeight()
+          doc.setFontSize(8)
+          doc.setTextColor(150, 150, 150)
+          doc.text(`Contact Us: ${contactNumber} | Email: ${email}`, pageWidth / 2, pageHeight - 15, { align: "center" })
+        }
       })
       
       doc.save("TALASYS_System_Report.pdf")
