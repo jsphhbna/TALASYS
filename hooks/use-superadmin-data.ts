@@ -127,7 +127,7 @@ export function useSuperAdminData() {
                 ...input,
                 initials: input.name.substring(0, 2).toUpperCase(),
                 createdDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                role: "admin",
+                role: input.role || "admin",
              })
              // Audit Log
              await addDoc(collection(db, "activityLogs"), {
