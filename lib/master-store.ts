@@ -55,6 +55,7 @@ export interface SystemConfig {
   enabledModules: string[]
   documentTypes: string[]
   documentFees: Record<string, number>
+  templates?: Record<string, string>
 }
 
 export interface ResidentProofDocument {

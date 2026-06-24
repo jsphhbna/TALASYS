@@ -44,6 +44,13 @@ export default function SystemConfig() {
     contactNumber: systemConfig.contactNumber || "",
     emailAddress: systemConfig.emailAddress || "",
     barangayCaptainName: systemConfig.barangayCaptainName || "",
+    templates: systemConfig.templates || {
+      clearance: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBrgy. Clearance No.: {{clearance_number}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}}, of legal age, is a bonafide resident of this barangay with address at {{address}}.\n\nThis certification is issued upon the request of the above-named person for {{purpose}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
+      indigency: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}} is a bonafide resident of this barangay and is considered indigent.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
+      residency: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}} is a bonafide resident of this barangay with address at {{address}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
+      business: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBUSINESS CLEARANCE\n\nIssued to: {{resident_name}}\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
+      jobseeker: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nFIRST TIME JOB SEEKER\n\nIssued to: {{resident_name}}\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`
+    }
   })
 
   // Sync formData when systemConfig loads
@@ -55,9 +62,16 @@ export default function SystemConfig() {
         contactNumber: systemConfig.contactNumber || "",
         emailAddress: systemConfig.emailAddress || "",
         barangayCaptainName: systemConfig.barangayCaptainName || "",
+        templates: systemConfig.templates || {
+          clearance: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBrgy. Clearance No.: {{clearance_number}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}}, of legal age, is a bonafide resident of this barangay with address at {{address}}.\n\nThis certification is issued upon the request of the above-named person for {{purpose}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
+          indigency: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}} is a bonafide resident of this barangay and is considered indigent.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
+          residency: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}} is a bonafide resident of this barangay with address at {{address}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
+          business: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBUSINESS CLEARANCE\n\nIssued to: {{resident_name}}\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
+          jobseeker: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nFIRST TIME JOB SEEKER\n\nIssued to: {{resident_name}}\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`
+        }
       })
     }
-  }, [systemConfig.barangayName, systemConfig.address, systemConfig.contactNumber, systemConfig.emailAddress, systemConfig.barangayCaptainName])
+  }, [systemConfig.barangayName, systemConfig.address, systemConfig.contactNumber, systemConfig.emailAddress, systemConfig.barangayCaptainName, systemConfig.templates])
 
   const tabs = [
     { id: "branding" as const, label: "Branding", icon: Palette },
@@ -70,7 +84,7 @@ export default function SystemConfig() {
     { id: "indigency", name: "Certificate of Indigency", lastEdited: "5 days ago" },
     { id: "residency", name: "Certificate of Residency", lastEdited: "1 week ago" },
     { id: "business", name: "Business Clearance", lastEdited: "2 weeks ago" },
-    { id: "fistjob", name: "First Time Job Seeker", lastEdited: "3 weeks ago" },
+    { id: "jobseeker", name: "First Time Job Seeker", lastEdited: "3 weeks ago" },
   ]
 
   const documentTypesList = [
@@ -252,27 +266,20 @@ export default function SystemConfig() {
               {editingTemplate ? (
                 <textarea
                   className="w-full h-64 p-4 border border-slate-200 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
-                  defaultValue={`Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBrgy. Clearance No.: {{clearance_number}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}}, of legal age, is a bonafide resident of this barangay with address at {{address}}.\n\nThis certification is issued upon the request of the above-named person for {{purpose}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`}
+                  value={(formData.templates as Record<string, string>)[selectedTemplate] || ""}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    templates: { ...prev.templates, [selectedTemplate]: e.target.value }
+                  }))}
                 />
               ) : (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 h-64 overflow-auto">
-                  <div className="text-center space-y-1 mb-4">
-                    <p className="text-[10px] text-slate-500">Republic of the Philippines</p>
-                    <p className="text-[10px] text-slate-500 font-medium">
-                      <span className="text-[#C5A55A] bg-[#C5A55A]/10 px-1 rounded">{"{{barangay_name}}"}</span>
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      <span className="text-[#C5A55A] bg-[#C5A55A]/10 px-1 rounded">{"{{municipality}}"}</span>,{" "}
-                      <span className="text-[#C5A55A] bg-[#C5A55A]/10 px-1 rounded">{"{{province}}"}</span>
-                    </p>
-                  </div>
-                  <div className="h-px bg-slate-200 mb-3" />
-                  <p className="text-[11px] text-slate-800 leading-relaxed">
-                    This is to certify that <span className="text-[#C5A55A] bg-[#C5A55A]/10 px-1 rounded font-medium">{"{{resident_name}}"}</span>, of legal age, is a bonafide resident of this barangay with address at <span className="text-[#C5A55A] bg-[#C5A55A]/10 px-1 rounded font-medium">{"{{address}}"}</span>.
-                  </p>
-                  <p className="text-[11px] text-slate-800 leading-relaxed mt-2">
-                    This certification is issued upon the request of the above-named person for <span className="text-[#C5A55A] bg-[#C5A55A]/10 px-1 rounded font-medium">{"{{purpose}}"}</span>.
-                  </p>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 h-64 overflow-auto font-mono text-sm text-slate-800 whitespace-pre-wrap">
+                  {((formData.templates as Record<string, string>)[selectedTemplate] || "").split(/({{.*?}})/).map((part, i) => {
+                    if (part.startsWith("{{") && part.endsWith("}}")) {
+                      return <span key={i} className="text-[#C5A55A] bg-[#C5A55A]/10 px-1 rounded font-medium">{part}</span>
+                    }
+                    return <span key={i}>{part}</span>
+                  })}
                 </div>
               )}
             </div>
