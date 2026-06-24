@@ -173,4 +173,13 @@
   aside nav::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
   }
+
+  @keyframes toast-progress {
+    0% { width: 100%; }
+    100% { width: 0%; }
+  }
+
+  .animate-toast-progress {
+    animation: toast-progress 5s linear forwards;
+  }
 }

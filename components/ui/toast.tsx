@@ -50,7 +50,15 @@ const Toast = React.forwardRef<
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
       {...props}
-    />
+    >
+      {props.children}
+      <div 
+        className={cn(
+          "absolute bottom-0 left-0 h-1 animate-toast-progress",
+          variant === "destructive" ? "bg-white/50" : "bg-red-500"
+        )} 
+      />
+    </ToastPrimitives.Root>
   )
 })
 Toast.displayName = ToastPrimitives.Root.displayName
