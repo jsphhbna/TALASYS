@@ -167,7 +167,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // If the account was soft-deleted, block login immediately!
         if (userData.role === "Deleted" as any || userData.status === "Deleted") {
-          throw new Error("This account has been permanently deleted by an administrator.")
+          await firebaseSignOut(auth)
+          return { _error: "This account has been permanently deleted by an administrator." } as any
         }
       } else {
         console.log("[DEBUG LOGIN] User doc DOES NOT EXIST for UID:", userCredential.user.uid)
@@ -188,7 +189,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
            await setDoc(userDocRef, userData)
         } else {
            // For any other missing user, it means their account was physically deleted from the database
-           throw new Error("This account has been deleted by an administrator.")
+           await firebaseSignOut(auth)
+           return { _error: "This account has been deleted by an administrator." } as any
         }
       }
       setUser(userData)
