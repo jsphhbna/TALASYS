@@ -133,7 +133,9 @@ export function useAdminData() {
             await updateDoc(doc(db, "users", id), updates)
         }, []),
         deleteResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
-            await deleteDoc(doc(db, "users", id))
+            // We soft-delete the document by changing its role. 
+            // If we physically delete it, Firebase Auth will let them log in and auto-recreate a blank profile.
+            await updateDoc(doc(db, "users", id), { role: "Deleted" })
             if (adminName && residentName) {
                 await addDoc(collection(db, "activityLogs"), {
                     action: "Deleted Resident",

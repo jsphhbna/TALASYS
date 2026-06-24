@@ -72,32 +72,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (userDoc.exists()) {
             console.log("[DEBUG AUTH STATE] User doc EXISTS! Data:", userDoc.data())
             const userData = userDoc.data() as AuthUser
+            
+            if (userData.role === "Deleted" as any || userData.status === "Deleted") {
+               const { signOut: firebaseSignOut } = await import("firebase/auth")
+               await firebaseSignOut(auth)
+               setUser(null)
+               setIsReady(true)
+               return
+            }
+            
             setUser(userData)
             initializeFirebaseStorage(userData.role, userData.id)
           } else {
-            // Check if they are an admin or superadmin
-            let role: UserRole = "resident"
-            
-            if (firebaseUser.email === "superadmin@barangay.gov.ph") {
-               role = "superadmin"
+            // Document missing during auth state change
+            // This happens either immediately during registration (before setDoc finishes)
+            // or if the user was physically deleted. 
+            // For superadmin, we bootstrap. For others, we just do nothing and let the login flow handle errors.
+            if (firebaseUser.email === "superadmin@barangay.gov.ph" || firebaseUser.email === BOOTSTRAP_USERNAME) {
+              const fallback: AuthUser = {
+                id: firebaseUser.uid,
+                name: "Super Admin",
+                email: firebaseUser.email || "",
+                initials: "SA",
+                role: "superadmin",
+                dateOfBirth: "",
+                contactNumber: "",
+                address: "",
+                accountExpiry: "",
+              }
+              setUser(fallback)
+              initializeFirebaseStorage(fallback.role, fallback.id)
+              await setDoc(doc(db, "users", firebaseUser.uid), fallback)
+            } else {
+               // We DO NOT recreate the profile! Just sign them out if it's missing (they were deleted)
+               // However, to avoid race conditions during registration, we only sign them out if they aren't actively registering
+               // For now, setting user to null is enough to bounce them to login
+               setUser(null)
             }
-
-            // Unlikely, but create fallback if record is missing
-            const fallback: AuthUser = {
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName || firebaseUser.email || "User",
-              email: firebaseUser.email || "",
-              initials: (firebaseUser.displayName || firebaseUser.email || "U")[0].toUpperCase(),
-              role: role,
-              dateOfBirth: "",
-              contactNumber: "",
-              address: "",
-              accountExpiry: "",
-            }
-            setUser(fallback)
-            initializeFirebaseStorage(fallback.role, fallback.id)
-            // also create in firestore so it doesnt do this again
-            await setDoc(doc(db, "users", firebaseUser.uid), fallback)
           }
         } catch (error) {
           console.error("Failed to load user document:", error)
@@ -153,28 +164,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userDoc.exists()) {
         console.log("[DEBUG LOGIN] User doc EXISTS! Data:", userDoc.data())
         userData = userDoc.data() as AuthUser
+        
+        // If the account was soft-deleted, block login immediately!
+        if (userData.role === "Deleted" as any || userData.status === "Deleted") {
+          throw new Error("This account has been permanently deleted by an administrator.")
+        }
       } else {
         console.log("[DEBUG LOGIN] User doc DOES NOT EXIST for UID:", userCredential.user.uid)
-        // Automatically create user doc if missing after auth
-        let role: UserRole = "resident"
         
-        // If it's the exact superadmin email, force superadmin role
-        if (email === "superadmin@barangay.gov.ph") {
-           role = "superadmin"
+        // If it's the exact superadmin email, allow bootstrap creation
+        if (email === "superadmin@barangay.gov.ph" || email === BOOTSTRAP_USERNAME) {
+           userData = {
+             id: userCredential.user.uid,
+             name: "Super Admin",
+             email,
+             initials: "SA",
+             role: "superadmin",
+             dateOfBirth: "",
+             contactNumber: "",
+             address: "",
+             accountExpiry: "",
+           } as AuthUser
+           await setDoc(userDocRef, userData)
+        } else {
+           // For any other missing user, it means their account was physically deleted from the database
+           throw new Error("This account has been deleted by an administrator.")
         }
-
-        userData = {
-          id: userCredential.user.uid,
-          name: email === "superadmin@barangay.gov.ph" ? "Super Admin" : (userCredential.user.displayName || email),
-          email: userCredential.user.email || email,
-          initials: email === "superadmin@barangay.gov.ph" ? "SA" : (email)[0].toUpperCase(),
-          role: role,
-          dateOfBirth: "",
-          contactNumber: "",
-          address: "",
-          accountExpiry: "",
-        }
-        await setDoc(userDocRef, userData)
       }
       setUser(userData)
       return userData
