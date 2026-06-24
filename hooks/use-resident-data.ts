@@ -32,14 +32,22 @@ export function useResidentData() {
       return
     }
 
-    const qReq = query(collection(db, "documentRequests"), where("residentId", "==", residentId), orderBy("createdAt", "desc"))
+    const qReq = query(collection(db, "documentRequests"), where("residentId", "==", residentId))
     const unReq = onSnapshot(qReq, (snap) => {
-      setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as ResidentRequest)))
+      const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() } as ResidentRequest))
+      reqs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      setRequests(reqs)
     })
 
-    const qNotif = query(collection(db, "notifications"), where("targetId", "==", residentId), orderBy("createdAt", "desc"))
+    const qNotif = query(collection(db, "notifications"), where("targetId", "==", residentId))
     const unNotif = onSnapshot(qNotif, (snap) => {
-      setNotifications(snap.docs.map(d => ({ id: d.id, ...d.data() } as ResidentNotification)))
+      const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as ResidentNotification))
+      notifs.sort((a, b) => {
+        const timeA = typeof a.createdAt === 'number' ? a.createdAt : 0;
+        const timeB = typeof b.createdAt === 'number' ? b.createdAt : 0;
+        return timeB - timeA;
+      })
+      setNotifications(notifs)
     })
 
     const qVerif = query(collection(db, "verifications"), where("residentId", "==", residentId))

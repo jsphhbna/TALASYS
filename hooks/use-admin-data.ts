@@ -98,8 +98,9 @@ export function useAdminData() {
             }))
         }))
 
-        unsubs.push(onSnapshot(query(collection(db, "notifications"), where("targetId", "==", "admin"), orderBy("createdAt", "desc")), (snap) => {
+        unsubs.push(onSnapshot(query(collection(db, "notifications"), where("targetId", "==", "admin")), (snap) => {
             const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AdminNotification))
+            notifs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
             setNotifications(notifs)
             setStats(prev => ({ ...prev, unreadNotifications: notifs.filter(n => !n.isRead).length }))
         }))
