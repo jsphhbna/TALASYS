@@ -123,24 +123,42 @@ export function useSuperAdminData() {
 
         // Admin Accounts
         addAdmin: useCallback(async (input: Omit<AdminAccount, "id" | "initials" | "isOnline" | "lastActive" | "createdDate">) => {
-             await addDoc(collection(db, "users"), {
-                ...input,
-                initials: input.name.substring(0, 2).toUpperCase(),
-                createdDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                role: input.role || "admin",
-             })
-             // Audit Log
-             await addDoc(collection(db, "activityLogs"), {
-                date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                timestamp: Date.now(),
-                admin: { name: "Super Admin", initials: "SA", color: "#C5A55A" },
-                role: "SuperAdmin",
-                action: "Created Admin",
-                actionType: "Created Admin",
-                details: `Created admin account for ${input.name}`,
-                ipAddress: "localhost"
-             })
+            try {
+                const { initializeApp, deleteApp } = await import("firebase/app");
+                const { getAuth, createUserWithEmailAndPassword } = await import("firebase/auth");
+                const { firebaseConfig } = await import("@/lib/firebase");
+                
+                const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp" + Date.now());
+                const secondaryAuth = getAuth(secondaryApp);
+                
+                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, input.email, input.password);
+                const uid = userCredential.user.uid;
+                
+                await setDoc(doc(db, "users", uid), {
+                    ...input,
+                    initials: input.name.substring(0, 2).toUpperCase(),
+                    createdDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+                    role: input.role || "admin",
+                });
+                
+                await deleteApp(secondaryApp);
+                
+                // Audit Log
+                await addDoc(collection(db, "activityLogs"), {
+                    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                    timestamp: Date.now(),
+                    admin: { name: "Super Admin", initials: "SA", color: "#C5A55A" },
+                    role: "SuperAdmin",
+                    action: "Created Admin",
+                    actionType: "Created Admin",
+                    details: `Created admin account for ${input.name}`,
+                    ipAddress: "localhost"
+                });
+            } catch (error) {
+                console.error("Error creating admin auth account:", error);
+                throw error;
+            }
         }, []),
         updateAdmin: useCallback(async (id: string, updates: Partial<AdminAccount>) => {
             await updateDoc(doc(db, "users", id), updates)

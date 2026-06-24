@@ -184,7 +184,7 @@ export default function AdminManagement() {
     }, 1500)
   }
 
-  const handleCreateAdmin = () => {
+  const handleCreateAdmin = async () => {
     if (!newAdminFirstName || !newAdminLastName || !newAdminEmail || !newAdminContact || !newAdminPassword || selectedRole === "Select role...") {
       setFormError("Please fill in all required fields and select a role.")
       return
@@ -193,23 +193,27 @@ export default function AdminManagement() {
     setFormError("")
     const fullName = `${newAdminFirstName} ${newAdminMiddleInitial ? newAdminMiddleInitial + '. ' : ''}${newAdminLastName}`
     
-    addAdmin({
-      name: fullName,
-      email: newAdminEmail,
-      password: newAdminPassword,
-      contactNumber: newAdminContact,
-      role: selectedRole as any,
-      status: "Active"
-    })
-    setShowCreateModal(false)
-    setNewAdminFirstName("")
-    setNewAdminLastName("")
-    setNewAdminMiddleInitial("")
-    setNewAdminContact("")
-    setNewAdminEmail("")
-    setNewAdminPassword("")
-    setSelectedRole("Select role...")
-    setFormError("")
+    try {
+      await addAdmin({
+        name: fullName,
+        email: newAdminEmail,
+        password: newAdminPassword,
+        contactNumber: newAdminContact,
+        role: selectedRole as any,
+        status: "Active"
+      })
+      setShowCreateModal(false)
+      setNewAdminFirstName("")
+      setNewAdminLastName("")
+      setNewAdminMiddleInitial("")
+      setNewAdminContact("")
+      setNewAdminEmail("")
+      setNewAdminPassword("")
+      setSelectedRole("Select role...")
+      setFormError("")
+    } catch (e: any) {
+      setFormError(e.message || "Failed to create account. Please try again.")
+    }
   }
 
   const kpis = [
