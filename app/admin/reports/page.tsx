@@ -79,6 +79,14 @@ export default function CategoryReports() {
   const previewColumns = getPreviewColumns()
   const selectedCategoryInfo = getSelectedCategoryInfo()
 
+  let filteredResidents = residents;
+  if (selectedCategory === "senior") filteredResidents = residents.filter(r => (r.age || 0) >= 60)
+  else if (selectedCategory === "minor") filteredResidents = residents.filter(r => (r.age || 0) < 18)
+  else if (selectedCategory === "adult") filteredResidents = residents.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60)
+  else if (selectedCategory === "voters") filteredResidents = residents.filter(r => r.isVoter)
+  else if (selectedCategory === "non-voters") filteredResidents = residents.filter(r => !r.isVoter)
+  else if (selectedCategory === "expired") filteredResidents = residents.filter(r => r.status === "Expired")
+
   const handleDownload = async () => {
     if (isDownloadingPdf) return
 
@@ -109,15 +117,6 @@ export default function CategoryReports() {
       const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
       doc.text(`As of ${dateStr}`, pageWidth / 2, 51, { align: "center" })
 
-      // Filter residents
-      let filtered = residents;
-      if (selectedCategory === "senior") filtered = residents.filter(r => (r.age || 0) >= 60)
-      else if (selectedCategory === "minor") filtered = residents.filter(r => (r.age || 0) < 18)
-      else if (selectedCategory === "adult") filtered = residents.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60)
-      else if (selectedCategory === "voters") filtered = residents.filter(r => r.isVoter)
-      else if (selectedCategory === "non-voters") filtered = residents.filter(r => !r.isVoter)
-      else if (selectedCategory === "expired") filtered = residents.filter(r => r.status === "Expired")
-      
       // Map columns
       const cols = []
       if (selectedColumns.name) cols.push("Full Name")
@@ -127,7 +126,7 @@ export default function CategoryReports() {
       if (selectedColumns.registration) cols.push("Reg. Date")
       if (selectedColumns.status) cols.push("Status")
 
-      const body = filtered.map(r => {
+      const body = filteredResidents.map(r => {
         const row = []
         if (selectedColumns.name) row.push(r.name)
         if (selectedColumns.address) row.push(r.address)
@@ -310,25 +309,31 @@ export default function CategoryReports() {
                     {previewColumns.map((col) => <div key={col.id} className="flex-1">{col.label}</div>)}
                   </div>
                 </div>
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="grid gap-1 text-[7px] text-slate-900 p-1">
-                    <div className="flex items-center">
-                      <div className="w-8">{i}</div>
-                      {previewColumns.map((col) => (
-                        <div key={col.id} className="flex-1">
-                          {col.id === "name" ? (i === 1 ? "Reyes, Pedro" : i === 2 ? "Santos, Maria" : "Cruz, Juan") :
-                            col.id === "address" ? `Purok ${i}` :
-                              col.id === "age" ? (i === 1 ? "70" : i === 2 ? "45" : "38") :
-                                col.id === "contact" ? `09XX-XXX-${i}234` :
-                                  col.id === "registration" ? "11/01/2024" :
-                                    col.id === "status" ? "Active" :
-                                      col.id === "expiry" ? "11/01/2025" : "Voter"}
-                        </div>
-                      ))}
+                {filteredResidents.length > 0 ? (
+                  filteredResidents.slice(0, 3).map((r, index) => (
+                    <div key={r.id} className="grid gap-1 text-[7px] text-slate-900 p-1">
+                      <div className="flex items-center">
+                        <div className="w-8">{index + 1}</div>
+                        {previewColumns.map((col) => (
+                          <div key={col.id} className="flex-1 truncate pr-1">
+                            {col.id === "name" ? r.name :
+                              col.id === "address" ? r.address :
+                                col.id === "age" ? (r.age?.toString() || "N/A") :
+                                  col.id === "contact" ? (r.contactNumber || "N/A") :
+                                    col.id === "registration" ? ((r as any).createdAt ? new Date((r as any).createdAt).toLocaleDateString() : "N/A") :
+                                      col.id === "status" ? r.status :
+                                        col.id === "expiry" ? "N/A" : "Voter"}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <p className="text-[7px] text-slate-400 text-center pt-2">... {(selectedCategoryInfo?.count || 0) - 3} more rows</p>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-[7px] text-slate-400">No residents found in this category.</div>
+                )}
+                {filteredResidents.length > 3 && (
+                  <p className="text-[7px] text-slate-400 text-center pt-2">... {filteredResidents.length - 3} more rows</p>
+                )}
               </div>
             </div>
           </div>
