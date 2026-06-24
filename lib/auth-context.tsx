@@ -11,7 +11,24 @@ import {
 } from "firebase/auth"
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
 import { initializeFirebaseStorage } from "@/lib/master-store"
+import { delay } from "@/lib/async-delay"
 
+// Helper to retry getDoc to avoid Auth/Firestore propagation race conditions
+const getDocWithRetry = async (docRef: any, retries = 3, delayMs = 500) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { getDoc } = await import("firebase/firestore")
+      return await getDoc(docRef)
+    } catch (error: any) {
+      if (error?.code === "permission-denied" && i < retries - 1) {
+        await delay(delayMs)
+        continue
+      }
+      throw error
+    }
+  }
+  throw new Error("Failed to get document after retries")
+}
 interface AuthContextType {
   user: AuthUser | null
   login: (username: string, password: string) => Promise<AuthUser | null>
@@ -49,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           // Fetch user document from Firestore (users collection)
           const userDocRef = doc(db, "users", firebaseUser.uid)
-          const userDoc = await getDoc(userDocRef)
+          const userDoc = await getDocWithRetry(userDocRef)
           
           if (userDoc.exists()) {
             const userData = userDoc.data() as AuthUser
@@ -61,13 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             if (firebaseUser.email === "superadmin@barangay.gov.ph") {
                role = "superadmin"
-            } else {
-              const { getDocs, query, collection, where } = await import("firebase/firestore")
-              const adminQ = query(collection(db, "admins"), where("email", "==", firebaseUser.email))
-              const qSnap = await getDocs(adminQ)
-              if (!qSnap.empty) {
-                role = "admin"
-              }
             }
 
             // Unlikely, but create fallback if record is missing
@@ -133,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const userDocRef = doc(db, "users", userCredential.user.uid)
-      const userDoc = await getDoc(userDocRef)
+      const userDoc = await getDocWithRetry(userDocRef)
       
       let userData: AuthUser
       if (userDoc.exists()) {
@@ -145,14 +155,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // If it's the exact superadmin email, force superadmin role
         if (email === "superadmin@barangay.gov.ph") {
            role = "superadmin"
-        } else {
-           // Otherwise, check if the email is in the admin collection
-           const { getDocs, query, collection, where } = await import("firebase/firestore")
-           const adminQ = query(collection(db, "admins"), where("email", "==", email))
-           const qSnap = await getDocs(adminQ)
-           if (!qSnap.empty) {
-             role = "admin"
-           }
         }
 
         userData = {
