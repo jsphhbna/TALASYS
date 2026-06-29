@@ -481,30 +481,52 @@ function RequestDocumentContent() {
             )}
 
             {/* Processing Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <p className="text-xs text-blue-900">
-                ℹ Processing time: 1-3 business days. You will receive a notification when your document is ready.
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
-    </>
-  )
-}
 
 export default function RequestDocumentPage() {
-  const { isAuthorized } = useAuthGuard()
+  const { isAuthorized, user } = useAuthGuard()
+  if (!isAuthorized) return null
 
-  if (!isAuthorized) {
-    return null
+  if (user?.status === "Expired") {
+    return (
+      <ResidentPageShell>
+        <div className="flex flex-col items-center justify-center py-24 px-4 text-center max-w-md mx-auto">
+          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 border-8 border-red-50/50">
+            <span className="text-red-500 text-3xl">🔒</span>
+          </div>
+          <h1 className="text-2xl font-bold text-[#0C2340] mb-3">Account Deactivated</h1>
+          <p className="text-sm text-slate-600 mb-8 leading-relaxed">
+            Your resident account is currently deactivated. You cannot request new documents until your account is reactivated by the barangay administration.
+          </p>
+          <a href="/profile" className="w-full h-12 flex items-center justify-center bg-[#0C2340] hover:bg-[#1a3a5c] text-white rounded-lg font-semibold transition-colors shadow-sm">
+            Go to Profile to Request Reactivation
+          </a>
+        </div>
+      </ResidentPageShell>
+    )
+  }
+
+  if (user?.isVerified === false) {
+    return (
+      <ResidentPageShell>
+        <div className="flex flex-col items-center justify-center py-24 px-4 text-center max-w-md mx-auto">
+          <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6 border-8 border-amber-50/50">
+            <span className="text-amber-500 text-3xl">⏳</span>
+          </div>
+          <h1 className="text-2xl font-bold text-[#0C2340] mb-3">Account Under Review</h1>
+          <p className="text-sm text-slate-600 mb-8 leading-relaxed">
+            Your registration is currently being verified by the barangay administration. You will be able to request documents once your account is fully verified.
+          </p>
+          <a href="/dashboard" className="w-full h-12 flex items-center justify-center bg-[#0C2340] hover:bg-[#1a3a5c] text-white rounded-lg font-semibold transition-colors shadow-sm">
+            Return to Dashboard
+          </a>
+        </div>
+      </ResidentPageShell>
+    )
   }
 
   return (
-    <ResidentPageShell>
-      <Suspense fallback={null}>
-        <RequestDocumentContent />
-      </Suspense>
-    </ResidentPageShell>
+    <Suspense fallback={<ResidentPageShell>Loading...</ResidentPageShell>}>
+      <RequestDocumentContent />
+    </Suspense>
   )
 }

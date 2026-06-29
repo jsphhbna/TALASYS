@@ -202,10 +202,10 @@ export default function DocumentRequests() {
                         </>
                       )}
                       {(request.status === "On Process" || request.status === "Approved") && (
-                        <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Ready for Pick Up") }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Mark Ready</Button>
+                        <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com") }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Mark Ready</Button>
                       )}
                       {request.status === "Ready for Pick Up" && (
-                        <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Completed") }} className="h-6 px-3 text-[10px] bg-[#0C2340] hover:bg-[#1a3a5c]">Complete</Button>
+                        <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com") }} className="h-6 px-3 text-[10px] bg-[#0C2340] hover:bg-[#1a3a5c]">Complete</Button>
                       )}
                     </>
                   )}
@@ -278,8 +278,8 @@ export default function DocumentRequests() {
               <p className="text-sm text-slate-600 mb-4">Approve <strong>{selectedRequest.documentType}</strong> for <strong>{selectedRequest.residentName}</strong>?</p>
               <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
-                  <Button onClick={() => { updateRequestStatus(selectedRequest.id, "On Process"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-blue-600 hover:bg-blue-700">Mark On Process</Button>
-                  <Button onClick={() => { updateRequestStatus(selectedRequest.id, "Ready for Pick Up"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Mark Ready for Pick Up</Button>
+                  <Button onClick={() => { updateRequestStatus(selectedRequest.id, "On Process", undefined, user?.name || "Admin", user?.email || "admin@system.com"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-blue-600 hover:bg-blue-700">Mark On Process</Button>
+                  <Button onClick={() => { updateRequestStatus(selectedRequest.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Mark Ready for Pick Up</Button>
                 </div>
                 <Button variant="outline" onClick={() => setShowApproveDialog(false)} className="w-full h-10 bg-transparent">Cancel</Button>
               </div>
@@ -310,7 +310,7 @@ export default function DocumentRequests() {
               </p>
               <div className="flex gap-3">
                 <Button
-                  onClick={() => { updateRequestStatus(selectedRequest.id, "Rejected", rejectReason); setShowRejectDialog(false) }}
+                  onClick={() => { updateRequestStatus(selectedRequest.id, "Rejected", rejectReason, user?.name || "Admin", user?.email || "admin@system.com"); setShowRejectDialog(false) }}
                   disabled={rejectReason.trim().length < 10}
                   className="flex-1 h-10 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
                   Confirm Reject

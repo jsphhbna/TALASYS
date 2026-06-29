@@ -369,17 +369,28 @@ export default function AuditLogs() {
             ) : filteredLogs.map((log) => (
               <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
-                  <div className="col-span-2"><p className="text-sm font-semibold text-slate-700">
-                    {(() => {
-                      if (log.date) return log.date;
-                      if ((log as any).date) return (log as any).date;
-                      const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
-                      if (ts && !isNaN(ts)) {
-                        return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(ts));
-                      }
-                      return "Unknown";
-                    })()}
-                  </p></div>
+                  <div className="col-span-2">
+                    <div className="flex flex-col">
+                      {(() => {
+                        const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
+                        if (ts && !isNaN(ts)) {
+                          const d = new Date(ts);
+                          return (
+                            <>
+                              <span className="text-sm font-semibold text-slate-700">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(d)}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">{new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d)}</span>
+                            </>
+                          )
+                        }
+                        return (
+                          <>
+                            <span className="text-sm font-semibold text-slate-700">{log.date || (log as any).date || "Unknown"}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{log.time || (log as any).time || ""}</span>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
                   <div className="col-span-2 flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: log.admin?.color || "#94a3b8" }}>
                       <span className="text-[9px] text-white font-medium">{log.admin?.initials || (log as any).adminName?.charAt(0)?.toUpperCase() || "SY"}</span>

@@ -179,10 +179,11 @@ export default function ActivityLogs() {
           <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 rounded-t-lg">
             <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               <div className="col-span-1">TIME</div>
+              <div className="col-span-2">ADMIN</div>
               <div className="col-span-2">ACTION</div>
-              <div className="col-span-2">TYPE</div>
+              <div className="col-span-1">TYPE</div>
               <div className="col-span-2">RESIDENT</div>
-              <div className="col-span-4">DETAILS</div>
+              <div className="col-span-3">DETAILS</div>
               <div className="col-span-1 text-right">MANAGE</div>
             </div>
           </div>
@@ -196,28 +197,50 @@ export default function ActivityLogs() {
             <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
               <div className="grid grid-cols-12 gap-4 items-center">
                 <div className="col-span-1">
-                  <span className="text-[11px] text-slate-500 font-mono">
+                  <div className="flex flex-col text-[11px] text-slate-500 font-mono">
                     {(() => {
-                      if (log.time && log.time !== "Just now") return log.time;
                       const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
                       if (ts && !isNaN(ts)) {
-                        return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts));
+                        const d = new Date(ts);
+                        return (
+                          <>
+                            <span>{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(d)}</span>
+                            <span className="text-[9px] text-slate-400">{new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d)}</span>
+                          </>
+                        )
                       }
-                      return "Just now";
+                      return (
+                        <>
+                          <span>{log.date || ""}</span>
+                          <span className="text-[9px] text-slate-400">{log.time || "Just now"}</span>
+                        </>
+                      )
                     })()}
-                  </span>
+                  </div>
+                </div>
+                <div className="col-span-2 flex items-center gap-2">
+                  {log.admin?.initials ? (
+                    <div className="w-5 h-5 flex-shrink-0 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ backgroundColor: log.admin.color || "#0C2340" }}>
+                      {log.admin.initials}
+                    </div>
+                  ) : (
+                    <div className="w-5 h-5 flex-shrink-0 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-slate-400">
+                      ?
+                    </div>
+                  )}
+                  <span className="text-[11px] font-medium text-[#0C2340] truncate">{log.admin?.name || "System"}</span>
                 </div>
                 <div className="col-span-2">
                   <span className="text-[12px] font-semibold text-[#0C2340]">{log.action}</span>
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1">
                   {getActionBadge(log.actionType)}
                 </div>
                 <div className="col-span-2">
                   <span className="text-[11px] text-slate-600">{log.residentName || "—"}</span>
                 </div>
-                <div className="col-span-4">
-                  <span className="text-[11px] text-slate-500">{log.details}</span>
+                <div className="col-span-3">
+                  <span className="text-[11px] text-slate-500 line-clamp-2">{log.details}</span>
                 </div>
                 <div className="col-span-1 flex justify-end">
                   {!log.action.startsWith("Undid") && (

@@ -232,7 +232,7 @@ export default function Verifications() {
                 {/* Actions */}
                 {selectedItem.status !== "rejected" && user?.role !== "View Only" && (
                   <div className="flex gap-3 pt-2">
-                    <Button onClick={() => { approveVerification(selectedItem.id); setSelectedItem(null) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Approve</Button>
+                    <Button onClick={() => { approveVerification(selectedItem.id, user?.name || "Admin", user?.email || "admin@system.com"); setSelectedItem(null) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Approve</Button>
                     <Button onClick={() => setShowRejectConfirm(true)} className="flex-1 h-10 bg-red-600 hover:bg-red-700">Reject</Button>
                   </div>
                 )}
@@ -256,7 +256,7 @@ export default function Verifications() {
                       <Button
                         onClick={() => {
                           if (rejectReason.trim().length < 10) return
-                          rejectVerification(selectedItem.id, rejectReason)
+                          rejectVerification(selectedItem.id, rejectReason, user?.name || "Admin", user?.email || "admin@system.com")
                           setSelectedItem(null)
                           setShowRejectConfirm(false)
                           setRejectReason("")

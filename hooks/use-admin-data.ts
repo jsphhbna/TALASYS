@@ -43,7 +43,7 @@ export function useAdminData() {
 
         unsubs.push(onSnapshot(collection(db, "users"), (snap) => {
             const allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-            const res = allUsers.filter(u => u.role === "resident").map(u => ({
+            const res = allUsers.filter(u => u.role === "resident" && u.isVerified !== false).map(u => ({
                 id: u.id,
                 name: u.name,
                 initials: u.initials || "U",
@@ -51,7 +51,7 @@ export function useAdminData() {
                 gender: "Male" as const,
                 address: u.address || "",
                 categories: u.statuses || [u.status].filter(Boolean) || [],
-                status: "Active" as const,
+                status: u.status === "Expired" ? "Expired" : "Active",
                 isVoter: (u.statuses || []).includes("Registered Voter"),
                 expiryDate: u.accountExpiry || "",
                 dateOfBirth: u.dateOfBirth || "",
@@ -168,10 +168,27 @@ export function useAdminData() {
                 })
             }
         }, []),
+        activateResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
+            await updateDoc(doc(db, "users", id), { status: "Active" })
+            if (adminName && residentName) {
+                await addDoc(collection(db, "activityLogs"), {
+                    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                    timestamp: Date.now().toString(),
+                    admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: "#10b981" },
+                    role: "Admin",
+                    action: "Activated Resident",
+                    actionType: "Activated Resident",
+                    details: `Re-activated account for ${residentName}`,
+                    targetId: id,
+                    targetCollection: "residents"
+                })
+            }
+        }, []),
 
         // Verifications
         addVerification: useCallback(async () => { throw new Error("Residents only.") }, []),
-        approveVerification: useCallback(async (id: string) => {
+        approveVerification: useCallback(async (id: string, adminName?: string, adminEmail?: string) => {
             await updateDoc(doc(db, "verifications", id), { status: "approved" })
             const v = verifications.find(ver => ver.id === id)
             if (v && v.residentId) {
@@ -202,6 +219,18 @@ export function useAdminData() {
                         isRead: false,
                         createdAt: Date.now()
                     })
+
+                    if (adminName) {
+                        await addDoc(collection(db, "activityLogs"), {
+                            admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: "#10b981" },
+                            actionType: "approved",
+                            action: "Approved Profile Edit",
+                            details: `Approved profile edits for Resident ID ${v.residentId}`,
+                            date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
+                            time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                            timestamp: Date.now().toString()
+                        })
+                    }
                 } else {
                     // Standard registration approval
                     await updateDoc(doc(db, "users", v.residentId), { isVerified: true })
@@ -214,10 +243,22 @@ export function useAdminData() {
                         isRead: false,
                         createdAt: Date.now()
                     })
+
+                    if (adminName) {
+                        await addDoc(collection(db, "activityLogs"), {
+                            admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: "#10b981" },
+                            actionType: "approved",
+                            action: "Approved Verification",
+                            details: `Approved verification for Resident ID ${v.residentId}`,
+                            date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
+                            time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                            timestamp: Date.now().toString()
+                        })
+                    }
                 }
             }
         }, [verifications]),
-        rejectVerification: useCallback(async (id: string, reason: string) => {
+        rejectVerification: useCallback(async (id: string, reason: string, adminName?: string, adminEmail?: string) => {
             if (!reason || reason.trim().length < 10) {
                 throw new Error("Rejection requires a reason of at least 10 characters.");
             }
@@ -234,20 +275,23 @@ export function useAdminData() {
                     createdAt: Date.now()
                 })
 
-                await addDoc(collection(db, "activityLogs"), {
-                    admin: { name: "Admin", email: "admin@system.com" },
-                    actionType: "rejected",
-                    action: "Rejected Verification",
-                    details: `Rejected verification for Resident ID ${v.residentId}. Reason: ${reason}`,
-                    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                    timestamp: Date.now()
-                })
+                if (adminName) {
+                    await addDoc(collection(db, "activityLogs"), {
+                        admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: "#ef4444" },
+                        actionType: "rejected",
+                        action: "Rejected Verification",
+                        details: `Rejected verification for Resident ID ${v.residentId}. Reason: ${reason}`,
+                        date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
+                        time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                        timestamp: Date.now().toString()
+                    })
+                }
             }
         }, [verifications]),
 
         // Document Requests
         addDocumentRequest: useCallback(async () => { throw new Error("Residents only.") }, []),
-        updateRequestStatus: useCallback(async (id: string, status: "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected", reason?: string) => {
+        updateRequestStatus: useCallback(async (id: string, status: "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected", reason?: string, adminName?: string, adminEmail?: string) => {
             if (status === "Rejected" && (!reason || reason.trim().length < 10)) {
                 throw new Error("Rejection requires a reason of at least 10 characters.");
             }
@@ -267,14 +311,15 @@ export function useAdminData() {
                     createdAt: Date.now()
                 })
 
-                if (status === "Rejected") {
+                if (adminName) {
                     await addDoc(collection(db, "activityLogs"), {
-                        admin: { name: "Admin", email: "admin@system.com" },
-                        actionType: "rejected",
-                        action: "Rejected Document",
-                        details: `Rejected ${req.documentType} for ${req.residentName}. Reason: ${reason}`,
-                        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                        timestamp: Date.now()
+                        admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: status === "Rejected" ? "#ef4444" : "#10b981" },
+                        actionType: status.toLowerCase(),
+                        action: `Updated Document Status`,
+                        details: `Updated ${req.documentType} to ${status} for ${req.residentName}.${reason ? ` Reason: ${reason}` : ""}`,
+                        date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
+                        time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                        timestamp: Date.now().toString()
                     })
                 }
             }

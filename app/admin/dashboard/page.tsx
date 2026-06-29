@@ -135,17 +135,35 @@ export default function AdminDashboard() {
               activityLogs.slice(0, 5).map((log) => (
                 <div key={log.id} className="flex gap-2.5">
                   <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 bg-[#0C2340]" />
-                  <div className="flex-1">
-                    <p className="text-[11px] font-semibold text-[#0C2340]">{log.action}</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">{log.details}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-0.5">
+                      <p className="text-[11px] font-semibold text-[#0C2340] truncate">{log.action}</p>
+                      <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium shrink-0 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: log.admin?.color || "#94a3b8" }}></span>
+                        {log.admin?.name || "System"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{log.details}</p>
+                    <p className="text-[10px] text-slate-400 mt-1 flex gap-1 items-center">
                       {(() => {
-                        if (log.time && log.time !== "Just now") return log.time;
                         const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
                         if (ts && !isNaN(ts)) {
-                          return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts));
+                          const d = new Date(ts);
+                          return (
+                            <>
+                              <span>{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(d)}</span>
+                              <span className="opacity-50">•</span>
+                              <span>{new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d)}</span>
+                            </>
+                          )
                         }
-                        return "Just now";
+                        return (
+                          <>
+                            <span>{log.date || ""}</span>
+                            {log.date && log.time && <span className="opacity-50">•</span>}
+                            <span>{log.time || "Just now"}</span>
+                          </>
+                        )
                       })()}
                     </p>
                   </div>

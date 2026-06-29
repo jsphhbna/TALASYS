@@ -12,10 +12,12 @@ import {
 import { Printer, TrendingUp, FileText, Clock, Loader2 } from "lucide-react"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
+import { useAuth } from "@/lib/auth-context"
 
 export default function GenerateDocuments() {
   const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
   const { systemConfig } = useSuperAdminData()
+  const { user } = useAuth()
 
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
@@ -279,7 +281,7 @@ export default function GenerateDocuments() {
                         const docLabel = selectedDocType === "clearance" ? "Barangay Clearance" : selectedDocType === "residency" ? "Certificate of Residency" : selectedDocType === "indigency" ? "Certificate of Indigency" : "Business Permit Clearance"
                         const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
                         if (pendingReq) {
-                           await updateRequestStatus(pendingReq.id, "Completed")
+                           await updateRequestStatus(pendingReq.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com")
                         }
                       } catch (error) {
                         console.error("PDF Generation failed:", error)
@@ -316,7 +318,7 @@ export default function GenerateDocuments() {
                       const docLabel = selectedDocType === "clearance" ? "Barangay Clearance" : selectedDocType === "residency" ? "Certificate of Residency" : selectedDocType === "indigency" ? "Certificate of Indigency" : "Business Permit Clearance"
                       const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
                       if (pendingReq) {
-                         updateRequestStatus(pendingReq.id, "Completed").catch(console.error)
+                         updateRequestStatus(pendingReq.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com").catch(console.error)
                       }
                     }}
                     className="flex-1 h-10 bg-transparent"

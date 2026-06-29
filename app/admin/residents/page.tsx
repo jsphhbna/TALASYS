@@ -13,7 +13,7 @@ import { Users, UserCheck, Clock, AlertTriangle, UserPlus, Inbox } from "lucide-
 import { useAuth } from "@/lib/auth-context"
 
 export default function ResidentManagement() {
-  const { residents: allResidents, activityLogs, deleteResident, deactivateResident, updateResident } = useAdminData()
+  const { residents: allResidents, activityLogs, deleteResident, deactivateResident, activateResident, updateResident } = useAdminData()
   const { user } = useAuth()
   type ResidentRecord = (typeof allResidents)[number]
 
@@ -25,6 +25,7 @@ export default function ResidentManagement() {
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
+  const [showActivateDialog, setShowActivateDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [selectedResident, setSelectedResident] = useState<ResidentRecord | null>(null)
 
@@ -284,7 +285,11 @@ export default function ResidentManagement() {
                         </button>
                         {showActionsMenu === resident.id && (
                           <div className="absolute right-0 top-8 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
-                            <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-amber-600">Deactivate Account</button>
+                            {resident.status === "Expired" ? (
+                              <button onClick={() => { setSelectedResident(resident); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-emerald-600">Activate Account</button>
+                            ) : (
+                              <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-amber-600">Deactivate Account</button>
+                            )}
                             <div className="border-t border-slate-200" />
                             <button onClick={() => { setSelectedResident(resident); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-red-600">Delete Resident</button>
                           </div>
@@ -439,6 +444,26 @@ export default function ResidentManagement() {
           </Card>
         </div>
       )}
+
+      {/* Activate Dialog */}
+      {showActivateDialog && selectedResident && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md p-0 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-[#0C2340]">Activate Account</h3>
+              <button onClick={() => setShowActivateDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-4">Are you sure you want to activate <strong>{selectedResident.name}</strong>&apos;s account? They will regain access to the system.</p>
+              <div className="flex gap-4">
+                <Button onClick={() => { activateResident(selectedResident.id, user?.name || "Admin", selectedResident.name); setShowActivateDialog(false) }} className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 text-white">Activate</Button>
+                <Button variant="outline" onClick={() => setShowActivateDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
 
       {/* Delete Dialog */}
       {showDeleteDialog && selectedResident && (

@@ -43,14 +43,28 @@ export default function DashboardPage() {
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
         {/* Account Status Card */}
-        <Card className="p-6 border-l-4 border-l-[#0C2340] shadow-sm">
+        <Card className={`p-6 border-l-4 shadow-sm ${user.status === "Expired" ? "border-l-red-600" : user.isVerified === false ? "border-l-amber-500" : "border-l-[#0C2340]"}`}>
           <p className="text-xs text-slate-500 mb-2 font-medium">Account Status</p>
-          <p className="text-[22px] font-bold text-green-600 mb-2">Active</p>
-          <p className="text-xs text-slate-600 mb-1">Valid until: {user.accountExpiry || "N/A"}</p>
-          <p className="text-[11px] text-slate-400 font-medium">{daysRemaining} days remaining</p>
-          <div className="mt-4 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-green-500 h-full w-4/5 rounded-full" />
-          </div>
+          <p className={`text-[22px] font-bold mb-2 ${user.status === "Expired" ? "text-red-600" : user.isVerified === false ? "text-amber-500" : "text-green-600"}`}>
+            {user.status === "Expired" ? "Deactivated" : user.isVerified === false ? "Under Review" : "Active"}
+          </p>
+          {user.status === "Expired" ? (
+             <p className="text-[11px] text-red-500 font-medium leading-snug">
+               Your account is currently inactive. You must request reactivation from your profile.
+             </p>
+          ) : user.isVerified === false ? (
+             <p className="text-[11px] text-amber-600 font-medium leading-snug">
+               Your registration is pending admin verification.
+             </p>
+          ) : (
+            <>
+              <p className="text-xs text-slate-600 mb-1">Valid until: {user.accountExpiry || "N/A"}</p>
+              <p className="text-[11px] text-slate-400 font-medium">{daysRemaining} days remaining</p>
+              <div className="mt-4 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-green-500 h-full w-4/5 rounded-full" />
+              </div>
+            </>
+          )}
         </Card>
 
         {/* Total Requests */}

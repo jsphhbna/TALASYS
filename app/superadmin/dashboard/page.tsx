@@ -183,14 +183,25 @@ export default function SuperAdminDashboard() {
   const pipelineTotal = processingPipeline.submitted + processingPipeline.underReview + processingPipeline.approved + processingPipeline.rejected
 
   // Map real audit logs to recent activity display
-  const recentAdminActivity = auditLogs.slice(0, 5).map(log => ({
-    admin: log.admin?.name || (log as any).adminName || "System",
-    initials: log.admin?.initials || (log as any).adminName?.charAt(0)?.toUpperCase() || "SY",
-    action: log.actionType || log.action || "Unknown",
-    detail: log.details || log.residentName || "",
-    timestamp: log.time,
-    type: log.actionType === "approved" ? "approval" : log.actionType === "rejected" ? "rejection" : log.actionType === "verified" ? "verification" : log.actionType === "generated" ? "generation" : "system"
-  }))
+  const recentAdminActivity = auditLogs.slice(0, 5).map(log => {
+    let timestampDisplay = log.time || "Just now";
+    const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
+    if (ts && !isNaN(ts)) {
+      const d = new Date(ts);
+      timestampDisplay = `${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(d)} • ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d)}`;
+    } else if (log.date && log.time) {
+      timestampDisplay = `${log.date} • ${log.time}`;
+    }
+
+    return {
+      admin: log.admin?.name || (log as any).adminName || "System",
+      initials: log.admin?.initials || (log as any).adminName?.charAt(0)?.toUpperCase() || "SY",
+      action: log.actionType || log.action || "Unknown",
+      detail: log.details || log.residentName || "",
+      timestamp: timestampDisplay,
+      type: log.actionType === "approved" ? "approval" : log.actionType === "rejected" ? "rejection" : log.actionType === "verified" ? "verification" : log.actionType === "generated" ? "generation" : "system"
+    }
+  })
 
   return (
     <div className="space-y-6">

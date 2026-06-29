@@ -7,6 +7,23 @@ import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/use-admin-data"
 import { Bell, UserPlus, Clock, FileText, Mail } from "lucide-react"
 
+function formatRelativeTime(createdAt: number): string {
+  if (!createdAt) return "Just now"
+  const now = Date.now()
+  const diff = now - createdAt
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (seconds < 60) return "Just now"
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days === 1) return "Yesterday"
+  if (days < 7) return `${days}d ago`
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(createdAt))
+}
+
 export default function Notifications() {
   const { notifications: adminNotifications, markAllNotificationsRead, markNotificationRead, addNotification, residents } = useAdminData()
   const [activeFilter, setActiveFilter] = useState("all")
@@ -189,7 +206,7 @@ export default function Notifications() {
                   <p className={`text-[11px] mb-1 ${notification.isRead ? "text-slate-400" : "text-slate-600"}`}>
                     {notification.message}
                   </p>
-                  <p className="text-[10px] text-slate-400">{notification.timestamp}</p>
+                  <p className="text-[10px] text-slate-400">{formatRelativeTime(notification.createdAt)}</p>
                 </div>
                 {notification.actionUrl && !notification.isRead && (
                   <Button size="sm" className="h-7 px-4 text-[10px] bg-[#0C2340] hover:bg-[#0a1c33]">
