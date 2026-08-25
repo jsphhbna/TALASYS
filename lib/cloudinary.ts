@@ -101,7 +101,7 @@ export async function uploadFileToCloudinary(file: File): Promise<string> {
   const signature = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
 
   const formData = new FormData()
-  formData.append("file", file)
+  formData.append("file", compressedFile)
   formData.append("api_key", apiKey)
   formData.append("timestamp", timestamp.toString())
   formData.append("signature", signature)

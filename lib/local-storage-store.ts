@@ -174,7 +174,7 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     categories: input.statuses,
     age: input.dateOfBirth ? Math.floor((new Date().getTime() - new Date(input.dateOfBirth).getTime()) / 31557600000) : 0,
     address: input.address,
-    documents: input.proofs.map(p => ({ name: p.name, status: "pending", uploadDate: p.uploadDate })),
+    documents: input.proofs.map(p => ({ name: p.name, status: "pending", uploadDate: p.uploadDate, url: p.url || "" })),
     status: "pending"
   })
 
