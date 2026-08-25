@@ -56,8 +56,8 @@ service cloud.firestore {
       // Updates are allowed for the owner or an admin.
       allow update: if isOwner(userId) || isAdmin();
       
-      // Only Admins/SuperAdmins can delete users.
-      allow delete: if isAdmin();
+      // Owners can delete their own account. Admins/SuperAdmins can delete any user.
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // ==============================================================
@@ -84,8 +84,9 @@ service cloud.firestore {
       // Residents can create verifications for themselves.
       allow create: if isAdmin() || (isAuthenticated() && (request.resource.data.residentId == request.auth.uid || request.resource.data.userId == request.auth.uid));
       
-      // Only admins can update or delete verifications (to prevent residents from self-approving).
-      allow update, delete: if isAdmin();
+      // Admins can update or delete any verification. Residents can delete their own (e.g. when deleting their account).
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isAuthenticated() && (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid));
     }
 
     // ==============================================================

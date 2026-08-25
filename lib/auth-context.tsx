@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // If the account was soft-deleted, block login immediately!
         if (userData.role === "Deleted" as any || userData.status === "Deleted") {
           await firebaseSignOut(auth)
-          return { _error: "This account has been permanently deleted by an administrator." } as any
+          return { _error: "This account has been deleted or suspended." } as any
         }
 
         // Enforce Email Verification for Residents
@@ -211,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
            // For any other missing user, it means their account was physically deleted from the database
            await firebaseSignOut(auth)
-           return { _error: "This account has been deleted by an administrator." } as any
+           return { _error: "This account has been deleted or suspended." } as any
         }
       }
       setUser(userData)

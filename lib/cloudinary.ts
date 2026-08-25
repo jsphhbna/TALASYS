@@ -1,3 +1,56 @@
+const compressImage = (file: File): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    // Only compress images
+    if (!file.type.startsWith("image/")) {
+      resolve(file)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = (event) => {
+      const img = new Image()
+      img.src = event.target?.result as string
+      img.onload = () => {
+        const canvas = document.createElement("canvas")
+        let width = img.width
+        let height = img.height
+
+        // Max dimensions
+        const MAX_DIMENSION = 1200
+        if (width > height) {
+          if (width > MAX_DIMENSION) {
+            height *= MAX_DIMENSION / width
+            width = MAX_DIMENSION
+          }
+        } else {
+          if (height > MAX_DIMENSION) {
+            width *= MAX_DIMENSION / height
+            height = MAX_DIMENSION
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        ctx?.drawImage(img, 0, 0, width, height)
+
+        // Compress as WebP at 70% quality (extremely fast and small)
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob)
+            else resolve(file) // Fallback to original if compression fails
+          },
+          "image/webp",
+          0.7
+        )
+      }
+      img.onerror = () => resolve(file) // Fallback if image loading fails
+    }
+    reader.onerror = () => resolve(file)
+  })
+}
+
 const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("Upload timed out")), ms)
@@ -9,6 +62,9 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
 }
 
 export async function uploadFileToCloudinary(file: File): Promise<string> {
+  // Compress image before upload to drastically speed up upload times
+  const compressedFile = await compressImage(file)
+
   const cloudName = "gmseg91m"
   const apiKey = "588324923391267"
   const apiSecret = "2wGosQ3mRbcwLTpq4W2u0AXn8Sk"
