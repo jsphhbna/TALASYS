@@ -298,6 +298,7 @@ export default function RegisterPage() {
     }
 
     showToastPreset("registrationCompleted")
+    setIsCompleting(false)
     router.push("/login")
   }
 

@@ -1,53 +1,76 @@
 const compressImage = (file: File): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    const fallbackTimer = setTimeout(() => {
+      console.warn("Image compression timed out, returning original file")
+      resolve(file)
+    }, 8000)
+
+    const finish = (result: Blob | File) => {
+      clearTimeout(fallbackTimer)
+      resolve(result)
+    }
+
     // Only compress images
     if (!file.type.startsWith("image/")) {
-      resolve(file)
+      finish(file)
       return
     }
 
     const reader = new FileReader()
-    reader.readAsDataURL(file)
     reader.onload = (event) => {
-      const img = new Image()
-      img.src = event.target?.result as string
-      img.onload = () => {
-        const canvas = document.createElement("canvas")
-        let width = img.width
-        let height = img.height
-
-        // Max dimensions
-        const MAX_DIMENSION = 1200
-        if (width > height) {
-          if (width > MAX_DIMENSION) {
-            height *= MAX_DIMENSION / width
-            width = MAX_DIMENSION
-          }
-        } else {
-          if (height > MAX_DIMENSION) {
-            width *= MAX_DIMENSION / height
-            height = MAX_DIMENSION
-          }
-        }
-
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext("2d")
-        ctx?.drawImage(img, 0, 0, width, height)
-
-        // Compress as WebP at 70% quality (extremely fast and small)
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob)
-            else resolve(file) // Fallback to original if compression fails
-          },
-          "image/webp",
-          0.7
-        )
+      if (!event.target?.result) {
+        finish(file)
+        return
       }
-      img.onerror = () => resolve(file) // Fallback if image loading fails
+      const img = new Image()
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas")
+          let width = img.width
+          let height = img.height
+
+          // Max dimensions
+          const MAX_DIMENSION = 1200
+          if (width > height) {
+            if (width > MAX_DIMENSION) {
+              height *= MAX_DIMENSION / width
+              width = MAX_DIMENSION
+            }
+          } else {
+            if (height > MAX_DIMENSION) {
+              width *= MAX_DIMENSION / height
+              height = MAX_DIMENSION
+            }
+          }
+
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext("2d")
+          if (!ctx) {
+             finish(file)
+             return
+          }
+          ctx.drawImage(img, 0, 0, width, height)
+
+          // Compress as WebP at 70% quality (extremely fast and small)
+          canvas.toBlob(
+            (blob) => {
+              if (blob) finish(blob)
+              else finish(file) // Fallback to original if compression fails
+            },
+            "image/webp",
+            0.7
+          )
+        } catch (e) {
+          console.error("Canvas compression failed:", e)
+          finish(file)
+        }
+      }
+      img.onerror = () => finish(file) // Fallback if image loading fails
+      img.src = event.target.result as string
     }
-    reader.onerror = () => resolve(file)
+    reader.onerror = () => finish(file)
+    reader.readAsDataURL(file)
   })
 }
 
