@@ -202,6 +202,12 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     actionUrl: "/admin/verifications"
   })
 
+  // Sign out the user after all writes complete.
+  // They need to verify their email before logging in, and leaving them
+  // signed in would cause onAuthStateChanged to try loading their profile.
+  const { signOut } = await import("firebase/auth")
+  await signOut(auth)
+
   return user
 }
 

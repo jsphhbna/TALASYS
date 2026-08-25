@@ -81,14 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                return
             }
 
-            // Enforce Email Verification for Residents
-            if (userData.role === "resident" && !firebaseUser.emailVerified) {
-               const { signOut: firebaseSignOut } = await import("firebase/auth")
-               await firebaseSignOut(auth)
-               setUser(null)
-               setIsReady(true)
-               return
-            }
+            // NOTE: Email verification is enforced in the login() function, NOT here.
+            // Checking it here causes a race condition during registration:
+            // createUserWithEmailAndPassword triggers onAuthStateChanged, which sees
+            // an unverified resident and signs them out WHILE registerResidentAccount
+            // is still writing to Firestore, causing permission-denied errors.
             
             setUser(userData)
             initializeFirebaseStorage(userData.role, userData.id)
