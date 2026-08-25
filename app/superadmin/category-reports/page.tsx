@@ -38,15 +38,24 @@ export default function CategoryReports() {
 
   const totalPop = adminStats.totalResidents || 1
 
-  const categoryDistribution = [
+  const rawCategoryDistribution = [
     { name: "Seniors", value: adminStats.seniorCount, color: "#0C2340", change: 2.1 },
     { name: "Adults", value: adminStats.adultCount, color: "#2a5080", change: 0.5 },
     { name: "Minors", value: adminStats.minorCount, color: "#C5A55A", change: 3.2 },
-  ].filter(c => c.value > 0)
+  ]
+  const categoryDistribution = rawCategoryDistribution.filter(c => c.value > 0)
   
   if (categoryDistribution.length === 0) {
     categoryDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9", change: 0 })
   }
+
+  const largestCategory = rawCategoryDistribution.sort((a, b) => b.value - a.value)[0]
+  const largestName = largestCategory && largestCategory.value > 0 ? largestCategory.name : "N/A"
+  const largestPct = largestCategory && adminStats.totalResidents > 0 ? ((largestCategory.value / adminStats.totalResidents) * 100).toFixed(1) : "0.0"
+  const largestDesc = largestCategory && largestCategory.value > 0 ? `${largestPct}% of population` : "No data available"
+
+  const fastestGrowingName = "N/A"
+  const fastestGrowingDesc = "No historical data"
 
 
 
@@ -181,16 +190,16 @@ export default function CategoryReports() {
             <BarChart3 className="w-4 h-4 text-[#0C2340]" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Largest Category</p>
-          <span className="text-lg font-bold text-[#0C2340]">Adults (18-59)</span>
-          <p className="text-[10px] text-[#C5A55A] font-semibold mt-0.5">66.0% of population</p>
+          <span className="text-lg font-bold text-[#0C2340]">{largestName}</span>
+          <p className="text-[10px] text-[#C5A55A] font-semibold mt-0.5">{largestDesc}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Fastest Growing</p>
-          <span className="text-lg font-bold text-[#0C2340]">Minors</span>
-          <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">+3.2% growth</p>
+          <span className="text-lg font-bold text-[#0C2340]">{fastestGrowingName}</span>
+          <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">{fastestGrowingDesc}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center mb-2">
@@ -225,8 +234,8 @@ export default function CategoryReports() {
                   <span className="text-slate-600">{c.name}</span>
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[#0C2340]">{c.value.toLocaleString()}</span>
-                  <span className="text-emerald-600 font-medium">+{c.change}%</span>
+                  <span className="font-semibold text-[#0C2340]">{c.name === "No Data" ? "-" : c.value.toLocaleString()}</span>
+                  <span className="text-emerald-600 font-medium">{c.name === "No Data" ? "" : `+${c.change}%`}</span>
                 </div>
               </div>
             ))}

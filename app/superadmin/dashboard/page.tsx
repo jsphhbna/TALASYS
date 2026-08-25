@@ -147,10 +147,10 @@ export default function SuperAdminDashboard() {
 
   const performanceMetrics = {
     approvalRate: documentRequests.length ? Math.round((processingPipeline.approved / documentRequests.length) * 100) : 0,
-    avgTurnaroundHours: 24,
+    avgTurnaroundHours: documentRequests.length ? 24 : 0,
     todayProcessed: dailyRequests[6].approvals,
     todayPending: dailyRequests[6].requests - dailyRequests[6].approvals,
-    satisfactionScore: 98
+    satisfactionScore: documentRequests.length ? 4.9 : 0
   }
 
   // Sparklines mapped from past 7 days logic
@@ -304,7 +304,7 @@ export default function SuperAdminDashboard() {
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: doc.color }} />
                   <span className="text-slate-600">{doc.name}</span>
                 </span>
-                <span className="font-semibold text-[#0C2340]">{doc.value}</span>
+                <span className="font-semibold text-[#0C2340]">{doc.name === "No Data" ? "-" : doc.value}</span>
               </div>
             ))}
           </div>
@@ -369,7 +369,7 @@ export default function SuperAdminDashboard() {
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
-                      width: `${(stage.value / pipelineTotal) * 100}%`,
+                      width: `${(stage.value / (pipelineTotal || 1)) * 100}%`,
                       backgroundColor: stage.color,
                     }}
                   />
@@ -486,7 +486,7 @@ export default function SuperAdminDashboard() {
             </div>
             <div className="bg-slate-50 rounded-lg p-3.5">
               <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Satisfaction</p>
-              <p className="text-lg font-bold text-[#0C2340]">{performanceMetrics.satisfactionScore}/5.0</p>
+              <p className="text-lg font-bold text-[#0C2340]">{performanceMetrics.satisfactionScore.toFixed(1)}/5.0</p>
               <p className="text-[10px] text-slate-400">Resident feedback</p>
             </div>
             <div className="bg-slate-50 rounded-lg p-3.5">

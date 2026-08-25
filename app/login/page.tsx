@@ -32,8 +32,20 @@ export default function LoginPage() {
     const user = await login(username, password)
     
     if (user && (user as any)._error) {
-      setError((user as any)._error)
+      let errorMessage = (user as any)._error;
+      if (typeof errorMessage === "string") {
+        if (errorMessage.includes("auth/invalid-credential") || errorMessage.includes("auth/user-not-found") || errorMessage.includes("auth/wrong-password")) {
+          errorMessage = "Invalid credentials. Please verify your username and password and try again.";
+        } else if (errorMessage.includes("auth/too-many-requests")) {
+          errorMessage = "Access temporarily disabled due to multiple failed attempts. Please try again later.";
+        } else if (errorMessage.includes("Firebase:")) {
+          errorMessage = "Authentication service encountered an error. Please try again later.";
+        }
+      }
+
+      setError(errorMessage)
       setIsSigningIn(false)
+      setTimeout(() => setError(""), 4000)
       return
     }
 
@@ -48,6 +60,7 @@ export default function LoginPage() {
     } else {
       setError(credentialHint)
       setIsSigningIn(false)
+      setTimeout(() => setError(""), 4000)
     }
   }
 

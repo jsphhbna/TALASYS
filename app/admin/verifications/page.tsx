@@ -19,6 +19,7 @@ export default function Verifications() {
   const [selectedItem, setSelectedItem] = useState<any>(pendingVerifications[0] || rejectedVerifications[0])
   const [showRejectConfirm, setShowRejectConfirm] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const mounted = useMounted()
 
   if (!mounted) {
@@ -218,12 +219,21 @@ export default function Verifications() {
                 {/* Documents */}
                 <div>
                   <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Documents</p>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {selectedItem.documents.map((doc: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between bg-slate-50 p-3 rounded">
-                        <span className="text-[11px] text-[#0C2340] font-medium">{doc.name}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${doc.status === "verified" || doc.status === "valid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                          }`}>{doc.status}</span>
+                      <div key={i} className="flex flex-col gap-2 bg-slate-50 p-3 rounded border border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-[#0C2340] font-medium">{doc.name}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${doc.status?.toLowerCase() === "verified" || doc.status?.toLowerCase() === "valid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                            }`}>{doc.status}</span>
+                        </div>
+                        {doc.url ? (
+                          <button onClick={() => setSelectedImage(doc.url)} className="block w-full mt-2 overflow-hidden rounded border border-slate-200 hover:opacity-90 transition-opacity focus:outline-none">
+                            <img src={doc.url} alt={doc.name} className="w-full max-h-48 object-cover cursor-zoom-in" />
+                          </button>
+                        ) : (
+                          <div className="text-[10px] text-slate-400 italic mt-1">No image available (legacy format)</div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -288,6 +298,26 @@ export default function Verifications() {
           )}
         </Card>
       </div>
+
+      {/* Fullscreen Image Modal */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 sm:p-12 cursor-zoom-out"
+          onClick={() => setSelectedImage(null)}
+        >
+          <img 
+            src={selectedImage} 
+            alt="Fullscreen Document" 
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
+          />
+          <button 
+            className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition-colors"
+            onClick={(e) => { e.stopPropagation(); setSelectedImage(null) }}
+          >
+            <XCircle className="w-8 h-8" />
+          </button>
+        </div>
+      )}
     </AdminPageShell>
   )
 }

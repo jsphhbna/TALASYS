@@ -9,6 +9,7 @@ import { RegisterStepIndicator } from "@/components/register/register-step-indic
 import { RegisterStepSkeleton } from "@/components/register/register-step-skeleton"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
+import { uploadFileToCloudinary } from "@/lib/cloudinary"
 import { getRequiredDocuments, type UploadField } from "@/lib/resident-documents"
 import { calculateAge, mergeWithAutoStatuses } from "@/lib/resident-status"
 import { registerResidentAccount, type ResidentProofDocument } from "@/lib/local-storage-store"
@@ -22,6 +23,8 @@ const RegisterStepTwoDocuments = dynamic(
   () => import("@/components/register/register-step-two-documents").then((mod) => mod.RegisterStepTwoDocuments),
   { loading: () => <RegisterStepSkeleton /> },
 )
+
+
 
 type RegisterFormData = {
   firstName: string
@@ -76,6 +79,7 @@ export default function RegisterPage() {
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [isContinuing, setIsContinuing] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
+  const [uploadedProofs, setUploadedProofs] = useState<ResidentProofDocument[]>([])
 
   useEffect(() => {
     const calculatedAge = calculateAge(formData.dateOfBirth)
@@ -171,8 +175,6 @@ export default function RegisterPage() {
       contactValid &&
       formData.contactNumber.trim() !== "" &&
       formData.street.trim() !== "" &&
-      formData.barangay.trim() !== "" &&
-      formData.city.trim() !== "" &&
       formData.statuses.length > 0 &&
       emailValid &&
       passwordValid &&
@@ -208,39 +210,62 @@ export default function RegisterPage() {
     setIsContinuing(false)
   }
 
-  const handleCompleteRegistration = async () => {
+  const handleIdScan = (file: File, extractedData: { firstName: string, lastName: string, dateOfBirth: string }) => {
+    setFormData(prev => ({
+      ...prev,
+      firstName: extractedData.firstName || prev.firstName,
+      lastName: extractedData.lastName || prev.lastName,
+      dateOfBirth: extractedData.dateOfBirth || prev.dateOfBirth
+    }))
+    setUploadedFiles(prev => ({ ...prev, validId: file, parentId: file }))
+  }
+
+  const handleRegister = async () => {
     if (!canProceedFromStep2()) {
       showToastPreset("missingDocuments")
       return
     }
 
-    const uploadedProofs: ResidentProofDocument[] = Object.entries(uploadedFiles)
-      .filter(([, file]) => Boolean(file))
-      .map(([field, file], index) => {
-        const documentName =
-          field === "validId"
-            ? "Valid Government ID"
-            : field === "parentId"
-              ? "Parent's Valid Government ID"
-              : field === "seniorId"
-                ? "Senior Citizen ID"
-                : "Voter's ID / Certificate"
-
-        return {
-          id: `${Date.now()}-${index}`,
-          name: documentName,
-          filename: (file as File).name,
-          uploadDate: new Date().toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
-          status: "Valid",
-        }
-      })
-
     setIsCompleting(true)
     await delay(1200)
+
+    let finalProofs: ResidentProofDocument[] = []
+    try {
+      const uploadPromises = Object.entries(uploadedFiles)
+        .filter(([, file]) => Boolean(file))
+        .map(async ([field, file], index) => {
+          const documentName =
+            field === "validId"
+              ? "Valid Government ID"
+              : field === "parentId"
+                ? "School ID or Parent's Valid ID"
+                : field === "seniorId"
+                  ? "Senior Citizen ID"
+                  : "Voter's ID / Certificate"
+
+          const url = await uploadFileToCloudinary(file as File)
+
+          return {
+            id: `${Date.now()}-${index}`,
+            name: documentName,
+            filename: (file as File).name,
+            url,
+            uploadDate: new Date().toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }),
+            status: "Valid",
+          } as ResidentProofDocument
+        })
+
+      finalProofs = await Promise.all(uploadPromises)
+    } catch (error) {
+      console.error("Failed to upload proofs:", error)
+      setIsCompleting(false)
+      showToastPreset("uploadFailedSize")
+      return
+    }
 
     try {
       await registerResidentAccount({
@@ -251,7 +276,8 @@ export default function RegisterPage() {
         contactNumber: formData.contactNumber,
         address: computedAddress,
         statuses: formData.statuses,
-        proofs: uploadedProofs,
+        proofs: finalProofs,
+        profilePicture: "", // No longer captured during registration
         firstName: formData.firstName,
         lastName: formData.lastName,
         middleInitial: formData.middleInitial,
@@ -304,6 +330,7 @@ export default function RegisterPage() {
               canContinue={canProceedFromStep1()}
               isContinuing={isContinuing}
               onContinue={handleContinue}
+              onIdScan={handleIdScan}
             />
           ) : (
             <RegisterStepTwoDocuments
@@ -315,7 +342,7 @@ export default function RegisterPage() {
               onFileUpload={handleFileUpload}
               canComplete={canProceedFromStep2()}
               isCompleting={isCompleting}
-              onComplete={handleCompleteRegistration}
+              onComplete={handleRegister}
               onBack={() => setStep(1)}
             />
           )}

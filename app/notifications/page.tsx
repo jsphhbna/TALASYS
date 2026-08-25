@@ -53,10 +53,8 @@ export default function NotificationsPage() {
         <h1 className="text-2xl font-bold text-[#0C2340] mb-1 tracking-tight">Notifications</h1>
       </div>
 
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Notifications List */}
-        <div className="lg:col-span-2">
+      {/* Notifications List */}
+      <div className="w-full">
           <Card>
             {notifications.map((notification, index) => {
               const relativeTime = formatRelativeTime(notification.createdAt)
@@ -131,26 +129,6 @@ export default function NotificationsPage() {
               </button>
             </div>
           </Card>
-        </div>
-
-        {/* Right: Account Status */}
-        <div className="space-y-6">
-          {/* Account Status Card */}
-          <Card className="p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-[#0C2340] text-center mb-6">Account Status</h3>
-
-            <div className="flex flex-col items-center">
-              <div className="w-32 h-32 rounded-full bg-green-50 flex items-center justify-center mb-6 border-2 border-green-200">
-                <span className="text-5xl text-green-600">✓</span>
-              </div>
-
-              <p className="text-xl font-bold text-green-600 mb-2">Account Active</p>
-              <p className="text-sm text-slate-600 mb-1 text-center">Valid until {user?.accountExpiry || "N/A"}</p>
-              <p className="text-xs text-slate-600 text-center">You can request documents normally</p>
-            </div>
-          </Card>
-
-        </div>
       </div>
     </ResidentPageShell>
   )

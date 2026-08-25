@@ -29,6 +29,8 @@ export interface CreateResidentAccountInput {
   address: string
   statuses: string[]
   proofs: ResidentProofDocument[]
+  profilePicture?: string
+
   firstName?: string
   lastName?: string
   middleInitial?: string
@@ -120,17 +122,18 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
   const { doc, setDoc, addDoc, collection, query, where, getDocs } = await import("firebase/firestore")
 
   const normalizedEmail = input.email.trim().toLowerCase()
-  
-  // Basic validation check in Firestore
-  const qEmail = query(collection(db, "users"), where("email", "==", normalizedEmail))
-  const snap = await getDocs(qEmail)
-  if (!snap.empty) {
-    throw new Error("An account with this email already exists.")
-  }
+
 
   // CREATE IN FIREBASE AUTH
   const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, input.password)
   await updateProfile(userCredential.user, { displayName: input.name.trim() })
+  
+  const { sendEmailVerification } = await import("firebase/auth")
+  try {
+    await sendEmailVerification(userCredential.user)
+  } catch (error) {
+    console.error("Failed to send verification email during registration:", error)
+  }
 
   const id = userCredential.user.uid
   
@@ -147,6 +150,7 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     address: input.address,
     accountExpiry: formatDate(addDays(new Date(), 180)),
     isVerified: false,
+    profilePicture: input.profilePicture || "",
     createdAt: Date.now(),
     firstName: input.firstName,
     lastName: input.lastName,

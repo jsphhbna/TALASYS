@@ -1,5 +1,9 @@
+"use client"
+
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { XCircle, Eye } from "lucide-react"
 import type { ResidentProofDocument } from "@/lib/local-storage-store"
 
 interface ProfileProofsCardProps {
@@ -17,6 +21,7 @@ export function ProfileProofsCard({
   isOpeningDialog,
   onRequestProfileEdit,
 }: ProfileProofsCardProps) {
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const isRejected = verification?.status === "rejected"
 
   const handleResubmit = async () => {
@@ -55,6 +60,14 @@ export function ProfileProofsCard({
                   <p className="text-[11px] text-slate-600">
                     {doc.filename} • Uploaded {doc.uploadDate}
                   </p>
+                  {doc.url && (
+                    <button 
+                      onClick={() => setSelectedImage(doc.url as string)}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-2 focus:outline-none"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> View Document
+                    </button>
+                  )}
                 </div>
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-medium bg-green-100 text-green-700 ml-3">
                   {doc.status}
@@ -90,6 +103,26 @@ export function ProfileProofsCard({
             ? "Preparing Form..."
             : "Request Profile Edit"}
       </Button>
+
+      {/* Fullscreen Image Modal */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 sm:p-12 cursor-zoom-out"
+          onClick={() => setSelectedImage(null)}
+        >
+          <img 
+            src={selectedImage} 
+            alt="Fullscreen Document" 
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
+          />
+          <button 
+            className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition-colors focus:outline-none"
+            onClick={(e) => { e.stopPropagation(); setSelectedImage(null) }}
+          >
+            <XCircle className="w-8 h-8" />
+          </button>
+        </div>
+      )}
     </Card>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
 import { Printer, TrendingUp, FileText, Clock, Loader2 } from "lucide-react"
-import html2canvas from "html2canvas"
+import { toPng } from "html-to-image"
 import jsPDF from "jspdf"
 import { useAuth } from "@/lib/auth-context"
 
@@ -36,30 +36,67 @@ export default function GenerateDocuments() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedResident, setSelectedResident] = useState<any>(null)
   const [selectedDocType, setSelectedDocType] = useState("")
+  const [customDocTitle, setCustomDocTitle] = useState("C E R T I F I C A T I O N")
   const [isGenerating, setIsGenerating] = useState(false)
+  const editorRef = useRef<HTMLDivElement>(null)
   
   // Custom Template Logic
   const getTemplateContent = () => {
     if (!selectedResident || !selectedDocType) return ""
     const templates = systemConfig?.templates || {}
     let template = ""
-    if (selectedDocType === "clearance") template = templates.clearance || "This is to certify that {{name}}, {{age}} years old, {{gender}}, residing at {{address}}, is known to be a person of good moral character."
-    if (selectedDocType === "residency") template = templates.residency || "This is to certify that {{name}}, {{age}} years old, {{gender}}, is a bonafide resident of {{address}}."
-    if (selectedDocType === "indigency") template = templates.indigency || "This is to certify that {{name}}, {{age}} years old, {{gender}}, residing at {{address}}, belongs to an indigent family in this barangay."
-    if (selectedDocType === "business") template = templates.business || "This business clearance is granted to {{name}} located at {{address}}."
+    if (selectedDocType === "funeral") template = templates.funeral || "This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for FUNERAL ASSISTANCE purposes.\n\nCity of Manila, {{date_issued}}."
+    if (selectedDocType === "pwd_adult") template = templates.pwd_adult || "This is to certify that {{name}} is a bonified resident and registered voter of {{barangay_name}}, with postal address located at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.\n\nIssued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila."
+    if (selectedDocType === "pwd_minor") template = templates.pwd_minor || "This is to certify that {{name}} {{age}} years old of age, is a bonified resident of {{barangay_name}}, with postal address located at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.\n\nIssued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila."
+    if (selectedDocType === "indigency") template = templates.indigency || "This is to certify that {{name}} is a bonafide resident of {{barangay_name}} with postal address {{address}}.\n\nThis further certifies that the said person belongs to indigent families in our Barangay.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nIssued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila."
+    if (selectedDocType === "residency") template = templates.residency || "This is to certify {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-mentioned name for {{purpose}} purposes.\n\nIssued this {{date_day_issued}}, City of Manila."
+    if (selectedDocType === "business") template = templates.business || "This is to certify that {{name}} located at {{address}} with Business Style _________________ conducted \"__________________\" at _________________ today {{date_issued}}.\n\nThis Certification is issued upon the request of the above-cited for whatever legal purpose this is intended.\n\nDonation for venue Php 500.00\n\nCity Manila, {{date_issued}}."
+    if (selectedDocType === "business_homeowner") template = templates.business_homeowner || "This is to certify that {{name}} is hereby issued Barangay Clearance for \"__________________\" entity located at {{address}}. This is under the territorial jurisdiction of {{barangay_name}}.\n\nThis certification is issued upon the request of the above-cited person for whatever purposes it may serve.\n\nIssued this {{date_ordinal_issued}}, City of Manila."
+    if (selectedDocType === "business_contractor") template = templates.business_contractor || "This is to certify that {{name}} is hereby issued Barangay Clearance for \"__________________\" entity located along {{address}} Under the territorial jurisdiction of {{barangay_name}}.\n\nThis certification is issued upon the request of the above-cited name for whatever legal purpose this is intended.\n\nCity of Manila, {{date_issued}}."
+    if (selectedDocType === "osca") template = templates.osca || "This is to certify that {{name}} is bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above cited person for <strong>OSCA ID application</strong> purposes.\n\nCity of Manila, {{date_issued}}."
+    if (selectedDocType === "custom_blank") template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\n[TYPE YOUR CUSTOM CONTENT HERE]\n\nCity of Manila, {{date_issued}}."
+    
+    // For any custom document type added by superadmin — read directly from Firebase templates
+    if (!template && templates[selectedDocType]) template = templates[selectedDocType]
+    // Ultimate fallback for brand-new custom types with no saved template yet
+    if (!template) template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}."
     
     // Find matching request to inject specific data
-    const docLabel = selectedDocType === "clearance" ? "Barangay Clearance" : selectedDocType === "residency" ? "Certificate of Residency" : selectedDocType === "indigency" ? "Certificate of Indigency" : "Business Permit Clearance"
+    const docLabelMap: Record<string, string> = {
+      funeral: "Funeral Certification",
+      pwd_adult: "PWD Certification (Adult)",
+      pwd_minor: "PWD Certification (Minor)",
+      indigency: "Certificate of Indigency",
+      residency: "Proof of Residency",
+      business: "Business Clearance",
+      business_homeowner: "Business Clearance (Homeowner)",
+      business_contractor: "Business Clearance (Contractor)",
+      osca: "OSCA Certification"
+    }
+    const docLabel = docLabelMap[selectedDocType] || selectedDocType
     const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
     
     const purpose = pendingReq?.purpose || "whatever legal purpose it may serve"
-    const dateStr = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())
+    
+    const date = new Date()
+    const dateStr = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(date)
+    const monthStr = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(date)
+    const yearStr = date.getFullYear().toString()
+    const getOrdinal = (n: number) => {
+      const s = ["th", "st", "nd", "rd"]
+      const v = n % 100
+      return n + (s[(v - 20) % 10] || s[v] || s[0])
+    }
+    const dayOrdinal = getOrdinal(date.getDate())
+    const dateOrdinalStr = `${dayOrdinal} of ${monthStr} ${yearStr}`
+    const dateDayStr = `${dayOrdinal.toUpperCase()} day of ${monthStr} ${yearStr}`
+    
     const clearanceNumber = pendingReq?.id ? pendingReq.id.slice(0, 8).toUpperCase() : Math.floor(Math.random() * 1000000).toString()
 
-    // Replace placeholders
+    // Replace placeholders with bold HTML
     return template
-      .replace(/{{name}}/g, selectedResident.name)
-      .replace(/{{resident_name}}/g, selectedResident.name)
+      .replace(/{{name}}/g, `<strong>${selectedResident.name}</strong>`)
+      .replace(/{{resident_name}}/g, `<strong>${selectedResident.name}</strong>`)
       .replace(/{{age}}/g, selectedResident.age?.toString() || "N/A")
       .replace(/{{gender}}/g, selectedResident.gender || "resident")
       .replace(/{{address}}/g, selectedResident.address || "this barangay")
@@ -67,24 +104,64 @@ export default function GenerateDocuments() {
       .replace(/{{municipality}}/g, systemConfig?.address?.split(',')[0] || "City of Sample")
       .replace(/{{province}}/g, systemConfig?.address?.split(',')[1]?.trim() || "Province of Sample")
       .replace(/{{date_issued}}/g, dateStr)
-      .replace(/{{captain_name}}/g, systemConfig?.barangayCaptainName || "Hon. Juan Dela Cruz")
-      .replace(/{{purpose}}/g, purpose)
+      .replace(/{{date_ordinal_issued}}/g, dateOrdinalStr)
+      .replace(/{{date_day_issued}}/g, dateDayStr)
+      .replace(/{{captain_name}}/g, `<strong>${systemConfig?.barangayCaptainName || "Hon. Juan Dela Cruz"}</strong>`)
+      .replace(/{{purpose}}/g, `<strong>${purpose}</strong>`)
       .replace(/{{clearance_number}}/g, clearanceNumber)
   }
 
+  // Whenever resident or doc type changes, push resolved content into the editable area
+  useEffect(() => {
+    if (!selectedResident || !selectedDocType || !editorRef.current) return
+    const resolved = getTemplateContent()
+    const paragraphs = resolved.split('\n\n').map(p =>
+      `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
+    ).join('')
+    editorRef.current.innerHTML = paragraphs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedResident, selectedDocType])
 
-  const searchResults = searchQuery.length >= 2
+ const searchResults = searchQuery.length >= 2
     ? allResidents.filter(r => (r.name || "").toLowerCase().includes(searchQuery.toLowerCase()))
     : []
 
   const pendingGeneration = adminDocumentRequests.filter(r => r.status === "On Process" || r.status === "Approved")
 
-  const docTypes = [
-    { id: "clearance", label: "Barangay Clearance", icon: "📋", desc: "Official clearance certificate" },
-    { id: "residency", label: "Certificate of Residency", icon: "🏠", desc: "Proof of residency in the barangay" },
-    { id: "indigency", label: "Certificate of Indigency", icon: "📄", desc: "For financial assistance programs" },
-    { id: "business", label: "Business Permit Clearance", icon: "🏪", desc: "For business permit applications" },
+  const builtInDocTypes = [
+    { id: "funeral", label: "Funeral Certification", icon: "🕊️", desc: "Certification for funeral assistance" },
+    { id: "pwd_adult", label: "PWD Certification (Adult)", icon: "♿", desc: "For PWD application purposes (Adult)" },
+    { id: "pwd_minor", label: "PWD Certification (Minor)", icon: "🚸", desc: "For PWD application purposes (Minor)" },
+    { id: "indigency", label: "Certificate of Indigency", icon: "📋", desc: "For medical or financial assistance" },
+    { id: "residency", label: "Proof of Residency", icon: "🏠", desc: "Proof of residence for various purposes" },
+    { id: "business", label: "Business Clearance", icon: "🏢", desc: "General business clearance or activity" },
+    { id: "business_homeowner", label: "Business Clearance (Homeowner)", icon: "🏡", desc: "Business clearance for homeowners" },
+    { id: "business_contractor", label: "Business Clearance (Contractor)", icon: "👷", desc: "Business clearance for contractors" },
+    { id: "osca", label: "OSCA Certification", icon: "👵", desc: "For Senior Citizen ID application" },
   ]
+
+  const customDocTypes = (systemConfig?.customDocumentTypes || []).map((c: any) => ({
+    id: c.id,
+    label: c.name,
+    icon: c.icon || "📄",
+    desc: `Custom document type`,
+    header: c.header,
+  }))
+
+  const allDocTypes = [
+    ...builtInDocTypes, 
+    ...customDocTypes,
+    { id: "custom_blank", label: "Blank Custom Document", icon: "📝", desc: "Write a one-off document from scratch", header: customDocTitle }
+  ]
+
+  const docTypes = allDocTypes.map(doc => {
+    let enabled = true;
+    if (systemConfig && systemConfig.documentTypes !== undefined) {
+      enabled = systemConfig.documentTypes.includes(doc.label)
+    }
+    if (doc.id === "custom_blank") enabled = true;
+    return { ...doc, enabled }
+  })
 
   const mostGenerated = [
     { name: "Clearance", count: adminDocumentRequests.filter(r => r.documentType.includes("Clearance") && (r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Completed")).length },
@@ -193,12 +270,15 @@ export default function GenerateDocuments() {
               <h3 className="text-sm font-semibold text-[#0C2340] mb-3">2. Select Document Type</h3>
               <div className="space-y-2">
                 {docTypes.map((doc) => (
-                  <button key={doc.id} onClick={() => setSelectedDocType(doc.id)} className={`w-full p-3 rounded-lg text-left transition-colors border ${selectedDocType === doc.id ? "border-[#0C2340] bg-[#0C2340]/[0.04]" : "border-slate-200 hover:bg-slate-50"}`}>
+                  <button key={doc.id} onClick={() => doc.enabled && setSelectedDocType(doc.id)} className={`w-full p-3 rounded-lg text-left transition-colors border ${doc.enabled ? 'hover:bg-slate-50' : 'opacity-60 cursor-not-allowed bg-slate-50'} ${selectedDocType === doc.id ? "border-[#0C2340] bg-[#0C2340]/[0.04]" : "border-slate-200"}`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-lg">{doc.icon}</span>
-                      <div>
-                        <p className="text-[12px] font-semibold text-[#0C2340]">{doc.label}</p>
-                        <p className="text-[10px] text-slate-400">{doc.desc}</p>
+                      <span className="text-lg" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</span>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center">
+                            <p className="text-[12px] font-semibold text-[#0C2340]">{doc.label}</p>
+                            {!doc.enabled && <span className="text-[9px] font-semibold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded">Disabled</span>}
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{doc.desc}</p>
                       </div>
                     </div>
                   </button>
@@ -214,31 +294,87 @@ export default function GenerateDocuments() {
             </div>
             <div className="p-6">
               {selectedResident && selectedDocType ? (
-                <div id="pdf-preview-container" className="bg-white border border-slate-200 p-12 min-h-[500px]">
-                  <div className="text-center space-y-2 mb-8">
-                    <p className="text-xs text-slate-500">Republic of the Philippines</p>
-                    <p className="text-xs text-slate-500">Province of &mdash; / City of &mdash;</p>
-                    <p className="text-sm font-bold text-slate-700">BARANGAY SAMPLE</p>
-                    <hr className="border-slate-300 my-4" />
-                    <p className="text-lg font-bold text-[#0C2340] tracking-wide">
-                      {selectedDocType === "clearance" ? "BARANGAY CLEARANCE" : selectedDocType === "residency" ? "CERTIFICATE OF RESIDENCY" : selectedDocType === "indigency" ? "CERTIFICATE OF INDIGENCY" : "BUSINESS PERMIT CLEARANCE"}
-                    </p>
+                <div className="space-y-2">
+                  {/* Simple WYSIWYG toolbar */}
+                  <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 font-semibold mr-2 uppercase tracking-wider">Edit Document:</span>
+                    <button
+                      onMouseDown={e => { e.preventDefault(); document.execCommand('bold') }}
+                      className="px-2.5 py-1 text-xs font-bold bg-white border border-slate-200 rounded hover:bg-slate-50 text-slate-700 shadow-sm"
+                      title="Bold selected text"
+                    >B</button>
+                    <button
+                      onMouseDown={e => { e.preventDefault(); document.execCommand('italic') }}
+                      className="px-2.5 py-1 text-xs italic bg-white border border-slate-200 rounded hover:bg-slate-50 text-slate-700 shadow-sm"
+                      title="Italic selected text"
+                    >I</button>
+                    <button
+                      onMouseDown={e => {
+                        e.preventDefault()
+                        if (!editorRef.current) return
+                        const resolved = getTemplateContent()
+                        const paragraphs = resolved.split('\n\n').map(p =>
+                          `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
+                        ).join('')
+                        editorRef.current.innerHTML = paragraphs
+                      }}
+                      className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded hover:bg-slate-50 text-slate-500 shadow-sm ml-1"
+                      title="Reset to original template"
+                    >↺ Reset</button>
+                    {selectedDocType === "custom_blank" && (
+                      <div className="ml-2 flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Title:</span>
+                        <input
+                          type="text"
+                          value={customDocTitle}
+                          onChange={e => setCustomDocTitle(e.target.value)}
+                          className="px-2 py-0.5 text-xs border border-slate-200 rounded max-w-[150px]"
+                        />
+                      </div>
+                    )}
+                    <span className="ml-auto text-[10px] text-slate-400">Click anywhere in the document to edit</span>
                   </div>
-                  <div className="text-sm text-slate-800 leading-loose space-y-4">
-                    <p className="indent-8 text-justify whitespace-pre-line">
-                      {getTemplateContent()}
-                    </p>
-                    <p className="indent-8 mt-4">
-                      This certification is issued upon the request of the above-named person for whatever legal purpose it may serve.
-                    </p>
-                    <p className="mt-12 text-slate-600">Issued this {new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())} at {systemConfig?.barangayName || "Barangay Sample"}.</p>
-                    
-                    <div className="mt-24 flex justify-end">
-                      <div className="text-center w-64">
-                        <div className="border-b border-[#0C2340] mb-2 px-4 py-1">
-                          <p className="font-bold text-[#0C2340] uppercase">{systemConfig?.barangayCaptainName || "Hon. Juan Dela Cruz"}</p>
+
+                  {/* Editable Paper Preview */}
+                  <div
+                    id="pdf-preview-container"
+                    className={`bg-white relative w-full overflow-hidden ${selectedDocType === "residency" ? "font-sans" : "font-serif"}`}
+                    style={{ aspectRatio: "8.5 / 11", padding: "0" }}
+                  >
+                    {/* Static header — not editable */}
+                    <div style={{ position: "absolute", top: "28%", left: "12%", right: "12%", bottom: "8%" }}>
+                      <div className="text-center mb-10">
+                        <p className={`font-extrabold text-black uppercase whitespace-nowrap ${selectedDocType === "residency" ? "tracking-widest text-base" : "tracking-[0.25em] text-base"}`}>
+                          {(() => {
+                             if (selectedDocType === "custom_blank") return customDocTitle.toUpperCase()
+                             const customDoc = (systemConfig?.customDocumentTypes || []).find((c: any) => c.id === selectedDocType)
+                             if (customDoc?.header) return customDoc.header.toUpperCase()
+                             if (selectedDocType === "indigency") return "CERTIFICATE OF INDIGENCY"
+                             if (selectedDocType === "residency" || selectedDocType === "business") return "BARANGAY CERTIFICATION"
+                             if (selectedDocType === "business_homeowner") return "BARANGAY BUSINESS CLEARANCE"
+                             if (selectedDocType === "business_contractor") return "BARANGAY CLEARANCE"
+                             return "C E R T I F I C A T I O N"
+                           })()}
+                        </p>
+                      </div>
+                      <div className="text-[13px] text-black leading-relaxed">
+                        <p className="mb-4">To Whom It May Concern:</p>
+                        {/* EDITABLE AREA */}
+                        <div
+                          ref={editorRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          className="outline-none focus:ring-1 focus:ring-blue-300 focus:ring-inset rounded min-h-[80px]"
+                          style={{ cursor: "text" }}
+                        />
+                        <div className="mt-16 flex justify-end">
+                          <div className="text-center w-48">
+                            <div className="border-b border-black mb-1 px-4 py-0.5">
+                              <p className="font-bold text-black uppercase text-xs">{systemConfig?.barangayCaptainName || "Hon. Juan Dela Cruz"}</p>
+                            </div>
+                            <p className="text-xs text-black">Punong Barangay</p>
+                          </div>
                         </div>
-                        <p className="text-sm text-slate-600">Punong Barangay</p>
                       </div>
                     </div>
                   </div>
@@ -260,25 +396,50 @@ export default function GenerateDocuments() {
                         const element = document.getElementById("pdf-preview-container")
                         if (!element) return
 
-                        // Render element to canvas
-                        const canvas = await html2canvas(element, {
-                          scale: 2, // Higher resolution
-                          useCORS: true,
+                        // Render element to image using html-to-image
+                        const imgData = await toPng(element, {
+                          pixelRatio: 2,
+                          backgroundColor: '#ffffff'
                         })
 
-                        const imgData = canvas.toDataURL("image/png")
                         // A4 is 210x297mm
                         const pdf = new jsPDF("p", "mm", "a4")
 
+                        const rect = element.getBoundingClientRect()
+                        const canvasWidth = rect.width * 2
+                        const canvasHeight = rect.height * 2
+
                         const pdfWidth = pdf.internal.pageSize.getWidth()
-                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+                        const pdfHeight = (canvasHeight * pdfWidth) / canvasWidth
 
                         pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
 
-                        const docTitle = selectedDocType === "clearance" ? "Clearance" : selectedDocType === "residency" ? "Residency" : selectedDocType === "indigency" ? "Indigency" : "Permit"
+                        const docTitleMap: Record<string, string> = {
+                          funeral: "Funeral",
+                          pwd_adult: "PWD_Adult",
+                          pwd_minor: "PWD_Minor",
+                          indigency: "Indigency",
+                          residency: "Residency",
+                          business: "Business",
+                          business_homeowner: "Business_Homeowner",
+                          business_contractor: "Business_Contractor",
+                          osca: "OSCA"
+                        }
+                        const docTitle = docTitleMap[selectedDocType] || selectedDocType
                         pdf.save(`${docTitle}_${selectedResident.name.replace(/\s+/g, "_")}.pdf`)
                         // Mark requests for this doc type as Completed
-                        const docLabel = selectedDocType === "clearance" ? "Barangay Clearance" : selectedDocType === "residency" ? "Certificate of Residency" : selectedDocType === "indigency" ? "Certificate of Indigency" : "Business Permit Clearance"
+                        const docLabelMap: Record<string, string> = {
+                          funeral: "Funeral Certification",
+                          pwd_adult: "PWD Certification (Adult)",
+                          pwd_minor: "PWD Certification (Minor)",
+                          indigency: "Certificate of Indigency",
+                          residency: "Proof of Residency",
+                          business: "Business Clearance",
+                          business_homeowner: "Business Clearance (Homeowner)",
+                          business_contractor: "Business Clearance (Contractor)",
+                          osca: "OSCA Certification"
+                        }
+                        const docLabel = docLabelMap[selectedDocType] || selectedDocType
                         const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
                         if (pendingReq) {
                            await updateRequestStatus(pendingReq.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com")

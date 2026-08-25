@@ -16,7 +16,7 @@ export function getRequiredDocuments(statuses: string[], mode: "register" | "pro
     ...(statuses.includes("Underage")
       ? [{
           field: "parentId" as const,
-          title: "Parent's Valid Government ID",
+          title: "School ID or Parent's Valid ID",
           description: mode === "register" ? "Required for: Underage (Under 18 years old)" : profileDescription,
           theme: "red" as const,
         }]

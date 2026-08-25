@@ -14,7 +14,6 @@ export default function ActivityLogs() {
   const { activityLogs, addActivityLog } = useAdminData()
   const [activeFilter, setActiveFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [undoingIds, setUndoingIds] = useState<Record<string, boolean>>({})
 
   const groupedLogs = activityLogs.reduce((acc, log) => {
     const action = log.action.split(' ')[0] || "Other"
@@ -65,37 +64,6 @@ export default function ActivityLogs() {
         {badge.text}
       </span>
     )
-  }
-
-  const handleUndo = async (log: any) => {
-    if (undoingIds[log.id] || !log.targetId || !log.targetCollection) return
-    setUndoingIds(prev => ({ ...prev, [log.id]: true }))
-    
-    try {
-      const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore")
-      const db = (await import("@/lib/firebase")).db
-      
-      const docRef = doc(db, log.targetCollection, log.targetId)
-      await updateDoc(docRef, {
-        status: "Pending", // Reversing state back to pending
-        updatedAt: serverTimestamp()
-      })
-
-      addActivityLog({
-        action: `Undid: ${log.action}`,
-        actionType: "system", // Generic type for undo actions
-        residentName: log.residentName,
-        details: `Reversed previous action from ${log.time}`,
-        date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
-        admin: { name: "System Admin", initials: "AD", color: "#3b82f6" },
-        timestamp: Date.now().toString(),
-        role: "Admin"
-      })
-    } catch (error) {
-      console.error("Undo failed:", error)
-    }
-    
-    setUndoingIds(prev => ({ ...prev, [log.id]: false }))
   }
 
   return (
@@ -183,8 +151,7 @@ export default function ActivityLogs() {
               <div className="col-span-2">ACTION</div>
               <div className="col-span-1">TYPE</div>
               <div className="col-span-2">RESIDENT</div>
-              <div className="col-span-3">DETAILS</div>
-              <div className="col-span-1 text-right">MANAGE</div>
+              <div className="col-span-4">DETAILS</div>
             </div>
           </div>
           <div className="divide-y divide-slate-100">
@@ -239,19 +206,8 @@ export default function ActivityLogs() {
                 <div className="col-span-2">
                   <span className="text-[11px] text-slate-600">{log.residentName || "—"}</span>
                 </div>
-                <div className="col-span-3">
+                <div className="col-span-4">
                   <span className="text-[11px] text-slate-500 line-clamp-2">{log.details}</span>
-                </div>
-                <div className="col-span-1 flex justify-end">
-                  {!log.action.startsWith("Undid") && (
-                    <button 
-                      onClick={() => handleUndo(log)}
-                      disabled={undoingIds[log.id]}
-                      className="text-[10px] font-semibold text-[#0C2340] hover:underline disabled:opacity-50"
-                    >
-                      {undoingIds[log.id] ? "Undoing..." : "Undo"}
-                    </button>
-                  )}
                 </div>
               </div>
             </div>

@@ -10,6 +10,7 @@ import {
   type ResidentProofDocument,
   type ResidentRequest,
 } from "@/lib/local-storage-store"
+import { uploadFileToCloudinary } from "@/lib/cloudinary"
 
 export function useResidentData() {
   const { user } = useAuth()
@@ -53,16 +54,25 @@ export function useResidentData() {
     const qVerif = query(collection(db, "verifications"), where("residentId", "==", residentId))
     const unVerif = onSnapshot(qVerif, (snap) => {
       if (!snap.empty) {
-        const verifData = snap.docs[0].data()
-        setVerification({ id: snap.docs[0].id, ...verifData })
-        if (verifData.documents) {
-            setProofs(verifData.documents.map((docItem: any, i: number) => ({
+        // Sort in memory to avoid needing a composite index
+        const allVerifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+        allVerifs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        
+        const latestVerif = allVerifs[0]
+        setVerification(latestVerif)
+        
+        if (latestVerif.documents) {
+            setProofs(latestVerif.documents.map((docItem: any, i: number) => {
+              const isApproved = latestVerif.status === "approved"
+              return {
                 id: `proof-${residentId}-${i}`,
                 name: docItem.name,
                 filename: docItem.name,
+                url: docItem.url,
                 uploadDate: docItem.uploadDate || "N/A",
-                status: docItem.status === "verified" || docItem.status === "valid" ? "Valid" : "Pending",
-              })))
+                status: isApproved || docItem.status === "verified" || docItem.status === "valid" ? "Valid" : "Pending",
+              }
+            }))
         }
       }
     })
@@ -145,12 +155,30 @@ export function useResidentData() {
     async (changes: { field: string; oldValue: string; newValue: string }[], reason: string, uploadedFiles: any) => {
       if (!residentId || !user) return null
 
-      // Upload files if any exist (simulated for now, would use Firebase Storage)
-      const documents = []
-      if (uploadedFiles.validId) documents.push({ name: "Valid ID", status: "pending", uploadDate: new Date().toLocaleDateString('en-US') })
-      if (uploadedFiles.parentId) documents.push({ name: "Parent's ID", status: "pending", uploadDate: new Date().toLocaleDateString('en-US') })
-      if (uploadedFiles.seniorId) documents.push({ name: "Senior Citizen ID", status: "pending", uploadDate: new Date().toLocaleDateString('en-US') })
-      if (uploadedFiles.votersId) documents.push({ name: "Voter's ID", status: "pending", uploadDate: new Date().toLocaleDateString('en-US') })
+      // Upload files to Cloudinary
+      const documents: any[] = []
+      
+      const uploadAndPush = async (file: File | null, name: string) => {
+        if (!file) return
+        try {
+          const url = await uploadFileToCloudinary(file)
+          documents.push({ 
+            name, 
+            url,
+            status: "pending", 
+            uploadDate: new Date().toLocaleDateString('en-US') 
+          })
+        } catch (error) {
+          console.error(`Failed to upload ${name}:`, error)
+        }
+      }
+
+      await Promise.all([
+        uploadAndPush(uploadedFiles.validId, "Valid ID"),
+        uploadAndPush(uploadedFiles.parentId, "Parent's ID"),
+        uploadAndPush(uploadedFiles.seniorId, "Senior Citizen ID"),
+        uploadAndPush(uploadedFiles.votersId, "Voter's ID"),
+      ])
 
       const verificationPayload = {
         residentId,

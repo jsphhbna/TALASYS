@@ -15,14 +15,20 @@ import { ProfileAccountInfoCard } from "@/components/profile/profile-account-inf
 import type { ProfileEditFormData } from "@/components/profile/profile-types"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import { getRequiredDocuments, type UploadField } from "@/lib/resident-documents"
 import { calculateAge, mergeWithAutoStatuses } from "@/lib/resident-status"
+import { uploadFileToCloudinary } from "@/lib/cloudinary"
+import { getRequiredDocuments, type UploadField } from "@/lib/resident-documents"
 
 const ProfileEditRequestDialog = dynamic(
   () => import("@/components/profile/profile-edit-request-dialog").then((mod) => mod.ProfileEditRequestDialog),
   {
     loading: () => <Card className="p-6 mt-4">Loading form...</Card>,
   },
+)
+
+const ProfileCameraModal = dynamic(
+  () => import("@/components/profile/profile-camera-modal").then((mod) => mod.ProfileCameraModal),
+  { loading: () => null },
 )
 
 const defaultFormData: ProfileEditFormData = {
@@ -56,6 +62,7 @@ export default function ProfilePage() {
   const [isOpeningDialog, setIsOpeningDialog] = useState(false)
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
   const [isRequestSubmitted, setIsRequestSubmitted] = useState(false)
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false)
   const [profilePicture, setProfilePicture] = useState<string | null>(null)
   const [isUploadingPicture, setIsUploadingPicture] = useState(false)
   const [formData, setFormData] = useState<ProfileEditFormData>(defaultFormData)
@@ -116,6 +123,31 @@ export default function ProfilePage() {
     setIsOpeningDialog(false)
   }
 
+  const handleSaveProfilePicture = async (base64Image: string) => {
+    try {
+      setIsUploadingPicture(true)
+      // Convert base64 to File
+      const arr = base64Image.split(",")
+      const mime = arr[0].match(/:(.*?);/)![1]
+      const bstr = atob(arr[1])
+      let n = bstr.length
+      const u8arr = new Uint8Array(n)
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n)
+      }
+      const file = new File([u8arr], "profile_picture.jpg", { type: mime })
+
+      const url = await uploadFileToCloudinary(file)
+      await saveProfilePicture(url)
+      showToastPreset("registrationCompleted") // We can use a generic success toast here, or update the message
+    } catch (err) {
+      console.error(err)
+      showToastPreset("uploadFailedSize")
+    } finally {
+      setIsUploadingPicture(false)
+    }
+  }
+
   const handleStatusToggle = (status: string) => {
     if (status === "Senior Citizen" || status === "Adult" || status === "Underage") return
 
@@ -163,7 +195,9 @@ export default function ProfilePage() {
       changes.push({ field: "Resident Statuses", oldValue: oldStatuses || "None", newValue: newStatuses || "None" })
     }
 
-    if (changes.length === 0) {
+    const hasUploadedFiles = Object.values(uploadedFiles).some(file => file !== null)
+
+    if (changes.length === 0 && !hasUploadedFiles) {
       setIsSubmittingRequest(false)
       setIsDialogOpen(false)
       return
@@ -187,55 +221,6 @@ export default function ProfilePage() {
     }
   }
 
-  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (file.size > 5 * 1024 * 1024) {
-      showToastPreset("uploadFailedSize")
-      return
-    }
-
-    if (!file.type.startsWith("image/")) {
-      showToastPreset("uploadFailedType")
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      setIsUploadingPicture(true)
-      await delay(1200)
-      const nextProfilePicture = event.target?.result as string
-      setProfilePicture(nextProfilePicture) // Optimistic update
-
-      if (user) {
-        // Upload to Firebase Storage
-        import("@/lib/firebase").then(async ({ storage, db }) => {
-          const { ref, uploadString, getDownloadURL } = await import("firebase/storage")
-          const { doc, updateDoc } = await import("firebase/firestore")
-          
-          try {
-            const storageRef = ref(storage, `profiles/${user.id}`)
-            await uploadString(storageRef, nextProfilePicture, 'data_url')
-            const downloadUrl = await getDownloadURL(storageRef)
-            
-            await updateDoc(doc(db, "users", user.id), { profilePicture: downloadUrl })
-            saveProfilePicture(downloadUrl)
-            showToastPreset("profileUpdated")
-          } catch (error) {
-            console.error("Failed to upload profile picture:", error)
-            showToastPreset("uploadFailedSize") // Re-use an existing preset instead of importing toast
-          } finally {
-            setIsUploadingPicture(false)
-          }
-        })
-      } else {
-         setIsUploadingPicture(false)
-      }
-    }
-    reader.readAsDataURL(file)
-  }
-
   if (!isAuthorized || !user) {
     return null
   }
@@ -254,7 +239,7 @@ export default function ProfilePage() {
           user={user}
           profilePicture={profilePicture}
           isUploadingPicture={isUploadingPicture}
-          onProfilePictureChange={handleProfilePictureChange}
+          onSetupProfilePicture={() => setIsCameraModalOpen(true)}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -290,6 +275,13 @@ export default function ProfilePage() {
         onFileUpload={handleFileUpload}
         onSubmit={handleSubmitRequest}
       />
+
+      <ProfileCameraModal 
+        isOpen={isCameraModalOpen} 
+        onClose={() => setIsCameraModalOpen(false)} 
+        onSave={handleSaveProfilePicture} 
+      />
+
     </ResidentPageShell>
   )
 }

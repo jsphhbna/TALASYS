@@ -11,7 +11,7 @@ import { useSuperAdminData } from "@/hooks/use-superadmin-data"
 import { useAdminData } from "@/hooks/use-admin-data"
 import {
   Server, HardDrive, Clock, Activity, Shield, FileText,
-  Palette, LayoutTemplate, Files, Settings, CheckCircle, Pencil,
+  Palette, LayoutTemplate, Files, Settings, CheckCircle, Pencil, Trash2, Plus, X,
 } from "lucide-react"
 
 const changeTypeIcons: Record<string, typeof Palette> = {
@@ -27,8 +27,19 @@ export default function SystemConfig() {
   const [activeTab, setActiveTab] = useState<"branding" | "templates" | "documents">("branding")
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [isSavingChanges, setIsSavingChanges] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState("clearance")
+  const [selectedTemplate, setSelectedTemplate] = useState("funeral")
   const [editingTemplate, setEditingTemplate] = useState(false)
+
+  // Add Document Type modal state
+  const [showAddDocModal, setShowAddDocModal] = useState(false)
+  const [newDocName, setNewDocName] = useState("")
+  const [newDocIcon, setNewDocIcon] = useState("📄")
+  const [newDocFee, setNewDocFee] = useState("0")
+  const [newDocHeader, setNewDocHeader] = useState("C E R T I F I C A T I O N")
+  const [newDocTemplate, setNewDocTemplate] = useState(
+    "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}."
+  )
+  const [isAddingDoc, setIsAddingDoc] = useState(false)
 
   const configChangeLog = auditLogs.filter(l => l.actionType === "Config Edit" || l.actionType === "Settings Updated" || l.action === "Config Edit" || l.action === "Settings Updated").slice(0, 5).map(l => ({
     admin: l.admin?.name || (l as any).adminName || "System",
@@ -48,11 +59,55 @@ export default function SystemConfig() {
     emailAddress: systemConfig.emailAddress || "",
     barangayCaptainName: systemConfig.barangayCaptainName || "",
     templates: systemConfig.templates || {
-      clearance: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBrgy. Clearance No.: {{clearance_number}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}}, of legal age, is a bonafide resident of this barangay with address at {{address}}.\n\nThis certification is issued upon the request of the above-named person for {{purpose}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
-      indigency: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}} is a bonafide resident of this barangay and is considered indigent.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
-      residency: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}} is a bonafide resident of this barangay with address at {{address}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
-      business: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBUSINESS CLEARANCE\n\nIssued to: {{resident_name}}\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
-      jobseeker: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nFIRST TIME JOB SEEKER\n\nIssued to: {{resident_name}}\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`
+      funeral: `This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.
+
+This Certification is issued upon the request of the above-named person for FUNERAL ASSISTANCE purposes.
+
+City of Manila, {{date_issued}}.`,
+      pwd_adult: `This is to certify that {{name}} is a bonified resident and registered voter of {{barangay_name}}, with postal address located at {{address}}.
+
+This Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.
+
+Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
+      pwd_minor: `This is to certify that {{name}} {{age}} years old of age, is a bonified resident of {{barangay_name}}, with postal address located at {{address}}.
+
+This Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.
+
+Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
+      indigency: `This is to certify that {{name}} is a bonafide resident of {{barangay_name}} with postal address {{address}}.
+
+This further certifies that the said person belongs to indigent families in our Barangay.
+
+This Certification is issued upon the request of the above-named person for {{purpose}} purposes.
+
+Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
+      residency: `This is to certify {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.
+
+This Certification is issued upon the request of the above-mentioned name for {{purpose}} purposes.
+
+Issued this {{date_day_issued}}, City of Manila.`,
+      business: `This is to certify that {{name}} located at {{address}} with Business Style _________________ conducted "__________________" at _________________ today {{date_issued}}.
+
+This Certification is issued upon the request of the above-cited for whatever legal purpose this is intended.
+
+Donation for venue Php 500.00
+
+City Manila, {{date_issued}}.`,
+      business_homeowner: `This is to certify that {{name}} is hereby issued Barangay Clearance for "__________________" entity located at {{address}}. This is under the territorial jurisdiction of {{barangay_name}}.
+
+This certification is issued upon the request of the above-cited person for whatever purposes it may serve.
+
+Issued this {{date_ordinal_issued}}, City of Manila.`,
+      business_contractor: `This is to certify that {{name}} is hereby issued Barangay Clearance for "__________________" entity located along {{address}} Under the territorial jurisdiction of {{barangay_name}}.
+
+This certification is issued upon the request of the above-cited name for whatever legal purpose this is intended.
+
+City of Manila, {{date_issued}}.`,
+      osca: `This is to certify that {{name}} is bonafide resident of {{barangay_name}}, with postal address at {{address}}.
+
+This Certification is issued upon the request of the above cited person for <strong>OSCA ID application</strong> purposes.
+
+City of Manila, {{date_issued}}.`
     }
   })
 
@@ -65,12 +120,58 @@ export default function SystemConfig() {
         contactNumber: systemConfig.contactNumber || "",
         emailAddress: systemConfig.emailAddress || "",
         barangayCaptainName: systemConfig.barangayCaptainName || "",
-        templates: systemConfig.templates || {
-          clearance: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBrgy. Clearance No.: {{clearance_number}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}}, of legal age, is a bonafide resident of this barangay with address at {{address}}.\n\nThis certification is issued upon the request of the above-named person for {{purpose}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
-          indigency: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}} is a bonafide resident of this barangay and is considered indigent.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
-          residency: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nTO WHOM IT MAY CONCERN:\n\nThis is to certify that {{resident_name}} is a bonafide resident of this barangay with address at {{address}}.\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
-          business: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nBUSINESS CLEARANCE\n\nIssued to: {{resident_name}}\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`,
-          jobseeker: `Republic of the Philippines\n{{barangay_name}}\n{{municipality}}, {{province}}\n\nFIRST TIME JOB SEEKER\n\nIssued to: {{resident_name}}\n\nIssued this {{date_issued}}.\n\n{{captain_name}}\nBarangay Captain`
+        templates: {
+          funeral: `This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.
+
+This Certification is issued upon the request of the above-named person for FUNERAL ASSISTANCE purposes.
+
+City of Manila, {{date_issued}}.`,
+          pwd_adult: `This is to certify that {{name}} is a bonified resident and registered voter of {{barangay_name}}, with postal address located at {{address}}.
+
+This Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.
+
+Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
+          pwd_minor: `This is to certify that {{name}} {{age}} years old of age, is a bonified resident of {{barangay_name}}, with postal address located at {{address}}.
+
+This Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.
+
+Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
+          indigency: `This is to certify that {{name}} is a bonafide resident of {{barangay_name}} with postal address {{address}}.
+
+This further certifies that the said person belongs to indigent families in our Barangay.
+
+This Certification is issued upon the request of the above-named person for {{purpose}} purposes.
+
+Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
+          residency: `This is to certify {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.
+
+This Certification is issued upon the request of the above-mentioned name for {{purpose}} purposes.
+
+Issued this {{date_day_issued}}, City of Manila.`,
+          business: `This is to certify that {{name}} located at {{address}} with Business Style _________________ conducted "__________________" at _________________ today {{date_issued}}.
+
+This Certification is issued upon the request of the above-cited for whatever legal purpose this is intended.
+
+Donation for venue Php 500.00
+
+City Manila, {{date_issued}}.`,
+          business_homeowner: `This is to certify that {{name}} is hereby issued Barangay Clearance for "__________________" entity located at {{address}}. This is under the territorial jurisdiction of {{barangay_name}}.
+
+This certification is issued upon the request of the above-cited person for whatever purposes it may serve.
+
+Issued this {{date_ordinal_issued}}, City of Manila.`,
+          business_contractor: `This is to certify that {{name}} is hereby issued Barangay Clearance for "__________________" entity located along {{address}} Under the territorial jurisdiction of {{barangay_name}}.
+
+This certification is issued upon the request of the above-cited name for whatever legal purpose this is intended.
+
+City of Manila, {{date_issued}}.`,
+          osca: `This is to certify that {{name}} is bonafide resident of {{barangay_name}}, with postal address at {{address}}.
+
+This Certification is issued upon the request of the above cited person for <strong>OSCA ID application</strong> purposes.
+
+City of Manila, {{date_issued}}.`,
+          // merge any saved Firebase templates on top of defaults
+          ...(systemConfig.templates || {})
         }
       })
     }
@@ -83,29 +184,45 @@ export default function SystemConfig() {
   ]
 
   const templates = [
-    { id: "clearance", name: "Barangay Clearance", lastEdited: "2 days ago" },
-    { id: "indigency", name: "Certificate of Indigency", lastEdited: "5 days ago" },
-    { id: "residency", name: "Certificate of Residency", lastEdited: "1 week ago" },
-    { id: "business", name: "Business Clearance", lastEdited: "2 weeks ago" },
-    { id: "jobseeker", name: "First Time Job Seeker", lastEdited: "3 weeks ago" },
+    { id: "funeral", name: "Funeral Certification", lastEdited: "1 day ago" },
+    { id: "pwd_adult", name: "PWD Certification (Adult)", lastEdited: "1 day ago" },
+    { id: "pwd_minor", name: "PWD Certification (Minor)", lastEdited: "1 day ago" },
+    { id: "indigency", name: "Certificate of Indigency", lastEdited: "1 day ago" },
+    { id: "residency", name: "Proof of Residency", lastEdited: "1 day ago" },
+    { id: "business", name: "Business Clearance", lastEdited: "1 day ago" },
+    { id: "business_homeowner", name: "Business Clearance (Homeowner)", lastEdited: "1 day ago" },
+    { id: "business_contractor", name: "Business Clearance (Contractor)", lastEdited: "1 day ago" },
+    { id: "osca", name: "OSCA Certification", lastEdited: "1 day ago" },
+    ...(systemConfig.customDocumentTypes || []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      lastEdited: "Custom"
+    }))
   ]
 
   const documentTypesList = [
-    { name: "Barangay Clearance", requests: documentRequests.filter(r => r.documentType === "Barangay Clearance").length },
+    { name: "Funeral Certification", requests: documentRequests.filter(r => r.documentType === "Funeral Certification").length },
+    { name: "PWD Certification (Adult)", requests: documentRequests.filter(r => r.documentType === "PWD Certification (Adult)").length },
+    { name: "PWD Certification (Minor)", requests: documentRequests.filter(r => r.documentType === "PWD Certification (Minor)").length },
     { name: "Certificate of Indigency", requests: documentRequests.filter(r => r.documentType === "Certificate of Indigency").length },
-    { name: "Certificate of Residency", requests: documentRequests.filter(r => r.documentType === "Certificate of Residency").length },
+    { name: "Proof of Residency", requests: documentRequests.filter(r => r.documentType === "Proof of Residency").length },
     { name: "Business Clearance", requests: documentRequests.filter(r => r.documentType === "Business Clearance").length },
-    { name: "First Time Job Seeker", requests: documentRequests.filter(r => r.documentType === "First Time Job Seeker").length },
-    { name: "Community Tax Certificate", requests: documentRequests.filter(r => r.documentType === "Community Tax Certificate").length },
+    { name: "Business Clearance (Homeowner)", requests: documentRequests.filter(r => r.documentType === "Business Clearance (Homeowner)").length },
+    { name: "Business Clearance (Contractor)", requests: documentRequests.filter(r => r.documentType === "Business Clearance (Contractor)").length },
+    { name: "OSCA Certification", requests: documentRequests.filter(r => r.documentType === "OSCA Certification").length },
+    ...(systemConfig.customDocumentTypes || []).map((c: any) => ({
+      name: c.name,
+      requests: documentRequests.filter(r => r.documentType === c.name).length
+    }))
   ]
 
-  const currentDocumentTypes = systemConfig.documentTypes !== undefined ? systemConfig.documentTypes : ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency", "Business Clearance", "First Time Job Seeker"];
+  const currentDocumentTypes = systemConfig.documentTypes !== undefined ? systemConfig.documentTypes : ["Funeral Certification", "PWD Certification (Adult)", "PWD Certification (Minor)", "Certificate of Indigency", "Proof of Residency", "Business Clearance", "Business Clearance (Homeowner)", "Business Clearance (Contractor)", "OSCA Certification"];
   const currentDocumentFees = systemConfig.documentFees || {};
 
   const documentTypes = documentTypesList.map(d => ({
     ...d,
     enabled: currentDocumentTypes.includes(d.name),
-    fee: currentDocumentFees[d.name] ?? (d.name === "Certificate of Indigency" || d.name === "First Time Job Seeker" || d.name === "Community Tax Certificate" ? 0 : d.name === "Business Clearance" ? 150 : 50)
+    fee: currentDocumentFees[d.name] ?? (d.name === "Proof of Residency" ? 50 : d.name.includes("Business") ? 150 : 0)
   }))
 
 
@@ -113,13 +230,44 @@ export default function SystemConfig() {
 
   const handleSaveAllChanges = async () => {
     if (isSavingChanges) return
-
     setIsSavingChanges(true)
     updateConfig(formData)
     await delay(500)
     setShowSaveDialog(false)
     setIsSavingChanges(false)
     showToastPreset("configSaved")
+  }
+
+  const handleAddDocType = async () => {
+    if (!newDocName.trim()) return
+    setIsAddingDoc(true)
+    const docId = newDocName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")
+    const newDocTypes = [...currentDocumentTypes, newDocName.trim()]
+    const newFees = { ...currentDocumentFees, [newDocName.trim()]: parseFloat(newDocFee) || 0 }
+    const newCustomDocTypes = [
+      ...(systemConfig.customDocumentTypes || []),
+      { id: docId, name: newDocName.trim(), icon: newDocIcon, fee: parseFloat(newDocFee) || 0, header: newDocHeader }
+    ]
+    const newTemplates = { ...(systemConfig.templates || {}), [docId]: newDocTemplate }
+    await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
+    setFormData(prev => ({ ...prev, templates: { ...prev.templates, [docId]: newDocTemplate } }))
+    setShowAddDocModal(false)
+    setNewDocName("")
+    setNewDocIcon("📄")
+    setNewDocFee("0")
+    setNewDocHeader("C E R T I F I C A T I O N")
+    setNewDocTemplate("This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}.")
+    setIsAddingDoc(false)
+  }
+
+  const handleDeleteDocType = async (docName: string, docId: string) => {
+    const newDocTypes = currentDocumentTypes.filter(t => t !== docName)
+    const newFees = { ...currentDocumentFees }
+    delete newFees[docName]
+    const newCustomDocTypes = (systemConfig.customDocumentTypes || []).filter((d: any) => d.name !== docName)
+    const newTemplates = { ...(systemConfig.templates || {}) }
+    delete newTemplates[docId]
+    await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
   }
 
   return (
@@ -303,14 +451,21 @@ export default function SystemConfig() {
             </div>
           </div>
           <div className="divide-y divide-slate-100">
-            {documentTypes.map((doc) => (
+            {documentTypes.map((doc) => {
+              const customEntry = (systemConfig.customDocumentTypes || []).find((c: any) => c.name === doc.name)
+              const docId = customEntry?.id || doc.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+              const isBuiltIn = ["Funeral Certification","PWD Certification (Adult)","PWD Certification (Minor)","Certificate of Indigency","Proof of Residency","Business Clearance","Business Clearance (Homeowner)","Business Clearance (Contractor)","OSCA Certification"].includes(doc.name)
+              return (
               <div key={doc.name} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
                   <div className="col-span-4 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-[#0C2340]" />
+                      <span className="text-sm">{customEntry?.icon || "📄"}</span>
                     </div>
-                    <span className="text-sm font-medium text-[#0C2340]">{doc.name}</span>
+                    <div>
+                      <span className="text-sm font-medium text-[#0C2340]">{doc.name}</span>
+                      {!isBuiltIn && <span className="ml-2 text-[9px] bg-[#C5A55A]/20 text-[#C5A55A] font-semibold px-1.5 py-0.5 rounded">Custom</span>}
+                    </div>
                   </div>
                   <div className="col-span-2">
                     <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${doc.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
@@ -345,7 +500,7 @@ export default function SystemConfig() {
                       </div>
                     )}
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-2 flex items-center gap-3">
                     <button 
                       onClick={() => {
                         const isCurrentlyEnabled = currentDocumentTypes.includes(doc.name);
@@ -354,22 +509,99 @@ export default function SystemConfig() {
                           : [...currentDocumentTypes, doc.name];
                         updateConfig({ documentTypes: newTypes });
                       }}
-                      className={`text-sm font-medium ${doc.enabled ? "text-red-500 hover:text-red-600" : "text-emerald-600 hover:text-emerald-700"}`}
+                      className={`text-sm font-medium ${doc.enabled ? "text-amber-500 hover:text-amber-600" : "text-emerald-600 hover:text-emerald-700"}`}
                     >
                       {doc.enabled ? "Disable" : "Enable"}
                     </button>
+                    {!isBuiltIn && (
+                      <button
+                        onClick={() => handleDeleteDocType(doc.name, docId)}
+                        className="text-red-400 hover:text-red-600 transition-colors"
+                        title="Delete this document type"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
           <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between">
             <p className="text-[11px] text-slate-500">
               {documentTypes.filter(d => d.enabled).length} of {documentTypes.length} document types enabled
             </p>
-            <Button variant="outline" className="text-xs bg-transparent">+ Add Document Type</Button>
+            <Button onClick={() => setShowAddDocModal(true)} className="bg-[#0C2340] hover:bg-[#0a1c33] text-xs gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Add Document Type
+            </Button>
           </div>
         </Card>
+      )}
+
+      {/* Add Document Type Modal */}
+      {showAddDocModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-[#0C2340]">Add New Document Type</h3>
+              <button onClick={() => setShowAddDocModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Document Name *</label>
+                <Input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="e.g. Good Moral Certificate" />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-shrink-0">
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Icon</label>
+                  <Input value={newDocIcon} onChange={e => setNewDocIcon(e.target.value)} placeholder="📄" className="w-16 text-center text-lg" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Fee (₱)</label>
+                  <Input type="number" min="0" value={newDocFee} onChange={e => setNewDocFee(e.target.value)} placeholder="0" />
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">PDF Header Title</label>
+              <Input value={newDocHeader} onChange={e => setNewDocHeader(e.target.value)} placeholder="C E R T I F I C A T I O N" />
+              <p className="text-[10px] text-slate-400 mt-1">This is the bold heading that appears at the top of the PDF. E.g. "C E R T I F I C A T I O N" or "BARANGAY CLEARANCE"</p>
+            </div>
+
+            <div className="mb-2">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Template Body</label>
+              <textarea
+                className="w-full h-48 p-4 border border-slate-200 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
+                value={newDocTemplate}
+                onChange={e => setNewDocTemplate(e.target.value)}
+                placeholder="Write the certificate body text here..."
+              />
+            </div>
+            <div className="mb-5 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-[11px] font-semibold text-amber-700 mb-1">Available Placeholders</p>
+              <div className="flex flex-wrap gap-1.5">
+                {["{{name}}","{{age}}","{{address}}","{{barangay_name}}","{{purpose}}","{{date_issued}}","{{date_ordinal_issued}}","{{captain_name}}"].map(ph => (
+                  <button key={ph} onClick={() => setNewDocTemplate(prev => prev + ph)}
+                    className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono hover:bg-amber-200 transition-colors">
+                    {ph}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-amber-600 mt-2">Use <code className="bg-amber-100 px-1 rounded">&lt;strong&gt;text&lt;/strong&gt;</code> to bold specific words in the output.</p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowAddDocModal(false)} disabled={isAddingDoc}>Cancel</Button>
+              <Button onClick={handleAddDocType} className="bg-[#0C2340] hover:bg-[#0a1c33]" disabled={isAddingDoc || !newDocName.trim()}>
+                {isAddingDoc ? "Adding..." : "Add Document Type"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Save Dialog */}

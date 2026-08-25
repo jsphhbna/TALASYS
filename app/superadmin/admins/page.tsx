@@ -221,10 +221,10 @@ export default function AdminManagement() {
   }
 
   const kpis = [
-    { label: "Total Admins", value: adminAccounts.length, icon: Users, color: "#0C2340", spark: [3, 3, 4, 4, 5, 5], change: +25 },
-    { label: "Active", value: activeCount, icon: ShieldCheck, color: "#10b981", spark: [2, 3, 3, 3, 4, 4], change: +33 },
-    { label: "Locked", value: lockedCount, icon: Lock, color: "#ef4444", spark: [1, 1, 0, 1, 1, 1], change: 0 },
-    { label: "Online Now", value: onlineCount, icon: Wifi, color: "#3b82f6", spark: [1, 2, 3, 2, 3, 3], change: +50 },
+    { label: "Total Admins", value: adminAccounts.length, icon: Users, color: "#0C2340", spark: Array(6).fill(adminAccounts.length), change: 0 },
+    { label: "Active", value: activeCount, icon: ShieldCheck, color: "#10b981", spark: Array(6).fill(activeCount), change: 0 },
+    { label: "Locked", value: lockedCount, icon: Lock, color: "#ef4444", spark: Array(6).fill(lockedCount), change: 0 },
+    { label: "Online Now", value: onlineCount, icon: Wifi, color: "#3b82f6", spark: Array(6).fill(onlineCount), change: 0 },
   ]
 
   if (!mounted) {
@@ -325,7 +325,7 @@ export default function AdminManagement() {
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
                   <span className="text-slate-600">{r.name}</span>
                 </span>
-                <span className="font-semibold text-[#0C2340]">{r.value}</span>
+                <span className="font-semibold text-[#0C2340]">{r.name === "No Data" ? "-" : r.value}</span>
               </div>
             ))}
           </div>

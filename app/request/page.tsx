@@ -13,7 +13,7 @@ import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useResidentData } from "@/hooks/use-resident-data"
 
-type DocumentType = "clearance" | "indigency" | "residency"
+type DocumentType = "funeral" | "pwd_adult" | "pwd_minor" | "indigency" | "residency" | "business" | "business_homeowner" | "business_contractor" | "osca"
 type RequestFor = "myself" | "other"
 
 interface DocumentOption {
@@ -25,39 +25,27 @@ interface DocumentOption {
 }
 
 const documentTypes: DocumentOption[] = [
-  {
-    id: "clearance",
-    icon: "📄",
-    title: "Barangay Clearance",
-    description: "For employment, business, or legal purposes",
-    fee: 50,
-  },
-  {
-    id: "indigency",
-    icon: "📋",
-    title: "Certificate of Indigency",
-    description: "For medical or financial assistance programs",
-    fee: 0,
-  },
-  {
-    id: "residency",
-    icon: "🏠",
-    title: "Certificate of Residency",
-    description: "Proof of residence for banking or government use",
-    fee: 50,
-  },
+  { id: "funeral", icon: "🕊️", title: "Funeral Certification", description: "Certification for funeral assistance", fee: 0 },
+  { id: "pwd_adult", icon: "♿", title: "PWD Certification (Adult)", description: "For PWD application purposes (Adult)", fee: 0 },
+  { id: "pwd_minor", icon: "🚸", title: "PWD Certification (Minor)", description: "For PWD application purposes (Minor)", fee: 0 },
+  { id: "indigency", icon: "📋", title: "Certificate of Indigency", description: "For medical or financial assistance", fee: 0 },
+  { id: "residency", icon: "🏠", title: "Proof of Residency", description: "Proof of residence for various purposes", fee: 50 },
+  { id: "business", icon: "🏢", title: "Business Clearance", description: "General business clearance or activity", fee: 150 },
+  { id: "business_homeowner", icon: "🏡", title: "Business Clearance (Homeowner)", description: "Business clearance for homeowners", fee: 150 },
+  { id: "business_contractor", icon: "👷", title: "Business Clearance (Contractor)", description: "Business clearance for contractors", fee: 150 },
+  { id: "osca", icon: "👵", title: "OSCA Certification", description: "For Senior Citizen ID application", fee: 0 },
 ]
 
 const purposeOptions: Record<DocumentType, string[]> = {
-  clearance: [
-    "Employment / Job Application",
-    "Business Permit",
-    "Bank Transaction / Loan",
-    "Travel / Visa Application",
-    "Other",
-  ],
-  indigency: ["Medical Assistance", "Financial Aid", "Educational Support", "Housing Program", "Other"],
-  residency: ["Bank Loan", "Business Registration", "Government Transaction", "School Enrollment", "Other"],
+  funeral: ["Funeral Assistance", "Other"],
+  pwd_adult: ["PWD Application", "Other"],
+  pwd_minor: ["PWD Application", "Other"],
+  indigency: ["Medical Assistance", "Financial Aid", "Educational Support", "Other"],
+  residency: ["Bank Transaction", "Employment", "School Requirement", "Other"],
+  business: ["Business Application", "Activity/Event", "Other"],
+  business_homeowner: ["Business Application", "Other"],
+  business_contractor: ["Contractor Registration", "Other"],
+  osca: ["OSCA ID Application", "Other"],
 }
 
 function RequestDocumentContent() {
@@ -141,18 +129,32 @@ function RequestDocumentContent() {
   }
 
   // Inject dynamic fees from SystemConfig and filter by enabled types
-  const dynamicDocumentTypes = documentTypes.map(doc => {
+  const baseDocTypes = documentTypes.map(doc => {
     const dynamicFee = systemConfig?.documentFees?.[doc.title]
     return {
       ...doc,
       fee: dynamicFee !== undefined ? dynamicFee : doc.fee
     }
-  }).filter(doc => {
-    // If systemConfig is loaded, only show types that are enabled
-    if (systemConfig?.documentTypes) {
-      return systemConfig.documentTypes.includes(doc.title)
+  })
+
+  // Append custom doc types from superadmin
+  const customDocOptions: DocumentOption[] = (systemConfig?.customDocumentTypes || []).map((c: any) => ({
+    id: c.id as DocumentType,
+    icon: c.icon || "📄",
+    title: c.name,
+    description: "Custom document type",
+    fee: systemConfig?.documentFees?.[c.name] ?? c.fee ?? 0,
+  }))
+
+  const allAvailableDocTypes = [...baseDocTypes, ...customDocOptions]
+
+  const dynamicDocumentTypes = allAvailableDocTypes.map(doc => {
+    let enabled = true;
+    // If systemConfig is explicitly loaded and documentTypes is set, use it for filtering
+    if (systemConfig && systemConfig.documentTypes !== undefined) {
+      enabled = systemConfig.documentTypes.includes(doc.title)
     }
-    return true // fallback if not loaded yet
+    return { ...doc, enabled }
   })
 
   const selectedDoc = dynamicDocumentTypes.find((doc) => doc.id === selectedType)
@@ -172,18 +174,23 @@ function RequestDocumentContent() {
           {dynamicDocumentTypes.map((doc) => (
             <Card
               key={doc.id}
-              onClick={() => setSelectedType(doc.id)}
-              className={`p-6 cursor-pointer transition-all border-2 hover:shadow-md ${selectedType === doc.id
+              onClick={() => doc.enabled && setSelectedType(doc.id)}
+              className={`p-6 transition-all border-2 ${doc.enabled ? "cursor-pointer hover:shadow-md hover:border-slate-300" : "opacity-60 cursor-not-allowed bg-slate-50"} ${selectedType === doc.id
                 ? "border-[#0C2340] bg-[#0C2340]/[0.02] shadow-sm"
-                : "border-transparent hover:border-slate-200"
+                : "border-transparent"
                 }`}
             >
-              <div className="relative">
-                <div className="text-3xl mb-4">{doc.icon}</div>
+              <div className="relative h-full flex flex-col">
+                <div className="text-3xl mb-4" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</div>
                 <p className="text-sm font-semibold text-[#0C2340] mb-1">{doc.title}</p>
-                <p className="text-[11px] text-slate-600 leading-relaxed">{doc.description}</p>
-                {selectedType === doc.id && (
-                  <div className="absolute top-3 right-3 w-6 h-6 bg-[#0C2340] rounded-full flex items-center justify-center">
+                <p className="text-[11px] text-slate-600 leading-relaxed flex-grow">{doc.description}</p>
+                {!doc.enabled && (
+                  <div className="mt-4 self-start inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-600 text-[10px] font-semibold">
+                    Temporarily Unavailable
+                  </div>
+                )}
+                {selectedType === doc.id && doc.enabled && (
+                  <div className="absolute top-0 right-0 w-6 h-6 bg-[#0C2340] rounded-full flex items-center justify-center">
                     <span className="text-white text-xs">✓</span>
                   </div>
                 )}
@@ -481,6 +488,17 @@ function RequestDocumentContent() {
             )}
 
             {/* Processing Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+              <p className="text-xs text-blue-900">
+                ℹ Processing time: 1-3 business days. You will receive a notification when your document is ready.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+    </>
+  )
+}
 
 export default function RequestDocumentPage() {
   const { isAuthorized, user } = useAuthGuard()
@@ -525,8 +543,10 @@ export default function RequestDocumentPage() {
   }
 
   return (
-    <Suspense fallback={<ResidentPageShell>Loading...</ResidentPageShell>}>
-      <RequestDocumentContent />
-    </Suspense>
+    <ResidentPageShell>
+      <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading request form...</div>}>
+        <RequestDocumentContent />
+      </Suspense>
+    </ResidentPageShell>
   )
 }

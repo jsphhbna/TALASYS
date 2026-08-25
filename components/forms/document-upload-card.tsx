@@ -70,7 +70,8 @@ export function DocumentUploadCard({
               id={inputId}
               onChange={(e) => onFileChange(e.target.files?.[0] || null)}
               className="hidden"
-              accept=".pdf,.jpg,.png"
+              accept="image/*"
+              capture="environment"
             />
             <label htmlFor={inputId} className="cursor-pointer text-xs text-slate-600">
               {emptyHint}

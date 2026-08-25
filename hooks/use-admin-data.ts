@@ -292,36 +292,41 @@ export function useAdminData() {
         // Document Requests
         addDocumentRequest: useCallback(async () => { throw new Error("Residents only.") }, []),
         updateRequestStatus: useCallback(async (id: string, status: "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected", reason?: string, adminName?: string, adminEmail?: string) => {
-            if (status === "Rejected" && (!reason || reason.trim().length < 10)) {
-                throw new Error("Rejection requires a reason of at least 10 characters.");
-            }
-
-            await updateDoc(doc(db, "documentRequests", id), { status, ...(reason ? { rejectReason: reason } : {}) })
-            
-            // Optionally, add a notification for the resident here.
-            const req = documentRequests.find(r => r.id === id)
-            if (req && req.residentId) {
-                await addDoc(collection(db, "notifications"), {
-                    targetId: req.residentId,
-                    type: status === "Rejected" ? "error" : "info",
-                    title: `Document ${status}`,
-                    message: `Your request for ${req.documentType} is now ${status}.${reason ? ` Reason: ${reason}` : ""}`,
-                    timestamp: "Just now",
-                    isRead: false,
-                    createdAt: Date.now()
-                })
-
-                if (adminName) {
-                    await addDoc(collection(db, "activityLogs"), {
-                        admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: status === "Rejected" ? "#ef4444" : "#10b981" },
-                        actionType: status.toLowerCase(),
-                        action: `Updated Document Status`,
-                        details: `Updated ${req.documentType} to ${status} for ${req.residentName}.${reason ? ` Reason: ${reason}` : ""}`,
-                        date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
-                        time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                        timestamp: Date.now().toString()
-                    })
+            try {
+                if (status === "Rejected" && (!reason || reason.trim().length < 10)) {
+                    throw new Error("Rejection requires a reason of at least 10 characters.");
                 }
+
+                await updateDoc(doc(db, "documentRequests", id), { status, ...(reason ? { rejectReason: reason } : {}) })
+                
+                // Optionally, add a notification for the resident here.
+                const req = documentRequests.find(r => r.id === id)
+                if (req && req.residentId) {
+                    await addDoc(collection(db, "notifications"), {
+                        targetId: req.residentId,
+                        type: status === "Rejected" ? "error" : "info",
+                        title: `Document ${status}`,
+                        message: `Your request for ${req.documentType} is now ${status}.${reason ? ` Reason: ${reason}` : ""}`,
+                        timestamp: "Just now",
+                        isRead: false,
+                        createdAt: Date.now()
+                    })
+
+                    if (adminName) {
+                        await addDoc(collection(db, "activityLogs"), {
+                            admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: status === "Rejected" ? "#ef4444" : "#10b981" },
+                            actionType: status.toLowerCase(),
+                            action: `Updated Document Status`,
+                            details: `Updated ${req.documentType} to ${status} for ${req.residentName}.${reason ? ` Reason: ${reason}` : ""}`,
+                            date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
+                            time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                            timestamp: Date.now().toString()
+                        })
+                    }
+                }
+            } catch (error: any) {
+                console.error("Error updating document request:", error)
+                throw error
             }
         }, [documentRequests]),
         deleteDocumentRequest: useCallback(async (id: string) => {

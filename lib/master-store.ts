@@ -62,6 +62,7 @@ export interface ResidentProofDocument {
   id: string
   name: string
   filename: string
+  url?: string
   uploadDate: string
   status: "Valid" | "Pending" | "Expired"
 }

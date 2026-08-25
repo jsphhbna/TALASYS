@@ -2,6 +2,9 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { parseIdImage } from "@/lib/ocr-parser"
+import { ScanFace, Loader2 } from "lucide-react"
+import { useState, useRef } from "react"
 
 const BARANGAY_OPTIONS = [
   "Barangay 1", "Barangay 2", "Barangay 3", "Barangay 4", "Barangay 5",
@@ -39,6 +42,7 @@ interface RegisterStepOneFormProps {
   canContinue: boolean
   isContinuing: boolean
   onContinue: () => void
+  onIdScan?: (file: File, data: { firstName: string, lastName: string, dateOfBirth: string }) => void
 }
 
 export function RegisterStepOneForm({
@@ -52,11 +56,68 @@ export function RegisterStepOneForm({
   canContinue,
   isContinuing,
   onContinue,
+  onIdScan,
 }: RegisterStepOneFormProps) {
   const contactDigits = formData.contactNumber.replace(/\s/g, "")
+  const [isScanning, setIsScanning] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleIdScanClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsScanning(true)
+    try {
+      const data = await parseIdImage(file)
+      if (onIdScan) {
+        onIdScan(file, data)
+      }
+    } catch (error) {
+      console.error(error)
+      alert("Failed to scan ID. Please type your information manually.")
+    } finally {
+      setIsScanning(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "" // Reset input
+      }
+    }
+  }
 
   return (
     <div className="space-y-4">
+      {/* OCR Scanner Option */}
+      <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h4 className="text-sm font-semibold text-[#0C2340]">Scan ID to Auto-fill (Optional)</h4>
+          <p className="text-xs text-slate-500 mt-1">Upload a clear photo of your Valid ID (or School ID for minors) to automatically fill in your name and birthday.</p>
+        </div>
+        <Button 
+          variant="outline" 
+          type="button" 
+          onClick={handleIdScanClick}
+          disabled={isScanning}
+          className="whitespace-nowrap border-slate-300 hover:bg-slate-200"
+        >
+          {isScanning ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Scanning...</>
+          ) : (
+            <><ScanFace className="w-4 h-4 mr-2" /> Upload ID</>
+          )}
+        </Button>
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          className="hidden" 
+          accept="image/*" 
+          capture="environment"
+          onChange={handleFileSelected} 
+        />
+      </div>
+
       {/* Name Fields */}
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
         <div className="sm:col-span-5">
@@ -130,34 +191,7 @@ export function RegisterStepOneForm({
           className="w-full"
         />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">Barangay *</label>
-          <Select value={formData.barangay} onValueChange={(v) => onInputChange("barangay", v)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select barangay" />
-            </SelectTrigger>
-            <SelectContent>
-              {BARANGAY_OPTIONS.map((b) => (
-                <SelectItem key={b} value={b}>{b}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">City / Municipality *</label>
-          <Select value={formData.city} onValueChange={(v) => onInputChange("city", v)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select city" />
-            </SelectTrigger>
-            <SelectContent>
-              {CITY_OPTIONS.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+
 
       <div>
         <label className="block text-sm font-semibold text-slate-700 mb-1.5">

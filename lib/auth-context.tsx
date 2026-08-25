@@ -80,6 +80,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                setIsReady(true)
                return
             }
+
+            // Enforce Email Verification for Residents
+            if (userData.role === "resident" && !firebaseUser.emailVerified) {
+               const { signOut: firebaseSignOut } = await import("firebase/auth")
+               await firebaseSignOut(auth)
+               setUser(null)
+               setIsReady(true)
+               return
+            }
             
             setUser(userData)
             initializeFirebaseStorage(userData.role, userData.id)
@@ -170,6 +179,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await firebaseSignOut(auth)
           return { _error: "This account has been permanently deleted by an administrator." } as any
         }
+
+        // Enforce Email Verification for Residents
+        if (userData.role === "resident" && !userCredential.user.emailVerified) {
+          const { sendEmailVerification } = await import("firebase/auth")
+          try {
+            await sendEmailVerification(userCredential.user)
+          } catch (e) {
+            console.error("Failed to resend verification:", e)
+          }
+          await firebaseSignOut(auth)
+          return { _error: "Please verify your email address before logging in. A new verification link has been sent to your email." } as any
+        }
       } else {
         console.log("[DEBUG LOGIN] User doc DOES NOT EXIST for UID:", userCredential.user.uid)
         
@@ -196,7 +217,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData)
       return userData
     } catch (error: any) {
-      console.error("Firebase Login Error:", error)
       // Return a special object containing the error message so the UI can display it
       return { _error: error.message || "An unknown error occurred during login." } as any
     }

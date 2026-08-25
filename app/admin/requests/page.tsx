@@ -17,16 +17,36 @@ export default function DocumentRequests() {
   const now = Date.now()
   const dayMs = 1000 * 60 * 60 * 24
 
+  const colorPalette = ["#0C2340", "#2563eb", "#C5A55A", "#10b981", "#f59e0b", "#6366f1", "#ec4899"];
+  
+  const requestCounts = adminDocumentRequests.reduce((acc, req) => {
+    const shortName = req.documentType.replace("Certificate of ", "").replace("Barangay ", "");
+    acc[shortName] = (acc[shortName] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const rawTypeDistribution = Object.entries(requestCounts)
+    .map(([name, value], idx) => ({
+      name,
+      value,
+      color: colorPalette[idx % colorPalette.length]
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  const top3Types = rawTypeDistribution.slice(0, 3).map(t => t.name);
+
   const requestTypeTrend = Array.from({ length: 6 }).map((_, i) => {
     const start = now - (5 - i) * 30 * dayMs;
     const end = start + 30 * dayMs;
     const reqs = adminDocumentRequests.filter(r => r.createdAt >= start && r.createdAt < end);
-    return {
-      month: new Date(start).toLocaleDateString('en-US', { month: 'short' }),
-      clearance: reqs.filter(r => r.documentType.includes("Clearance")).length,
-      residency: reqs.filter(r => r.documentType.includes("Residency")).length,
-      indigency: reqs.filter(r => r.documentType.includes("Indigency")).length
-    }
+    
+    const dataPoint: any = { month: new Date(start).toLocaleDateString('en-US', { month: 'short' }) };
+    
+    top3Types.forEach(type => {
+      dataPoint[type] = reqs.filter(r => r.documentType.replace("Certificate of ", "").replace("Barangay ", "") === type).length;
+    });
+    
+    return dataPoint;
   });
   const [activeFilter, setActiveFilter] = useState("all")
   const [showApproveDialog, setShowApproveDialog] = useState(false)
@@ -36,11 +56,13 @@ export default function DocumentRequests() {
   const [rejectReason, setRejectReason] = useState("")
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
 
+  const uniqueTypes = Array.from(new Set(adminDocumentRequests.map(r => r.documentType)));
   const filters = [
     { id: "all", label: "All Requests" },
-    { id: "Barangay Clearance", label: "Clearance" },
-    { id: "Certificate of Residency", label: "Residency" },
-    { id: "Certificate of Indigency", label: "Indigency" },
+    ...uniqueTypes.map(type => ({
+      id: type,
+      label: type.replace("Certificate of ", "").replace("Barangay ", "")
+    }))
   ]
 
   const filteredRequests = adminDocumentRequests.filter(r =>
@@ -51,11 +73,10 @@ export default function DocumentRequests() {
   const approvedCount = adminDocumentRequests.filter(r => r.status === "Approved").length
   const rejectedCount = adminDocumentRequests.filter(r => r.status === "Rejected").length
 
-  const typeDistribution = [
-    { name: "Clearance", value: adminDocumentRequests.filter(r => r.documentType.includes("Clearance")).length, color: "#0C2340" },
-    { name: "Residency", value: adminDocumentRequests.filter(r => r.documentType.includes("Residency")).length, color: "#2563eb" },
-    { name: "Indigency", value: adminDocumentRequests.filter(r => r.documentType.includes("Indigency")).length, color: "#C5A55A" },
-  ]
+  const typeDistribution = rawTypeDistribution.filter(c => c.value > 0);
+  if (typeDistribution.length === 0) {
+    typeDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9" });
+  }
 
   return (
     <AdminPageShell>
@@ -82,19 +103,21 @@ export default function DocumentRequests() {
             </Card>
           ))}
         </div>
-        <Card className="col-span-4 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Request Trend</h3>
-          <ResponsiveContainer width="100%" height={110}>
-            <AreaChart data={requestTypeTrend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="month" tick={{ fontSize: 9 }} stroke="#94a3b8" />
-              <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" />
+        <Card className="col-span-4 p-4 shadow-sm flex flex-col">
+          <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-4">Request Trend</h3>
+          <div className="flex-1 min-h-[140px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={requestTypeTrend} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 9 }} stroke="#94a3b8" axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ fontSize: 10, borderRadius: 8 }} />
-              <Area type="monotone" dataKey="clearance" stroke="#0C2340" fill="#0C2340" fillOpacity={0.08} strokeWidth={1.5} />
-              <Area type="monotone" dataKey="residency" stroke="#2563eb" fill="#2563eb" fillOpacity={0.06} strokeWidth={1.5} />
-              <Area type="monotone" dataKey="indigency" stroke="#C5A55A" fill="#C5A55A" fillOpacity={0.06} strokeWidth={1.5} />
+              {top3Types.map((type, idx) => (
+                <Area key={type} type="monotone" dataKey={type} stroke={colorPalette[idx % colorPalette.length]} fill={colorPalette[idx % colorPalette.length]} fillOpacity={0.06} strokeWidth={1.5} />
+              ))}
             </AreaChart>
           </ResponsiveContainer>
+          </div>
         </Card>
         <Card className="col-span-3 p-4 shadow-sm">
           <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Type Distribution</h3>
@@ -113,8 +136,8 @@ export default function DocumentRequests() {
               {typeDistribution.map((t, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
-                  <span className="text-[10px] text-slate-600">{t.name}</span>
-                  <span className="text-[10px] font-bold text-[#0C2340]">{t.value}</span>
+                  <span className="text-[10px] text-slate-600 truncate max-w-[80px]" title={t.name}>{t.name}</span>
+                  <span className="text-[10px] font-bold text-[#0C2340] ml-auto">{t.name === "No Data" ? "-" : t.value}</span>
                 </div>
               ))}
             </div>
@@ -202,10 +225,26 @@ export default function DocumentRequests() {
                         </>
                       )}
                       {(request.status === "On Process" || request.status === "Approved") && (
-                        <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com") }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Mark Ready</Button>
+                        <Button size="sm" onClick={async (e) => { 
+                          e.stopPropagation(); 
+                          try {
+                            await updateRequestStatus(request.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com")
+                            toast.success("Status updated to Ready for Pick Up")
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to update status")
+                          }
+                        }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Mark Ready</Button>
                       )}
                       {request.status === "Ready for Pick Up" && (
-                        <Button size="sm" onClick={(e) => { e.stopPropagation(); updateRequestStatus(request.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com") }} className="h-6 px-3 text-[10px] bg-[#0C2340] hover:bg-[#1a3a5c]">Complete</Button>
+                        <Button size="sm" onClick={async (e) => { 
+                          e.stopPropagation(); 
+                          try {
+                            await updateRequestStatus(request.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com")
+                            toast.success("Status updated to Completed")
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to update status")
+                          }
+                        }} className="h-6 px-3 text-[10px] bg-[#0C2340] hover:bg-[#1a3a5c]">Complete</Button>
                       )}
                     </>
                   )}
@@ -278,8 +317,24 @@ export default function DocumentRequests() {
               <p className="text-sm text-slate-600 mb-4">Approve <strong>{selectedRequest.documentType}</strong> for <strong>{selectedRequest.residentName}</strong>?</p>
               <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
-                  <Button onClick={() => { updateRequestStatus(selectedRequest.id, "On Process", undefined, user?.name || "Admin", user?.email || "admin@system.com"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-blue-600 hover:bg-blue-700">Mark On Process</Button>
-                  <Button onClick={() => { updateRequestStatus(selectedRequest.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com"); setShowApproveDialog(false) }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Mark Ready for Pick Up</Button>
+                  <Button onClick={async () => { 
+                    try {
+                      await updateRequestStatus(selectedRequest.id, "On Process", undefined, user?.name || "Admin", user?.email || "admin@system.com"); 
+                      setShowApproveDialog(false);
+                      toast.success("Status updated to On Process")
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to update status")
+                    }
+                  }} className="flex-1 h-10 bg-blue-600 hover:bg-blue-700">Mark On Process</Button>
+                  <Button onClick={async () => { 
+                    try {
+                      await updateRequestStatus(selectedRequest.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com"); 
+                      setShowApproveDialog(false);
+                      toast.success("Status updated to Ready for Pick Up")
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to update status")
+                    }
+                  }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Mark Ready for Pick Up</Button>
                 </div>
                 <Button variant="outline" onClick={() => setShowApproveDialog(false)} className="w-full h-10 bg-transparent">Cancel</Button>
               </div>
@@ -310,7 +365,15 @@ export default function DocumentRequests() {
               </p>
               <div className="flex gap-3">
                 <Button
-                  onClick={() => { updateRequestStatus(selectedRequest.id, "Rejected", rejectReason, user?.name || "Admin", user?.email || "admin@system.com"); setShowRejectDialog(false) }}
+                  onClick={async () => { 
+                    try {
+                      await updateRequestStatus(selectedRequest.id, "Rejected", rejectReason, user?.name || "Admin", user?.email || "admin@system.com"); 
+                      setShowRejectDialog(false);
+                      toast.success("Status updated to Rejected")
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to reject status")
+                    }
+                  }}
                   disabled={rejectReason.trim().length < 10}
                   className="flex-1 h-10 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
                   Confirm Reject

@@ -49,11 +49,23 @@ export default function CategoryReports() {
     { id: "all", name: "Full Population", icon: "👥", count: stats.totalResidents, color: "bg-purple-50", iconBg: "bg-purple-100" },
   ]
 
-  const categoryDistribution = [
+  const rawCategoryDistribution = [
     { name: "Senior", value: stats.seniorCount, color: "#2563eb" },
     { name: "Minor", value: stats.minorCount, color: "#d97706" },
     { name: "Adult", value: stats.adultCount, color: "#16a34a" },
   ]
+  const categoryDistribution = rawCategoryDistribution.filter(c => c.value > 0)
+  if (categoryDistribution.length === 0) {
+    categoryDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9" })
+  }
+
+  const largestCategory = rawCategoryDistribution.sort((a, b) => b.value - a.value)[0]
+  const largestName = largestCategory && largestCategory.value > 0 ? largestCategory.name : "N/A"
+  const largestPct = largestCategory && stats.totalResidents > 0 ? ((largestCategory.value / stats.totalResidents) * 100).toFixed(1) : "0.0"
+  const largestDesc = largestCategory && largestCategory.value > 0 ? `${largestCategory.value.toLocaleString()} residents (${largestPct}%)` : "No data available"
+
+  const fastestGrowingName = "N/A"
+  const fastestGrowingDesc = "No historical data"
 
   const getSelectedCategoryInfo = () => categories.find((c) => c.id === selectedCategory)
 
@@ -182,16 +194,16 @@ export default function CategoryReports() {
             <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center"><Award className="w-5 h-5 text-emerald-600" /></div>
             <div>
               <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Largest Category</p>
-              <p className="text-xl font-bold text-emerald-600">Adults</p>
-              <p className="text-[10px] text-slate-400">1,812 residents (63.6%)</p>
+              <p className="text-xl font-bold text-emerald-600">{largestName}</p>
+              <p className="text-[10px] text-slate-400">{largestDesc}</p>
             </div>
           </Card>
           <Card className="p-4 shadow-sm flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-amber-600" /></div>
             <div>
               <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Fastest Growing</p>
-              <p className="text-xl font-bold text-amber-600">Minors</p>
-              <p className="text-[10px] text-slate-400">+2.9% this quarter</p>
+              <p className="text-xl font-bold text-amber-600">{fastestGrowingName}</p>
+              <p className="text-[10px] text-slate-400">{fastestGrowingDesc}</p>
             </div>
           </Card>
         </div>
@@ -213,7 +225,7 @@ export default function CategoryReports() {
                 <div key={i} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
                   <span className="text-[10px] text-slate-600">{c.name}</span>
-                  <span className="text-[10px] font-bold text-[#0C2340]">{c.value.toLocaleString()}</span>
+                  <span className="text-[10px] font-bold text-[#0C2340]">{c.name === "No Data" ? "-" : c.value.toLocaleString()}</span>
                 </div>
               ))}
             </div>

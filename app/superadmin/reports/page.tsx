@@ -61,9 +61,14 @@ export default function SystemReports() {
     { name: "Residency", value: documentRequests.filter(r => r.documentType.includes("Residency")).length, color: "#C5A55A" },
   ].filter(r => r.value > 0)
 
+  // Calculate true total before adding fallback
+  const trueTotal = documentRequests.length
+
   if (reportTypeBreakdown.length === 0) reportTypeBreakdown.push({ name: "None", value: 1, color: "#e2e8f0" })
 
-  const reportTotal = reportTypeBreakdown.reduce((acc, curr) => acc + curr.value, 0)
+  const mostRequested = trueTotal > 0 && reportTypeBreakdown.length > 0 && reportTypeBreakdown[0].name !== "None"
+    ? [...reportTypeBreakdown].sort((a,b) => b.value - a.value)[0]
+    : null
 
   const handleGenerateReport = async () => {
     if (isGeneratingReport) return
@@ -102,7 +107,7 @@ export default function SystemReports() {
           ['Senior Citizens', adminStats.seniorCount.toString()],
           ['Adults', adminStats.adultCount.toString()],
           ['Minors', adminStats.minorCount.toString()],
-          ['Total Documents Generated', reportTotal.toString()],
+          ['Total Documents Generated', trueTotal.toString()],
         ],
         theme: 'striped',
         headStyles: { fillColor: [12, 35, 64] },
@@ -160,7 +165,7 @@ export default function SystemReports() {
             <FileText className="w-4 h-4 text-[#0C2340]" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Reports Generated</p>
-          <span className="text-2xl font-bold text-[#0C2340]">{reportTotal}</span>
+          <span className="text-2xl font-bold text-[#0C2340]">{trueTotal}</span>
           <div className="flex items-center gap-1 mt-1">
             <span className="text-[10px] font-medium text-slate-400">-</span>
           </div>
@@ -170,8 +175,8 @@ export default function SystemReports() {
             <Download className="w-4 h-4 text-[#0C2340]" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Most Requested</p>
-          <span className="text-lg font-bold text-[#0C2340]">Document Reports</span>
-          <p className="text-[10px] text-slate-400 mt-1">0 of {reportTotal} total</p>
+          <span className="text-lg font-bold text-[#0C2340]">{mostRequested ? mostRequested.name : "N/A"}</span>
+          <p className="text-[10px] text-slate-400 mt-1">{mostRequested ? `${mostRequested.value} of ${trueTotal} total` : "No data available"}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
@@ -238,7 +243,7 @@ export default function SystemReports() {
               <Pie data={reportTypeBreakdown} cx="50%" cy="50%" innerRadius={38} outerRadius={58} dataKey="value" stroke="none" paddingAngle={3}>
                 {reportTypeBreakdown.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
-              <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="text-sm font-bold" fill="#0C2340">{reportTotal}</text>
+              <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="text-sm font-bold" fill="#0C2340">{trueTotal}</text>
               <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" className="text-[9px]" fill="#94a3b8">total</text>
             </PieChart>
           </ResponsiveContainer>
@@ -249,7 +254,7 @@ export default function SystemReports() {
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
                   <span className="text-slate-600">{r.name}</span>
                 </span>
-                <span className="font-semibold text-[#0C2340]">{r.value}</span>
+                <span className="font-semibold text-[#0C2340]">{r.name === "None" ? "-" : r.value}</span>
               </div>
             ))}
           </div>
