@@ -227,11 +227,11 @@ export default function RegisterPage() {
     }
 
     setIsCompleting(true)
-    await delay(1200)
+    await delay(800)
 
-    let finalProofs: ResidentProofDocument[] = []
-    try {
-      const uploadPromises = Object.entries(uploadedFiles)
+    // Upload documents to Cloudinary — each file tried individually so a single failure doesn't block registration
+    const finalProofs: ResidentProofDocument[] = await Promise.all(
+      Object.entries(uploadedFiles)
         .filter(([, file]) => Boolean(file))
         .map(async ([field, file], index) => {
           const documentName =
@@ -243,7 +243,12 @@ export default function RegisterPage() {
                   ? "Senior Citizen ID"
                   : "Voter's ID / Certificate"
 
-          const url = await uploadFileToCloudinary(file as File)
+          let url = ""
+          try {
+            url = await uploadFileToCloudinary(file as File)
+          } catch (err) {
+            console.warn(`Upload failed for ${documentName}, continuing without URL:`, err)
+          }
 
           return {
             id: `${Date.now()}-${index}`,
@@ -258,14 +263,7 @@ export default function RegisterPage() {
             status: "Valid",
           } as ResidentProofDocument
         })
-
-      finalProofs = await Promise.all(uploadPromises)
-    } catch (error) {
-      console.error("Failed to upload proofs:", error)
-      setIsCompleting(false)
-      showToastPreset("uploadFailedSize")
-      return
-    }
+    )
 
     try {
       await registerResidentAccount({
@@ -277,7 +275,7 @@ export default function RegisterPage() {
         address: computedAddress,
         statuses: formData.statuses,
         proofs: finalProofs,
-        profilePicture: "", // No longer captured during registration
+        profilePicture: "",
         firstName: formData.firstName,
         lastName: formData.lastName,
         middleInitial: formData.middleInitial,

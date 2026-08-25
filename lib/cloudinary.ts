@@ -1,3 +1,13 @@
+const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Upload timed out")), ms)
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val) },
+      (err) => { clearTimeout(timer); reject(err) }
+    )
+  })
+}
+
 export async function uploadFileToCloudinary(file: File): Promise<string> {
   const cloudName = "gmseg91m"
   const apiKey = "588324923391267"
@@ -16,12 +26,14 @@ export async function uploadFileToCloudinary(file: File): Promise<string> {
   formData.append("api_key", apiKey)
   formData.append("timestamp", timestamp.toString())
   formData.append("signature", signature)
-  // Optionally append the preset if it was created as a signed preset, but default is fine.
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: "POST",
-    body: formData,
-  })
+  const response = await withTimeout(
+    fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: "POST",
+      body: formData,
+    }),
+    20000 // 20 second timeout
+  )
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null)
