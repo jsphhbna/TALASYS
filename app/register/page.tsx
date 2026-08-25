@@ -283,9 +283,17 @@ export default function RegisterPage() {
         barangay: formData.barangay,
         city: formData.city,
       })
-    } catch {
+    } catch (err: any) {
+      console.error("Registration Error:", err)
       setIsCompleting(false)
-      showToastPreset("accountExists")
+      // Check if it's a weak password error from Firebase
+      if (err?.code === "auth/weak-password") {
+         alert("Password is too weak. Please use at least 6 characters.")
+      } else if (err?.code === "auth/email-already-in-use") {
+         showToastPreset("accountExists")
+      } else {
+         alert(`Error: ${err?.message || "Failed to create account"}`)
+      }
       return
     }
 

@@ -113,7 +113,7 @@ export function RegisterStepTwoDocuments({
         disabled={!canComplete || isCompleting}
         className="w-full bg-[#0C2340] hover:bg-[#1a3a5c] h-11 text-sm font-semibold disabled:bg-slate-300 disabled:cursor-not-allowed"
       >
-        {isCompleting ? "Saving Documents..." : "Continue to Photo Verification"}
+        {isCompleting ? "Saving Documents..." : "Complete Registration"}
       </Button>
 
       <button onClick={onBack} className="w-full text-sm text-slate-600 hover:text-slate-900" disabled={isCompleting}>
