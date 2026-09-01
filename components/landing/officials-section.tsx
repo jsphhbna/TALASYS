@@ -37,8 +37,7 @@ export function OfficialsSection() {
             style={{ borderRadius: "var(--radius-xl)", boxShadow: "var(--shadow-sm)" }}
           >
             <div className="w-24 h-24 rounded-full bg-slate-100 border-4 border-white shadow-sm mb-6 flex items-center justify-center overflow-hidden">
-               <img src="/placeholder-avatar.svg" alt="Avatar" className="w-full h-full object-cover opacity-50" onError={(e) => e.currentTarget.style.display = 'none'} />
-               {/* User can replace this with actual photo later */}
+               <img src="/dudz-avatar.png" alt="Avatar" className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
             </div>
             <h3 className="text-xl font-bold text-[#0C2340]">Hon. Joel "Dudz" G. Capones</h3>
             <p className="text-blue-600 font-semibold text-sm mt-1 uppercase tracking-wide">Punong Barangay</p>
