@@ -42,21 +42,21 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Support */}
+          {/* Support / Contact */}
           <div>
-            <h4 className="text-xs font-semibold text-blue-200/70 uppercase tracking-wider mb-3">Support</h4>
-            <ul className="space-y-1.5">
-              <li>
-                <a href="#" onClick={handleComingSoon} className="text-sm text-blue-200/50 hover:text-white transition-colors">
-                  Help Center
+            <h4 className="text-xs font-semibold text-blue-200/70 uppercase tracking-wider mb-3">Contact Us</h4>
+            <ul className="space-y-2">
+              <li className="flex flex-col">
+                <span className="text-xs text-blue-200/50 uppercase tracking-wide">Telephone</span>
+                <span className="text-sm text-blue-200/80">(02) 711 5820</span>
+              </li>
+              <li className="flex flex-col">
+                <span className="text-xs text-blue-200/50 uppercase tracking-wide">Email</span>
+                <a href="mailto:barangay634zone64stamesa@gmail.com" className="text-sm text-blue-200/80 hover:text-white transition-colors break-all">
+                  barangay634zone64stamesa@gmail.com
                 </a>
               </li>
-              <li>
-                <a href="#" onClick={handleComingSoon} className="text-sm text-blue-200/50 hover:text-white transition-colors">
-                  Contact Us
-                </a>
-              </li>
-              <li>
+              <li className="pt-2">
                 <a href="#" onClick={handleComingSoon} className="text-sm text-blue-200/50 hover:text-white transition-colors">
                   FAQ
                 </a>
