@@ -307,7 +307,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center px-4 sm:px-8 shadow-md" role="banner">
-        <BrandMark subtitle="Barangay Digital Services" />
+        <BrandMark subtitle="Barangay 634" />
       </header>
 
       <div className="flex-1 flex items-start sm:items-center justify-center p-4 sm:p-8">

@@ -40,7 +40,7 @@ export function Header() {
         className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center justify-between px-4 sm:px-8 shadow-md border-b border-[#1a3a5c]/50"
         role="banner"
       >
-        <BrandMark subtitle="Barangay Digital Services" />
+        <BrandMark subtitle="Barangay 634" />
 
         <div className="flex items-center gap-4">
           <ThemeToggle />
