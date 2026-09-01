@@ -11,9 +11,9 @@ export function Footer() {
 
   return (
     <footer className="bg-[#0C2340] text-slate-100 py-8 px-6 border-t border-[#1a3a5c]/50" role="contentinfo">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto" suppressHydrationWarning>
         {/* Footer Content Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" suppressHydrationWarning>
           {/* Brand Section */}
           <div>
             <h3 className="text-lg font-bold text-white mb-2 tracking-tight">TALASYS</h3>
