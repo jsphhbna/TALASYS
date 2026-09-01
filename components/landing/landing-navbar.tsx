@@ -4,7 +4,7 @@ import Link from "next/link"
 import { ShieldCheck, LogIn, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 
 export function LandingNavbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -66,6 +66,7 @@ export function LandingNavbar() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px] bg-white border-l border-slate-200">
+                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                 <div className="flex flex-col gap-6 mt-8">
                   <div className="flex flex-col gap-4">
                     {navLinks.map((link) => (
