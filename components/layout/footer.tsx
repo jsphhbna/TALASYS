@@ -69,19 +69,19 @@ export function Footer() {
             <h4 className="text-xs font-semibold text-blue-200/70 uppercase tracking-wider mb-3">Legal</h4>
             <ul className="space-y-1.5">
               <li>
-                <a href="#" onClick={handleComingSoon} className="text-sm text-blue-200/50 hover:text-white transition-colors">
+                <Link href="/legal?tab=privacy" className="text-sm text-blue-200/50 hover:text-white transition-colors">
                   Privacy Policy
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" onClick={handleComingSoon} className="text-sm text-blue-200/50 hover:text-white transition-colors">
+                <Link href="/legal?tab=terms" className="text-sm text-blue-200/50 hover:text-white transition-colors">
                   Terms of Service
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" onClick={handleComingSoon} className="text-sm text-blue-200/50 hover:text-white transition-colors">
+                <Link href="/legal?tab=security" className="text-sm text-blue-200/50 hover:text-white transition-colors">
                   Security
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
