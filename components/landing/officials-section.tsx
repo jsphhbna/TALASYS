@@ -40,7 +40,10 @@ export function OfficialsSection() {
                <img src="/dudz-avatar.png" alt="Avatar" className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
             </div>
             <h3 className="text-xl font-bold text-[#0C2340]">Hon. Joel "Dudz" G. Capones</h3>
-            <p className="text-blue-600 font-semibold text-sm mt-1 uppercase tracking-wide">Punong Barangay</p>
+            <p className="text-blue-600 font-semibold text-sm mt-1 mb-4 uppercase tracking-wide">Punong Barangay</p>
+            <p className="text-slate-600 italic text-[15px] max-w-[280px]">
+              "It is about serving others with dedication, integrity, and compassion 🤍💙"
+            </p>
           </div>
         </div>
 
