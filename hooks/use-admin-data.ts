@@ -51,7 +51,7 @@ export function useAdminData() {
                 gender: "Male" as const,
                 address: u.address || "",
                 categories: u.statuses || [u.status].filter(Boolean) || [],
-                status: u.status === "Expired" ? "Expired" : "Active",
+                status: (u.status === "Expired" ? "Expired" : "Active") as "Active" | "Expired" | "Expiring",
                 isVoter: (u.statuses || []).includes("Registered Voter"),
                 expiryDate: u.accountExpiry || "",
                 dateOfBirth: u.dateOfBirth || "",

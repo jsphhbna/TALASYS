@@ -5,6 +5,7 @@ import type { AuthUser } from "@/lib/auth-context"
 interface ProfileHeaderCardProps {
   user: AuthUser
   profilePicture: string | null
+  isUploadingPicture?: boolean
   onProfilePictureChange?: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
 
