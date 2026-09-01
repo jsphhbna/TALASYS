@@ -4,6 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { BrandMark } from "@/components/layout/brand-mark"
 import { Button } from "@/components/ui/button"
@@ -66,8 +67,14 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center px-4 sm:px-8 shadow-md" role="banner">
-        <BrandMark subtitle="Barangay 634" />
+      <header className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center justify-between px-4 sm:px-8 shadow-md" role="banner">
+        <Link href="/">
+          <BrandMark subtitle="Barangay 634" />
+        </Link>
+        <Link href="/" className="text-white/80 hover:text-white text-sm font-medium flex items-center gap-2 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Back to Home</span>
+        </Link>
       </header>
 
       <div className="flex-1 flex items-center justify-center p-4">

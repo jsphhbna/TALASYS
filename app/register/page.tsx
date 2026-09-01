@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { BrandMark } from "@/components/layout/brand-mark"
 import { RegisterStepIndicator } from "@/components/register/register-step-indicator"
@@ -306,8 +308,14 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center px-4 sm:px-8 shadow-md" role="banner">
-        <BrandMark subtitle="Barangay 634" />
+      <header className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center justify-between px-4 sm:px-8 shadow-md" role="banner">
+        <Link href="/">
+          <BrandMark subtitle="Barangay 634" />
+        </Link>
+        <Link href="/" className="text-white/80 hover:text-white text-sm font-medium flex items-center gap-2 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Back to Home</span>
+        </Link>
       </header>
 
       <div className="flex-1 flex items-start sm:items-center justify-center p-4 sm:p-8">
