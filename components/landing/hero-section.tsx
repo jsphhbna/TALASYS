@@ -52,9 +52,8 @@ export function HeroSection() {
 
           {/* Image/Visual Content */}
           <div className="relative w-full h-[400px] lg:h-[500px] rounded-[24px] overflow-hidden border border-slate-200 bg-white" style={{ boxShadow: "var(--shadow-md)" }}>
-            {/* The user can replace this placeholder src with their actual high-res group photo */}
             <img 
-              src="/placeholder.svg" 
+              src="/group-photo.png" 
               alt="Barangay 634 Officials Group"
               className="w-full h-full object-cover object-center"
             />
