@@ -1,14 +1,19 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { LandingNavbar } from "@/components/landing/landing-navbar"
+import { HeroSection } from "@/components/landing/hero-section"
+import { MissionVisionSection } from "@/components/landing/mission-vision"
+import { OfficialsSection } from "@/components/landing/officials-section"
+import { ContactSection } from "@/components/landing/contact-section"
 
 export default function HomePage() {
-  const router = useRouter()
-
-  useEffect(() => {
-    router.push("/login")
-  }, [router])
-
-  return null
+  return (
+    <main className="min-h-screen bg-white">
+      <LandingNavbar />
+      <HeroSection />
+      <MissionVisionSection />
+      <OfficialsSection />
+      <ContactSection />
+    </main>
+  )
 }
