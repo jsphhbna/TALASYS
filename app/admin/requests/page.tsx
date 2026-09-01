@@ -10,6 +10,7 @@ import {
 } from "recharts"
 import { ClipboardList, CheckCircle2, XCircle, FileText } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { toast } from "sonner"
 
 export default function DocumentRequests() {
   const { documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
