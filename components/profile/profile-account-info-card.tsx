@@ -1,4 +1,15 @@
 import { Card } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import type { AuthUser } from "@/lib/auth-context"
 
 interface ProfileAccountInfoCardProps {
@@ -122,12 +133,29 @@ export function ProfileAccountInfoCard({ user, onDeleteAccount }: ProfileAccount
             <p className="text-xs font-semibold text-slate-900">Delete Account</p>
             <p className="text-[11px] text-slate-500">Permanently remove your account and all data.</p>
           </div>
-          <button
-            onClick={onDeleteAccount}
-            className="px-4 py-2 bg-red-50 text-red-600 text-xs font-semibold rounded hover:bg-red-100 transition-colors whitespace-nowrap"
-          >
-            Delete Account
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                className="px-4 py-2 bg-red-50 text-red-600 text-xs font-semibold rounded hover:bg-red-100 transition-colors whitespace-nowrap"
+              >
+                Delete Account
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete your account and all associated records from our servers.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onDeleteAccount} className="bg-red-600 hover:bg-red-700 text-white">
+                  Continue
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </Card>

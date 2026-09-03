@@ -254,10 +254,8 @@ export default function ProfilePage() {
         </div>
 
         <ProfileAccountInfoCard user={user} onDeleteAccount={async () => {
-          if (confirm("Are you sure you want to permanently delete your account and all associated records? This cannot be undone.")) {
-            if (await deleteAccount()) {
-              window.location.href = "/login"
-            }
+          if (await deleteAccount()) {
+            window.location.href = "/login"
           }
         }} />
       </div>
