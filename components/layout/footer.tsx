@@ -56,11 +56,6 @@ export function Footer() {
                   barangay634zone64stamesa@gmail.com
                 </a>
               </li>
-              <li className="pt-2">
-                <a href="#" onClick={handleComingSoon} className="text-sm text-blue-200/50 hover:text-white transition-colors">
-                  FAQ
-                </a>
-              </li>
             </ul>
           </div>
 
