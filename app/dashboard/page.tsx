@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 
 export default function DashboardPage() {
   const { user, isAuthorized } = useAuthGuard()
-  const { requests, notifications, cancelRequest } = useResidentData()
+  const { requests, cancelRequest } = useResidentData()
 
   if (!isAuthorized || !user) {
     return null
@@ -23,7 +23,7 @@ export default function DashboardPage() {
   )
   const pendingRequests = requests.filter((request) => request.status === "Pending")
   const recentRequests = requests.slice(0, 3)
-  const recentNotifications = notifications.slice(0, 2)
+
 
   // Calculate days remaining until account expiry
   const expiryDate = new Date(user.accountExpiry)
@@ -178,29 +178,6 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Notifications Panel */}
-      <div>
-        <h2 className="text-base font-semibold text-[#0C2340] mb-4">Notifications</h2>
-        <Card className="divide-y divide-slate-100">
-          {recentNotifications.map((notification) => (
-            <div key={notification.id} className="p-4 flex items-start gap-4">
-              <div
-                className={`w-4 h-4 rounded-full mt-1 flex-shrink-0 ${notification.type === "success"
-                  ? "bg-green-500"
-                  : notification.type === "info"
-                    ? "bg-blue-500"
-                    : "bg-slate-400"
-                  }`}
-              />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-[#0C2340] mb-1">{notification.title}</p>
-                <p className="text-xs text-slate-600">{notification.message}</p>
-              </div>
-              <span className="text-[11px] text-slate-400 whitespace-nowrap">{notification.timestamp}</span>
-            </div>
-          ))}
-        </Card>
-      </div>
     </ResidentPageShell>
   )
 }
