@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useResidentData } from "@/hooks/use-resident-data"
@@ -200,23 +201,15 @@ function RequestDocumentContent() {
         </div>
       </div>
 
-      {/* Request Form */}
-      {selectedType && selectedDoc && (
-        <Card className="p-6 shadow-sm">
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 mb-2">{selectedDoc.title} Request</h2>
-              <p className="text-sm text-slate-600">Please fill in the required information below</p>
-            </div>
-            <Button
-              onClick={handleSubmit}
-              disabled={isSubmittingRequest}
-              className="w-64 h-12 bg-[#0C2340] hover:bg-[#1a3a5c] text-sm font-semibold"
-            >
-              {isSubmittingRequest ? "Processing..." : (paymentMethod === "gcash" && selectedDoc.fee > 0) ? `Pay ₱${selectedDoc.fee.toFixed(2)} & Submit` : "Submit Request"}
-            </Button>
-          </div>
-
+      {/* Request Form Modal */}
+      <Dialog open={!!(selectedType && selectedDoc)} onOpenChange={(open) => !open && setSelectedType(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-xl">{selectedDoc?.title} Request</DialogTitle>
+            <DialogDescription>
+              Please fill in the required information below
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-6">
             {errors.submitError && (
               <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm border border-red-200">
@@ -493,9 +486,19 @@ function RequestDocumentContent() {
                 ℹ Processing time: 1-3 business days. You will receive a notification when your document is ready.
               </p>
             </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <Button
+                onClick={handleSubmit}
+                disabled={isSubmittingRequest}
+                className="w-full sm:w-auto h-11 px-8 bg-[#0C2340] hover:bg-[#1a3a5c] text-sm font-semibold"
+              >
+                {isSubmittingRequest ? "Processing..." : (paymentMethod === "gcash" && selectedDoc?.fee > 0) ? `Pay ₱${selectedDoc.fee.toFixed(2)} & Submit` : "Submit Request"}
+              </Button>
+            </div>
           </div>
-        </Card>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
