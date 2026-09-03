@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useAuthGuard } from "@/hooks/use-auth-guard"
 import { useMounted } from "@/hooks/use-mounted"
 import { ResidentPageShell } from "@/components/layout/page-shells"
@@ -22,6 +22,7 @@ export default function RequestHistoryPage() {
   const [downloadingRequestId, setDownloadingRequestId] = useState<string | null>(null)
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<ResidentRequest | null>(null)
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
   const itemsPerPage = 5
   const mounted = useMounted()
 
@@ -60,6 +61,58 @@ export default function RequestHistoryPage() {
     }
   }
 
+  // Statistics Calculation
+  const stats = useMemo(() => {
+    const years = new Set<string>()
+    const monthlyStats: Record<string, { total: number; approved: number; declined: number }> = {}
+    let yearlyTotal = 0
+    let yearlyApproved = 0
+    let yearlyDeclined = 0
+
+    requests.forEach(req => {
+      if (!req.dateRequested) return
+      
+      const date = new Date(req.dateRequested)
+      if (isNaN(date.getTime())) return
+      
+      const year = date.getFullYear().toString()
+      const month = date.toLocaleString('default', { month: 'long' })
+      years.add(year)
+
+      if (year === selectedYear) {
+        yearlyTotal++
+        if (req.status === "Approved" || req.status === "Ready for Pick Up" || req.status === "Completed") {
+          yearlyApproved++
+        } else if (req.status === "Rejected") {
+          yearlyDeclined++
+        }
+
+        if (!monthlyStats[month]) {
+          monthlyStats[month] = { total: 0, approved: 0, declined: 0 }
+        }
+        monthlyStats[month].total++
+        if (req.status === "Approved" || req.status === "Ready for Pick Up" || req.status === "Completed") {
+          monthlyStats[month].approved++
+        } else if (req.status === "Rejected") {
+          monthlyStats[month].declined++
+        }
+      }
+    })
+
+    // If no years exist, default to current year
+    if (years.size === 0) {
+      years.add(new Date().getFullYear().toString())
+    }
+
+    return {
+      availableYears: Array.from(years).sort().reverse(),
+      yearlyTotal,
+      yearlyApproved,
+      yearlyDeclined,
+      monthlyStats
+    }
+  }, [requests, selectedYear])
+
   return (
     <ResidentPageShell>
       {/* Page Title */}
@@ -67,6 +120,67 @@ export default function RequestHistoryPage() {
         <h1 className="text-2xl font-bold text-[#0C2340] mb-1 tracking-tight">Request History</h1>
         <p className="text-sm text-slate-500">View and track all your document requests</p>
       </div>
+
+      {/* Statistics Section */}
+      <Card className="p-6 mb-8 shadow-sm border-slate-200">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+          <h2 className="text-lg font-bold text-[#0C2340]">Yearly Summary</h2>
+          <div className="w-32 mt-3 sm:mt-0">
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="w-full h-9 bg-slate-50 border-slate-300">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {stats.availableYears.map(year => (
+                  <SelectItem key={year} value={year}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Yearly Totals */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+            <p className="text-xs text-slate-500 font-medium mb-1 uppercase tracking-wide">Total</p>
+            <p className="text-2xl font-bold text-[#0C2340]">{stats.yearlyTotal}</p>
+          </div>
+          <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100">
+            <p className="text-xs text-emerald-600 font-medium mb-1 uppercase tracking-wide">Approved</p>
+            <p className="text-2xl font-bold text-emerald-700">{stats.yearlyApproved}</p>
+          </div>
+          <div className="bg-red-50 p-4 rounded-lg border border-red-100">
+            <p className="text-xs text-red-600 font-medium mb-1 uppercase tracking-wide">Declined</p>
+            <p className="text-2xl font-bold text-red-700">{stats.yearlyDeclined}</p>
+          </div>
+        </div>
+
+        {/* Monthly Breakdown */}
+        {Object.keys(stats.monthlyStats).length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-slate-600 mb-3 uppercase tracking-wide">Monthly Breakdown</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {Object.entries(stats.monthlyStats).map(([month, data]) => (
+                <div key={month} className="border border-slate-200 p-3 rounded-lg flex flex-col gap-2 bg-white">
+                  <p className="text-sm font-bold text-[#0C2340]">{month}</p>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-medium">Total:</span>
+                    <span className="font-semibold">{data.total}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-emerald-600 font-medium">Approved:</span>
+                    <span className="font-semibold text-emerald-700">{data.approved}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-red-600 font-medium">Declined:</span>
+                    <span className="font-semibold text-red-700">{data.declined}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* Filters */}
       <Card className="p-5 mb-6 shadow-sm">
