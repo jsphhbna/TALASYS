@@ -203,14 +203,14 @@ function RequestDocumentContent() {
 
       {/* Request Form Modal */}
       <Dialog open={!!(selectedType && selectedDoc)} onOpenChange={(open) => !open && setSelectedType(null)}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="mb-4">
-            <DialogTitle className="text-xl">{selectedDoc?.title} Request</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
+          <DialogHeader className="px-6 py-5 border-b border-slate-100 shrink-0 bg-white z-10 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.02)] relative">
+            <DialogTitle className="text-xl text-[#0C2340] pr-6">{selectedDoc?.title} Request</DialogTitle>
+            <DialogDescription className="text-slate-500">
               Please fill in the required information below
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {errors.submitError && (
               <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm border border-red-200">
                 {errors.submitError}
@@ -487,15 +487,17 @@ function RequestDocumentContent() {
               </p>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmittingRequest}
-                className="w-full sm:w-auto h-11 px-8 bg-[#0C2340] hover:bg-[#1a3a5c] text-sm font-semibold"
-              >
-                {isSubmittingRequest ? "Processing..." : (paymentMethod === "gcash" && (selectedDoc?.fee ?? 0) > 0) ? `Pay ₱${selectedDoc?.fee?.toFixed(2)} & Submit` : "Submit Request"}
-              </Button>
             </div>
+          </div>
+          
+          <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 shrink-0 flex justify-end">
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmittingRequest}
+              className="w-full sm:w-auto h-11 px-8 bg-[#0C2340] hover:bg-[#1a3a5c] text-sm font-semibold shadow-sm"
+            >
+              {isSubmittingRequest ? "Processing..." : (paymentMethod === "gcash" && (selectedDoc?.fee ?? 0) > 0) ? `Pay ₱${selectedDoc?.fee?.toFixed(2)} & Submit` : "Submit Request"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
