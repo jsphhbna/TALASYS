@@ -160,9 +160,9 @@ export default function RequestHistoryPage() {
         {Object.keys(stats.monthlyStats).length > 0 && (
           <div>
             <h3 className="text-sm font-semibold text-slate-600 mb-3 uppercase tracking-wide">Monthly Breakdown</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="flex overflow-x-auto pb-4 gap-4 snap-x sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:pb-0 sm:overflow-visible">
               {Object.entries(stats.monthlyStats).map(([month, data]) => (
-                <div key={month} className="border border-slate-200 p-3 rounded-lg flex flex-col gap-2 bg-white">
+                <div key={month} className="min-w-[240px] sm:min-w-0 flex-shrink-0 snap-start border border-slate-200 p-3 rounded-lg flex flex-col gap-2 bg-white">
                   <p className="text-sm font-bold text-[#0C2340]">{month}</p>
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-500 font-medium">Total:</span>
