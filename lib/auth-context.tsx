@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userData = userDoc.data() as AuthUser
         
         // If the account was soft-deleted, block login immediately!
-        if (userData.role === "Deleted" as any || userData.status === "Deleted") {
+        if (userData.role === "Deleted" as any || userData.status === "Deleted" || userData.status === "Deleted by Resident") {
           await firebaseSignOut(auth)
           return { _error: "This account has been deleted or suspended." } as any
         }

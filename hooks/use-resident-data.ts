@@ -236,34 +236,16 @@ export function useResidentData() {
     if (!residentId) return false
     try {
       const { auth } = await import("@/lib/firebase")
-      const { deleteUser } = await import("firebase/auth")
-      const { collection: col, query: q, where: w, getDocs, writeBatch } = await import("firebase/firestore")
+      
+      // Soft-delete the user by updating their status instead of wiping the DB
+      await updateDoc(doc(db, "users", residentId), { 
+        status: "Deleted by Resident",
+        updatedAt: Date.now()
+      })
 
-      const batch = writeBatch(db)
-
-      // Delete user document
-      batch.delete(doc(db, "users", residentId))
-
-      // Delete verification record
-      batch.delete(doc(db, "verifications", residentId))
-
-      // Delete notifications
-      const notifSnap = await getDocs(q(col(db, "notifications"), w("targetId", "==", residentId)))
-      notifSnap.forEach(d => batch.delete(d.ref))
-
-      // Delete document requests
-      const reqSnap = await getDocs(q(col(db, "documentRequests"), w("residentId", "==", residentId)))
-      reqSnap.forEach(d => batch.delete(d.ref))
-
-      // Delete all verifications by residentId (profile edit requests etc)
-      const verifSnap = await getDocs(q(col(db, "verifications"), w("residentId", "==", residentId)))
-      verifSnap.forEach(d => batch.delete(d.ref))
-
-      await batch.commit()
-
-      // Delete from Firebase Auth last (this invalidates the session)
+      // Sign out the user to invalidate their session locally
       if (auth.currentUser && auth.currentUser.uid === residentId) {
-        await deleteUser(auth.currentUser)
+        await auth.signOut()
       }
 
       return true
