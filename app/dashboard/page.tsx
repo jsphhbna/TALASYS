@@ -41,7 +41,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Top Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         {/* Account Status Card */}
         <Card className={`p-6 border-l-4 shadow-sm ${user.status === "Expired" ? "border-l-red-600" : user.isVerified === false ? "border-l-amber-500" : "border-l-[#0C2340]"}`}>
           <p className="text-xs text-slate-500 mb-2 font-medium">Account Status</p>
@@ -76,12 +76,6 @@ export default function DashboardPage() {
           </p>
         </Card>
 
-        {/* Downloads */}
-        <Card className="p-6 shadow-sm">
-          <p className="text-xs text-slate-500 mb-2 font-medium">Downloads</p>
-          <p className="text-[32px] font-bold text-[#0C2340] leading-none mb-2">{approvedRequests.length}</p>
-          <p className="text-[11px] text-slate-600">Documents ready</p>
-        </Card>
       </div>
 
       {/* Quick Actions */}
