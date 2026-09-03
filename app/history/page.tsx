@@ -26,41 +26,6 @@ export default function RequestHistoryPage() {
   const itemsPerPage = 5
   const mounted = useMounted()
 
-  if (!isAuthorized || !mounted) {
-    return null
-  }
-
-  // Filter requests
-  const filteredRequests = requests.filter((request) => {
-    const matchesSearch = searchQuery === "" ||
-      (request.documentType || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (request.refNumber || "").toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || (request.status || "").toLowerCase() === statusFilter.toLowerCase()
-    return matchesSearch && matchesStatus
-  })
-
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedRequests = filteredRequests.slice(startIndex, startIndex + itemsPerPage)
-  const showingFrom = filteredRequests.length === 0 ? 0 : startIndex + 1
-  const showingTo = filteredRequests.length === 0 ? 0 : Math.min(startIndex + itemsPerPage, filteredRequests.length)
-
-  const handleDownload = async (request: ResidentRequest) => {
-    if (request.downloadUrl) {
-      setDownloadingRequestId(request.id)
-      await delay(700)
-      showDownloadStarted(request.documentType)
-      setDownloadingRequestId(null)
-    }
-  }
-
-  const handleCancelRequest = async (id: string) => {
-    if (confirm("Are you sure you want to cancel this request?")) {
-      cancelRequest(id)
-    }
-  }
-
   // Statistics Calculation
   const stats = useMemo(() => {
     const years = new Set<string>()
@@ -112,6 +77,42 @@ export default function RequestHistoryPage() {
       monthlyStats
     }
   }, [requests, selectedYear])
+
+  if (!isAuthorized || !mounted) {
+    return null
+  }
+
+  // Filter requests
+  const filteredRequests = requests.filter((request) => {
+    const matchesSearch = searchQuery === "" ||
+      (request.documentType || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (request.refNumber || "").toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesStatus = statusFilter === "all" || (request.status || "").toLowerCase() === statusFilter.toLowerCase()
+    return matchesSearch && matchesStatus
+  })
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / itemsPerPage))
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedRequests = filteredRequests.slice(startIndex, startIndex + itemsPerPage)
+  const showingFrom = filteredRequests.length === 0 ? 0 : startIndex + 1
+  const showingTo = filteredRequests.length === 0 ? 0 : Math.min(startIndex + itemsPerPage, filteredRequests.length)
+
+  const handleDownload = async (request: ResidentRequest) => {
+    if (request.downloadUrl) {
+      setDownloadingRequestId(request.id)
+      await delay(700)
+      showDownloadStarted(request.documentType)
+      setDownloadingRequestId(null)
+    }
+  }
+
+  const handleCancelRequest = async (id: string) => {
+    if (confirm("Are you sure you want to cancel this request?")) {
+      cancelRequest(id)
+    }
+  }
+
 
   return (
     <ResidentPageShell>
