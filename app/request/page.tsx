@@ -409,7 +409,7 @@ function RequestDocumentContent() {
                   <SelectValue placeholder="Select purpose" />
                 </SelectTrigger>
                 <SelectContent>
-                  {purposeOptions[selectedType].map((option) => (
+                  {(selectedType ? purposeOptions[selectedType] : []).map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
                     </SelectItem>
