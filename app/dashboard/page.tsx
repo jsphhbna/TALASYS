@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 
 export default function DashboardPage() {
   const { user, isAuthorized } = useAuthGuard()
-  const { requests, cancelRequest } = useResidentData()
+  const { requests } = useResidentData()
 
   if (!isAuthorized || !user) {
     return null
@@ -22,7 +22,7 @@ export default function DashboardPage() {
     request.status === "Completed"
   )
   const pendingRequests = requests.filter((request) => request.status === "Pending")
-  const recentRequests = requests.slice(0, 3)
+
 
 
   // Calculate days remaining until account expiry
@@ -109,74 +109,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent Requests Table */}
-      <div className="mb-8">
-        <h2 className="text-base font-semibold text-[#0C2340] mb-4">Recent Requests</h2>
-        <Card className="shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-[#0C2340]/[0.03] border-b border-slate-200">
-                  <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Document</th>
-                  <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Date</th>
-                  <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Purpose</th>
-                  <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentRequests.map((request) => (
-                  <tr key={request.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-6 py-3.5 text-sm font-medium text-[#0C2340]">{request.documentType}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{request.dateRequested}</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                            request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 text-blue-800" :
-                              request.status === "Ready for Pick Up" ? "bg-emerald-100 text-emerald-800" :
-                                request.status === "Completed" ? "bg-slate-200 text-slate-800" :
-                                  "bg-red-100 text-red-800"
-                          }`}
-                      >
-                        {request.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{request.purpose}</td>
-                    <td className="px-6 py-4 flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-slate-300 text-slate-600 text-[11px] h-7 bg-transparent"
-                      >
-                        Track
-                      </Button>
-                      {request.status === "Pending" && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            if (window.confirm("Are you sure you want to cancel this request?")) {
-                              cancelRequest(request.id);
-                            }
-                          }}
-                          className="text-[11px] h-7 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:text-red-700 shadow-none"
-                        >
-                          Cancel
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-6 py-4 text-right border-t border-slate-100">
-            <Link href="/history" className="text-sm text-[#0C2340] font-medium hover:underline">
-              View All Requests →
-            </Link>
-          </div>
-        </Card>
-      </div>
+
 
     </ResidentPageShell>
   )
