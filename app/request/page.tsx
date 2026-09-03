@@ -221,11 +221,11 @@ function RequestDocumentContent() {
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-700">Document Fee</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Standard processing fee for {selectedDoc.title}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Standard processing fee for {selectedDoc?.title}</p>
               </div>
               <div className="text-right">
                 <span className="text-2xl font-bold text-[#0C2340]">
-                  {selectedDoc.fee === 0 ? "FREE" : `₱${selectedDoc.fee.toFixed(2)}`}
+                  {selectedDoc?.fee === 0 ? "FREE" : `₱${selectedDoc?.fee?.toFixed(2)}`}
                 </span>
               </div>
             </div>
@@ -444,7 +444,7 @@ function RequestDocumentContent() {
             </div>
 
             {/* Payment Method */}
-            {selectedDoc && selectedDoc.fee > 0 && (
+            {selectedDoc && selectedDoc?.fee > 0 && (
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-3">Payment Method *</label>
                 <div className="grid grid-cols-2 gap-4">
@@ -493,7 +493,7 @@ function RequestDocumentContent() {
                 disabled={isSubmittingRequest}
                 className="w-full sm:w-auto h-11 px-8 bg-[#0C2340] hover:bg-[#1a3a5c] text-sm font-semibold"
               >
-                {isSubmittingRequest ? "Processing..." : (paymentMethod === "gcash" && selectedDoc?.fee > 0) ? `Pay ₱${selectedDoc.fee.toFixed(2)} & Submit` : "Submit Request"}
+                {isSubmittingRequest ? "Processing..." : (paymentMethod === "gcash" && (selectedDoc?.fee ?? 0) > 0) ? `Pay ₱${selectedDoc?.fee?.toFixed(2)} & Submit` : "Submit Request"}
               </Button>
             </div>
           </div>
