@@ -84,7 +84,7 @@ export function Sidebar() {
                 {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#C5A55A] rounded-r-full" />}
                 {item.icon}
                 <span className="flex-1">{item.label}</span>
-                {item.badge && item.badge > 0 && (
+                {(item.badge ?? 0) > 0 && (
                   <span className="bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-medium">
                     {item.badge}
                   </span>

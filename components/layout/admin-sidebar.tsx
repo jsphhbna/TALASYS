@@ -111,7 +111,7 @@ export function AdminSidebar() {
                   <Icon className="w-4 h-4" />
                   <span>{item.name}</span>
                 </div>
-                {item.badge && (
+                {(item.badge ?? 0) > 0 && (
                   <span className="flex items-center justify-center min-w-[20px] h-[18px] px-1.5 bg-red-500 text-white text-[10px] rounded-full font-medium">
                     {item.badge}
                   </span>

@@ -63,7 +63,7 @@ export function ResidentMobileNav() {
             >
               <div className="relative">
                 <Icon className="h-4 w-4" />
-                {item.badge && item.badge > 0 && (
+                {(item.badge ?? 0) > 0 && (
                   <span className="absolute -top-2 -right-2 h-4 min-w-4 px-1 rounded-full bg-red-500 text-white text-[9px] leading-4 text-center">
                     {item.badge}
                   </span>
