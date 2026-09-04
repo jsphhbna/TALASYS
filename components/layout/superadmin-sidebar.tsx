@@ -62,7 +62,7 @@ export function SuperAdminSidebar() {
 
   return (
     <>
-      <aside className="w-[232px] shrink-0 bg-[#0C2340] h-[calc(100vh-4rem)] sticky top-16 flex flex-col" role="navigation">
+      <aside className="w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex flex-col" role="navigation">
         <nav className="py-3 flex-1 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = activePath === item.href
@@ -107,7 +107,7 @@ export function SuperAdminSidebar() {
             <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleLogout} className="bg-[#0C2340] hover:bg-[#1a3a5c]">Confirm</Button>
+            <Button onClick={handleLogout} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c]">Confirm</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

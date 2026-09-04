@@ -307,7 +307,7 @@ export default function RegisterPage() {
   const requiredDocuments = getRequiredDocuments(formData.statuses, "register")
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <header className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center justify-between px-4 sm:px-8 shadow-md" role="banner">
         <Link href="/">
           <BrandMark subtitle="Barangay 634" />
@@ -319,12 +319,12 @@ export default function RegisterPage() {
       </header>
 
       <div className="flex-1 flex items-start sm:items-center justify-center p-4 sm:p-8">
-        <Card className="w-full max-w-3xl p-5 sm:p-8 lg:p-10 shadow-lg border-slate-200/80">
+        <Card className="w-full max-w-3xl p-5 sm:p-8 lg:p-10 shadow-lg border-slate-200 dark:border-slate-700/80">
           <div className="text-center mb-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-[#0C2340] mb-2 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-2 tracking-tight">
               {step === 1 ? "Create Your Account" : "Upload Required Documents"}
             </h2>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               {step === 1
                 ? "Register to access barangay digital services"
                 : `Based on your status: ${formData.statuses.length > 0 ? formData.statuses.join(", ") : "None selected"}`}

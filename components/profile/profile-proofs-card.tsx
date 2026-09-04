@@ -44,20 +44,20 @@ export function ProfileProofsCard({
 
   return (
     <Card className="p-6">
-      <h3 className="text-base font-semibold text-[#0C2340] mb-5">Uploaded Proofs</h3>
+      <h3 className="text-base font-semibold text-[#0C2340] dark:text-blue-50 mb-5">Uploaded Proofs</h3>
 
       <div className="space-y-3">
         {proofs.length === 0 ? (
-          <Card className="p-4 bg-slate-50 border-slate-200">
-            <p className="text-xs text-slate-500">No uploaded proofs yet.</p>
+          <Card className="p-4 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700">
+            <p className="text-xs text-slate-500 dark:text-slate-400">No uploaded proofs yet.</p>
           </Card>
         ) : (
           proofs.map((doc) => (
-            <Card key={doc.id} className="p-4 bg-slate-50 border-slate-200">
+            <Card key={doc.id} className="p-4 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-[#0C2340] mb-1">{doc.name}</p>
-                  <p className="text-[11px] text-slate-600">
+                  <p className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">{doc.name}</p>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
                     {doc.filename} • Uploaded {doc.uploadDate}
                   </p>
                   {doc.url && (
@@ -93,7 +93,7 @@ export function ProfileProofsCard({
         disabled={isRequestSubmitted || isOpeningDialog}
         className={`w-full mt-4 ${isRequestSubmitted
           ? "bg-green-500 text-white hover:bg-green-600"
-          : "border-slate-300 text-slate-900 bg-transparent"
+          : "border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 bg-transparent"
           }`}
         variant={isRequestSubmitted ? "default" : "outline"}
       >

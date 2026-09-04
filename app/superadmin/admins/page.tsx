@@ -236,10 +236,10 @@ export default function AdminManagement() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Admin Management</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Create, manage, and control admin account access</p>
+          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Admin Management</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Create, manage, and control admin account access</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} className="bg-[#0C2340] hover:bg-[#0a1c33]">
+        <Button onClick={() => setShowCreateModal(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">
           + Create Admin
         </Button>
       </div>
@@ -249,14 +249,14 @@ export default function AdminManagement() {
         {kpis.map((kpi) => (
           <Card key={kpi.label} className="p-4 shadow-sm">
             <div className="flex items-start justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center">
-                <kpi.icon className="w-4 h-4 text-[#0C2340]" />
+              <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+                <kpi.icon className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
               </div>
               <Sparkline data={kpi.spark} color={kpi.color} />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">{kpi.label}</p>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#0C2340]">{kpi.value}</span>
+              <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{kpi.value}</span>
               {kpi.change !== 0 && (
                 <span className={`text-[10px] font-medium flex items-center gap-0.5 ${kpi.change > 0 ? "text-emerald-600" : "text-red-500"}`}>
                   {kpi.change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -272,8 +272,8 @@ export default function AdminManagement() {
       <div className="grid grid-cols-12 gap-6">
         {/* Activity Trend */}
         <Card className="col-span-5 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Admin Activity</h2>
-          <p className="text-[11px] text-slate-500 mb-4">Logins and actions over 6 months</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Admin Activity</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Logins and actions over 6 months</p>
           <ResponsiveContainer width="100%" height={180}>
             <AreaChart data={adminActivityTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <defs>
@@ -298,15 +298,15 @@ export default function AdminManagement() {
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex items-center gap-4 mt-2 text-[10px]">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#0C2340]" /> Logins</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#0C2340] dark:bg-slate-800" /> Logins</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#C5A55A]" /> Actions</span>
           </div>
         </Card>
 
         {/* Role Distribution */}
         <Card className="col-span-3 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Role Distribution</h2>
-          <p className="text-[11px] text-slate-500 mb-3">Admin access levels</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Role Distribution</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">Admin access levels</p>
           <ResponsiveContainer width="100%" height={120}>
             <PieChart>
               <Pie data={roleDistribution} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={3}>
@@ -323,9 +323,9 @@ export default function AdminManagement() {
               <div key={i} className="flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
-                  <span className="text-slate-600">{r.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{r.name}</span>
                 </span>
-                <span className="font-semibold text-[#0C2340]">{r.name === "No Data" ? "-" : r.value}</span>
+                <span className="font-semibold text-[#0C2340] dark:text-blue-50">{r.name === "No Data" ? "-" : r.value}</span>
               </div>
             ))}
           </div>
@@ -333,7 +333,7 @@ export default function AdminManagement() {
 
         {/* Recent Admin Actions */}
         <Card className="col-span-4 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-3">Recent Actions</h2>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Recent Actions</h2>
           <div className="space-y-3">
             {adminRecentActions.map((act, i) => (
               <div key={i} className="flex items-start gap-2.5">
@@ -341,8 +341,8 @@ export default function AdminManagement() {
                   <span className="text-[8px] text-white font-bold">{act.admin.split(" ")[0][0]}{act.admin.split(" ")[1]?.[0] || ""}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-slate-800">
-                    <span className="font-semibold text-[#0C2340]">{act.admin}</span> {(act.action || "").toLowerCase()}
+                  <p className="text-[11px] text-slate-800 dark:text-slate-200">
+                    <span className="font-semibold text-[#0C2340] dark:text-blue-50">{act.admin}</span> {(act.action || "").toLowerCase()}
                   </p>
                   <p className="text-[10px] text-slate-400">{act.time}</p>
                 </div>
@@ -363,7 +363,7 @@ export default function AdminManagement() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-slate-300 rounded-md text-sm"
+          className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm"
         >
           <option value="all">Status: All</option>
           <option value="active">Active</option>
@@ -372,36 +372,36 @@ export default function AdminManagement() {
       </div>
 
       {/* Admin Table */}
-      <div className="bg-white rounded-lg border border-slate-200 overflow-visible shadow-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 overflow-visible shadow-sm">
         <div className="min-w-[800px]">
-          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
+          <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Admin</p></div>
-              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Role</p></div>
-              <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Last Active</p></div>
-              <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Actions</p></div>
+              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Admin</p></div>
+              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Role</p></div>
+              <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Last Active</p></div>
+              <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</p></div>
             </div>
           </div>
 
           <div className="divide-y divide-slate-100">
           {filteredAdmins.map((admin) => (
-            <div key={admin.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
+            <div key={admin.id} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
               <div className="grid grid-cols-12 gap-4 items-center">
                 <div className="col-span-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#0C2340] flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center shrink-0">
                     <span className="text-[10px] text-white font-medium">{admin.initials}</span>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#0C2340]">{admin.name}</p>
-                    <p className="text-[10px] text-slate-500">Since {admin.createdDate}</p>
+                    <p className="text-sm font-medium text-[#0C2340] dark:text-blue-50">{admin.name}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Since {admin.createdDate}</p>
                   </div>
                 </div>
-                <div className="col-span-3"><p className="text-sm text-slate-700">{admin.email}</p></div>
+                <div className="col-span-3"><p className="text-sm text-slate-700 dark:text-slate-300">{admin.email}</p></div>
                 <div className="col-span-2">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700">
-                    {admin.role === "Full Access" && <ShieldCheck className="w-3 h-3 text-[#0C2340]" />}
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                    {admin.role === "Full Access" && <ShieldCheck className="w-3 h-3 text-[#0C2340] dark:text-blue-50" />}
                     {admin.role === "Verification Only" && <CheckCircle className="w-3 h-3 text-blue-500" />}
                     {admin.role === "Documents Only" && <Settings className="w-3 h-3 text-[#C5A55A]" />}
                     {admin.role === "View Only" && <Eye className="w-3 h-3 text-slate-400" />}
@@ -415,11 +415,11 @@ export default function AdminManagement() {
                     {admin.status}
                   </div>
                 </div>
-                <div className="col-span-2"><p className="text-sm text-slate-600">{admin.lastActive}</p></div>
+                <div className="col-span-2"><p className="text-sm text-slate-600 dark:text-slate-400">{admin.lastActive}</p></div>
                 <div className="col-span-1 relative">
                   <button
                     onClick={() => setShowActionsDropdown(showActionsDropdown === admin.id ? null : admin.id)}
-                    className="px-3 py-2 text-slate-500 hover:bg-slate-100 rounded transition-colors"
+                    className="px-3 py-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800 rounded transition-colors"
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                       <circle cx="8" cy="3" r="1.5" />
@@ -429,14 +429,14 @@ export default function AdminManagement() {
                   </button>
 
                   {showActionsDropdown === admin.id && (
-                    <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg border border-slate-200 shadow-lg z-10">
-                      <button onClick={() => handleEditPrivileges(admin.id)} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50">Edit Privileges</button>
+                    <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg z-10">
+                      <button onClick={() => handleEditPrivileges(admin.id)} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:bg-slate-950">Edit Privileges</button>
                       <div className="h-px bg-slate-200" />
-                      <button onClick={() => handleResetPassword(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50">Reset Password</button>
+                      <button onClick={() => handleResetPassword(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:bg-slate-950">Reset Password</button>
                       <div className="h-px bg-slate-200" />
-                      <button onClick={() => handleLockAccount(admin.id, admin.name, admin.status === "Locked")} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50">{admin.status === "Locked" ? "Unlock Account" : "Lock Account"}</button>
+                      <button onClick={() => handleLockAccount(admin.id, admin.name, admin.status === "Locked")} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:bg-slate-950">{admin.status === "Locked" ? "Unlock Account" : "Lock Account"}</button>
                       <div className="h-px bg-slate-200" />
-                      <button onClick={() => handleDeleteAccount(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-slate-50">Delete Account</button>
+                      <button onClick={() => handleDeleteAccount(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-slate-50 dark:bg-slate-950">Delete Account</button>
                     </div>
                   )}
                 </div>
@@ -450,10 +450,10 @@ export default function AdminManagement() {
       {/* Create Admin Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-[#0C2340]">Create New Admin</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-2xl text-slate-400 hover:text-slate-600">×</button>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">Create New Admin</h2>
+              <button onClick={() => setShowCreateModal(false)} className="text-2xl text-slate-400 hover:text-slate-600 dark:text-slate-400">×</button>
             </div>
             <div className="p-6 space-y-6">
               {formError && (
@@ -462,32 +462,32 @@ export default function AdminManagement() {
                 </div>
               )}
               <div>
-                <h3 className="text-sm font-bold text-[#0C2340] mb-4">Personal Information</h3>
+                <h3 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 mb-4">Personal Information</h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-xs text-slate-600 mb-2">First Name *</label><Input value={newAdminFirstName} onChange={e => setNewAdminFirstName(e.target.value)} placeholder="First Name" /></div>
-                    <div><label className="block text-xs text-slate-600 mb-2">Last Name *</label><Input value={newAdminLastName} onChange={e => setNewAdminLastName(e.target.value)} placeholder="Last Name" /></div>
+                    <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">First Name *</label><Input value={newAdminFirstName} onChange={e => setNewAdminFirstName(e.target.value)} placeholder="First Name" /></div>
+                    <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Last Name *</label><Input value={newAdminLastName} onChange={e => setNewAdminLastName(e.target.value)} placeholder="Last Name" /></div>
                   </div>
-                  <div><label className="block text-xs text-slate-600 mb-2">Middle Initial (Optional)</label><Input value={newAdminMiddleInitial} onChange={e => setNewAdminMiddleInitial(e.target.value)} placeholder="e.g. A" maxLength={2} /></div>
-                  <div><label className="block text-xs text-slate-600 mb-2">Email Address *</label><Input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="admin@barangay.gov.ph" /></div>
-                  <div><label className="block text-xs text-slate-600 mb-2">Contact Number *</label><Input value={newAdminContact} onChange={e => setNewAdminContact(e.target.value)} placeholder="+63 9XX XXX XXXX" /></div>
+                  <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Middle Initial (Optional)</label><Input value={newAdminMiddleInitial} onChange={e => setNewAdminMiddleInitial(e.target.value)} placeholder="e.g. A" maxLength={2} /></div>
+                  <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Email Address *</label><Input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="admin@barangay.gov.ph" /></div>
+                  <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Contact Number *</label><Input value={newAdminContact} onChange={e => setNewAdminContact(e.target.value)} placeholder="+63 9XX XXX XXXX" /></div>
                 </div>
               </div>
               <div className="h-px bg-slate-200" />
               <div>
-                <h3 className="text-sm font-bold text-[#0C2340] mb-4">Access Privileges *</h3>
+                <h3 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 mb-4">Access Privileges *</h3>
                 <div className="relative">
-                  <button onClick={() => setShowRoleDropdown(!showRoleDropdown)} className="w-full px-4 py-3 border border-slate-300 rounded-md text-left text-sm text-slate-900 flex justify-between items-center">
+                  <button onClick={() => setShowRoleDropdown(!showRoleDropdown)} className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-md text-left text-sm text-slate-900 dark:text-slate-100 flex justify-between items-center">
                     {selectedRole}
-                    <span className="text-slate-600">▼</span>
+                    <span className="text-slate-600 dark:text-slate-400">▼</span>
                   </button>
                   {showRoleDropdown && (
-                    <div className="absolute w-full mt-2 bg-white rounded-lg border border-slate-200 shadow-lg z-10">
+                    <div className="absolute w-full mt-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg z-10">
                       {roles.map((role, i) => (
                         <button key={role.label} onClick={() => { setSelectedRole(role.label); setShowRoleDropdown(false) }}
-                          className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 ${i === 0 ? "bg-slate-50" : ""}`}>
-                          <p className="font-medium text-slate-900">{role.label}</p>
-                          <p className="text-xs text-slate-600 text-right">{role.description}</p>
+                          className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 dark:bg-slate-950 ${i === 0 ? "bg-slate-50 dark:bg-slate-950" : ""}`}>
+                          <p className="font-medium text-slate-900 dark:text-slate-100">{role.label}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 text-right">{role.description}</p>
                         </button>
                       ))}
                     </div>
@@ -495,16 +495,16 @@ export default function AdminManagement() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-slate-600 mb-2">Temporary Password *</label>
+                <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Temporary Password *</label>
                 <div className="flex gap-3">
                   <Input value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder="Auto-generated or enter manually" className="flex-1" />
                   <Button variant="outline" onClick={() => setNewAdminPassword("Tal@sys" + Math.floor(Math.random() * 1000))} className="px-6 bg-transparent">Generate</Button>
                 </div>
               </div>
             </div>
-            <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
+            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-              <Button onClick={handleCreateAdmin} className="bg-[#0C2340] hover:bg-[#0a1c33]">Create Admin</Button>
+              <Button onClick={handleCreateAdmin} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Create Admin</Button>
             </div>
           </div>
         </div>
@@ -513,23 +513,23 @@ export default function AdminManagement() {
       {/* Edit Privileges Modal */}
       {showEditPrivilegesModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-[#0C2340]">Edit Admin Privileges</h2>
-              <button onClick={() => setShowEditPrivilegesModal(false)} className="text-2xl text-slate-400 hover:text-slate-600">×</button>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">Edit Admin Privileges</h2>
+              <button onClick={() => setShowEditPrivilegesModal(false)} className="text-2xl text-slate-400 hover:text-slate-600 dark:text-slate-400">×</button>
             </div>
             <div className="p-6">
-              <label className="block text-xs text-slate-600 mb-3 font-semibold">SELECT ROLE</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-3 font-semibold">SELECT ROLE</label>
               <div className="space-y-2">
                 {roles.map((role) => (
-                  <button key={role.label} onClick={() => { updateAdmin(selectedAdminForEdit!, { role: role.label as any }); setShowEditPrivilegesModal(false) }} className="w-full text-left px-4 py-2.5 border border-slate-200 rounded-md hover:bg-slate-50 text-sm">
-                    <p className="font-medium text-slate-900">{role.label}</p>
-                    <p className="text-xs text-slate-600">{role.description}</p>
+                  <button key={role.label} onClick={() => { updateAdmin(selectedAdminForEdit!, { role: role.label as any }); setShowEditPrivilegesModal(false) }} className="w-full text-left px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:bg-slate-950 text-sm">
+                    <p className="font-medium text-slate-900 dark:text-slate-100">{role.label}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">{role.description}</p>
                   </button>
                 ))}
               </div>
             </div>
-            <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
+            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowEditPrivilegesModal(false)}>Cancel</Button>
             </div>
           </div>
@@ -539,17 +539,17 @@ export default function AdminManagement() {
       {/* Action Dialog */}
       {showActionDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="text-xl font-bold text-[#0C2340]">
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+              <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">
                 {actionType === "reset" ? "Reset Password" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
               </h2>
             </div>
-            <div className="p-6"><p className="text-sm text-slate-700">{actionMessage}</p></div>
-            <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
+            <div className="p-6"><p className="text-sm text-slate-700 dark:text-slate-300">{actionMessage}</p></div>
+            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowActionDialog(false)}>Cancel</Button>
               <Button
-                className={actionType === "lock" || actionType === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-[#0C2340] hover:bg-[#0a1c33]"}
+                className={actionType === "lock" || actionType === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"}
                 onClick={() => { confirmAction() }}
               >
                 {actionType === "reset" ? "Confirm Reset" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}

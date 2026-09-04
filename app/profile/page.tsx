@@ -12,6 +12,7 @@ import { ProfileHeaderCard } from "@/components/profile/profile-header-card"
 import { ProfilePersonalInfoCard } from "@/components/profile/profile-personal-info-card"
 import { ProfileProofsCard } from "@/components/profile/profile-proofs-card"
 import { ProfileAccountInfoCard } from "@/components/profile/profile-account-info-card"
+import { ProfileDangerZoneCard } from "@/components/profile/profile-danger-zone-card"
 import type { ProfileEditFormData } from "@/components/profile/profile-types"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
@@ -63,6 +64,7 @@ export default function ProfilePage() {
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
   const [isRequestSubmitted, setIsRequestSubmitted] = useState(false)
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false)
+  const [cameraMode, setCameraMode] = useState<"setup" | "edit">("setup")
   const [profilePicture, setProfilePicture] = useState<string | null>(null)
   const [isUploadingPicture, setIsUploadingPicture] = useState(false)
   const [formData, setFormData] = useState<ProfileEditFormData>(defaultFormData)
@@ -81,7 +83,9 @@ export default function ProfilePage() {
               : ["Adult"]
 
       setFormData({
-        fullName: user.name,
+        firstName: user.firstName || user.name.split(" ")[0] || "",
+        middleName: user.middleInitial || "",
+        lastName: user.lastName || user.name.split(" ").slice(1).join(" ") || "",
         dateOfBirth: user.dateOfBirth,
         contactNumber: user.contactNumber,
         email: user.email,
@@ -138,8 +142,13 @@ export default function ProfilePage() {
       const file = new File([u8arr], "profile_picture.jpg", { type: mime })
 
       const url = await uploadFileToCloudinary(file)
-      await saveProfilePicture(url)
-      showToastPreset("registrationCompleted") // We can use a generic success toast here, or update the message
+      
+      if (cameraMode === "edit") {
+        handleFormChange("newProfilePicture", url)
+      } else {
+        await saveProfilePicture(url)
+        showToastPreset("registrationCompleted")
+      }
     } catch (err) {
       console.error(err)
       showToastPreset("uploadFailedSize")
@@ -182,7 +191,16 @@ export default function ProfilePage() {
     setIsSubmittingRequest(true)
     
     const changes: { field: string; oldValue: string; newValue: string }[] = []
-    if (user.name !== formData.fullName) changes.push({ field: "Full Name", oldValue: user.name, newValue: formData.fullName })
+    
+    const oldFirstName = user.firstName || user.name.split(" ")[0] || ""
+    if (oldFirstName !== formData.firstName) changes.push({ field: "First Name", oldValue: oldFirstName, newValue: formData.firstName })
+    
+    const oldMiddleName = user.middleInitial || ""
+    if (oldMiddleName !== formData.middleName) changes.push({ field: "Middle Name", oldValue: oldMiddleName, newValue: formData.middleName })
+
+    const oldLastName = user.lastName || user.name.split(" ").slice(1).join(" ") || ""
+    if (oldLastName !== formData.lastName) changes.push({ field: "Last Name", oldValue: oldLastName, newValue: formData.lastName })
+
     if (user.dateOfBirth !== formData.dateOfBirth) changes.push({ field: "Date of Birth", oldValue: user.dateOfBirth, newValue: formData.dateOfBirth })
     if (user.contactNumber !== formData.contactNumber) changes.push({ field: "Contact Number", oldValue: user.contactNumber, newValue: formData.contactNumber })
     if (user.email !== formData.email) changes.push({ field: "Email Address", oldValue: user.email, newValue: formData.email })
@@ -231,15 +249,18 @@ export default function ProfilePage() {
     <ResidentPageShell>
       <div className="space-y-6">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-[#0C2340] mb-1 tracking-tight">My Profile</h1>
-          <p className="text-sm text-slate-600">View and manage your personal information</p>
+          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-1 tracking-tight">My Profile</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">View and manage your personal information</p>
         </div>
 
         <ProfileHeaderCard
           user={user}
           profilePicture={profilePicture}
           isUploadingPicture={isUploadingPicture}
-          onSetupProfilePicture={() => setIsCameraModalOpen(true)}
+          onSetupProfilePicture={() => {
+            setCameraMode("setup")
+            setIsCameraModalOpen(true)
+          }}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -253,7 +274,9 @@ export default function ProfilePage() {
           />
         </div>
 
-        <ProfileAccountInfoCard user={user} onDeleteAccount={async () => {
+        <ProfileAccountInfoCard user={user} />
+        
+        <ProfileDangerZoneCard onDeleteAccount={async () => {
           if (await deleteAccount()) {
             window.location.href = "/login"
           }
@@ -271,6 +294,10 @@ export default function ProfilePage() {
         onFormChange={handleFormChange}
         onStatusToggle={handleStatusToggle}
         onFileUpload={handleFileUpload}
+        onRequestCamera={() => {
+          setCameraMode("edit")
+          setIsCameraModalOpen(true)
+        }}
         onSubmit={handleSubmitRequest}
       />
 

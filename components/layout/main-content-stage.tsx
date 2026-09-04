@@ -1,8 +1,8 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider"
+import { DynamicSkeleton } from "@/components/layout/dynamic-skeleton"
 import { cn } from "@/lib/utils"
 
 interface MainContentStageProps {
@@ -11,7 +11,9 @@ interface MainContentStageProps {
 }
 
 export function MainContentStage({ children, className }: MainContentStageProps) {
-  const { isNavigating } = useNavigationLoading()
+  const { isNavigating, pendingPath } = useNavigationLoading()
+  // Ensure we have a string path even if pendingPath is null
+  const targetPath = pendingPath || ""
 
   return (
     <main className={cn("min-w-0 overflow-x-hidden", className)}>
@@ -19,16 +21,8 @@ export function MainContentStage({ children, className }: MainContentStageProps)
         {children}
 
         {isNavigating && (
-          <div className="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 pointer-events-none p-4 sm:p-6">
-            <div className="space-y-4">
-              <Skeleton className="h-8 w-56" />
-              <Skeleton className="h-4 w-72" />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
-                <Skeleton className="h-44 w-full" />
-                <Skeleton className="h-44 w-full" />
-              </div>
-              <Skeleton className="h-56 w-full" />
-            </div>
+          <div className="absolute inset-0 bg-slate-50 dark:bg-slate-950 z-10 pointer-events-none p-4 sm:p-6">
+            <DynamicSkeleton path={targetPath} />
           </div>
         )}
       </div>

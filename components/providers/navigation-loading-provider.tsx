@@ -31,12 +31,8 @@ export function NavigationLoadingProvider({ children }: { children: React.ReactN
     }
 
     if (pathname === pendingPath) {
-      const timeout = setTimeout(() => {
-        setIsNavigating(false)
-        setPendingPath(null)
-      }, 350)
-
-      return () => clearTimeout(timeout)
+      setIsNavigating(false)
+      setPendingPath(null)
     }
   }, [pathname, pendingPath])
 

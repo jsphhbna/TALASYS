@@ -58,7 +58,7 @@ export default function Notifications() {
       case "reactivation": return <Bell className="w-4 h-4 text-purple-600" />
       case "success": return <FileText className="w-4 h-4 text-emerald-600" />
       case "error": return <Bell className="w-4 h-4 text-red-600" />
-      default: return <Mail className="w-4 h-4 text-slate-500" />
+      default: return <Mail className="w-4 h-4 text-slate-500 dark:text-slate-400" />
     }
   }
 
@@ -112,8 +112,8 @@ export default function Notifications() {
   return (
     <AdminPageShell>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Notifications</h1>
-        <p className="text-sm text-slate-500 mt-0.5">System alerts and resident notifications</p>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Notifications</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">System alerts and resident notifications</p>
       </div>
 
       {/* Summary KPI Strip */}
@@ -122,7 +122,7 @@ export default function Notifications() {
           <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center mb-2">
             <Bell className="w-4 h-4 text-red-600" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Unread</p>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Unread</p>
           <p className="text-2xl font-bold text-red-600">{unreadCount}</p>
         </Card>
         {[
@@ -134,7 +134,7 @@ export default function Notifications() {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-2" style={{ backgroundColor: `${ns.color}15` }}>
               {i === 0 ? <UserPlus className="w-4 h-4" style={{ color: ns.color }} /> : i === 1 ? <Clock className="w-4 h-4" style={{ color: ns.color }} /> : <FileText className="w-4 h-4" style={{ color: ns.color }} />}
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{ns.type}</p>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{ns.type}</p>
             <p className="text-2xl font-bold" style={{ color: ns.color }}>{ns.count}</p>
           </Card>
         ))}
@@ -147,14 +147,14 @@ export default function Notifications() {
             <button
               key={filter.id}
               onClick={() => setActiveFilter(filter.id)}
-              className={`px-4 py-2 text-xs rounded-lg transition-colors ${activeFilter === filter.id ? "bg-[#0C2340] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              className={`px-4 py-2 text-xs rounded-lg transition-colors ${activeFilter === filter.id ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"
                 }`}
             >
               {filter.label}
             </button>
           ))}
         </div>
-        <button onClick={() => markAllNotificationsRead()} className="text-[11px] text-[#0C2340] font-medium hover:underline flex gap-1 items-center">
+        <button onClick={() => markAllNotificationsRead()} className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center">
           <span>✓✓</span> Mark all as read
         </button>
       </div>
@@ -171,12 +171,12 @@ export default function Notifications() {
             <div
               key={notification.id}
               onClick={() => { markNotificationRead(notification.id); setSelectedNotification(notification); setShowPreviewDialog(true) }}
-              className={`p-5 hover:bg-slate-50 cursor-pointer transition-colors ${!notification.isRead
+              className={`p-5 hover:bg-slate-50 dark:bg-slate-950 cursor-pointer transition-colors ${!notification.isRead
                 ? notification.type === "registration" ? "bg-blue-50/50" :
                   notification.type === "expiring" ? "bg-amber-50/50" :
                     notification.type === "reactivation" ? "bg-purple-50/50" :
-                      "bg-white"
-                : "bg-white"
+                      "bg-white dark:bg-slate-900"
+                : "bg-white dark:bg-slate-900"
                 }`}
             >
               <div className="flex items-start gap-3.5">
@@ -198,18 +198,18 @@ export default function Notifications() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <p className={`text-[12px] font-semibold ${notification.isRead ? "text-slate-500" : "text-[#0C2340]"}`}>
+                    <p className={`text-[12px] font-semibold ${notification.isRead ? "text-slate-500 dark:text-slate-400" : "text-[#0C2340] dark:text-blue-50"}`}>
                       {notification.title}
                     </p>
                     {getPriorityBadge(notification.type, notification.isRead)}
                   </div>
-                  <p className={`text-[11px] mb-1 ${notification.isRead ? "text-slate-400" : "text-slate-600"}`}>
+                  <p className={`text-[11px] mb-1 ${notification.isRead ? "text-slate-400" : "text-slate-600 dark:text-slate-400"}`}>
                     {notification.message}
                   </p>
                   <p className="text-[10px] text-slate-400">{formatRelativeTime(notification.createdAt)}</p>
                 </div>
                 {notification.actionUrl && !notification.isRead && (
-                  <Button size="sm" className="h-7 px-4 text-[10px] bg-[#0C2340] hover:bg-[#0a1c33]">
+                  <Button size="sm" className="h-7 px-4 text-[10px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">
                     {notification.type === "expiring" ? "View List" : "Review"}
                   </Button>
                 )}
@@ -219,7 +219,7 @@ export default function Notifications() {
         </div>
 
         {/* Send Notification */}
-        <div className="p-4 bg-[#0C2340]/[0.03] border-t border-slate-200 flex items-center gap-4">
+        <div className="p-4 bg-[#0C2340] dark:bg-slate-800/[0.03] border-t border-slate-200 dark:border-slate-700 flex items-center gap-4">
           <input
             type="text"
             value={broadcastMessage}
@@ -233,7 +233,7 @@ export default function Notifications() {
             size="sm" 
             onClick={handleBroadcast} 
             disabled={isSending || !broadcastMessage.trim()} 
-            className="h-9 px-6 bg-[#0C2340] hover:bg-[#0a1c33]"
+            className="h-9 px-6 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
           >
             {isSending ? "Sending..." : "Send"}
           </Button>
@@ -244,9 +244,9 @@ export default function Notifications() {
       {showPreviewDialog && selectedNotification && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <Card className="w-full max-w-lg p-0 shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h3 className="text-lg font-bold text-[#0C2340]">Notification Details</h3>
-              <button onClick={() => setShowPreviewDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Notification Details</h3>
+              <button onClick={() => setShowPreviewDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
             </div>
             <div className="p-6">
               <div className="flex items-start gap-4 mb-4">
@@ -260,15 +260,15 @@ export default function Notifications() {
                   {getNotifIcon(selectedNotification.type)}
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-base font-bold text-[#0C2340] mb-1">{selectedNotification.title}</h4>
-                  <p className="text-sm text-slate-600 mb-2">{selectedNotification.message}</p>
+                  <h4 className="text-base font-bold text-[#0C2340] dark:text-blue-50 mb-1">{selectedNotification.title}</h4>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{selectedNotification.message}</p>
                   <p className="text-[10px] text-slate-400">{selectedNotification.timestamp}</p>
                 </div>
               </div>
               {selectedNotification.actionUrl && (
                 <Button
                   onClick={() => { window.location.href = selectedNotification.actionUrl }}
-                  className="w-full h-10 bg-[#0C2340] hover:bg-[#0a1c33]"
+                  className="w-full h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
                 >
                   {selectedNotification.type === "expiring" ? "View List" : "Review"}
                 </Button>

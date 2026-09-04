@@ -154,44 +154,44 @@ export default function SystemReports() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">System Reports</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Generate comprehensive system-wide PDF reports</p>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">System Reports</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Generate comprehensive system-wide PDF reports</p>
       </div>
 
       {/* KPI Strip */}
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-            <FileText className="w-4 h-4 text-[#0C2340]" />
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+            <FileText className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Reports Generated</p>
-          <span className="text-2xl font-bold text-[#0C2340]">{trueTotal}</span>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Reports Generated</p>
+          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{trueTotal}</span>
           <div className="flex items-center gap-1 mt-1">
             <span className="text-[10px] font-medium text-slate-400">-</span>
           </div>
         </Card>
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-            <Download className="w-4 h-4 text-[#0C2340]" />
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+            <Download className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Most Requested</p>
-          <span className="text-lg font-bold text-[#0C2340]">{mostRequested ? mostRequested.name : "N/A"}</span>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Most Requested</p>
+          <span className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{mostRequested ? mostRequested.name : "N/A"}</span>
           <p className="text-[10px] text-slate-400 mt-1">{mostRequested ? `${mostRequested.value} of ${trueTotal} total` : "No data available"}</p>
         </Card>
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-            <Clock className="w-4 h-4 text-[#0C2340]" />
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+            <Clock className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Avg Generation</p>
-          <span className="text-2xl font-bold text-[#0C2340]">0s</span>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Avg Generation</p>
+          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">0s</span>
           <p className="text-[10px] text-slate-400 mt-1">Processing time</p>
         </Card>
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-            <BarChart3 className="w-4 h-4 text-[#0C2340]" />
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+            <BarChart3 className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">This Month</p>
-          <span className="text-2xl font-bold text-[#0C2340]">0</span>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">This Month</p>
+          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">0</span>
           <p className="text-[10px] text-slate-400 mt-1">Reports this month</p>
         </Card>
       </div>
@@ -202,11 +202,11 @@ export default function SystemReports() {
         <Card className="col-span-8 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-[#0C2340]">Report Generation Trend</h2>
-              <p className="text-[11px] text-slate-500 mt-0.5">Monthly breakdown by report category</p>
+              <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Report Generation Trend</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Monthly breakdown by report category</p>
             </div>
             <div className="flex items-center gap-4 text-[10px]">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0C2340]" />Population</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0C2340] dark:bg-slate-800" />Population</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#2a5080]" />Documents</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#C5A55A]" />Analytics</span>
             </div>
@@ -236,8 +236,8 @@ export default function SystemReports() {
 
         {/* Type Breakdown Pie */}
         <Card className="col-span-4 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Report Distribution</h2>
-          <p className="text-[11px] text-slate-500 mb-3">By report type</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Report Distribution</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">By report type</p>
           <ResponsiveContainer width="100%" height={140}>
             <PieChart>
               <Pie data={reportTypeBreakdown} cx="50%" cy="50%" innerRadius={38} outerRadius={58} dataKey="value" stroke="none" paddingAngle={3}>
@@ -252,9 +252,9 @@ export default function SystemReports() {
               <div key={i} className="flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
-                  <span className="text-slate-600">{r.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{r.name}</span>
                 </span>
-                <span className="font-semibold text-[#0C2340]">{r.name === "None" ? "-" : r.value}</span>
+                <span className="font-semibold text-[#0C2340] dark:text-blue-50">{r.name === "None" ? "-" : r.value}</span>
               </div>
             ))}
           </div>
@@ -263,7 +263,7 @@ export default function SystemReports() {
 
       {/* Population Reports */}
       <div>
-        <h3 className="text-sm font-semibold text-[#0C2340] mb-3">Population Reports</h3>
+        <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Population Reports</h3>
         <div className="grid grid-cols-4 gap-4">
           {reports.map((report) => (
             <Card key={report.title} className="p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
@@ -273,9 +273,9 @@ export default function SystemReports() {
                 </div>
                 <span className="text-[10px] font-bold text-[#C5A55A]">{report.pct}%</span>
               </div>
-              <h4 className="text-[12px] font-semibold text-[#0C2340] mb-0.5">{report.title}</h4>
-              <p className="text-[10px] text-slate-500 mb-1">{report.description}</p>
-              <p className="text-[10px] font-medium text-slate-600">{report.count}</p>
+              <h4 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{report.title}</h4>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-1">{report.description}</p>
+              <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{report.count}</p>
             </Card>
           ))}
         </div>
@@ -283,20 +283,20 @@ export default function SystemReports() {
 
       {/* Document Reports */}
       <div>
-        <h3 className="text-sm font-semibold text-[#0C2340] mb-3">Document Reports</h3>
+        <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Document Reports</h3>
         <div className="grid grid-cols-3 gap-4">
           {documentReports.map((report) => (
             <Card key={report.title} className="p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${report.color}10` }}>
                 <report.icon className="w-4 h-4" style={{ color: report.color }} />
               </div>
-              <h4 className="text-[12px] font-semibold text-[#0C2340] mb-0.5">{report.title}</h4>
-              <p className="text-[10px] text-slate-500 mb-1">{report.description}</p>
+              <h4 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{report.title}</h4>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-1">{report.description}</p>
               {report.hasDatePicker && (
-                <button className="mt-1 px-3 py-1 text-[10px] bg-slate-50 border border-slate-200 rounded text-slate-600 hover:bg-slate-100 transition-colors">Select dates</button>
+                <button className="mt-1 px-3 py-1 text-[10px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800 transition-colors">Select dates</button>
               )}
-              {report.count && <p className="text-[10px] font-medium text-slate-600">{report.count}</p>}
-              {report.details && <p className="text-[10px] text-slate-500">{report.details}</p>}
+              {report.count && <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{report.count}</p>}
+              {report.details && <p className="text-[10px] text-slate-500 dark:text-slate-400">{report.details}</p>}
             </Card>
           ))}
         </div>
@@ -304,11 +304,11 @@ export default function SystemReports() {
 
       {/* Custom Report Builder */}
       <Card className="p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-[#0C2340] mb-4">Generate Custom Report</h3>
+        <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Generate Custom Report</h3>
         <div className="grid grid-cols-4 gap-4 items-end">
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Report Type</label>
-            <select className="w-full px-4 py-2.5 border border-slate-200 rounded-md text-sm">
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Report Type</label>
+            <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
               <option>Full Population</option>
               <option>Seniors Summary</option>
               <option>Adults Summary</option>
@@ -316,30 +316,30 @@ export default function SystemReports() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Date Range</label>
-            <input type="text" className="w-full px-4 py-2.5 border border-slate-200 rounded-md text-sm" value="Jun 1 - Jun 30, 2024" readOnly />
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Date Range</label>
+            <input type="text" className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm" value="Jun 1 - Jun 30, 2024" readOnly />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Format</label>
-            <select className="w-full px-4 py-2.5 border border-slate-200 rounded-md text-sm">
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Format</label>
+            <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
               <option>PDF</option>
               <option>CSV</option>
               <option>Excel</option>
             </select>
           </div>
-          <Button onClick={() => setShowGenerateDialog(true)} className="bg-[#0C2340] hover:bg-[#0a1c33]">Generate Report</Button>
+          <Button onClick={() => setShowGenerateDialog(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Generate Report</Button>
         </div>
       </Card>
 
       {/* Generate Dialog */}
       {showGenerateDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] mb-3">Generate Report?</h3>
-            <p className="text-sm text-slate-600 mb-6">This will generate a Full Population report in PDF format for the date range Jun 1 - Jun 30, 2024.</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Generate Report?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a Full Population report in PDF format for the date range Jun 1 - Jun 30, 2024.</p>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowGenerateDialog(false)} disabled={isGeneratingReport}>Cancel</Button>
-              <Button onClick={handleGenerateReport} className="bg-[#0C2340] hover:bg-[#0a1c33]" disabled={isGeneratingReport}>
+              <Button onClick={handleGenerateReport} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isGeneratingReport}>
                 {isGeneratingReport ? "Generating..." : "Confirm"}
               </Button>
             </div>

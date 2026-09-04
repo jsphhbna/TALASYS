@@ -64,8 +64,12 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
-        <nav className="flex-1 pt-4 overflow-y-auto">
+      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
+        <nav className="flex-1 pt-5 overflow-y-auto">
+          <div className="flex items-center px-4 mb-3">
+            <p className="text-xs font-bold tracking-wider text-blue-200/50 dark:text-slate-400/70 uppercase mr-3">Main Menu</p>
+            <div className="h-px flex-1 bg-blue-200/10 dark:bg-slate-700/50 rounded-full"></div>
+          </div>
           {navItems.map((item) => {
             const isActive = activePath === item.href
 
@@ -75,7 +79,7 @@ export function Sidebar() {
                 href={item.href}
                 onClick={(e) => handleNavClick(e, item.href)}
                 className={cn(
-                  "flex items-center gap-3 mx-2 mb-0.5 px-4 py-2.5 rounded-md text-[13px] relative transition-colors",
+                  "flex items-center gap-3 mx-2 mb-0.5 pl-5 pr-4 py-2.5 rounded-md text-[13px] relative transition-colors",
                   isActive
                     ? "bg-white/10 text-white font-semibold"
                     : "text-blue-200/60 hover:text-white hover:bg-white/5",
@@ -115,7 +119,7 @@ export function Sidebar() {
             <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleLogout} className="bg-[#0C2340] hover:bg-[#1a3a5c]">Confirm</Button>
+            <Button onClick={handleLogout} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c]">Confirm</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

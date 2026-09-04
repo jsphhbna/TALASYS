@@ -178,15 +178,15 @@ export default function GenerateDocuments() {
   return (
     <AdminPageShell>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Generate Documents</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Create and print official barangay documents</p>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Generate Documents</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Create and print official barangay documents</p>
       </div>
 
       {/* Volume KPI Strip */}
       <div className="grid grid-cols-12 gap-6 mb-6">
         <div className="col-span-8 grid grid-cols-4 gap-4">
           {[
-            { label: "Generated Today", value: "0", icon: Printer, color: "text-[#0C2340]", bg: "bg-[#0C2340]/[0.06]" },
+            { label: "Generated Today", value: "0", icon: Printer, color: "text-[#0C2340] dark:text-blue-50", bg: "bg-[#0C2340] dark:bg-slate-800/[0.06]" },
             { label: "This Week", value: "0", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
             { label: "Most Requested", value: "-", icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
             { label: "Avg Per Day", value: "0", icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
@@ -195,13 +195,13 @@ export default function GenerateDocuments() {
               <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center mb-2`}>
                 <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
               </div>
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{kpi.label}</p>
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.label}</p>
               <p className={`text-xl font-bold ${kpi.color} mt-0.5`}>{kpi.value}</p>
             </Card>
           ))}
         </div>
         <Card className="col-span-4 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Most Generated</h3>
+          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Most Generated</h3>
           <ResponsiveContainer width="100%" height={90}>
             <BarChart data={mostGenerated} layout="vertical" barSize={10}>
               <XAxis type="number" tick={{ fontSize: 9 }} stroke="#94a3b8" />
@@ -217,13 +217,13 @@ export default function GenerateDocuments() {
       <Card className="p-4 shadow-sm mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Printer className="w-4 h-4 text-[#0C2340]" />
-            <h3 className="text-[11px] font-semibold text-[#0C2340]">Generation History</h3>
+            <Printer className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
+            <h3 className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50">Generation History</h3>
           </div>
           <div className="flex items-center gap-4">
             {recentGenerations.map((g, i) => (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] font-medium text-[#0C2340]">{g.name}</span>
+                <span className="text-[10px] font-medium text-[#0C2340] dark:text-blue-50">{g.name}</span>
                 <span className="text-[10px] text-slate-400">• {g.doc} • {g.time}</span>
               </div>
             ))}
@@ -232,10 +232,10 @@ export default function GenerateDocuments() {
       </Card>
 
       <div className="flex gap-2 mb-6">
-        <button onClick={() => setActiveTab("manual")} className={`px-4 py-2 rounded-lg text-xs transition-colors ${activeTab === "manual" ? "bg-[#0C2340] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+        <button onClick={() => setActiveTab("manual")} className={`px-4 py-2 rounded-lg text-xs transition-colors ${activeTab === "manual" ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}>
           Manual Generation
         </button>
-        <button onClick={() => setActiveTab("processing")} className={`px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 ${activeTab === "processing" ? "bg-[#0C2340] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+        <button onClick={() => setActiveTab("processing")} className={`px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 ${activeTab === "processing" ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}>
           Processing Queue
           <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === "processing" ? "bg-white/20" : "bg-amber-100 text-amber-700"}`}>{pendingGeneration.length}</span>
         </button>
@@ -246,19 +246,19 @@ export default function GenerateDocuments() {
           {/* Search + Doc Type Selection */}
           <div className="col-span-5 space-y-4">
             <Card className="p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#0C2340] mb-3">1. Search Resident</h3>
+              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">1. Search Resident</h3>
               <input
                 type="text"
                 placeholder="Type resident name..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setSelectedResident(null) }}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
               />
               {searchResults.length > 0 && (
-                <div className="mt-2 max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                <div className="mt-2 max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100">
                   {searchResults.map((r) => (
-                    <button key={r.id} onClick={() => { setSelectedResident(r); setSearchQuery(r.name) }} className={`w-full px-4 py-2.5 text-left hover:bg-slate-50 ${selectedResident?.id === r.id ? "bg-[#0C2340]/[0.04]" : ""}`}>
-                      <p className="text-[12px] font-semibold text-[#0C2340]">{r.name}</p>
+                    <button key={r.id} onClick={() => { setSelectedResident(r); setSearchQuery(r.name) }} className={`w-full px-4 py-2.5 text-left hover:bg-slate-50 dark:bg-slate-950 ${selectedResident?.id === r.id ? "bg-[#0C2340] dark:bg-slate-800/[0.04]" : ""}`}>
+                      <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{r.name}</p>
                       <p className="text-[10px] text-slate-400">{r.categories.join(", ")} • {r.status}</p>
                     </button>
                   ))}
@@ -267,16 +267,16 @@ export default function GenerateDocuments() {
             </Card>
 
             <Card className="p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#0C2340] mb-3">2. Select Document Type</h3>
+              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">2. Select Document Type</h3>
               <div className="space-y-2">
                 {docTypes.map((doc) => (
-                  <button key={doc.id} onClick={() => doc.enabled && setSelectedDocType(doc.id)} className={`w-full p-3 rounded-lg text-left transition-colors border ${doc.enabled ? 'hover:bg-slate-50' : 'opacity-60 cursor-not-allowed bg-slate-50'} ${selectedDocType === doc.id ? "border-[#0C2340] bg-[#0C2340]/[0.04]" : "border-slate-200"}`}>
+                  <button key={doc.id} onClick={() => doc.enabled && setSelectedDocType(doc.id)} className={`w-full p-3 rounded-lg text-left transition-colors border ${doc.enabled ? 'hover:bg-slate-50 dark:bg-slate-950' : 'opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-950'} ${selectedDocType === doc.id ? "border-[#0C2340] bg-[#0C2340] dark:bg-slate-800/[0.04]" : "border-slate-200 dark:border-slate-700"}`}>
                     <div className="flex items-center gap-3">
                       <span className="text-lg" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</span>
                       <div className="flex-1">
                         <div className="flex justify-between items-center">
-                            <p className="text-[12px] font-semibold text-[#0C2340]">{doc.label}</p>
-                            {!doc.enabled && <span className="text-[9px] font-semibold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded">Disabled</span>}
+                            <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{doc.label}</p>
+                            {!doc.enabled && <span className="text-[9px] font-semibold bg-slate-200 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">Disabled</span>}
                         </div>
                         <p className="text-[10px] text-slate-400 mt-0.5">{doc.desc}</p>
                       </div>
@@ -289,23 +289,23 @@ export default function GenerateDocuments() {
 
           {/* PDF Preview */}
           <Card className="col-span-7 shadow-sm">
-            <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg">
-              <h3 className="text-sm font-semibold text-[#0C2340]">Document Preview</h3>
+            <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
+              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Document Preview</h3>
             </div>
             <div className="p-6">
               {selectedResident && selectedDocType ? (
                 <div className="space-y-2">
                   {/* Simple WYSIWYG toolbar */}
-                  <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-500 font-semibold mr-2 uppercase tracking-wider">Edit Document:</span>
+                  <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mr-2 uppercase tracking-wider">Edit Document:</span>
                     <button
                       onMouseDown={e => { e.preventDefault(); document.execCommand('bold') }}
-                      className="px-2.5 py-1 text-xs font-bold bg-white border border-slate-200 rounded hover:bg-slate-50 text-slate-700 shadow-sm"
+                      className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 shadow-sm"
                       title="Bold selected text"
                     >B</button>
                     <button
                       onMouseDown={e => { e.preventDefault(); document.execCommand('italic') }}
-                      className="px-2.5 py-1 text-xs italic bg-white border border-slate-200 rounded hover:bg-slate-50 text-slate-700 shadow-sm"
+                      className="px-2.5 py-1 text-xs italic bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 shadow-sm"
                       title="Italic selected text"
                     >I</button>
                     <button
@@ -318,17 +318,17 @@ export default function GenerateDocuments() {
                         ).join('')
                         editorRef.current.innerHTML = paragraphs
                       }}
-                      className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded hover:bg-slate-50 text-slate-500 shadow-sm ml-1"
+                      className="px-2.5 py-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 shadow-sm ml-1"
                       title="Reset to original template"
                     >↺ Reset</button>
                     {selectedDocType === "custom_blank" && (
                       <div className="ml-2 flex items-center gap-2">
-                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Title:</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">Title:</span>
                         <input
                           type="text"
                           value={customDocTitle}
                           onChange={e => setCustomDocTitle(e.target.value)}
-                          className="px-2 py-0.5 text-xs border border-slate-200 rounded max-w-[150px]"
+                          className="px-2 py-0.5 text-xs border border-slate-200 dark:border-slate-700 rounded max-w-[150px]"
                         />
                       </div>
                     )}
@@ -338,7 +338,7 @@ export default function GenerateDocuments() {
                   {/* Editable Paper Preview */}
                   <div
                     id="pdf-preview-container"
-                    className={`bg-white relative w-full overflow-hidden ${selectedDocType === "residency" ? "font-sans" : "font-serif"}`}
+                    className={`bg-white dark:bg-slate-900 relative w-full overflow-hidden ${selectedDocType === "residency" ? "font-sans" : "font-serif"}`}
                     style={{ aspectRatio: "8.5 / 11", padding: "0" }}
                   >
                     {/* Static header — not editable */}
@@ -451,7 +451,7 @@ export default function GenerateDocuments() {
                       }
                     }}
                     disabled={isGenerating}
-                    className="flex-1 h-10 bg-[#0C2340] hover:bg-[#0a1c33]"
+                    className="flex-1 h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                     Generate PDF
@@ -494,16 +494,16 @@ export default function GenerateDocuments() {
       ) : (
         /* Processing Queue Tab */
         <Card className="shadow-sm">
-          <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#0C2340]">Processing Queue — Ready for Generation</h3>
+          <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Processing Queue — Ready for Generation</h3>
           </div>
           <div className="divide-y divide-slate-100">
             {pendingGeneration.map((req) => (
-              <div key={req.id} className="px-5 py-3.5 hover:bg-slate-50/50 transition-colors flex items-center justify-between">
+              <div key={req.id} className="px-5 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#0C2340]/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340]">{req.residentInitials}</div>
+                  <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">{req.residentInitials}</div>
                   <div>
-                    <p className="text-[12px] font-semibold text-[#0C2340]">{req.residentName}</p>
+                    <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{req.residentName}</p>
                     <p className="text-[10px] text-slate-400">{req.documentType} • {req.purpose}</p>
                   </div>
                 </div>

@@ -45,7 +45,7 @@ export function ResidentMobileNav() {
   }
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-[80] bg-white border-t border-slate-200 px-1 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] shadow-[0_-4px_16px_rgba(12,35,64,0.12)] pointer-events-auto">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-[80] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-1 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] shadow-[0_-4px_16px_rgba(12,35,64,0.12)] pointer-events-auto">
       <div className="grid grid-cols-5 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon
@@ -58,7 +58,7 @@ export function ResidentMobileNav() {
               onClick={(e) => handleNavClick(e, item.href)}
               className={cn(
                 "relative flex flex-col items-center justify-center gap-0.5 rounded-lg py-2 text-[10px] font-medium transition-colors",
-                isActive ? "text-[#0C2340] bg-[#0C2340]/[0.06]" : "text-slate-500",
+                isActive ? "text-[#0C2340] dark:text-blue-50 bg-[#0C2340]/10 dark:bg-slate-800/[0.06]" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/30",
               )}
             >
               <div className="relative">

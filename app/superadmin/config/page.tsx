@@ -275,26 +275,26 @@ City of Manila, {{date_issued}}.`,
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">System Configuration</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage system branding, templates, and document settings</p>
+          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">System Configuration</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Manage system branding, templates, and document settings</p>
         </div>
-        <Button onClick={() => setShowSaveDialog(true)} className="bg-[#0C2340] hover:bg-[#0a1c33]">Save All Changes</Button>
+        <Button onClick={() => setShowSaveDialog(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Save All Changes</Button>
       </div>
 
       <div className="grid grid-cols-12 gap-6">
         {/* Recent Changes */}
         <Card className="col-span-12 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-3">Recent Config Changes</h2>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Recent Config Changes</h2>
           <div className="space-y-3">
             {configChangeLog.slice(0, 4).map((change, i) => {
               const Icon = changeTypeIcons[change.type] || Settings
               return (
                 <div key={i} className="flex items-start gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-[#0C2340]/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Icon className="w-3 h-3 text-[#0C2340]" />
+                  <div className="w-6 h-6 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Icon className="w-3 h-3 text-[#0C2340] dark:text-blue-50" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[11px] text-slate-800">{change.action}</p>
+                    <p className="text-[11px] text-slate-800 dark:text-slate-200">{change.action}</p>
                     <p className="text-[10px] text-slate-400">{change.timestamp}</p>
                   </div>
                 </div>
@@ -305,15 +305,15 @@ City of Manila, {{date_issued}}.`,
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-slate-200 dark:border-slate-700">
         <div className="flex gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${activeTab === tab.id
-                ? "border-[#0C2340] text-[#0C2340]"
-                : "border-transparent text-slate-500 hover:text-slate-700"
+                ? "border-[#0C2340] text-[#0C2340] dark:text-blue-50"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-300"
                 }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -327,23 +327,23 @@ City of Manila, {{date_issued}}.`,
       {activeTab === "branding" && (
         <div className="grid grid-cols-12 gap-6">
           <Card className="col-span-7 p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-[#0C2340] mb-4">Barangay Information</h3>
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Barangay Information</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Barangay Name</label>
+                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Name</label>
                 <Input value={formData.barangayName} onChange={e => setFormData({ ...formData, barangayName: e.target.value })} placeholder="Barangay Sample" />
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Municipality / City</label>
+                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Municipality / City</label>
                 <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="City of Sample" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Contact Number</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Contact Number</label>
                   <Input value={formData.contactNumber} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} placeholder="(02) 8123-4567" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Email</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
                   <Input value={formData.emailAddress} onChange={e => setFormData({ ...formData, emailAddress: e.target.value })} placeholder="barangay@sample.gov.ph" />
                 </div>
               </div>
@@ -351,27 +351,27 @@ City of Manila, {{date_issued}}.`,
           </Card>
           <div className="col-span-5 space-y-6">
             <Card className="p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#0C2340] mb-3">Logo</h3>
-              <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center">
-                <div className="w-16 h-16 bg-slate-100 rounded-full mx-auto mb-3 flex items-center justify-center">
+              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Logo</h3>
+              <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-6 text-center">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full mx-auto mb-3 flex items-center justify-center">
                   <Palette className="w-7 h-7 text-slate-400" />
                 </div>
-                <p className="text-[11px] text-slate-500 mb-2">Drop your logo here or click to upload</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">Drop your logo here or click to upload</p>
                 <Button variant="outline" className="text-xs bg-transparent">Browse Files</Button>
               </div>
             </Card>
             <Card className="p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#0C2340] mb-3">E-Signatures</h3>
+              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">E-Signatures</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Barangay Captain</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Captain</label>
                   <div className="flex gap-2">
                     <Input value={formData.barangayCaptainName} onChange={e => setFormData({ ...formData, barangayCaptainName: e.target.value })} placeholder="Hon. Juan Dela Cruz" className="flex-1" />
                     <Button variant="outline" className="text-xs bg-transparent">Upload Sig</Button>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Secretary</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Secretary</label>
                   <div className="flex gap-2">
                     <Input defaultValue="Maria Santos" className="flex-1" />
                     <Button variant="outline" className="text-xs bg-transparent">Upload Sig</Button>
@@ -392,23 +392,23 @@ City of Manila, {{date_issued}}.`,
                 key={t.id}
                 onClick={() => { setSelectedTemplate(t.id); setEditingTemplate(false) }}
                 className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${selectedTemplate === t.id
-                  ? "border-[#0C2340] bg-[#0C2340]/[0.03] ring-1 ring-[#0C2340]/20"
-                  : "border-slate-200 hover:border-slate-300 bg-white"
+                  ? "border-[#0C2340] bg-[#0C2340] dark:bg-slate-800/[0.03] ring-1 ring-[#0C2340]/20"
+                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
                   }`}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[12px] font-semibold text-[#0C2340]">{t.name}</p>
-                    <p className="text-[10px] text-slate-500">Edited {t.lastEdited}</p>
+                    <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{t.name}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Edited {t.lastEdited}</p>
                   </div>
-                  {selectedTemplate === t.id && <CheckCircle className="w-4 h-4 text-[#0C2340]" />}
+                  {selectedTemplate === t.id && <CheckCircle className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />}
                 </div>
               </button>
             ))}
           </div>
           <Card className="col-span-8 shadow-sm overflow-hidden">
-            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-              <h3 className="text-[12px] font-semibold text-[#0C2340]">Template Editor — {templates.find((t) => t.id === selectedTemplate)?.name}</h3>
+            <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">Template Editor — {templates.find((t) => t.id === selectedTemplate)?.name}</h3>
               <Button variant="outline" className="text-xs bg-transparent h-8" onClick={() => setEditingTemplate(!editingTemplate)}>
                 <Pencil className="w-3 h-3 mr-1.5" /> {editingTemplate ? "Preview" : "Edit"}
               </Button>
@@ -416,7 +416,7 @@ City of Manila, {{date_issued}}.`,
             <div className="p-5">
               {editingTemplate ? (
                 <textarea
-                  className="w-full h-64 p-4 border border-slate-200 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
+                  className="w-full h-64 p-4 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
                   value={(formData.templates as Record<string, string>)[selectedTemplate] || ""}
                   onChange={(e) => setFormData(prev => ({
                     ...prev,
@@ -424,7 +424,7 @@ City of Manila, {{date_issued}}.`,
                   }))}
                 />
               ) : (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 h-64 overflow-auto font-mono text-sm text-slate-800 whitespace-pre-wrap">
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-6 h-64 overflow-auto font-mono text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
                   {((formData.templates as Record<string, string>)[selectedTemplate] || "").split(/({{.*?}})/).map((part, i) => {
                     if (part.startsWith("{{") && part.endsWith("}}")) {
                       return <span key={i} className="text-[#C5A55A] bg-[#C5A55A]/10 px-1 rounded font-medium">{part}</span>
@@ -441,13 +441,13 @@ City of Manila, {{date_issued}}.`,
       {/* Document Types Tab */}
       {activeTab === "documents" && (
         <Card className="shadow-sm overflow-hidden">
-          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
+          <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Document Type</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fee (₱)</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Requests</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Actions</p></div>
+              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Document Type</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Fee (₱)</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Requests</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</p></div>
             </div>
           </div>
           <div className="divide-y divide-slate-100">
@@ -456,19 +456,19 @@ City of Manila, {{date_issued}}.`,
               const docId = customEntry?.id || doc.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")
               const isBuiltIn = ["Funeral Certification","PWD Certification (Adult)","PWD Certification (Minor)","Certificate of Indigency","Proof of Residency","Business Clearance","Business Clearance (Homeowner)","Business Clearance (Contractor)","OSCA Certification"].includes(doc.name)
               return (
-              <div key={doc.name} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
+              <div key={doc.name} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
                   <div className="col-span-4 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
                       <span className="text-sm">{customEntry?.icon || "📄"}</span>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-[#0C2340]">{doc.name}</span>
+                      <span className="text-sm font-medium text-[#0C2340] dark:text-blue-50">{doc.name}</span>
                       {!isBuiltIn && <span className="ml-2 text-[9px] bg-[#C5A55A]/20 text-[#C5A55A] font-semibold px-1.5 py-0.5 rounded">Custom</span>}
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${doc.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${doc.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                       }`}>
                       <div className={`w-1.5 h-1.5 rounded-full ${doc.enabled ? "bg-emerald-500" : "bg-slate-400"}`} />
                       {doc.enabled ? "Enabled" : "Disabled"}
@@ -476,7 +476,7 @@ City of Manila, {{date_issued}}.`,
                   </div>
                   <div className="col-span-2">
                     <div className="relative flex items-center">
-                      <span className="absolute left-2 text-slate-500 text-xs font-semibold">₱</span>
+                      <span className="absolute left-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">₱</span>
                       <Input
                         type="number"
                         min="0"
@@ -488,15 +488,15 @@ City of Manila, {{date_issued}}.`,
                             updateConfig({ documentFees: newFees })
                           }
                         }}
-                        className="h-8 w-20 pl-6 text-xs text-slate-900 border-slate-200"
+                        className="h-8 w-20 pl-6 text-xs text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-700"
                       />
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-sm text-slate-700">{doc.requests.toLocaleString()}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{doc.requests.toLocaleString()}</span>
                     {doc.requests > 0 && (
-                      <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden w-full max-w-[80px]">
-                        <div className="h-full bg-[#0C2340] rounded-full" style={{ width: `${(doc.requests / maxRequests) * 100}%` }} />
+                      <div className="mt-1 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden w-full max-w-[80px]">
+                        <div className="h-full bg-[#0C2340] dark:bg-slate-800 rounded-full" style={{ width: `${(doc.requests / maxRequests) * 100}%` }} />
                       </div>
                     )}
                   </div>
@@ -527,11 +527,11 @@ City of Manila, {{date_issued}}.`,
               </div>
             )})}
           </div>
-          <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between">
-            <p className="text-[11px] text-slate-500">
+          <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               {documentTypes.filter(d => d.enabled).length} of {documentTypes.length} document types enabled
             </p>
-            <Button onClick={() => setShowAddDocModal(true)} className="bg-[#0C2340] hover:bg-[#0a1c33] text-xs gap-1.5">
+            <Button onClick={() => setShowAddDocModal(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33] text-xs gap-1.5">
               <Plus className="w-3.5 h-3.5" /> Add Document Type
             </Button>
           </div>
@@ -541,41 +541,41 @@ City of Manila, {{date_issued}}.`,
       {/* Add Document Type Modal */}
       {showAddDocModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-[#0C2340]">Add New Document Type</h3>
-              <button onClick={() => setShowAddDocModal(false)} className="text-slate-400 hover:text-slate-600">
+              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Add New Document Type</h3>
+              <button onClick={() => setShowAddDocModal(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Document Name *</label>
+                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Document Name *</label>
                 <Input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="e.g. Good Moral Certificate" />
               </div>
               <div className="flex gap-3">
                 <div className="flex-shrink-0">
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Icon</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Icon</label>
                   <Input value={newDocIcon} onChange={e => setNewDocIcon(e.target.value)} placeholder="📄" className="w-16 text-center text-lg" />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Fee (₱)</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Fee (₱)</label>
                   <Input type="number" min="0" value={newDocFee} onChange={e => setNewDocFee(e.target.value)} placeholder="0" />
                 </div>
               </div>
             </div>
 
             <div className="mb-4">
-              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">PDF Header Title</label>
+              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">PDF Header Title</label>
               <Input value={newDocHeader} onChange={e => setNewDocHeader(e.target.value)} placeholder="C E R T I F I C A T I O N" />
               <p className="text-[10px] text-slate-400 mt-1">This is the bold heading that appears at the top of the PDF. E.g. "C E R T I F I C A T I O N" or "BARANGAY CLEARANCE"</p>
             </div>
 
             <div className="mb-2">
-              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Template Body</label>
+              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Template Body</label>
               <textarea
-                className="w-full h-48 p-4 border border-slate-200 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
+                className="w-full h-48 p-4 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
                 value={newDocTemplate}
                 onChange={e => setNewDocTemplate(e.target.value)}
                 placeholder="Write the certificate body text here..."
@@ -596,7 +596,7 @@ City of Manila, {{date_issued}}.`,
 
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowAddDocModal(false)} disabled={isAddingDoc}>Cancel</Button>
-              <Button onClick={handleAddDocType} className="bg-[#0C2340] hover:bg-[#0a1c33]" disabled={isAddingDoc || !newDocName.trim()}>
+              <Button onClick={handleAddDocType} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isAddingDoc || !newDocName.trim()}>
                 {isAddingDoc ? "Adding..." : "Add Document Type"}
               </Button>
             </div>
@@ -607,12 +607,12 @@ City of Manila, {{date_issued}}.`,
       {/* Save Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] mb-3">Save Changes?</h3>
-            <p className="text-sm text-slate-600 mb-6">All pending changes to branding, templates, and document types will be saved. These changes will take effect immediately.</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Save Changes?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">All pending changes to branding, templates, and document types will be saved. These changes will take effect immediately.</p>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowSaveDialog(false)} disabled={isSavingChanges}>Cancel</Button>
-              <Button onClick={handleSaveAllChanges} className="bg-[#0C2340] hover:bg-[#0a1c33]" disabled={isSavingChanges}>
+              <Button onClick={handleSaveAllChanges} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isSavingChanges}>
                 {isSavingChanges ? "Saving..." : "Save Changes"}
               </Button>
             </div>

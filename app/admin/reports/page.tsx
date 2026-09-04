@@ -176,24 +176,24 @@ export default function CategoryReports() {
   return (
     <AdminPageShell>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Category Reports</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Generate PDF reports by resident category</p>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Category Reports</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Generate PDF reports by resident category</p>
       </div>
 
       {/* Insight Strip + Charts */}
       <div className="grid grid-cols-12 gap-6 mb-6">
         <div className="col-span-4 grid grid-cols-1 gap-4">
           <Card className="p-4 shadow-sm flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center"><Users className="w-5 h-5 text-[#0C2340]" /></div>
+            <div className="w-10 h-10 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center"><Users className="w-5 h-5 text-[#0C2340] dark:text-blue-50" /></div>
             <div>
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Population</p>
-              <p className="text-xl font-bold text-[#0C2340]">{stats.totalResidents.toLocaleString()}</p>
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Population</p>
+              <p className="text-xl font-bold text-[#0C2340] dark:text-blue-50">{stats.totalResidents.toLocaleString()}</p>
             </div>
           </Card>
           <Card className="p-4 shadow-sm flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center"><Award className="w-5 h-5 text-emerald-600" /></div>
             <div>
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Largest Category</p>
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Largest Category</p>
               <p className="text-xl font-bold text-emerald-600">{largestName}</p>
               <p className="text-[10px] text-slate-400">{largestDesc}</p>
             </div>
@@ -201,14 +201,14 @@ export default function CategoryReports() {
           <Card className="p-4 shadow-sm flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-amber-600" /></div>
             <div>
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Fastest Growing</p>
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Fastest Growing</p>
               <p className="text-xl font-bold text-amber-600">{fastestGrowingName}</p>
               <p className="text-[10px] text-slate-400">{fastestGrowingDesc}</p>
             </div>
           </Card>
         </div>
         <Card className="col-span-8 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Category Distribution</h3>
+          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Category Distribution</h3>
           <div className="flex items-center gap-4">
             <div className="w-28 h-28">
               <ResponsiveContainer width="100%" height="100%">
@@ -224,8 +224,8 @@ export default function CategoryReports() {
               {categoryDistribution.map((c, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
-                  <span className="text-[10px] text-slate-600">{c.name}</span>
-                  <span className="text-[10px] font-bold text-[#0C2340]">{c.name === "No Data" ? "-" : c.value.toLocaleString()}</span>
+                  <span className="text-[10px] text-slate-600 dark:text-slate-400">{c.name}</span>
+                  <span className="text-[10px] font-bold text-[#0C2340] dark:text-blue-50">{c.name === "No Data" ? "-" : c.value.toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -235,7 +235,7 @@ export default function CategoryReports() {
       </div>
 
       {/* Category Selection */}
-      <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Select Category</h3>
+      <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Select Category</h3>
       <div className="grid grid-cols-4 gap-4 mb-6">
         {categories.map((category) => (
           <button
@@ -243,18 +243,18 @@ export default function CategoryReports() {
             onClick={() => setSelectedCategory(category.id)}
             className={`relative p-5 rounded-lg text-left transition-all ${selectedCategory === category.id
               ? `${category.color} border-2 border-[#0C2340]`
-              : "bg-white border-2 border-slate-200 hover:border-slate-300"
+              : "bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600"
               }`}
           >
             <div className="flex items-start justify-between mb-2">
               <div className={`w-9 h-9 rounded-lg ${category.iconBg} flex items-center justify-center text-base`}>{category.icon}</div>
               {selectedCategory === category.id && (
-                <div className="w-5 h-5 rounded-full bg-[#0C2340] flex items-center justify-center"><span className="text-white text-xs">✓</span></div>
+                <div className="w-5 h-5 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center"><span className="text-white text-xs">✓</span></div>
               )}
             </div>
-            <p className="text-[11px] font-semibold text-[#0C2340] mb-1">{category.name}</p>
-            <p className="text-[10px] text-slate-500">{category.count} residents</p>
-            <span className="absolute top-5 right-5 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-500">PDF</span>
+            <p className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50 mb-1">{category.name}</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">{category.count} residents</p>
+            <span className="absolute top-5 right-5 px-2 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-[10px] text-slate-500 dark:text-slate-400">PDF</span>
           </button>
         ))}
       </div>
@@ -262,11 +262,11 @@ export default function CategoryReports() {
       <div className="grid grid-cols-12 gap-6">
         {/* Report Configuration */}
         <Card className="col-span-7 shadow-sm">
-          <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg">
-            <h3 className="text-sm font-semibold text-[#0C2340]">Report Configuration: {selectedCategoryInfo?.name}</h3>
+          <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Report Configuration: {selectedCategoryInfo?.name}</h3>
           </div>
           <div className="p-5">
-            <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Include Columns</h4>
+            <h4 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Include Columns</h4>
             <div className="grid grid-cols-2 gap-3 mb-5">
               {Object.entries(selectedColumns).map(([key, checked]) => {
                 const labels: Record<string, string> = {
@@ -278,18 +278,18 @@ export default function CategoryReports() {
                     <button
                       type="button"
                       onClick={() => setSelectedColumns((prev) => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${checked ? "bg-[#0C2340] border-[#0C2340]" : "bg-white border-slate-300"}`}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${checked ? "bg-[#0C2340] dark:bg-slate-800 border-[#0C2340]" : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"}`}
                     >
                       {checked && <span className="text-white text-sm">✓</span>}
                     </button>
-                    <span className="text-[11px] text-[#0C2340]">{labels[key]}</span>
+                    <span className="text-[11px] text-[#0C2340] dark:text-blue-50">{labels[key]}</span>
                   </label>
                 )
               })}
             </div>
             <div>
-              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Sort By</label>
-              <select className="w-48 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]">
+              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Sort By</label>
+              <select className="w-48 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]">
                 <option>Last Name (A-Z)</option>
                 <option>First Name (A-Z)</option>
                 <option>Age (Ascending)</option>
@@ -301,21 +301,21 @@ export default function CategoryReports() {
 
         {/* PDF Preview */}
         <Card className="col-span-5 shadow-sm">
-          <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg">
-            <h3 className="text-sm font-semibold text-[#0C2340]">PDF Preview</h3>
+          <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">PDF Preview</h3>
           </div>
           <div className="p-5">
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded min-h-[220px] overflow-y-auto text-[8px]">
+            <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded min-h-[220px] overflow-y-auto text-[8px]">
               <div className="text-center space-y-2 mb-4">
-                <p className="text-[9px] text-slate-600">Republic of the Philippines</p>
-                <p className="text-[9px] text-slate-600">{municipality}</p>
-                <p className="text-[9px] text-slate-600">{barangayName}</p>
-                <hr className="border-slate-300" />
-                <p className="text-[10px] font-bold text-[#0C2340] my-3">{getCategoryTitle()}</p>
-                <p className="text-[8px] text-slate-600">As of November 27, 2025</p>
+                <p className="text-[9px] text-slate-600 dark:text-slate-400">Republic of the Philippines</p>
+                <p className="text-[9px] text-slate-600 dark:text-slate-400">{municipality}</p>
+                <p className="text-[9px] text-slate-600 dark:text-slate-400">{barangayName}</p>
+                <hr className="border-slate-300 dark:border-slate-600" />
+                <p className="text-[10px] font-bold text-[#0C2340] dark:text-blue-50 my-3">{getCategoryTitle()}</p>
+                <p className="text-[8px] text-slate-600 dark:text-slate-400">As of November 27, 2025</p>
               </div>
               <div className="space-y-1">
-                <div className="grid gap-1 bg-slate-200 p-1 text-[7px] text-slate-600 font-bold">
+                <div className="grid gap-1 bg-slate-200 p-1 text-[7px] text-slate-600 dark:text-slate-400 font-bold">
                   <div className="flex items-center">
                     <div className="w-8">No.</div>
                     {previewColumns.map((col) => <div key={col.id} className="flex-1">{col.label}</div>)}
@@ -323,7 +323,7 @@ export default function CategoryReports() {
                 </div>
                 {filteredResidents.length > 0 ? (
                   filteredResidents.slice(0, 3).map((r, index) => (
-                    <div key={r.id} className="grid gap-1 text-[7px] text-slate-900 p-1">
+                    <div key={r.id} className="grid gap-1 text-[7px] text-slate-900 dark:text-slate-100 p-1">
                       <div className="flex items-center">
                         <div className="w-8">{index + 1}</div>
                         {previewColumns.map((col) => (
@@ -357,7 +357,7 @@ export default function CategoryReports() {
         <Button 
           onClick={handleDownload} 
           disabled={isDownloadingPdf}
-          className="w-48 h-11 bg-[#0C2340] hover:bg-[#0a1c33]"
+          className="w-48 h-11 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
         >
           {isDownloadingPdf ? (
             <>

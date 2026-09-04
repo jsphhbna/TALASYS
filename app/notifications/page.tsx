@@ -50,7 +50,7 @@ export default function NotificationsPage() {
     <ResidentPageShell>
       {/* Page Title */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#0C2340] mb-1 tracking-tight">Notifications</h1>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-1 tracking-tight">Notifications</h1>
       </div>
 
       {/* Notifications List */}
@@ -71,47 +71,47 @@ export default function NotificationsPage() {
                       router.push("/history")
                     }
                   }}
-                  className={`w-full text-left p-4 flex items-start gap-4 transition-colors hover:bg-slate-100/50 ${index < notifications.length - 1 ? "border-b border-slate-100" : ""
-                    } ${notification.type === "urgent" ? "bg-red-50 hover:bg-red-100/50" : notification.isRead ? "bg-white" : "bg-slate-50"}`}
+                  className={`w-full text-left p-4 flex items-start gap-4 transition-colors hover:bg-slate-100 dark:bg-slate-800/50 ${index < notifications.length - 1 ? "border-b border-slate-100 dark:border-slate-800" : ""
+                    } ${notification.type === "urgent" ? "bg-red-50 hover:bg-red-100/50" : notification.isRead ? "bg-white dark:bg-slate-900" : "bg-slate-50 dark:bg-slate-950"}`}
                 >
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${notification.type === "urgent"
-                      ? "bg-red-200"
-                      : notification.type === "success"
-                        ? "bg-green-200"
-                        : notification.type === "info"
-                          ? "bg-blue-200"
-                          : "bg-slate-200"
-                      }`}
-                  >
-                    <span
-                      className={`text-base ${notification.type === "urgent"
-                        ? "text-red-600"
+                      className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${notification.type === "urgent"
+                        ? "bg-red-200 dark:bg-red-900/40"
                         : notification.type === "success"
-                          ? "text-green-600"
+                          ? "bg-green-200 dark:bg-green-900/40"
                           : notification.type === "info"
-                            ? "text-blue-600"
-                            : "text-slate-600"
+                            ? "bg-blue-200 dark:bg-blue-900/40"
+                            : "bg-slate-200 dark:bg-slate-800"
                         }`}
                     >
-                      {notification.type === "urgent"
-                        ? "⚠"
-                        : notification.type === "success"
-                          ? "✓"
-                          : notification.type === "info"
-                            ? "i"
-                            : "✓"}
-                    </span>
-                  </div>
+                      <span
+                        className={`text-base ${notification.type === "urgent"
+                          ? "text-red-600 dark:text-red-400"
+                          : notification.type === "success"
+                            ? "text-green-600 dark:text-green-400"
+                            : notification.type === "info"
+                              ? "text-blue-600 dark:text-blue-400"
+                              : "text-slate-600 dark:text-slate-400"
+                          }`}
+                      >
+                        {notification.type === "urgent"
+                          ? "⚠"
+                          : notification.type === "success"
+                            ? "✓"
+                            : notification.type === "info"
+                              ? "i"
+                              : "✓"}
+                      </span>
+                    </div>
 
                   <div className="flex-1 min-w-0">
                     <p
-                      className={`text-sm font-bold mb-1 ${notification.isRead ? "text-slate-600" : "text-slate-900"
+                      className={`text-sm font-bold mb-1 ${notification.isRead ? "text-slate-600 dark:text-slate-400" : "text-slate-900 dark:text-slate-100"
                         }`}
                     >
                       {notification.title}
                     </p>
-                    <p className={`text-xs ${notification.isRead ? "text-slate-400" : "text-slate-600"}`}>
+                    <p className={`text-xs ${notification.isRead ? "text-slate-400" : "text-slate-600 dark:text-slate-400"}`}>
                       {notification.message}
                     </p>
                   </div>
@@ -123,8 +123,8 @@ export default function NotificationsPage() {
               )
             })}
 
-            <div className="p-4 text-right border-t border-slate-100">
-              <button onClick={handleMarkAllRead} className="text-xs text-[#0C2340] font-medium hover:underline" disabled={isMarkingAllRead || unreadCount === 0}>
+            <div className="p-4 text-right border-t border-slate-100 dark:border-slate-800">
+              <button onClick={handleMarkAllRead} className="text-xs text-[#0C2340] dark:text-blue-50 font-medium hover:underline" disabled={isMarkingAllRead || unreadCount === 0}>
                 {isMarkingAllRead ? "Marking..." : "Mark All as Read"}
               </button>
             </div>

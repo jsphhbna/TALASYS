@@ -64,8 +64,8 @@ export default function Verifications() {
   return (
     <AdminPageShell>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Verifications</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Review and approve pending resident requests</p>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Verifications</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Review and approve pending resident requests</p>
       </div>
 
       {/* Queue KPI Strip */}
@@ -81,13 +81,13 @@ export default function Verifications() {
               <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center mb-2`}>
                 <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
               </div>
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{kpi.label}</p>
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.label}</p>
               <p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
             </Card>
           ))}
         </div>
         <Card className="col-span-4 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Weekly Flow</h3>
+          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Weekly Flow</h3>
           <ResponsiveContainer width="100%" height={90}>
             <BarChart data={verificationFlowTrend} barSize={8}>
               <XAxis dataKey="week" tick={{ fontSize: 9 }} stroke="#94a3b8" />
@@ -106,11 +106,11 @@ export default function Verifications() {
           <button
             key={tab.id}
             onClick={() => { setActiveTab(tab.id); setSelectedItem(null) }}
-            className={`px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 ${activeTab === tab.id ? "bg-[#0C2340] text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className={`px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 ${activeTab === tab.id ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"
               }`}
           >
             {tab.label}
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === tab.id ? "bg-white/20" : "bg-slate-100"}`}>{tab.count}</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === tab.id ? "bg-white/20" : "bg-slate-100 dark:bg-slate-800"}`}>{tab.count}</span>
           </button>
         ))}
       </div>
@@ -119,8 +119,8 @@ export default function Verifications() {
       <div className="grid grid-cols-12 gap-6">
         {/* List */}
         <Card className="col-span-5 shadow-sm">
-          <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg">
-            <h3 className="text-sm font-semibold text-[#0C2340]">{activeTab === "rejected" ? "Rejected Items" : "Pending Items"}</h3>
+          <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">{activeTab === "rejected" ? "Rejected Items" : "Pending Items"}</h3>
           </div>
           <div className="divide-y divide-slate-100">
             {filteredItems.map((item) => {
@@ -129,14 +129,14 @@ export default function Verifications() {
                 <button
                   key={item.id}
                   onClick={() => setSelectedItem(item)}
-                  className={`w-full p-4 text-left transition-colors ${selectedItem?.id === item.id ? "bg-[#0C2340]/[0.04]" : "hover:bg-slate-50"
+                  className={`w-full p-4 text-left transition-colors ${selectedItem?.id === item.id ? "bg-[#0C2340] dark:bg-slate-800/[0.04]" : "hover:bg-slate-50 dark:bg-slate-950"
                     }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[#0C2340]/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340]">{item.initials}</div>
+                    <div className="w-9 h-9 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">{item.initials}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-[12px] font-semibold text-[#0C2340] truncate">{item.name}</p>
+                        <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50 truncate">{item.name}</p>
                         {isOverdue && <span title="Older than 3 days"><AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" /></span>}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -163,8 +163,8 @@ export default function Verifications() {
         <Card className="col-span-7 shadow-sm">
           {selectedItem ? (
             <>
-              <div className="px-5 py-3.5 bg-[#0C2340]/[0.03] border-b border-slate-200 rounded-t-lg flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-[#0C2340]">Review Details</h3>
+              <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Review Details</h3>
                 <span className={`px-2.5 py-0.5 rounded text-[10px] font-medium ${selectedItem.type === "registration" ? "bg-blue-50 text-blue-800" :
                   selectedItem.type === "profile-edit" ? "bg-green-50 text-green-800" :
                     "bg-purple-50 text-purple-800"
@@ -175,22 +175,22 @@ export default function Verifications() {
               <div className="p-5 space-y-5">
                 {/* Profile */}
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-[#0C2340]/[0.08] flex items-center justify-center text-lg font-semibold text-[#0C2340]">{selectedItem.initials}</div>
+                  <div className="w-12 h-12 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-lg font-semibold text-[#0C2340] dark:text-blue-50">{selectedItem.initials}</div>
                   <div>
-                    <h4 className="text-base font-bold text-[#0C2340]">{selectedItem.name}</h4>
-                    {selectedItem.age && <p className="text-[11px] text-slate-500">Age: {selectedItem.age} • {selectedItem.gender}</p>}
-                    {selectedItem.address && <p className="text-[11px] text-slate-500">{selectedItem.address}</p>}
+                    <h4 className="text-base font-bold text-[#0C2340] dark:text-blue-50">{selectedItem.name}</h4>
+                    {selectedItem.age && <p className="text-[11px] text-slate-500 dark:text-slate-400">Age: {selectedItem.age} • {selectedItem.gender}</p>}
+                    {selectedItem.address && <p className="text-[11px] text-slate-500 dark:text-slate-400">{selectedItem.address}</p>}
                   </div>
                 </div>
 
                 {/* Changes (for profile edits) */}
                 {selectedItem.changes && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Requested Changes</p>
+                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Requested Changes</p>
                     <div className="space-y-2">
                       {selectedItem.changes.map((c: any, i: number) => (
-                        <div key={i} className="bg-slate-50 p-3 rounded">
-                          <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">{c.field}</p>
+                        <div key={i} className="bg-slate-50 dark:bg-slate-950 p-3 rounded">
+                          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{c.field}</p>
                           <div className="flex items-center gap-2 text-[11px]">
                             <span className="text-red-500 line-through">{c.oldValue}</span>
                             <span className="text-slate-300">→</span>
@@ -205,8 +205,8 @@ export default function Verifications() {
                 {/* Reason */}
                 {selectedItem.reason && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Reason</p>
-                    <p className="text-[11px] text-slate-700 bg-slate-50 p-3 rounded italic">&ldquo;{selectedItem.reason}&rdquo;</p>
+                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Reason</p>
+                    <p className="text-[11px] text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded italic">&ldquo;{selectedItem.reason}&rdquo;</p>
                   </div>
                 )}
                 {selectedItem.status === "rejected" && selectedItem.rejectionReason && (
@@ -218,17 +218,17 @@ export default function Verifications() {
 
                 {/* Documents */}
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Documents</p>
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Documents</p>
                   <div className="space-y-3">
                     {selectedItem.documents.map((doc: any, i: number) => (
-                      <div key={i} className="flex flex-col gap-2 bg-slate-50 p-3 rounded border border-slate-100">
+                      <div key={i} className="flex flex-col gap-2 bg-slate-50 dark:bg-slate-950 p-3 rounded border border-slate-100 dark:border-slate-800">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-[#0C2340] font-medium">{doc.name}</span>
+                          <span className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium">{doc.name}</span>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${doc.status?.toLowerCase() === "verified" || doc.status?.toLowerCase() === "valid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
                             }`}>{doc.status}</span>
                         </div>
                         {doc.url ? (
-                          <button onClick={() => setSelectedImage(doc.url)} className="block w-full mt-2 overflow-hidden rounded border border-slate-200 hover:opacity-90 transition-opacity focus:outline-none">
+                          <button onClick={() => setSelectedImage(doc.url)} className="block w-full mt-2 overflow-hidden rounded border border-slate-200 dark:border-slate-700 hover:opacity-90 transition-opacity focus:outline-none">
                             <img src={doc.url} alt={doc.name} className="w-full max-h-48 object-cover cursor-zoom-in" />
                           </button>
                         ) : (
@@ -256,7 +256,7 @@ export default function Verifications() {
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       placeholder="Enter rejection reason (min 10 characters)..."
-                      className="w-full p-3 border border-red-200 rounded-lg text-sm mb-2 focus:outline-none focus:border-red-400 bg-white"
+                      className="w-full p-3 border border-red-200 rounded-lg text-sm mb-2 focus:outline-none focus:border-red-400 bg-white dark:bg-slate-900"
                       rows={3}
                     />
                     <p className={`text-[10px] mb-3 ${rejectReason.trim().length >= 10 ? 'text-green-600' : 'text-red-500'}`}>

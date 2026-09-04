@@ -297,7 +297,11 @@ export function useAdminData() {
                     throw new Error("Rejection requires a reason of at least 10 characters.");
                 }
 
-                await updateDoc(doc(db, "documentRequests", id), { status, ...(reason ? { rejectReason: reason } : {}) })
+                await updateDoc(doc(db, "documentRequests", id), { 
+                    status, 
+                    ...(reason ? { rejectReason: reason } : {}),
+                    [`statusTimestamps.${status}`]: Date.now()
+                })
                 
                 // Optionally, add a notification for the resident here.
                 const req = documentRequests.find(r => r.id === id)

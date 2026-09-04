@@ -8,7 +8,7 @@ import { ContactSection } from "@/components/landing/contact-section"
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-white dark:bg-slate-900">
       <LandingNavbar />
       <HeroSection />
       <MissionVisionSection />

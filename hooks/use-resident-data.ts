@@ -129,6 +129,7 @@ export function useResidentData() {
         status: "Pending",
         purpose: input.purpose,
         createdAt: Date.now(),
+        statusTimestamps: { "Pending": Date.now() }
       }
 
       const docRef = await addDoc(collection(db, "documentRequests"), requestPayload)

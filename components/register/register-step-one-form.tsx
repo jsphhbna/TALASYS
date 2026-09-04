@@ -90,17 +90,17 @@ export function RegisterStepOneForm({
   return (
     <div className="space-y-4">
       {/* OCR Scanner Option */}
-      <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
-          <h4 className="text-sm font-semibold text-[#0C2340]">Scan ID to Auto-fill (Optional)</h4>
-          <p className="text-xs text-slate-500 mt-1">Upload a clear photo of your Valid ID (or School ID for minors) to automatically fill in your name and birthday.</p>
+          <h4 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Scan ID to Auto-fill (Optional)</h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Upload a clear photo of your Valid ID (or School ID for minors) to automatically fill in your name and birthday.</p>
         </div>
         <Button 
           variant="outline" 
           type="button" 
           onClick={handleIdScanClick}
           disabled={isScanning}
-          className="whitespace-nowrap border-slate-300 hover:bg-slate-200"
+          className="whitespace-nowrap border-slate-300 dark:border-slate-600 hover:bg-slate-200"
         >
           {isScanning ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Scanning...</>
@@ -121,7 +121,7 @@ export function RegisterStepOneForm({
       {/* Name Fields */}
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
         <div className="sm:col-span-5">
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">First Name *</label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">First Name *</label>
           <Input
             value={formData.firstName}
             onChange={(e) => onInputChange("firstName", e.target.value)}
@@ -130,7 +130,7 @@ export function RegisterStepOneForm({
           />
         </div>
         <div className="sm:col-span-5">
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">Last Name *</label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Last Name *</label>
           <Input
             value={formData.lastName}
             onChange={(e) => onInputChange("lastName", e.target.value)}
@@ -139,7 +139,7 @@ export function RegisterStepOneForm({
           />
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">M.I.</label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">M.I.</label>
           <Input
             value={formData.middleInitial}
             onChange={(e) => onInputChange("middleInitial", e.target.value.slice(0, 1).toUpperCase())}
@@ -152,7 +152,7 @@ export function RegisterStepOneForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">Date of Birth *</label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Date of Birth *</label>
           <Input
             type="date"
             value={formData.dateOfBirth}
@@ -161,7 +161,7 @@ export function RegisterStepOneForm({
           />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">Contact Number *</label>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Contact Number *</label>
           <Input
             value={formData.contactNumber}
             onChange={(e) => onInputChange("contactNumber", e.target.value)}
@@ -183,7 +183,7 @@ export function RegisterStepOneForm({
 
       {/* Address Fields */}
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Street / House No. *</label>
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Street / House No. *</label>
         <Input
           value={formData.street}
           onChange={(e) => onInputChange("street", e.target.value)}
@@ -194,14 +194,14 @@ export function RegisterStepOneForm({
 
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
           Resident Status * (Select all that apply)
         </label>
-        <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-3">
+        <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md p-4 space-y-3">
           <div className="flex items-start gap-3 opacity-50">
             <Checkbox checked={formData.statuses.includes("Underage")} disabled={true} />
             <div className="flex-1">
-              <label className="text-sm text-slate-500 cursor-not-allowed">
+              <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">
                 Underage (Under 18) - Auto-calculated from date of birth
               </label>
               <p className="text-[11px] text-slate-400">(Requires: Parent&apos;s Valid ID)</p>
@@ -210,7 +210,7 @@ export function RegisterStepOneForm({
           <div className="flex items-start gap-3 opacity-50">
             <Checkbox checked={formData.statuses.includes("Adult")} disabled={true} />
             <div className="flex-1">
-              <label className="text-sm text-slate-500 cursor-not-allowed">
+              <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">
                 Adult (18-59) - Auto-calculated from date of birth
               </label>
               <p className="text-[11px] text-slate-400">(Requires: Valid Government ID)</p>
@@ -219,7 +219,7 @@ export function RegisterStepOneForm({
           <div className="flex items-start gap-3 opacity-50">
             <Checkbox checked={formData.statuses.includes("Senior Citizen")} disabled={true} />
             <div className="flex-1">
-              <label className="text-sm text-slate-500 cursor-not-allowed">
+              <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">
                 Senior Citizen (60+) - Auto-calculated from date of birth
               </label>
               <p className="text-[11px] text-slate-400">(Requires: Senior Citizen ID)</p>
@@ -231,15 +231,15 @@ export function RegisterStepOneForm({
               onCheckedChange={() => onStatusToggle("Registered Voter")}
             />
             <div className="flex-1">
-              <label className="text-sm text-slate-700 cursor-pointer">Registered Voter</label>
-              <p className="text-[11px] text-slate-500">(Requires: Voter&apos;s ID / Cert)</p>
+              <label className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer">Registered Voter</label>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">(Requires: Voter&apos;s ID / Cert)</p>
             </div>
           </div>
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address *</label>
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Email Address *</label>
         <Input
           type="email"
           value={formData.email}
@@ -253,7 +253,7 @@ export function RegisterStepOneForm({
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Password *</label>
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Password *</label>
         <Input
           type="password"
           value={formData.password}
@@ -266,8 +266,8 @@ export function RegisterStepOneForm({
             {validatePassword(formData.password) ? (
               <p className="text-green-600 font-medium">✓ Password is strong</p>
             ) : (
-              <div className="text-slate-600">
-                <p className="font-medium text-slate-700 mb-1">Password must contain:</p>
+              <div className="text-slate-600 dark:text-slate-400">
+                <p className="font-medium text-slate-700 dark:text-slate-300 mb-1">Password must contain:</p>
                 {getPasswordStrengthMessage().map((msg, idx) => (
                   <p key={idx} className="text-red-500">
                     {msg}
@@ -280,7 +280,7 @@ export function RegisterStepOneForm({
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Confirm Password *</label>
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Confirm Password *</label>
         <Input
           type="password"
           value={formData.confirmPassword}
@@ -302,14 +302,14 @@ export function RegisterStepOneForm({
       <Button
         onClick={onContinue}
         disabled={!canContinue || isContinuing}
-        className="w-full bg-[#0C2340] hover:bg-[#1a3a5c] h-11 text-sm font-semibold disabled:bg-slate-300 disabled:cursor-not-allowed"
+        className="w-full bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] h-11 text-sm font-semibold disabled:bg-slate-300 disabled:cursor-not-allowed"
       >
         {isContinuing ? "Loading..." : "Continue to Documents"}
       </Button>
 
-      <p className="text-center text-sm text-slate-600">
+      <p className="text-center text-sm text-slate-600 dark:text-slate-400">
         Already have an account?{" "}
-        <a href="/login" className="text-[#0C2340] font-semibold hover:underline">
+        <a href="/login" className="text-[#0C2340] dark:text-blue-50 font-semibold hover:underline">
           Sign In
         </a>
       </p>

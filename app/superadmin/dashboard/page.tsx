@@ -37,15 +37,15 @@ function KpiCard({ label, value, unit, change, trend, icon: Icon, sparkData, spa
   return (
     <Card className="p-5 shadow-sm relative overflow-hidden">
       <div className="flex items-start justify-between mb-3">
-        <div className="w-9 h-9 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center">
-          <Icon className="w-[18px] h-[18px] text-[#0C2340]" />
+        <div className="w-9 h-9 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+          <Icon className="w-[18px] h-[18px] text-[#0C2340] dark:text-blue-50" />
         </div>
         <Sparkline data={sparkData} color={sparkColor} />
       </div>
-      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{label}</p>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold text-[#0C2340]">{value}</span>
-        {unit && <span className="text-xs text-slate-500">{unit}</span>}
+        <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{value}</span>
+        {unit && <span className="text-xs text-slate-500 dark:text-slate-400">{unit}</span>}
       </div>
       <div className="flex items-center gap-1 mt-2">
         {isPositiveChange ? (
@@ -82,12 +82,12 @@ const activityColors: Record<string, string> = {
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2">
-      <p className="text-[11px] font-semibold text-[#0C2340] mb-1">{label}</p>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg px-3 py-2">
+      <p className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50 mb-1">{label}</p>
       {payload.map((p, i) => (
-        <p key={i} className="text-[11px] text-slate-600">
+        <p key={i} className="text-[11px] text-slate-600 dark:text-slate-400">
           <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: p.color }} />
-          {p.name}: <span className="font-semibold text-[#0C2340]">{p.value}</span>
+          {p.name}: <span className="font-semibold text-[#0C2340] dark:text-blue-50">{p.value}</span>
         </p>
       ))}
     </div>
@@ -208,17 +208,17 @@ export default function SuperAdminDashboard() {
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Command Center</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Barangay-wide operational overview and analytics</p>
+          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Command Center</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Barangay-wide operational overview and analytics</p>
         </div>
-        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1 shadow-sm">
           {(["daily", "weekly", "monthly"] as TimePeriod[]).map((p) => (
             <button
               key={p}
               onClick={() => setTimePeriod(p)}
               className={`px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors ${timePeriod === p
-                ? "bg-[#0C2340] text-white"
-                : "text-slate-600 hover:bg-slate-50"
+                ? "bg-[#0C2340] dark:bg-slate-800 text-white"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"
                 }`}
             >
               {p === "daily" ? "7 Days" : p === "weekly" ? "8 Weeks" : "12 Months"}
@@ -242,11 +242,11 @@ export default function SuperAdminDashboard() {
         <Card className="col-span-8 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="text-sm font-semibold text-[#0C2340]">Request Volume Trend</h2>
-              <p className="text-[11px] text-slate-500 mt-0.5">Submissions vs approvals over time</p>
+              <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Request Volume Trend</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Submissions vs approvals over time</p>
             </div>
             <div className="flex items-center gap-4 text-[11px]">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0C2340]" />Requests</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0C2340] dark:bg-slate-800" />Requests</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#C5A55A]" />Approvals</span>
             </div>
           </div>
@@ -274,8 +274,8 @@ export default function SuperAdminDashboard() {
 
         {/* Pie Chart — Document Type Breakdown */}
         <Card className="col-span-4 p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Document Breakdown</h2>
-          <p className="text-[11px] text-slate-500 mb-4">By document type issued</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Document Breakdown</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">By document type issued</p>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie
@@ -302,9 +302,9 @@ export default function SuperAdminDashboard() {
               <div key={i} className="flex items-center justify-between text-[11px]">
                 <span className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: doc.color }} />
-                  <span className="text-slate-600">{doc.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{doc.name}</span>
                 </span>
-                <span className="font-semibold text-[#0C2340]">{doc.name === "No Data" ? "-" : doc.value}</span>
+                <span className="font-semibold text-[#0C2340] dark:text-blue-50">{doc.name === "No Data" ? "-" : doc.value}</span>
               </div>
             ))}
           </div>
@@ -316,14 +316,14 @@ export default function SuperAdminDashboard() {
         {/* Alerts & Anomalies */}
         <Card className="col-span-4 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-[#0C2340]">Alerts & Signals</h2>
+            <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Alerts & Signals</h2>
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
               {systemAlerts.filter(a => a.severity === "critical").length} critical
             </span>
           </div>
           <div className="space-y-3">
             {systemAlerts.length === 0 ? (
-              <div className="p-4 text-center text-slate-500 text-xs bg-slate-50 rounded-lg">No alerts at this time</div>
+              <div className="p-4 text-center text-slate-500 dark:text-slate-400 text-xs bg-slate-50 dark:bg-slate-950 rounded-lg">No alerts at this time</div>
             ) : systemAlerts.map((alert) => {
               const config = alertConfig[alert.severity] || alertConfig.info
               const AlertIcon = config.icon
@@ -338,7 +338,7 @@ export default function SuperAdminDashboard() {
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${config.badge}`}>{alert.metric}</span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{alert.description}</p>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">{alert.description}</p>
                       <p className="text-[10px] text-slate-400 mt-1">{alert.timestamp}</p>
                     </div>
                   </div>
@@ -350,8 +350,8 @@ export default function SuperAdminDashboard() {
 
         {/* Processing Pipeline */}
         <Card className="col-span-4 p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Processing Pipeline</h2>
-          <p className="text-[11px] text-slate-500 mb-5">Current document flow status</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Processing Pipeline</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-5">Current document flow status</p>
 
           <div className="space-y-4">
             {[
@@ -362,10 +362,10 @@ export default function SuperAdminDashboard() {
             ].map((stage, i, arr) => (
               <div key={stage.label}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-medium text-slate-600">{stage.label}</span>
-                  <span className="text-[12px] font-bold text-[#0C2340]">{stage.value}</span>
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400">{stage.label}</span>
+                  <span className="text-[12px] font-bold text-[#0C2340] dark:text-blue-50">{stage.value}</span>
                 </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
@@ -383,18 +383,18 @@ export default function SuperAdminDashboard() {
             ))}
           </div>
 
-          <div className="mt-5 pt-4 border-t border-slate-100">
+          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-500">Total processed</span>
-              <span className="font-bold text-[#0C2340]">{pipelineTotal.toLocaleString()}</span>
+              <span className="text-slate-500 dark:text-slate-400">Total processed</span>
+              <span className="font-bold text-[#0C2340] dark:text-blue-50">{pipelineTotal.toLocaleString()}</span>
             </div>
           </div>
         </Card>
 
         {/* Top Request Purposes — Bar Chart */}
         <Card className="col-span-4 p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Request Purposes</h2>
-          <p className="text-[11px] text-slate-500 mb-4">Why residents request documents</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Request Purposes</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Why residents request documents</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={requestPurposes} layout="vertical" margin={{ top: 0, right: 5, bottom: 0, left: 0 }}>
               <XAxis type="number" hide />
@@ -404,9 +404,9 @@ export default function SuperAdminDashboard() {
                   if (!active || !payload?.length) return null
                   const d = payload[0].payload
                   return (
-                    <div className="bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2 text-[11px]">
-                      <p className="font-semibold text-[#0C2340]">{d.purpose}</p>
-                      <p className="text-slate-600">{d.count} requests ({d.percentage}%)</p>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg px-3 py-2 text-[11px]">
+                      <p className="font-semibold text-[#0C2340] dark:text-blue-50">{d.purpose}</p>
+                      <p className="text-slate-600 dark:text-slate-400">{d.count} requests ({d.percentage}%)</p>
                     </div>
                   )
                 }}
@@ -422,7 +422,7 @@ export default function SuperAdminDashboard() {
         {/* Recent Admin Activity */}
         <Card className="col-span-7 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-[#0C2340]">Recent Activity</h2>
+            <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Recent Activity</h2>
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-600">
               <Activity className="w-3 h-3" />
               <span className="font-medium">Live</span>
@@ -435,10 +435,10 @@ export default function SuperAdminDashboard() {
                   <span className="text-[10px] text-white font-semibold">{activity.initials}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] text-slate-800">
-                    <span className="font-semibold text-[#0C2340]">{activity.admin}</span>
+                  <p className="text-[12px] text-slate-800 dark:text-slate-200">
+                    <span className="font-semibold text-[#0C2340] dark:text-blue-50">{activity.admin}</span>
                     {" "}{(activity.action || "").toLowerCase()}{" "}
-                    <span className="text-slate-600">{activity.detail}</span>
+                    <span className="text-slate-600 dark:text-slate-400">{activity.detail}</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-0.5">{activity.timestamp}</p>
                 </div>
@@ -449,7 +449,7 @@ export default function SuperAdminDashboard() {
 
         {/* Performance Overview */}
         <Card className="col-span-5 p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-4">Performance Overview</h2>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Performance Overview</h2>
 
           {/* Approval Rate Ring */}
           <div className="flex items-center gap-6 mb-5">
@@ -463,35 +463,35 @@ export default function SuperAdminDashboard() {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[14px] font-bold text-[#0C2340]">{performanceMetrics.approvalRate}%</span>
+                <span className="text-[14px] font-bold text-[#0C2340] dark:text-blue-50">{performanceMetrics.approvalRate}%</span>
               </div>
             </div>
             <div>
-              <p className="text-[12px] font-semibold text-[#0C2340]">Approval Rate</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Based on all processed requests this period</p>
+              <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">Approval Rate</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Based on all processed requests this period</p>
             </div>
           </div>
 
           {/* Metrics Grid */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-50 rounded-lg p-3.5">
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Avg Turnaround</p>
-              <p className="text-lg font-bold text-[#0C2340]">{performanceMetrics.avgTurnaroundHours}h</p>
+            <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Avg Turnaround</p>
+              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{performanceMetrics.avgTurnaroundHours}h</p>
               <p className="text-[10px] text-slate-400">~{(performanceMetrics.avgTurnaroundHours / 24).toFixed(1)} days</p>
             </div>
-            <div className="bg-slate-50 rounded-lg p-3.5">
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Today Processed</p>
-              <p className="text-lg font-bold text-[#0C2340]">{performanceMetrics.todayProcessed}</p>
+            <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Today Processed</p>
+              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{performanceMetrics.todayProcessed}</p>
               <p className="text-[10px] text-slate-400">{performanceMetrics.todayPending} still pending</p>
             </div>
-            <div className="bg-slate-50 rounded-lg p-3.5">
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Satisfaction</p>
-              <p className="text-lg font-bold text-[#0C2340]">{performanceMetrics.satisfactionScore.toFixed(1)}/5.0</p>
+            <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Satisfaction</p>
+              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{performanceMetrics.satisfactionScore.toFixed(1)}/5.0</p>
               <p className="text-[10px] text-slate-400">Resident feedback</p>
             </div>
-            <div className="bg-slate-50 rounded-lg p-3.5">
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Active Admins</p>
-              <p className="text-lg font-bold text-[#0C2340]">0</p>
+            <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Active Admins</p>
+              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">0</p>
               <p className="text-[10px] text-slate-400">Online now</p>
             </div>
           </div>

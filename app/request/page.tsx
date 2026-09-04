@@ -164,34 +164,34 @@ function RequestDocumentContent() {
     <>
       {/* Page Title */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#0C2340] mb-1 tracking-tight">Request Document</h1>
-        <p className="text-sm text-slate-500">Select a document type and fill in the required details</p>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-1 tracking-tight">Request Document</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Select a document type and fill in the required details</p>
       </div>
 
       {/* Document Type Selection */}
       <div className="mb-8">
-        <h2 className="text-base font-semibold text-[#0C2340] mb-4">Select Document Type</h2>
+        <h2 className="text-base font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Select Document Type</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {dynamicDocumentTypes.map((doc) => (
             <Card
               key={doc.id}
               onClick={() => doc.enabled && setSelectedType(doc.id)}
-              className={`p-6 transition-all border-2 ${doc.enabled ? "cursor-pointer hover:shadow-md hover:border-slate-300" : "opacity-60 cursor-not-allowed bg-slate-50"} ${selectedType === doc.id
-                ? "border-[#0C2340] bg-[#0C2340]/[0.02] shadow-sm"
+              className={`p-6 transition-all border-2 ${doc.enabled ? "cursor-pointer hover:shadow-md hover:border-slate-300 dark:border-slate-600" : "opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-950"} ${selectedType === doc.id
+                ? "border-[#0C2340] bg-blue-50 dark:bg-slate-800/[0.02] shadow-sm"
                 : "border-transparent"
                 }`}
             >
               <div className="relative h-full flex flex-col">
                 <div className="text-3xl mb-4" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</div>
-                <p className="text-sm font-semibold text-[#0C2340] mb-1">{doc.title}</p>
-                <p className="text-[11px] text-slate-600 leading-relaxed flex-grow">{doc.description}</p>
+                <p className={`text-sm font-semibold ${selectedType === doc.id ? "text-[#0C2340]" : "text-[#0C2340]"} dark:text-blue-50 mb-1`}>{doc.title}</p>
+                <p className={`text-[11px] ${selectedType === doc.id ? "text-slate-600" : "text-slate-600"} dark:text-slate-400 leading-relaxed flex-grow`}>{doc.description}</p>
                 {!doc.enabled && (
-                  <div className="mt-4 self-start inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-600 text-[10px] font-semibold">
+                  <div className="mt-4 self-start inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-600 dark:text-slate-400 text-[10px] font-semibold">
                     Temporarily Unavailable
                   </div>
                 )}
                 {selectedType === doc.id && doc.enabled && (
-                  <div className="absolute top-0 right-0 w-6 h-6 bg-[#0C2340] rounded-full flex items-center justify-center">
+                  <div className="absolute top-0 right-0 w-6 h-6 bg-[#0C2340] dark:bg-slate-800 rounded-full flex items-center justify-center">
                     <span className="text-white text-xs">✓</span>
                   </div>
                 )}
@@ -203,10 +203,10 @@ function RequestDocumentContent() {
 
       {/* Request Form Modal */}
       <Dialog open={!!(selectedType && selectedDoc)} onOpenChange={(open) => !open && setSelectedType(null)}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white">
-          <DialogHeader className="px-6 py-5 border-b border-slate-100 shrink-0 bg-white z-10 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.02)] relative">
-            <DialogTitle className="text-xl text-[#0C2340] pr-6">{selectedDoc?.title} Request</DialogTitle>
-            <DialogDescription className="text-slate-500">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-slate-900">
+          <DialogHeader className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900 z-10 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.02)] relative">
+            <DialogTitle className="text-xl text-[#0C2340] dark:text-blue-50 pr-6">{selectedDoc?.title} Request</DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400">
               Please fill in the required information below
             </DialogDescription>
           </DialogHeader>
@@ -218,20 +218,20 @@ function RequestDocumentContent() {
             )}
             
             {/* Payment Summary */}
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 flex items-center justify-between">
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-5 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-700">Document Fee</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Standard processing fee for {selectedDoc?.title}</p>
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Document Fee</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Standard processing fee for {selectedDoc?.title}</p>
               </div>
               <div className="text-right">
-                <span className="text-2xl font-bold text-[#0C2340]">
+                <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">
                   {selectedDoc?.fee === 0 ? "FREE" : `₱${selectedDoc?.fee?.toFixed(2)}`}
                 </span>
               </div>
             </div>
             {/* Who is this document for? */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-3">Who is this document for? *</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Who is this document for? *</label>
               <div className="flex gap-4">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -242,7 +242,7 @@ function RequestDocumentContent() {
                     onChange={() => setRequestFor("myself")}
                     className="w-4 h-4"
                   />
-                  <span className="text-sm text-slate-700">For myself</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">For myself</span>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -253,18 +253,18 @@ function RequestDocumentContent() {
                     onChange={() => setRequestFor("other")}
                     className="w-4 h-4"
                   />
-                  <span className="text-sm text-slate-700">For someone else</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">For someone else</span>
                 </label>
               </div>
             </div>
 
             {/* Person Information */}
             {requestFor === "other" && (
-              <div className="space-y-4 p-4 bg-slate-50 border border-slate-200 rounded-md">
-                <h3 className="text-sm font-bold text-slate-700">Person Information</h3>
+              <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md">
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Person Information</h3>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name *</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Full Name *</label>
                   <Input
                     type="text"
                     value={otherPersonName}
@@ -277,13 +277,13 @@ function RequestDocumentContent() {
                       })
                     }}
                     placeholder="Enter full name"
-                    className="w-full h-12 bg-white border-slate-300"
+                    className="w-full h-12 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                   />
                   {errors.otherPersonName && <p className="text-xs text-red-600 mt-1">{errors.otherPersonName}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Contact Number *</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Contact Number *</label>
                   <Input
                     type="tel"
                     value={otherPersonContact}
@@ -297,13 +297,13 @@ function RequestDocumentContent() {
                       })
                     }}
                     placeholder="Enter contact number"
-                    className="w-full h-12 bg-white border-slate-300"
+                    className="w-full h-12 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                   />
                   {errors.otherPersonContact && <p className="text-xs text-red-600 mt-1">{errors.otherPersonContact}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Your Relationship *</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Your Relationship *</label>
                   <Select
                     value={relationship}
                     onValueChange={(v) => {
@@ -315,7 +315,7 @@ function RequestDocumentContent() {
                       })
                     }}
                   >
-                    <SelectTrigger className="w-full h-12 bg-white border-slate-300">
+                    <SelectTrigger className="w-full h-12 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                       <SelectValue placeholder="Select relationship" />
                     </SelectTrigger>
                     <SelectContent>
@@ -332,11 +332,11 @@ function RequestDocumentContent() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Authorization Letter *</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Authorization Letter *</label>
 
                   <div className="flex items-center gap-3">
-                    <div className="flex-1 h-12 flex items-center px-4 bg-white border border-slate-300 rounded-md">
-                      <span className={`truncate text-sm ${authorizationLetter ? "text-slate-700" : "text-slate-400"}`}>
+                    <div className="flex-1 h-12 flex items-center px-4 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md">
+                      <span className={`truncate text-sm ${authorizationLetter ? "text-slate-700 dark:text-slate-300" : "text-slate-400"}`}>
                         {authorizationLetter ? authorizationLetter.name : "No file chosen"}
                       </span>
                     </div>
@@ -381,14 +381,14 @@ function RequestDocumentContent() {
                             return c
                           })
                         }}
-                        className="h-10 px-3 rounded-md border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50"
+                        className="h-10 px-3 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-950"
                       >
                         Remove
                       </button>
                     )}
                   </div>
 
-                  <p className="text-xs text-slate-500 mt-1">Upload a signed authorization letter (PDF, JPG, PNG). Max size: 5MB.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Upload a signed authorization letter (PDF, JPG, PNG). Max size: 5MB.</p>
                   {errors.authorizationLetter && <p className="text-xs text-red-600 mt-1">{errors.authorizationLetter}</p>}
                 </div>
               </div>
@@ -396,7 +396,7 @@ function RequestDocumentContent() {
 
             {/* Purpose Field */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Purpose of Request *</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Purpose of Request *</label>
               <Select value={purpose} onValueChange={(v) => {
                 setPurpose(v)
                 setErrors((prev) => {
@@ -405,11 +405,11 @@ function RequestDocumentContent() {
                   return c
                 })
               }}>
-                <SelectTrigger className="w-full h-12 bg-white border-slate-300">
+                <SelectTrigger className="w-full h-12 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                   <SelectValue placeholder="Select purpose" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(selectedType ? purposeOptions[selectedType] : []).map((option) => (
+                  {((selectedType && purposeOptions[selectedType as DocumentType]) ? purposeOptions[selectedType as DocumentType] : ["Other"]).map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
                     </SelectItem>
@@ -421,34 +421,34 @@ function RequestDocumentContent() {
 
             {purpose === "Other" && (
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Other Purpose (specify) *</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Other Purpose (specify) *</label>
                 <Input
                   type="text"
                   value={customPurpose}
                   onChange={(e) => setCustomPurpose(e.target.value)}
                   placeholder="Enter your custom purpose..."
-                  className="w-full h-12 bg-white border-slate-300"
+                  className="w-full h-12 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                 />
               </div>
             )}
 
             {/* Additional Details */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Additional Details (Optional)</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Additional Details (Optional)</label>
               <Textarea
                 value={additionalDetails}
                 onChange={(e) => setAdditionalDetails(e.target.value)}
                 placeholder="Provide any additional information about your request..."
-                className="w-full min-h-24 bg-white border-slate-300"
+                className="w-full min-h-24 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
               />
             </div>
 
             {/* Payment Method */}
             {selectedDoc && selectedDoc?.fee > 0 && (
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3">Payment Method *</label>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Payment Method *</label>
                 <div className="grid grid-cols-2 gap-4">
-                  <label className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === "cash" ? "border-[#0C2340] bg-[#0C2340]/[0.02]" : "border-slate-200 hover:border-slate-300"}`}>
+                  <label className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === "cash" ? "border-[#0C2340] bg-blue-50 dark:bg-slate-800/[0.02]" : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600"}`}>
                     <input
                       type="radio"
                       name="paymentMethod"
@@ -458,11 +458,11 @@ function RequestDocumentContent() {
                       className="w-4 h-4"
                     />
                     <div>
-                      <span className="block text-sm font-semibold text-slate-900">Cash on Pick-up</span>
-                      <span className="block text-xs text-slate-500 mt-0.5">Pay at the Barangay Hall</span>
+                      <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">Cash on Pick-up</span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">Pay at the Barangay Hall</span>
                     </div>
                   </label>
-                  <label className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === "gcash" ? "border-[#0C2340] bg-[#0C2340]/[0.02]" : "border-slate-200 hover:border-slate-300"}`}>
+                  <label className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === "gcash" ? "border-[#0C2340] bg-blue-50 dark:bg-slate-800/[0.02]" : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600"}`}>
                     <input
                       type="radio"
                       name="paymentMethod"
@@ -472,8 +472,8 @@ function RequestDocumentContent() {
                       className="w-4 h-4"
                     />
                     <div>
-                      <span className="block text-sm font-semibold text-slate-900">GCash</span>
-                      <span className="block text-xs text-slate-500 mt-0.5">Pay now via GCash</span>
+                      <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">GCash</span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">Pay now via GCash</span>
                     </div>
                   </label>
                 </div>
@@ -486,15 +486,21 @@ function RequestDocumentContent() {
                 ℹ Processing time: 1-3 business days. You will receive a notification when your document is ready.
               </p>
             </div>
-
-            </div>
           </div>
           
-          <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 shrink-0 flex justify-end">
+          <div className="p-4 px-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 shrink-0 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setSelectedType(null)}
+              disabled={isSubmittingRequest}
+              className="w-full sm:w-auto h-11 px-6 text-sm font-medium border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
+            >
+              Cancel
+            </Button>
             <Button
               onClick={handleSubmit}
               disabled={isSubmittingRequest}
-              className="w-full sm:w-auto h-11 px-8 bg-[#0C2340] hover:bg-[#1a3a5c] text-sm font-semibold shadow-sm"
+              className="w-full sm:w-auto h-11 px-8 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] text-sm font-semibold shadow-sm"
             >
               {isSubmittingRequest ? "Processing..." : (paymentMethod === "gcash" && (selectedDoc?.fee ?? 0) > 0) ? `Pay ₱${selectedDoc?.fee?.toFixed(2)} & Submit` : "Submit Request"}
             </Button>
@@ -516,11 +522,11 @@ export default function RequestDocumentPage() {
           <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 border-8 border-red-50/50">
             <span className="text-red-500 text-3xl">🔒</span>
           </div>
-          <h1 className="text-2xl font-bold text-[#0C2340] mb-3">Account Deactivated</h1>
-          <p className="text-sm text-slate-600 mb-8 leading-relaxed">
+          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-3">Account Deactivated</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
             Your resident account is currently deactivated. You cannot request new documents until your account is reactivated by the barangay administration.
           </p>
-          <a href="/profile" className="w-full h-12 flex items-center justify-center bg-[#0C2340] hover:bg-[#1a3a5c] text-white rounded-lg font-semibold transition-colors shadow-sm">
+          <a href="/profile" className="w-full h-12 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] text-white rounded-lg font-semibold transition-colors shadow-sm">
             Go to Profile to Request Reactivation
           </a>
         </div>
@@ -535,11 +541,11 @@ export default function RequestDocumentPage() {
           <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6 border-8 border-amber-50/50">
             <span className="text-amber-500 text-3xl">⏳</span>
           </div>
-          <h1 className="text-2xl font-bold text-[#0C2340] mb-3">Account Under Review</h1>
-          <p className="text-sm text-slate-600 mb-8 leading-relaxed">
+          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-3">Account Under Review</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
             Your registration is currently being verified by the barangay administration. You will be able to request documents once your account is fully verified.
           </p>
-          <a href="/dashboard" className="w-full h-12 flex items-center justify-center bg-[#0C2340] hover:bg-[#1a3a5c] text-white rounded-lg font-semibold transition-colors shadow-sm">
+          <a href="/dashboard" className="w-full h-12 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] text-white rounded-lg font-semibold transition-colors shadow-sm">
             Return to Dashboard
           </a>
         </div>
@@ -549,7 +555,7 @@ export default function RequestDocumentPage() {
 
   return (
     <ResidentPageShell>
-      <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading request form...</div>}>
+      <Suspense fallback={<div className="p-8 text-center text-slate-500 dark:text-slate-400">Loading request form...</div>}>
         <RequestDocumentContent />
       </Suspense>
     </ResidentPageShell>

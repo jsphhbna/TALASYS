@@ -165,8 +165,8 @@ export default function AuditLogs() {
       case "rejected": return "bg-red-50 text-red-700 border-red-200"
       case "generated": return "bg-amber-50 text-amber-700 border-amber-200"
       case "Config Edit": return "bg-[#C5A55A]/10 text-[#8a7430] border-[#C5A55A]/20"
-      case "Login": return "bg-slate-50 text-slate-600 border-slate-200"
-      default: return "bg-slate-50 text-slate-600 border-slate-200"
+      case "Login": return "bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+      default: return "bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
     }
   }
 
@@ -229,12 +229,12 @@ export default function AuditLogs() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Audit Logs</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Complete activity history of all admin actions</p>
+          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Audit Logs</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Complete activity history of all admin actions</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" onClick={() => setShowExportCSV(true)}>Export CSV</Button>
-          <Button onClick={() => setShowExportPDF(true)} className="bg-[#0C2340] hover:bg-[#0a1c33]">Export PDF</Button>
+          <Button onClick={() => setShowExportPDF(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Export PDF</Button>
         </div>
       </div>
 
@@ -243,13 +243,13 @@ export default function AuditLogs() {
         {kpis.map((kpi) => (
           <Card key={kpi.label} className="p-4 shadow-sm">
             <div className="flex items-start justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center">
-                <kpi.icon className="w-4 h-4 text-[#0C2340]" />
+              <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+                <kpi.icon className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
               </div>
               <Sparkline data={kpi.spark} color={kpi.color} />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">{kpi.label}</p>
-            <span className="text-2xl font-bold text-[#0C2340]">{kpi.value}</span>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
+            <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{kpi.value}</span>
           </Card>
         ))}
       </div>
@@ -258,8 +258,8 @@ export default function AuditLogs() {
       <div className="grid grid-cols-12 gap-6">
         {/* Hourly Activity Distribution */}
         <Card className="col-span-5 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Hourly Activity</h2>
-          <p className="text-[11px] text-slate-500 mb-4">Action distribution throughout the day</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Hourly Activity</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Action distribution throughout the day</p>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={auditHourlyActivity} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -274,8 +274,8 @@ export default function AuditLogs() {
 
         {/* Action Type Breakdown */}
         <Card className="col-span-3 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Action Breakdown</h2>
-          <p className="text-[11px] text-slate-500 mb-3">By type this period</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Action Breakdown</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">By type this period</p>
           <ResponsiveContainer width="100%" height={120}>
             <PieChart>
               <Pie data={auditActionBreakdown} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={2}>
@@ -290,9 +290,9 @@ export default function AuditLogs() {
               <div key={i} className="flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: a.color }} />
-                  <span className="text-slate-600">{a.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{a.name}</span>
                 </span>
-                <span className="font-semibold text-[#0C2340]">{a.value}</span>
+                <span className="font-semibold text-[#0C2340] dark:text-blue-50">{a.value}</span>
               </div>
             ))}
           </div>
@@ -301,12 +301,12 @@ export default function AuditLogs() {
         {/* Weekly Trend */}
         <Card className="col-span-4 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-semibold text-[#0C2340]">Weekly Trend</h2>
+            <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Weekly Trend</h2>
             <div className="flex items-center gap-1 text-[10px] text-slate-400">
               <span className="font-medium">-</span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 mb-4">Daily action volume this week</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Daily action volume this week</p>
           <ResponsiveContainer width="100%" height={180}>
             <AreaChart data={auditWeeklyTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <defs>
@@ -328,13 +328,13 @@ export default function AuditLogs() {
       {/* Filters */}
       <Card className="p-4 shadow-sm">
         <div className="grid grid-cols-4 gap-4">
-          <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="px-4 py-2 border border-slate-200 rounded-md text-sm">
+          <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
             <option value="all">All Admins</option>
             {Array.from(new Set(auditLogs.map((l: any) => l.admin?.name || l.adminName || (typeof l.admin === "string" ? l.admin : "System")))).map(name => (
               <option key={name as string} value={name as string}>{name as string}</option>
             ))}
           </select>
-          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="px-4 py-2 border border-slate-200 rounded-md text-sm">
+          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
             <option value="all">All Actions</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
@@ -343,31 +343,31 @@ export default function AuditLogs() {
             <option value="Config Edit">Config Edit</option>
             <option value="Login">Login</option>
           </select>
-          <input type="text" className="px-4 py-2 border border-slate-200 rounded-md text-sm" value="Jun 1 - Jun 30, 2024" readOnly />
+          <input type="text" className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm" value="Jun 1 - Jun 30, 2024" readOnly />
           <div className="flex gap-3">
             <Input placeholder="Search by details..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1" />
-            <Button className="bg-[#0C2340] hover:bg-[#0a1c33]">Apply</Button>
+            <Button className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Apply</Button>
           </div>
         </div>
       </Card>
 
       {/* Log Table */}
-      <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto shadow-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
         <div className="min-w-[800px]">
-          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
+          <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Timestamp</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Admin</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Action</p></div>
-              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Details</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">IP Address</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timestamp</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Admin</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Action</p></div>
+              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Details</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">IP Address</p></div>
             </div>
           </div>
           <div className="divide-y divide-slate-100">
             {filteredLogs.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">No logs found matching filters.</div>
+              <div className="p-8 text-center text-slate-500 dark:text-slate-400">No logs found matching filters.</div>
             ) : filteredLogs.map((log) => (
-              <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
+              <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
                   <div className="col-span-2">
                     <div className="flex flex-col">
@@ -377,15 +377,15 @@ export default function AuditLogs() {
                           const d = new Date(ts);
                           return (
                             <>
-                              <span className="text-sm font-semibold text-slate-700">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(d)}</span>
-                              <span className="text-[10px] text-slate-500 font-mono">{new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d)}</span>
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(d)}</span>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d)}</span>
                             </>
                           )
                         }
                         return (
                           <>
-                            <span className="text-sm font-semibold text-slate-700">{log.date || (log as any).date || "Unknown"}</span>
-                            <span className="text-[10px] text-slate-500 font-mono">{log.time || (log as any).time || ""}</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{log.date || (log as any).date || "Unknown"}</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{log.time || (log as any).time || ""}</span>
                           </>
                         )
                       })()}
@@ -395,15 +395,15 @@ export default function AuditLogs() {
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: log.admin?.color || "#94a3b8" }}>
                       <span className="text-[9px] text-white font-medium">{log.admin?.initials || (log as any).adminName?.charAt(0)?.toUpperCase() || "SY"}</span>
                     </div>
-                    <span className="text-sm text-[#0C2340]">{log.admin?.name || (log as any).adminName || "System"}</span>
+                    <span className="text-sm text-[#0C2340] dark:text-blue-50">{log.admin?.name || (log as any).adminName || "System"}</span>
                   </div>
                   <div className="col-span-2">
                     <span className={`inline-block px-2.5 py-1 rounded-md border text-[10px] font-semibold ${getActionColor(log.actionType || log.action || "Unknown")}`}>
                       {(log.actionType || log.action || "Unknown").toUpperCase()}
                     </span>
                   </div>
-                  <div className="col-span-4"><p className="text-sm text-slate-700">{log.details || (log as any).residentName || ""}</p></div>
-                  <div className="col-span-2"><p className="text-sm text-slate-500 font-mono text-[11px]">{log.ipAddress || "localhost"}</p></div>
+                  <div className="col-span-4"><p className="text-sm text-slate-700 dark:text-slate-300">{log.details || (log as any).residentName || ""}</p></div>
+                  <div className="col-span-2"><p className="text-sm text-slate-500 dark:text-slate-400 font-mono text-[11px]">{log.ipAddress || "localhost"}</p></div>
                 </div>
               </div>
             ))}
@@ -413,25 +413,25 @@ export default function AuditLogs() {
 
       {/* Pagination */}
       <div className="flex justify-between items-center">
-        <p className="text-sm text-slate-600">Showing 1-10 of {filteredLogs.length} entries</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">Showing 1-10 of {filteredLogs.length} entries</p>
         <div className="flex gap-2">
-          <button className="w-8 h-8 border border-slate-200 rounded flex items-center justify-center text-slate-500 hover:bg-slate-50 text-sm">&lt;</button>
-          <button className="w-8 h-8 bg-[#0C2340] rounded flex items-center justify-center text-white text-sm">1</button>
-          <button className="w-8 h-8 border border-slate-200 rounded flex items-center justify-center text-slate-500 hover:bg-slate-50 text-sm">2</button>
-          <button className="w-8 h-8 border border-slate-200 rounded flex items-center justify-center text-slate-500 hover:bg-slate-50 text-sm">3</button>
-          <button className="w-8 h-8 border border-slate-200 rounded flex items-center justify-center text-slate-500 hover:bg-slate-50 text-sm">&gt;</button>
+          <button className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">&lt;</button>
+          <button className="w-8 h-8 bg-[#0C2340] dark:bg-slate-800 rounded flex items-center justify-center text-white text-sm">1</button>
+          <button className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">2</button>
+          <button className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">3</button>
+          <button className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">&gt;</button>
         </div>
       </div>
 
       {/* Export CSV Modal */}
       {showExportCSV && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] mb-3">Export Audit Logs to CSV?</h3>
-            <p className="text-sm text-slate-600 mb-6">This will export {filteredLogs.length} audit log entries to a CSV file with all applied filters.</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export Audit Logs to CSV?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will export {filteredLogs.length} audit log entries to a CSV file with all applied filters.</p>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowExportCSV(false)} disabled={isExportingCsv}>Cancel</Button>
-              <Button onClick={handleExportCsv} className="bg-[#0C2340] hover:bg-[#0a1c33]" disabled={isExportingCsv}>
+              <Button onClick={handleExportCsv} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
                 {isExportingCsv ? "Exporting CSV..." : "Confirm Export"}
               </Button>
             </div>
@@ -442,12 +442,12 @@ export default function AuditLogs() {
       {/* Export PDF Modal */}
       {showExportPDF && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] mb-3">Export Audit Logs to PDF?</h3>
-            <p className="text-sm text-slate-600 mb-6">This will generate a PDF report with {filteredLogs.length} audit log entries including all filtered actions.</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export Audit Logs to PDF?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a PDF report with {filteredLogs.length} audit log entries including all filtered actions.</p>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowExportPDF(false)} disabled={isExportingPdf}>Cancel</Button>
-              <Button onClick={handleExportPdf} className="bg-[#0C2340] hover:bg-[#0a1c33]" disabled={isExportingPdf}>
+              <Button onClick={handleExportPdf} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
                 {isExportingPdf ? "Exporting PDF..." : "Confirm Export"}
               </Button>
             </div>

@@ -10,7 +10,7 @@ export function HeroSection() {
       {/* Decorative Background Elements */}
       <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-blue-50 to-transparent opacity-70 pointer-events-none" />
       <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-blue-100/50 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-72 h-72 rounded-full bg-[#0C2340]/5 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-1/4 w-72 h-72 rounded-full bg-[#0C2340] dark:bg-slate-800/5 blur-3xl pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 py-16 lg:py-24">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
@@ -25,24 +25,24 @@ export function HeroSection() {
               City of Manila
             </div>
             
-            <h1 className="text-4xl sm:text-5xl lg:text-[clamp(40px,5vw,56px)] font-bold text-[#0C2340] leading-[1.1] tracking-tight">
+            <h1 className="text-4xl sm:text-5xl lg:text-[clamp(40px,5vw,56px)] font-bold text-[#0C2340] dark:text-blue-50 leading-[1.1] tracking-tight">
               Barangay 634 <br />
               <span className="text-blue-600">Zone 64 District VI</span>
             </h1>
             
-            <p className="text-[17px] text-slate-600 leading-relaxed max-w-[90%]">
+            <p className="text-[17px] text-slate-600 dark:text-slate-400 leading-relaxed max-w-[90%]">
               Experience faster, more accessible, and fully digital barangay services. Request documents, verify your residency, and stay updated—all from the comfort of your home.
             </p>
             
             <div className="flex flex-wrap items-center gap-4 mt-4">
               <Link href="/register">
-                <Button size="lg" className="bg-[#0C2340] hover:bg-[#0a1a30] text-white shadow-md h-12 px-8 text-base transition-all" style={{ borderRadius: "var(--radius-md)" }}>
+                <Button size="lg" className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1a30] text-white shadow-md h-12 px-8 text-base transition-all" style={{ borderRadius: "var(--radius-md)" }}>
                   Register as Resident
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
               </Link>
               <Link href="/login">
-                <Button size="lg" variant="outline" className="border-slate-300 text-slate-700 hover:bg-slate-50 h-12 px-8 text-base shadow-sm transition-all" style={{ borderRadius: "var(--radius-md)" }}>
+                <Button size="lg" variant="outline" className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-950 h-12 px-8 text-base shadow-sm transition-all" style={{ borderRadius: "var(--radius-md)" }}>
                   <FileText className="mr-2 w-4 h-4" />
                   Request Document
                 </Button>
@@ -51,7 +51,7 @@ export function HeroSection() {
           </div>
 
           {/* Image/Visual Content */}
-          <div className="relative w-full h-[400px] lg:h-[500px] rounded-[24px] overflow-hidden border border-slate-200 bg-white" style={{ boxShadow: "var(--shadow-md)" }}>
+          <div className="relative w-full h-[400px] lg:h-[500px] rounded-[24px] overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" style={{ boxShadow: "var(--shadow-md)" }}>
             <img 
               src="/group-photo.png" 
               alt="Barangay 634 Officials Group"

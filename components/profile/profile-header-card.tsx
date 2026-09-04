@@ -28,20 +28,20 @@ export function ProfileHeaderCard({
               title="Setup Profile Picture"
             >
               <span className="text-4xl text-slate-400 mb-1">📷</span>
-              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Take Photo</span>
+              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Take Photo</span>
             </button>
           )}
 
           {isUploadingPicture && (
-            <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-10">
+            <div className="absolute inset-0 bg-white dark:bg-slate-900 bg-opacity-70 flex items-center justify-center z-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
             </div>
           )}
         </div>
 
         <div className="flex-1">
-          <h2 className="text-[22px] font-bold text-slate-900 mb-2">{user.name}</h2>
-          <p className="text-sm text-slate-600 mb-3">{user.status ?? "Resident"}</p>
+          <h2 className="text-[22px] font-bold text-slate-900 dark:text-slate-100 mb-2">{user.name}</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">{user.status ?? "Resident"}</p>
           {user.isVerified ? (
             <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
               ✓ Verified

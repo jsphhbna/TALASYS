@@ -15,7 +15,7 @@ interface ShellProps {
 
 export function ResidentPageShell({ children, mainClassName = "flex-1 p-10 overflow-y-auto" }: ShellProps) {
   return (
-    <div className="h-screen bg-slate-50 overflow-hidden flex flex-col">
+    <div className="h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden flex flex-col">
       <Header />
       <div className="flex flex-1 min-h-0 min-w-0">
         <Sidebar />
@@ -27,7 +27,7 @@ export function ResidentPageShell({ children, mainClassName = "flex-1 p-10 overf
 
 export function AdminPageShell({ children, mainClassName = "flex-1 p-8 max-h-[calc(100vh-4rem)] overflow-y-auto" }: ShellProps) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <AdminHeader />
       <div className="flex flex-1 min-h-0">
         <AdminSidebar />

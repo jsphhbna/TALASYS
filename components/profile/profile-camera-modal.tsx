@@ -11,7 +11,7 @@ interface ProfileCameraModalProps {
   onSave: (base64Image: string) => Promise<void>
 }
 
-type StepPhase = "idle" | "align" | "blink" | "hold" | "capturing" | "done" | "error"
+type StepPhase = "idle" | "ready" | "capturing" | "done" | "error"
 
 export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -20,49 +20,26 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
   const [phase, setPhase] = useState<StepPhase>("idle")
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
-  const [countdown, setCountdown] = useState<number>(0)
   const [isSaving, setIsSaving] = useState(false)
-  
+  const [countdown, setCountdown] = useState<number | null>(null)
+
   const startCamera = async () => {
     try {
       setPhase("idle")
       setCapturedImage(null)
+      setCountdown(null)
+      
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } } 
       })
+      
       setStream(mediaStream)
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream
+        videoRef.current.addEventListener("loadeddata", () => {
+          setPhase("ready")
+        })
       }
-      
-      // Start the simulated liveness sequence
-      setPhase("align")
-      
-      setTimeout(() => {
-        if (!mediaStream.active) return
-        setPhase("blink")
-        
-        setTimeout(() => {
-          if (!mediaStream.active) return
-          setPhase("hold")
-          setCountdown(3)
-          
-          let counter = 3
-          const interval = setInterval(() => {
-            counter--
-            setCountdown(counter)
-            if (counter <= 0) {
-              clearInterval(interval)
-              if (mediaStream.active) {
-                setPhase("capturing")
-                capturePhoto()
-              }
-            }
-          }, 1000)
-          
-        }, 3500) // Give them 3.5s to blink
-      }, 3000) // Give them 3s to align
-      
     } catch (err) {
       console.error("Camera access denied or failed", err)
       setPhase("error")
@@ -85,6 +62,22 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
         stopCamera()
       }
     }
+  }
+
+  const handleManualCapture = () => {
+    setPhase("capturing")
+    setCountdown(3)
+    let counter = 3
+    
+    const timer = setInterval(() => {
+      counter -= 1
+      setCountdown(counter)
+      
+      if (counter <= 0) {
+        clearInterval(timer)
+        capturePhoto()
+      }
+    }, 1000)
   }
 
   const stopCamera = () => {
@@ -124,11 +117,12 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
           <DialogTitle>Setup Profile Picture</DialogTitle>
           <DialogDescription>
             For security, your profile picture must be taken using the live camera. 
-            Once saved, this picture cannot be changed.
+            Once saved, you can always update it later.
           </DialogDescription>
         </DialogHeader>
 
         <div className="relative w-full aspect-[3/4] bg-slate-900 rounded-2xl overflow-hidden shadow-inner flex flex-col items-center justify-center my-4">
+          
           {!capturedImage && phase !== "error" && (
             <>
               <video 
@@ -147,30 +141,38 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className={`w-[70%] aspect-square rounded-full border-4 transition-colors duration-500 ${
-                    phase === "align" ? "border-amber-400" :
-                    phase === "blink" ? "border-blue-400" :
-                    phase === "hold" || phase === "capturing" ? "border-emerald-400" :
-                    "border-white/20"
+                    phase === "capturing" ? "border-emerald-400" : "border-white/20"
                   }`} />
                 </div>
               </div>
-              <div className="absolute bottom-8 left-0 right-0 px-6 text-center z-10">
-                <div className="bg-black/60 backdrop-blur-md rounded-lg py-3 px-4 text-white shadow-lg border border-white/10">
-                  {phase === "idle" && <p className="animate-pulse text-sm">Connecting to camera...</p>}
-                  {phase === "align" && <p className="text-sm font-medium animate-in fade-in zoom-in duration-300 text-amber-300">Please align your face in the circle.</p>}
-                  {phase === "blink" && <p className="text-sm font-medium animate-in fade-in zoom-in duration-300 text-blue-300">Blink twice.</p>}
-                  {phase === "hold" && <p className="text-sm font-medium animate-in fade-in zoom-in duration-300 text-emerald-300">Hold still... {countdown}</p>}
-                  {phase === "capturing" && <p className="text-sm font-medium animate-pulse">Capturing...</p>}
+
+              {phase === "ready" && (
+                <div className="absolute bottom-8 left-0 right-0 px-6 flex justify-center z-10">
+                  <Button 
+                    onClick={handleManualCapture}
+                    className="bg-white hover:bg-slate-200 text-slate-900 rounded-full h-14 px-8 font-semibold shadow-xl border border-slate-300"
+                  >
+                    <Camera className="w-5 h-5 mr-2" />
+                    Capture Photo
+                  </Button>
                 </div>
-              </div>
+              )}
+
+              {phase === "capturing" && countdown !== null && (
+                <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                  <span className="text-8xl font-bold text-white drop-shadow-xl animate-in fade-in zoom-in duration-300">
+                    {countdown > 0 ? countdown : ""}
+                  </span>
+                </div>
+              )}
             </>
           )}
 
           {phase === "error" && (
-            <div className="text-center p-6 flex flex-col items-center justify-center h-full">
+            <div className="text-center p-6 flex flex-col items-center justify-center h-full text-white">
               <Camera className="w-12 h-12 text-slate-500 mb-4 opacity-50" />
-              <p className="text-sm text-slate-400 mb-4">Camera access was denied or is unavailable.</p>
-              <Button onClick={startCamera} variant="outline" className="text-xs">Try Again</Button>
+              <p className="text-sm text-slate-300 mb-4">Camera access was denied or is unavailable.</p>
+              <Button onClick={startCamera} variant="outline" className="text-xs bg-white/10 border-white/20 hover:bg-white/20">Try Again</Button>
             </div>
           )}
 
@@ -196,7 +198,7 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
           <Button 
             onClick={handleSave} 
             disabled={!capturedImage || isSaving}
-            className="bg-[#0C2340] hover:bg-[#1a3a5c] text-white"
+            className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] text-white"
           >
             {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {isSaving ? "Saving..." : "Save Picture"}

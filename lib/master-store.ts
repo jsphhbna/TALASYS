@@ -92,6 +92,7 @@ export interface MasterDocumentRequest {
   requestedByContact?: string
   relationship?: string
   authorizationLetter?: string
+  statusTimestamps?: Record<string, number>
 }
 
 export interface MasterNotification {

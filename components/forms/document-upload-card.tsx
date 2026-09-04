@@ -55,7 +55,7 @@ export function DocumentUploadCard({
 
       <div className={`rounded-md p-6 text-center ${file ? "bg-green-50 border border-green-200" : `border-2 border-dashed ${classes.dropzone}`}`}>
         {isLoading ? (
-          <p className="text-xs text-slate-500">Uploading file...</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Uploading file...</p>
         ) : file ? (
           <div className="flex items-center justify-between">
             <span className="text-xs text-green-700">✓ {file.name}</span>
@@ -73,7 +73,7 @@ export function DocumentUploadCard({
               accept="image/*"
               capture="environment"
             />
-            <label htmlFor={inputId} className="cursor-pointer text-xs text-slate-600">
+            <label htmlFor={inputId} className="cursor-pointer text-xs text-slate-600 dark:text-slate-400">
               {emptyHint}
             </label>
           </>

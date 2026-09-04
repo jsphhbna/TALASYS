@@ -17,7 +17,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <SuperAdminHeader />
       <div className="flex flex-1 min-h-0">
         <SuperAdminSidebar />

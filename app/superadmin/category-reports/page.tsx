@@ -172,40 +172,40 @@ export default function CategoryReports() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Category Reports</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Generate PDF reports by resident category with analytics</p>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Category Reports</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Generate PDF reports by resident category with analytics</p>
       </div>
 
       {/* Insight KPIs */}
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-            <Users className="w-4 h-4 text-[#0C2340]" />
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+            <Users className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Total Population</p>
-          <span className="text-2xl font-bold text-[#0C2340]">{adminStats.totalResidents.toLocaleString()}</span>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Population</p>
+          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{adminStats.totalResidents.toLocaleString()}</span>
         </Card>
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-            <BarChart3 className="w-4 h-4 text-[#0C2340]" />
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+            <BarChart3 className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Largest Category</p>
-          <span className="text-lg font-bold text-[#0C2340]">{largestName}</span>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Largest Category</p>
+          <span className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{largestName}</span>
           <p className="text-[10px] text-[#C5A55A] font-semibold mt-0.5">{largestDesc}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Fastest Growing</p>
-          <span className="text-lg font-bold text-[#0C2340]">{fastestGrowingName}</span>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Fastest Growing</p>
+          <span className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{fastestGrowingName}</span>
           <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">{fastestGrowingDesc}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center mb-2">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Expiring Soon</p>
+          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Expiring Soon</p>
           <span className="text-2xl font-bold text-amber-600">{adminStats.expiringResidents}</span>
           <p className="text-[10px] text-slate-400 mt-0.5">Need renewal</p>
         </Card>
@@ -215,8 +215,8 @@ export default function CategoryReports() {
       <div className="grid grid-cols-12 gap-6">
         {/* Distribution Pie */}
         <Card className="col-span-5 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Age Distribution</h2>
-          <p className="text-[11px] text-slate-500 mb-3">Population breakdown</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Age Distribution</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">Population breakdown</p>
           <ResponsiveContainer width="100%" height={130}>
             <PieChart>
               <Pie data={categoryDistribution} cx="50%" cy="50%" innerRadius={35} outerRadius={55} dataKey="value" stroke="none" paddingAngle={3}>
@@ -231,10 +231,10 @@ export default function CategoryReports() {
               <div key={i} className="flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                  <span className="text-slate-600">{c.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{c.name}</span>
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[#0C2340]">{c.name === "No Data" ? "-" : c.value.toLocaleString()}</span>
+                  <span className="font-semibold text-[#0C2340] dark:text-blue-50">{c.name === "No Data" ? "-" : c.value.toLocaleString()}</span>
                   <span className="text-emerald-600 font-medium">{c.name === "No Data" ? "" : `+${c.change}%`}</span>
                 </div>
               </div>
@@ -244,8 +244,8 @@ export default function CategoryReports() {
 
         {/* Comparative Bar */}
         <Card className="col-span-7 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] mb-1">Category Comparison</h2>
-          <p className="text-[11px] text-slate-500 mb-4">Resident count by category</p>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Category Comparison</h2>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Resident count by category</p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={barData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -262,25 +262,25 @@ export default function CategoryReports() {
 
       {/* Category Selector */}
       <div>
-        <h3 className="text-sm font-semibold text-[#0C2340] mb-3">Select Category</h3>
+        <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Select Category</h3>
         <div className="grid grid-cols-4 gap-3">
           {categories.map((category) => (
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
               className={`text-left rounded-lg border-2 transition-all p-4 ${selectedCategory === category.id
-                ? "border-[#0C2340] bg-[#0C2340]/[0.03] ring-1 ring-[#0C2340]/20"
-                : "border-slate-200 hover:border-slate-300 bg-white"
+                ? "border-[#0C2340] bg-[#0C2340] dark:bg-slate-800/[0.03] ring-1 ring-[#0C2340]/20"
+                : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
                 }`}
             >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${selectedCategory === category.id ? "bg-[#0C2340]/10" : "bg-slate-100"}`}>
-                <span className={`text-[11px] font-bold ${selectedCategory === category.id ? "text-[#0C2340]" : "text-slate-500"}`}>{category.icon}</span>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${selectedCategory === category.id ? "bg-[#0C2340] dark:bg-slate-800/10" : "bg-slate-100 dark:bg-slate-800"}`}>
+                <span className={`text-[11px] font-bold ${selectedCategory === category.id ? "text-[#0C2340] dark:text-blue-50" : "text-slate-500 dark:text-slate-400"}`}>{category.icon}</span>
               </div>
-              <h4 className="text-[12px] font-semibold text-[#0C2340] mb-0.5">{category.title}</h4>
-              <p className={`text-[10px] ${selectedCategory === category.id ? "text-[#0C2340]" : "text-slate-500"}`}>{category.count}</p>
+              <h4 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{category.title}</h4>
+              <p className={`text-[10px] ${selectedCategory === category.id ? "text-[#0C2340] dark:text-blue-50" : "text-slate-500 dark:text-slate-400"}`}>{category.count}</p>
               {selectedCategory === category.id && (
                 <div className="flex items-center justify-end mt-1">
-                  <div className="w-4 h-4 rounded-full bg-[#0C2340] flex items-center justify-center">
+                  <div className="w-4 h-4 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center">
                     <span className="text-white text-[8px]">✓</span>
                   </div>
                 </div>
@@ -293,16 +293,16 @@ export default function CategoryReports() {
       {/* Report Config + Preview */}
       <div className="grid grid-cols-12 gap-6">
         <Card className="col-span-7 shadow-sm overflow-hidden">
-          <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
-            <h3 className="text-[12px] font-semibold text-[#0C2340]">Report Configuration: {selectedCategoryObj.title}</h3>
+          <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+            <h3 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">Report Configuration: {selectedCategoryObj.title}</h3>
           </div>
           <div className="p-5 space-y-5">
             <div>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Include Columns</h4>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Include Columns</h4>
               <div className="grid grid-cols-2 gap-3">
                 {(Object.keys(selectedColumns) as (keyof typeof selectedColumns)[]).map((col) => (
-                  <button key={col} onClick={() => toggleColumn(col)} className="flex items-center gap-2.5 text-[12px] text-slate-800">
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${selectedColumns[col] ? "bg-[#0C2340] border-[#0C2340]" : "border-slate-300 bg-white hover:border-slate-400"
+                  <button key={col} onClick={() => toggleColumn(col)} className="flex items-center gap-2.5 text-[12px] text-slate-800 dark:text-slate-200">
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${selectedColumns[col] ? "bg-[#0C2340] dark:bg-slate-800 border-[#0C2340]" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-slate-400"
                       }`}>
                       {selectedColumns[col] && <span className="text-white text-[8px]">✓</span>}
                     </div>
@@ -312,8 +312,8 @@ export default function CategoryReports() {
               </div>
             </div>
             <div>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Sort By</h4>
-              <select className="w-52 px-3 py-2 border border-slate-200 rounded-md text-sm">
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Sort By</h4>
+              <select className="w-52 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
                 <option>Last Name (A-Z)</option>
                 <option>Last Name (Z-A)</option>
                 <option>Age (Youngest First)</option>
@@ -324,20 +324,20 @@ export default function CategoryReports() {
         </Card>
 
         <Card className="col-span-5 shadow-sm overflow-hidden">
-          <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
-            <h3 className="text-[12px] font-semibold text-[#0C2340]">PDF Preview</h3>
+          <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+            <h3 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">PDF Preview</h3>
           </div>
           <div className="p-5">
-            <div className="bg-slate-50 border border-slate-200 rounded p-4 h-64 flex flex-col">
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded p-4 h-64 flex flex-col">
               <div className="text-center space-y-1 mb-3">
-                <p className="text-[8px] text-slate-500">Republic of the Philippines</p>
-                <p className="text-[8px] text-slate-500">{municipality}</p>
-                <p className="text-[8px] text-slate-500">{barangayName}</p>
+                <p className="text-[8px] text-slate-500 dark:text-slate-400">Republic of the Philippines</p>
+                <p className="text-[8px] text-slate-500 dark:text-slate-400">{municipality}</p>
+                <p className="text-[8px] text-slate-500 dark:text-slate-400">{barangayName}</p>
                 <div className="w-5 h-5 bg-slate-200 rounded mx-auto mt-1" />
               </div>
               <div className="h-px bg-slate-200 mb-2" />
-              <p className="text-[9px] font-bold text-[#0C2340] text-center mb-0.5">{selectedCategoryObj.reportTitle}</p>
-              <p className="text-[7px] text-slate-500 text-center mb-2">As of February 20, 2026</p>
+              <p className="text-[9px] font-bold text-[#0C2340] dark:text-blue-50 text-center mb-0.5">{selectedCategoryObj.reportTitle}</p>
+              <p className="text-[7px] text-slate-500 dark:text-slate-400 text-center mb-2">As of February 20, 2026</p>
               <div className="bg-slate-200 h-3 rounded mb-1 flex gap-0.5 px-1">
                 {selectedColumns.fullName && <div className="flex-1 h-full rounded bg-slate-300" />}
                 {selectedColumns.address && <div className="flex-1 h-full rounded bg-slate-300" />}
@@ -345,15 +345,15 @@ export default function CategoryReports() {
                 {selectedColumns.contactNumber && <div className="flex-1 h-full rounded bg-slate-300" />}
               </div>
               <div className="space-y-0.5">
-                <div className="h-2.5 bg-slate-100 rounded" />
-                <div className="h-2.5 bg-slate-100 rounded" />
-                <div className="h-2.5 bg-slate-100 rounded" />
+                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded" />
+                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded" />
+                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded" />
               </div>
               <p className="text-[6px] text-slate-400 text-center mt-2">
                 ... {Math.max(0, Number.parseInt(categoryResidentCount.replace(/,/g, "")) - 3)} more rows
               </p>
               <div className="flex-1" />
-              <div className="mt-3 border-t border-slate-200 pt-2 text-center">
+              <div className="mt-3 border-t border-slate-200 dark:border-slate-700 pt-2 text-center">
                 <p className="text-[6px] text-slate-400">Contact Us: {contactNumber} | Email: {email}</p>
               </div>
             </div>
@@ -363,21 +363,21 @@ export default function CategoryReports() {
 
       {/* Download Buttons */}
       <div className="flex gap-3">
-        <Button onClick={() => setShowDownloadDialog(true)} className="bg-[#0C2340] hover:bg-[#0a1c33] px-8">Download PDF</Button>
+        <Button onClick={() => setShowDownloadDialog(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33] px-8">Download PDF</Button>
         <Button variant="outline" className="bg-transparent">Preview</Button>
       </div>
 
       {/* Download Dialog */}
       {showDownloadDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] mb-3">Download PDF Report?</h3>
-            <p className="text-sm text-slate-600 mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Download PDF Report?</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
               This will download a PDF report for {selectedCategoryObj.title} ({categoryResidentCount} residents) with the selected columns sorted by Last Name (A-Z).
             </p>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowDownloadDialog(false)} disabled={isDownloadingPdf}>Cancel</Button>
-              <Button onClick={handleConfirmDownload} className="bg-[#0C2340] hover:bg-[#0a1c33]" disabled={isDownloadingPdf}>
+              <Button onClick={handleConfirmDownload} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isDownloadingPdf}>
                 {isDownloadingPdf ? "Downloading..." : "Confirm Download"}
               </Button>
             </div>

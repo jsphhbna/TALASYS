@@ -66,7 +66,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <header className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center justify-between px-4 sm:px-8 shadow-md" role="banner">
         <Link href="/">
           <BrandMark subtitle="Barangay 634" />
@@ -78,15 +78,15 @@ export default function LoginPage() {
       </header>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md p-5 sm:p-8 shadow-lg border-slate-200/80">
+        <Card className="w-full max-w-md p-5 sm:p-8 shadow-lg border-slate-200 dark:border-slate-700/80">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-[#0C2340] mb-2 tracking-tight">Welcome Back</h2>
-            <p className="text-sm text-slate-500">Sign in to access your account</p>
+            <h2 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-2 tracking-tight">Welcome Back</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Sign in to access your account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="username" className="block text-sm font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="username" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                 Username or Email
               </label>
               <Input
@@ -103,7 +103,7 @@ export default function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+                <label htmlFor="password" className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Password
                 </label>
                 <button
@@ -124,7 +124,7 @@ export default function LoginPage() {
                       setError("Unable to send reset email. Please check your email address.")
                     }
                   }}
-                  className="text-xs text-[#0C2340] font-semibold hover:underline"
+                  className="text-xs text-[#0C2340] dark:text-blue-50 font-semibold hover:underline"
                 >
                   Forgot Password?
                 </button>
@@ -155,7 +155,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isSigningIn}
-                className="w-full bg-[#0C2340] hover:bg-[#1a3a5c] text-white h-11 font-semibold disabled:opacity-100"
+                className="w-full bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] text-white h-11 font-semibold disabled:opacity-100"
               >
                 {isSigningIn ? "Signing In..." : "Sign In"}
               </Button>
@@ -164,9 +164,9 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center space-y-3">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Don&apos;t have an account?{" "}
-              <Link href="/register" className="text-[#0C2340] font-semibold hover:underline">
+              <Link href="/register" className="text-[#0C2340] dark:text-blue-50 font-semibold hover:underline">
                 Create Account
               </Link>
             </p>

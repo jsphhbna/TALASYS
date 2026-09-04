@@ -50,7 +50,7 @@ export default function ResidentManagement() {
     if (cat.includes("Underage") || cat.includes("Minor")) return { label: "Minor", color: "bg-amber-50 text-amber-900" }
     if (cat.includes("Adult")) return { label: "Adult", color: "bg-green-50 text-green-900" }
     if (cat.includes("Voter")) return { label: "Voter", color: "bg-teal-50 text-teal-900" }
-    return { label: cat, color: "bg-slate-50 text-slate-900" }
+    return { label: cat, color: "bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100" }
   }
 
   const activeCount = allResidents.filter(r => r.status === "Active").length
@@ -79,44 +79,44 @@ export default function ResidentManagement() {
   return (
     <AdminPageShell>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#0C2340] tracking-tight">Resident Management</h1>
-        <p className="text-sm text-slate-500 mt-0.5">View, search, and manage all registered residents</p>
+        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Resident Management</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">View, search, and manage all registered residents</p>
       </div>
 
       {/* Population Summary KPIs */}
       <div className="grid grid-cols-12 gap-6 mb-6">
         <div className="col-span-8 grid grid-cols-4 gap-4">
           <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340]/[0.06] flex items-center justify-center mb-2">
-              <Users className="w-4 h-4 text-[#0C2340]" />
+            <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+              <Users className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Population</p>
-            <p className="text-2xl font-bold text-[#0C2340]">{allResidents.length.toLocaleString()}</p>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Population</p>
+            <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{allResidents.length.toLocaleString()}</p>
           </Card>
           <Card className="p-4 shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
               <UserCheck className="w-4 h-4 text-emerald-600" />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Active</p>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active</p>
             <p className="text-2xl font-bold text-emerald-600">{activeCount}</p>
           </Card>
           <Card className="p-4 shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center mb-2">
               <Clock className="w-4 h-4 text-amber-600" />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Expiring</p>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Expiring</p>
             <p className="text-2xl font-bold text-amber-600">{expiringCount}</p>
           </Card>
           <Card className="p-4 shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center mb-2">
               <AlertTriangle className="w-4 h-4 text-red-600" />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Expired</p>
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Expired</p>
             <p className="text-2xl font-bold text-red-600">{expiredCount}</p>
           </Card>
         </div>
         <Card className="col-span-4 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Status Distribution</h3>
+          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Status Distribution</h3>
           <div className="flex items-center gap-4">
             <div className="w-24 h-24">
               <ResponsiveContainer width="100%" height="100%">
@@ -132,8 +132,8 @@ export default function ResidentManagement() {
               {statusDistribution.map((s, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                  <span className="text-[10px] text-slate-600">{s.name}</span>
-                  <span className="text-[10px] font-bold text-[#0C2340]">{s.value}</span>
+                  <span className="text-[10px] text-slate-600 dark:text-slate-400">{s.name}</span>
+                  <span className="text-[10px] font-bold text-[#0C2340] dark:text-blue-50">{s.value}</span>
                 </div>
               ))}
             </div>
@@ -145,13 +145,13 @@ export default function ResidentManagement() {
       <Card className="p-4 shadow-sm mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-[#0C2340]" />
-            <h3 className="text-[11px] font-semibold text-[#0C2340]">Recent Updates</h3>
+            <UserPlus className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
+            <h3 className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50">Recent Updates</h3>
           </div>
           <div className="flex items-center gap-4">
             {recentUpdates.map((u, i) => (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] font-medium text-[#0C2340]">{u.name}</span>
+                <span className="text-[10px] font-medium text-[#0C2340] dark:text-blue-50">{u.name}</span>
                 <span className="text-[10px] text-slate-400">• {u.action} • {u.time}</span>
               </div>
             ))}
@@ -160,19 +160,19 @@ export default function ResidentManagement() {
       </Card>
 
       {/* Filters Section */}
-      <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-sm mb-4">
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-5 shadow-sm mb-4">
         <div className="mb-4">
           <input
             type="text"
             placeholder="Search by resident name or contact number..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+            className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
           />
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Category</label>
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Category</label>
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
               <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
               <SelectContent>
@@ -185,7 +185,7 @@ export default function ResidentManagement() {
             </Select>
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Status</label>
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Status</label>
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
               <SelectTrigger className="w-full"><SelectValue placeholder="Select status" /></SelectTrigger>
               <SelectContent>
@@ -197,7 +197,7 @@ export default function ResidentManagement() {
             </Select>
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Account Status</label>
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Account Status</label>
             <Select value={selectedAccountStatus} onValueChange={setSelectedAccountStatus}>
               <SelectTrigger className="w-full"><SelectValue placeholder="Select account status" /></SelectTrigger>
               <SelectContent>
@@ -211,15 +211,15 @@ export default function ResidentManagement() {
         </div>
       </div>
 
-      <p className="text-[10px] text-slate-500 mb-3">
+      <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3">
         Showing {filteredResidents.length} {selectedCategory !== "all" ? `${selectedCategory} residents` : "residents"} (filtered from {allResidents.length} total)
       </p>
 
       {/* Residents Table */}
       <Card className="shadow-sm overflow-x-auto">
         <div className="min-w-[800px]">
-          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 rounded-t-lg">
-            <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+          <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
+            <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               <div className="col-span-3">RESIDENT</div>
               <div className="col-span-2">CATEGORY</div>
               <div className="col-span-2">STATUS</div>
@@ -237,14 +237,14 @@ export default function ResidentManagement() {
           ) : filteredResidents.map((resident) => {
             const categoryDisplay = getCategoryDisplay(resident.categories)
             return (
-              <div key={resident.id} className="px-6 py-3.5 hover:bg-slate-50/50 transition-colors">
+              <div key={resident.id} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
                   <div className="col-span-3 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#0C2340]/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340]">
+                    <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">
                       {resident.initials}
                     </div>
                     <div>
-                      <p className="text-[12px] font-semibold text-[#0C2340]">{resident.name}</p>
+                      <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{resident.name}</p>
                       <p className="text-[10px] text-slate-400">{resident.gender}</p>
                     </div>
                   </div>
@@ -271,7 +271,7 @@ export default function ResidentManagement() {
                     </span>
                   </div>
                   <div className="col-span-2">
-                    <span className={`text-[11px] ${resident.status === "Expired" || resident.status === "Expiring" ? "text-red-500 font-medium" : "text-slate-500"}`}>
+                    <span className={`text-[11px] ${resident.status === "Expired" || resident.status === "Expiring" ? "text-red-500 font-medium" : "text-slate-500 dark:text-slate-400"}`}>
                       {resident.expiryDate}
                     </span>
                   </div>
@@ -280,18 +280,18 @@ export default function ResidentManagement() {
                     {user?.role !== "View Only" && (
                       <>
                         <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowEditDialog(true) }} className="h-6 text-[10px] bg-transparent">Edit</Button>
-                        <button onClick={() => setShowActionsMenu(showActionsMenu === resident.id ? null : resident.id)} className="w-6 h-6 flex items-center justify-center border border-slate-200 rounded hover:bg-slate-100">
-                          <span className="text-slate-600">⋮</span>
+                        <button onClick={() => setShowActionsMenu(showActionsMenu === resident.id ? null : resident.id)} className="w-6 h-6 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-100 dark:bg-slate-800">
+                          <span className="text-slate-600 dark:text-slate-400">⋮</span>
                         </button>
                         {showActionsMenu === resident.id && (
-                          <div className="absolute right-0 top-8 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
+                          <div className="absolute right-0 top-8 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10">
                             {resident.status === "Expired" ? (
-                              <button onClick={() => { setSelectedResident(resident); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-emerald-600">Activate Account</button>
+                              <button onClick={() => { setSelectedResident(resident); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 dark:bg-slate-950 text-emerald-600">Activate Account</button>
                             ) : (
-                              <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-amber-600">Deactivate Account</button>
+                              <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 dark:bg-slate-950 text-amber-600">Deactivate Account</button>
                             )}
-                            <div className="border-t border-slate-200" />
-                            <button onClick={() => { setSelectedResident(resident); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 text-red-600">Delete Resident</button>
+                            <div className="border-t border-slate-200 dark:border-slate-700" />
+                            <button onClick={() => { setSelectedResident(resident); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 dark:bg-slate-950 text-red-600">Delete Resident</button>
                           </div>
                         )}
                       </>
@@ -303,14 +303,14 @@ export default function ResidentManagement() {
           })}
           </div>
         </div>
-        <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200">
-          <p className="text-[10px] text-slate-500">Showing 1-{Math.min(10, filteredResidents.length)} of {filteredResidents.length} residents</p>
+        <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
+          <p className="text-[10px] text-slate-500 dark:text-slate-400">Showing 1-{Math.min(10, filteredResidents.length)} of {filteredResidents.length} residents</p>
           <div className="flex items-center gap-1.5">
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded hover:bg-slate-50"><span className="text-slate-500 text-xs">‹</span></button>
-            <button className="w-7 h-7 flex items-center justify-center bg-[#0C2340] text-white text-[10px] rounded">1</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded hover:bg-slate-50 text-[10px] text-slate-500">2</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded hover:bg-slate-50 text-[10px] text-slate-500">3</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 rounded hover:bg-slate-50"><span className="text-slate-500 text-xs">›</span></button>
+            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">‹</span></button>
+            <button className="w-7 h-7 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 text-white text-[10px] rounded">1</button>
+            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-[10px] text-slate-500 dark:text-slate-400">2</button>
+            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-[10px] text-slate-500 dark:text-slate-400">3</button>
+            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">›</span></button>
           </div>
         </div>
       </Card>
@@ -319,29 +319,29 @@ export default function ResidentManagement() {
       {showViewDialog && selectedResident && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <Card className="w-full max-w-2xl p-0 shadow-2xl max-h-[90vh] overflow-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white">
-              <h3 className="text-lg font-bold text-[#0C2340]">Resident Profile</h3>
-              <button onClick={() => setShowViewDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Resident Profile</h3>
+              <button onClick={() => setShowViewDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
             </div>
             <div className="p-6 space-y-5">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-[#0C2340]/[0.08] flex items-center justify-center text-lg font-semibold text-[#0C2340]">{selectedResident.initials}</div>
+                <div className="w-14 h-14 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-lg font-semibold text-[#0C2340] dark:text-blue-50">{selectedResident.initials}</div>
                 <div>
-                  <h4 className="text-lg font-bold text-[#0C2340]">{selectedResident.name}</h4>
-                  <p className="text-sm text-slate-500">{selectedResident.gender}</p>
+                  <h4 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{selectedResident.name}</h4>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{selectedResident.gender}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date of Birth</p><p className="text-sm text-[#0C2340]">{selectedResident.dateOfBirth}</p></div>
-                <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Contact Number</p><p className="text-sm text-[#0C2340]">{selectedResident.contactNumber}</p></div>
-                <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Email</p><p className="text-sm text-[#0C2340]">{selectedResident.email}</p></div>
+                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date of Birth</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.dateOfBirth}</p></div>
+                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact Number</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.contactNumber}</p></div>
+                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Email</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.email}</p></div>
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Account Status</p>
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Account Status</p>
                   <span className={`px-2.5 py-0.5 rounded text-[10px] font-medium ${selectedResident.status === "Active" ? "bg-emerald-50 text-emerald-700" : selectedResident.status === "Expiring" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{selectedResident.status}</span>
                 </div>
-                <div className="col-span-2"><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Address</p><p className="text-sm text-[#0C2340]">{selectedResident.address}</p></div>
-                <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Categories</p><div className="flex gap-1">{selectedResident.categories.map((c: string, i: number) => <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-900 rounded text-[10px]">{c}</span>)}</div></div>
-                <div><p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Expiry Date</p><p className="text-sm text-[#0C2340]">{selectedResident.expiryDate}</p></div>
+                <div className="col-span-2"><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Address</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.address}</p></div>
+                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Categories</p><div className="flex gap-1">{selectedResident.categories.map((c: string, i: number) => <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-900 rounded text-[10px]">{c}</span>)}</div></div>
+                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Expiry Date</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.expiryDate}</p></div>
               </div>
             </div>
           </Card>
@@ -352,56 +352,56 @@ export default function ResidentManagement() {
       {showEditDialog && selectedResident && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <Card className="w-full max-w-2xl p-0 shadow-2xl max-h-[90vh] overflow-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white">
-              <h3 className="text-lg font-bold text-[#0C2340]">Edit Resident</h3>
-              <button onClick={() => setShowEditDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Edit Resident</h3>
+              <button onClick={() => setShowEditDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
             </div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Full Name</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
                   <input
                     type="text"
                     defaultValue={selectedResident.name}
                     id="edit-name"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Contact Number</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact Number</label>
                   <input
                     type="text"
                     defaultValue={selectedResident.contactNumber}
                     id="edit-contact"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
                     maxLength={11}
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Email</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Email</label>
                   <input
                     type="email"
                     defaultValue={selectedResident.email}
                     id="edit-email"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Date of Birth</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date of Birth</label>
                   <input
                     type="date"
                     defaultValue={selectedResident.dateOfBirth}
                     id="edit-dob"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Address</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Address</label>
                   <input
                     type="text"
                     defaultValue={selectedResident.address}
                     id="edit-address"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
                   />
                 </div>
               </div>
@@ -417,7 +417,7 @@ export default function ResidentManagement() {
                   }
                   setShowEditDialog(false)
                 }}
-                className="w-full h-11 bg-[#0C2340] hover:bg-[#0a1c33]"
+                className="w-full h-11 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
               >
                 Save Changes
               </Button>
@@ -430,12 +430,12 @@ export default function ResidentManagement() {
       {showDeactivateDialog && selectedResident && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <Card className="w-full max-w-md p-0 shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h3 className="text-lg font-bold text-[#0C2340]">Deactivate Account</h3>
-              <button onClick={() => setShowDeactivateDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Deactivate Account</h3>
+              <button onClick={() => setShowDeactivateDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-slate-600 mb-4">Are you sure you want to deactivate <strong>{selectedResident.name}</strong>&apos;s account? This action can be reversed later.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Are you sure you want to deactivate <strong>{selectedResident.name}</strong>&apos;s account? This action can be reversed later.</p>
               <div className="flex gap-4">
                 <Button onClick={() => { deactivateResident(selectedResident.id, user?.name || "Admin", selectedResident.name); setShowDeactivateDialog(false) }} className="flex-1 h-11 bg-red-600 hover:bg-red-700">Deactivate</Button>
                 <Button variant="outline" onClick={() => setShowDeactivateDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
@@ -449,12 +449,12 @@ export default function ResidentManagement() {
       {showActivateDialog && selectedResident && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <Card className="w-full max-w-md p-0 shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h3 className="text-lg font-bold text-[#0C2340]">Activate Account</h3>
-              <button onClick={() => setShowActivateDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Activate Account</h3>
+              <button onClick={() => setShowActivateDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-slate-600 mb-4">Are you sure you want to activate <strong>{selectedResident.name}</strong>&apos;s account? They will regain access to the system.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Are you sure you want to activate <strong>{selectedResident.name}</strong>&apos;s account? They will regain access to the system.</p>
               <div className="flex gap-4">
                 <Button onClick={() => { activateResident(selectedResident.id, user?.name || "Admin", selectedResident.name); setShowActivateDialog(false) }} className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 text-white">Activate</Button>
                 <Button variant="outline" onClick={() => setShowActivateDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
@@ -474,13 +474,13 @@ export default function ResidentManagement() {
                 <AlertTriangle className="w-5 h-5" />
                 Delete Resident
               </h3>
-              <button onClick={() => setShowDeleteDialog(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+              <button onClick={() => setShowDeleteDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-slate-700 mb-2">
+              <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
                 This will remove a resident from your baranggay and will be logged. It will be seen by your head of baranggay.
               </p>
-              <p className="text-sm font-semibold text-slate-900 mb-6">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-6">
                 Are you sure?
               </p>
               <div className="flex gap-4">

@@ -26,6 +26,7 @@ interface ProfileEditRequestDialogProps {
   onFormChange: (field: keyof ProfileEditFormData, value: string) => void
   onStatusToggle: (status: string) => void
   onFileUpload: (field: UploadField, file: File | null) => void
+  onRequestCamera?: () => void
   onSubmit: () => void
 }
 
@@ -40,6 +41,7 @@ export function ProfileEditRequestDialog({
   onFormChange,
   onStatusToggle,
   onFileUpload,
+  onRequestCamera,
   onSubmit,
 }: ProfileEditRequestDialogProps) {
   return (
@@ -54,8 +56,46 @@ export function ProfileEditRequestDialog({
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
-            <Input id="fullName" value={formData.fullName} onChange={(e) => onFormChange("fullName", e.target.value)} className="w-full" />
+            <Label className="text-sm font-medium">Profile Picture</Label>
+            <div className="flex items-center gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-900/50">
+              <div className="relative w-16 h-16 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 border border-slate-300 dark:border-slate-600">
+                {formData.newProfilePicture ? (
+                  <img src={formData.newProfilePicture} alt="New Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-2xl opacity-50">📷</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-slate-700 dark:text-slate-300 font-medium mb-1">
+                  {formData.newProfilePicture ? "New picture captured" : "Update your profile picture"}
+                </p>
+                <p className="text-[11px] text-slate-500 mb-2">Requires admin approval to take effect.</p>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={onRequestCamera}
+                  className="h-8 text-xs bg-white dark:bg-slate-800"
+                >
+                  {formData.newProfilePicture ? "Retake Photo" : "Capture New Photo"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="firstName" className="text-sm font-medium">First Name</Label>
+              <Input id="firstName" value={formData.firstName} onChange={(e) => onFormChange("firstName", e.target.value)} className="w-full" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="middleName" className="text-sm font-medium">Middle Name</Label>
+              <Input id="middleName" value={formData.middleName} onChange={(e) => onFormChange("middleName", e.target.value)} className="w-full" placeholder="(Optional)" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName" className="text-sm font-medium">Last Name</Label>
+              <Input id="lastName" value={formData.lastName} onChange={(e) => onFormChange("lastName", e.target.value)} className="w-full" />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -80,33 +120,33 @@ export function ProfileEditRequestDialog({
 
           <div className="space-y-2">
             <Label className="text-sm font-medium">Resident Status (Select all that apply)</Label>
-            <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-3">
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md p-4 space-y-3">
               <div className="flex items-start gap-3 opacity-50">
                 <Checkbox checked={formData.statuses.includes("Underage")} disabled={true} />
                 <div className="flex-1">
-                  <label className="text-sm text-slate-500 cursor-not-allowed">Underage (Under 18) - Auto-calculated from date of birth</label>
+                  <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">Underage (Under 18) - Auto-calculated from date of birth</label>
                   <p className="text-[11px] text-slate-400">(Requires: Parent's Valid ID)</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 opacity-50">
                 <Checkbox checked={formData.statuses.includes("Adult")} disabled={true} />
                 <div className="flex-1">
-                  <label className="text-sm text-slate-500 cursor-not-allowed">Adult (18-59) - Auto-calculated from date of birth</label>
+                  <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">Adult (18-59) - Auto-calculated from date of birth</label>
                   <p className="text-[11px] text-slate-400">(Requires: Valid Government ID)</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 opacity-50">
                 <Checkbox checked={formData.statuses.includes("Senior Citizen")} disabled={true} />
                 <div className="flex-1">
-                  <label className="text-sm text-slate-500 cursor-not-allowed">Senior Citizen (60+) - Auto-calculated from date of birth</label>
+                  <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">Senior Citizen (60+) - Auto-calculated from date of birth</label>
                   <p className="text-[11px] text-slate-400">(Requires: Senior Citizen ID)</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <Checkbox checked={formData.statuses.includes("Registered Voter")} onCheckedChange={() => onStatusToggle("Registered Voter")} />
                 <div className="flex-1">
-                  <label className="text-sm text-slate-700 cursor-pointer">Registered Voter</label>
-                  <p className="text-[11px] text-slate-500">(Requires: Voter's ID / Cert)</p>
+                  <label className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer">Registered Voter</label>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">(Requires: Voter's ID / Cert)</p>
                 </div>
               </div>
             </div>

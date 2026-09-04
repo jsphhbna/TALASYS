@@ -8,28 +8,28 @@ interface ProfilePersonalInfoCardProps {
 export function ProfilePersonalInfoCard({ user }: ProfilePersonalInfoCardProps) {
   return (
     <Card className="p-6">
-      <h3 className="text-base font-semibold text-[#0C2340] mb-5">Personal Information</h3>
+      <h3 className="text-base font-semibold text-[#0C2340] dark:text-blue-50 mb-5">Personal Information</h3>
 
       <div className="space-y-5">
         <div>
-          <p className="text-xs text-slate-600 mb-1">Full Name</p>
-          <p className="text-sm text-slate-900">{user.name}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Full Name</p>
+          <p className="text-sm text-slate-900 dark:text-slate-100">{user.name}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-600 mb-1">Date of Birth</p>
-          <p className="text-sm text-slate-900">{user.dateOfBirth}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Date of Birth</p>
+          <p className="text-sm text-slate-900 dark:text-slate-100">{user.dateOfBirth}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-600 mb-1">Contact Number</p>
-          <p className="text-sm text-slate-900">{user.contactNumber}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Contact Number</p>
+          <p className="text-sm text-slate-900 dark:text-slate-100">{user.contactNumber}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-600 mb-1">Email Address</p>
-          <p className="text-sm text-slate-900">{user.email}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Email Address</p>
+          <p className="text-sm text-slate-900 dark:text-slate-100">{user.email}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-600 mb-1">Complete Address</p>
-          <p className="text-sm text-slate-900">{user.address}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Complete Address</p>
+          <p className="text-sm text-slate-900 dark:text-slate-100">{user.address}</p>
         </div>
       </div>
     </Card>
