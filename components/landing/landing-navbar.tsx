@@ -43,12 +43,12 @@ export function LandingNavbar() {
             </div>
             
             <div className="flex items-center gap-3 border-l border-slate-200 dark:border-slate-700 pl-6">
-              <Link href="/register">
+              <Link href="/auth/register">
                 <Button variant="ghost" className="font-semibold text-[#0C2340] dark:text-blue-50 hover:bg-slate-100 dark:bg-slate-800" style={{ borderRadius: "var(--radius-sm)" }}>
                   Register
                 </Button>
               </Link>
-              <Link href="/login">
+              <Link href="/auth/login">
                 <Button className="font-semibold bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1a30] text-white shadow-sm flex gap-2 items-center" style={{ borderRadius: "var(--radius-sm)" }}>
                   <LogIn className="w-4 h-4" />
                   Portal Login
@@ -81,12 +81,12 @@ export function LandingNavbar() {
                     ))}
                   </div>
                   <div className="flex flex-col gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
-                    <Link href="/register" onClick={() => setIsOpen(false)} className="w-full">
+                    <Link href="/auth/register" onClick={() => setIsOpen(false)} className="w-full">
                       <Button variant="outline" className="w-full justify-center border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                         Register
                       </Button>
                     </Link>
-                    <Link href="/login" onClick={() => setIsOpen(false)} className="w-full">
+                    <Link href="/auth/login" onClick={() => setIsOpen(false)} className="w-full">
                       <Button className="w-full justify-center bg-[#0C2340] dark:bg-slate-800 text-white">
                         <LogIn className="w-4 h-4 mr-2" />
                         Portal Login

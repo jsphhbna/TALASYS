@@ -2,10 +2,10 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
+import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider"
-import { useResidentData } from "@/hooks/use-resident-data"
+import { useResidentData } from "@/hooks/resident"
 import {
   Dialog,
   DialogContent,
@@ -26,11 +26,11 @@ interface NavItem {
 }
 
 const navItemsBase: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-  { label: "My Profile", href: "/profile", icon: <User className="w-4 h-4" /> },
-  { label: "Request Document", href: "/request", icon: <FileText className="w-4 h-4" /> },
-  { label: "Request History", href: "/history", icon: <Clock className="w-4 h-4" /> },
-  { label: "Notifications", href: "/notifications", icon: <Bell className="w-4 h-4" /> },
+  { label: "Dashboard", href: "/resident/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+  { label: "My Profile", href: "/resident/profile", icon: <User className="w-4 h-4" /> },
+  { label: "Request Document", href: "/resident/request", icon: <FileText className="w-4 h-4" /> },
+  { label: "Request History", href: "/resident/history", icon: <Clock className="w-4 h-4" /> },
+  { label: "Notifications", href: "/resident/notifications", icon: <Bell className="w-4 h-4" /> },
 ]
 
 export function Sidebar() {
@@ -43,7 +43,7 @@ export function Sidebar() {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
 
   const navItems = navItemsBase.map((item) =>
-    item.href === "/notifications" ? { ...item, badge: unreadCount } : item,
+    item.href === "/resident/notifications" ? { ...item, badge: unreadCount } : item,
   )
 
   const handleLogout = () => {

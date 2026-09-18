@@ -10,13 +10,14 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import { useAdminData } from "@/hooks/use-admin-data"
-import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useAdminData } from "@/hooks/admin"
+import { useSuperAdminData } from "@/hooks/superadmin"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import {
   Users, TrendingUp, AlertTriangle, BarChart3,
 } from "lucide-react"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
 
 export default function CategoryReports() {
   const { stats: adminStats, residents } = useAdminData()
@@ -26,6 +27,9 @@ export default function CategoryReports() {
   const contactNumber = systemConfig?.contactNumber || "(02) 8123-4567"
   const email = systemConfig?.emailAddress || "barangay@sample.gov.ph"
   const nonVoterCount = adminStats.totalResidents - adminStats.voterCount
+
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null)
 
   const barData = [
     { name: "Seniors", value: adminStats.seniorCount, color: "#0C2340" },
@@ -57,9 +61,29 @@ export default function CategoryReports() {
   const fastestGrowingName = "N/A"
   const fastestGrowingDesc = "No historical data"
 
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(["voters"])
+  const toggleCategory = (id: string) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(c => c !== id)
+      }
+      return [...prev, id]
+    })
+  }
 
-
-  const [selectedCategory, setSelectedCategory] = useState("voters")
+  const getCategoryTitle = () => {
+    if (selectedCategories.length === 0) return "REPORT"
+    if (selectedCategories.length === 1) {
+      const titles: Record<string, string> = {
+        seniors: "LIST OF SENIOR CITIZENS", minors: "LIST OF MINORS", adults: "LIST OF ADULTS",
+        voters: "LIST OF REGISTERED VOTERS", "non-voters": "LIST OF NON-VOTERS",
+        expired: "LIST OF EXPIRED ACCOUNTS", full: "FULL POPULATION LIST",
+        male: "LIST OF MALE RESIDENTS", female: "LIST OF FEMALE RESIDENTS", "other-gender": "LIST OF OTHER GENDERS",
+      }
+      return titles[selectedCategories[0]] || "REPORT"
+    }
+    return "MULTIPLE CATEGORIES REPORT"
+  }
   const [selectedColumns, setSelectedColumns] = useState({
     fullName: true, address: true, age: true, contactNumber: false,
     registrationDate: true, accountStatus: false, expiryDate: false, otherCategories: false,
@@ -74,11 +98,90 @@ export default function CategoryReports() {
     { id: "voters", title: "Registered Voters", count: `${adminStats.voterCount} residents`, icon: "V", reportTitle: "LIST OF REGISTERED VOTERS" },
     { id: "non-voters", title: "Non-Voters", count: `${nonVoterCount} residents`, icon: "NV", reportTitle: "LIST OF NON-VOTERS" },
     { id: "expired", title: "Expired Accounts", count: `${adminStats.expiredResidents} residents`, icon: "EX", reportTitle: "LIST OF EXPIRED ACCOUNTS" },
+    { id: "male", title: "Male Residents", count: `${residents.filter(r => r.gender === "Male").length} residents`, icon: "M", reportTitle: "LIST OF MALE RESIDENTS" },
+    { id: "female", title: "Female Residents", count: `${residents.filter(r => r.gender === "Female").length} residents`, icon: "F", reportTitle: "LIST OF FEMALE RESIDENTS" },
+    { id: "other-gender", title: "Other Genders", count: `${residents.filter(r => r.gender === "Other").length} residents`, icon: "O", reportTitle: "LIST OF OTHER GENDERS" },
     { id: "full", title: "Full Population", count: `${adminStats.totalResidents} residents`, icon: "All", reportTitle: "FULL POPULATION LIST" },
   ]
 
-  const selectedCategoryObj = categories.find((c) => c.id === selectedCategory) || categories[3]
-  const categoryResidentCount = selectedCategoryObj.count.split(" ")[0]
+  const generatePDFDocument = () => {
+    const doc = new jsPDF()
+    const title = getCategoryTitle()
+
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    // Header
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
+    doc.text(municipality, pageWidth / 2, 25, { align: "center" })
+    doc.text(barangayName, pageWidth / 2, 30, { align: "center" })
+    
+    // Title
+    doc.setFontSize(14)
+    doc.setTextColor(12, 35, 64)
+    doc.setFont("helvetica", "bold")
+    doc.text(title.toUpperCase(), pageWidth / 2, 45, { align: "center" })
+    
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    doc.setFont("helvetica", "normal")
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    doc.text(`As of ${dateStr}`, pageWidth / 2, 51, { align: "center" })
+
+    // Filter residents
+    const filtered = residents.filter(r => {
+      if (selectedCategories.includes("full")) return true
+      let match = false
+      if (selectedCategories.includes("seniors") && (r.age || 0) >= 60) match = true
+      if (selectedCategories.includes("minors") && (r.age || 0) < 18) match = true
+      if (selectedCategories.includes("adults") && (r.age || 0) >= 18 && (r.age || 0) < 60) match = true
+      if (selectedCategories.includes("voters") && r.isVoter) match = true
+      if (selectedCategories.includes("non-voters") && !r.isVoter) match = true
+      if (selectedCategories.includes("expired") && r.status === "Expired") match = true
+      if (selectedCategories.includes("male") && r.gender === "Male") match = true
+      if (selectedCategories.includes("female") && r.gender === "Female") match = true
+      if (selectedCategories.includes("other-gender") && r.gender === "Other") match = true
+      return match
+    })
+    
+    // Map columns
+    const cols = []
+    if (selectedColumns.fullName) cols.push("Full Name")
+    if (selectedColumns.address) cols.push("Address")
+    if (selectedColumns.age) cols.push("Age")
+    if (selectedColumns.contactNumber) cols.push("Contact")
+    if (selectedColumns.registrationDate) cols.push("Reg. Date")
+    if (selectedColumns.accountStatus) cols.push("Status")
+
+    const body = filtered.map(r => {
+      const row = []
+      if (selectedColumns.fullName) row.push(r.name)
+      if (selectedColumns.address) row.push(r.address)
+      if (selectedColumns.age) row.push(r.age?.toString() || "N/A")
+      if (selectedColumns.contactNumber) row.push(r.contactNumber || "N/A")
+      if (selectedColumns.registrationDate) row.push((r as any).createdAt ? new Date((r as any).createdAt).toLocaleDateString() : "N/A")
+      if (selectedColumns.accountStatus) row.push(r.status)
+      return row
+    })
+
+    autoTable(doc, {
+      startY: 65,
+      head: [cols],
+      body: body,
+      theme: 'grid',
+      headStyles: { fillColor: [12, 35, 64] },
+      margin: { bottom: 30 },
+      didDrawPage: function (data) {
+        const pageHeight = doc.internal.pageSize.getHeight()
+        doc.setFontSize(8)
+        doc.setTextColor(150, 150, 150)
+        doc.text(`Contact Us: ${contactNumber} | Email: ${email}`, pageWidth / 2, pageHeight - 15, { align: "center" })
+      }
+    })
+
+    return doc
+  }
 
   const handleConfirmDownload = async () => {
     if (isDownloadingPdf) return
@@ -86,75 +189,8 @@ export default function CategoryReports() {
     setIsDownloadingPdf(true)
     
     try {
-      const doc = new jsPDF()
-      const title = selectedCategoryObj.reportTitle
-
-      const pageWidth = doc.internal.pageSize.getWidth()
-
-      // Header
-      doc.setFontSize(10)
-      doc.setTextColor(100, 100, 100)
-      doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
-      doc.text(municipality, pageWidth / 2, 25, { align: "center" })
-      doc.text(barangayName, pageWidth / 2, 30, { align: "center" })
-      
-      // Title
-      doc.setFontSize(14)
-      doc.setTextColor(12, 35, 64)
-      doc.setFont("helvetica", "bold")
-      doc.text(title.toUpperCase(), pageWidth / 2, 45, { align: "center" })
-      
-      doc.setFontSize(10)
-      doc.setTextColor(100, 100, 100)
-      doc.setFont("helvetica", "normal")
-      const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-      doc.text(`As of ${dateStr}`, pageWidth / 2, 51, { align: "center" })
-
-      // Filter residents
-      let filtered = residents;
-      if (selectedCategory === "seniors") filtered = residents.filter(r => (r.age || 0) >= 60)
-      else if (selectedCategory === "minors") filtered = residents.filter(r => (r.age || 0) < 18)
-      else if (selectedCategory === "adults") filtered = residents.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60)
-      else if (selectedCategory === "voters") filtered = residents.filter(r => r.isVoter)
-      else if (selectedCategory === "non-voters") filtered = residents.filter(r => !r.isVoter)
-      else if (selectedCategory === "expired") filtered = residents.filter(r => r.status === "Expired")
-      
-      // Map columns
-      const cols = []
-      if (selectedColumns.fullName) cols.push("Full Name")
-      if (selectedColumns.address) cols.push("Address")
-      if (selectedColumns.age) cols.push("Age")
-      if (selectedColumns.contactNumber) cols.push("Contact")
-      if (selectedColumns.registrationDate) cols.push("Reg. Date")
-      if (selectedColumns.accountStatus) cols.push("Status")
-
-      const body = filtered.map(r => {
-        const row = []
-        if (selectedColumns.fullName) row.push(r.name)
-        if (selectedColumns.address) row.push(r.address)
-        if (selectedColumns.age) row.push(r.age?.toString() || "N/A")
-        if (selectedColumns.contactNumber) row.push(r.contactNumber || "N/A")
-        if (selectedColumns.registrationDate) row.push((r as any).createdAt ? new Date((r as any).createdAt).toLocaleDateString() : "N/A")
-        if (selectedColumns.accountStatus) row.push(r.status)
-        return row
-      })
-
-      autoTable(doc, {
-        startY: 65,
-        head: [cols],
-        body: body,
-        theme: 'grid',
-        headStyles: { fillColor: [12, 35, 64] },
-        margin: { bottom: 30 },
-        didDrawPage: function (data) {
-          const pageHeight = doc.internal.pageSize.getHeight()
-          doc.setFontSize(8)
-          doc.setTextColor(150, 150, 150)
-          doc.text(`Contact Us: ${contactNumber} | Email: ${email}`, pageWidth / 2, pageHeight - 15, { align: "center" })
-        }
-      })
-
-      doc.save(`Category_Report_${selectedCategory}.pdf`)
+      const doc = generatePDFDocument()
+      doc.save(`Category_Report.pdf`)
       showToastPreset("categoryReportDownloaded")
       setShowDownloadDialog(false)
     } catch(e) {
@@ -162,6 +198,17 @@ export default function CategoryReports() {
     }
 
     setIsDownloadingPdf(false)
+  }
+
+  const handlePreview = () => {
+    try {
+      const doc = generatePDFDocument()
+      const pdfUrl = doc.output('bloburl')
+      setPreviewPdfUrl(pdfUrl.toString())
+      setShowPreviewModal(true)
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const toggleColumn = (column: keyof typeof selectedColumns) => {
@@ -260,112 +307,79 @@ export default function CategoryReports() {
         </Card>
       </div>
 
-      {/* Category Selector */}
-      <div>
-        <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Select Category</h3>
-        <div className="grid grid-cols-4 gap-3">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
-              className={`text-left rounded-lg border-2 transition-all p-4 ${selectedCategory === category.id
-                ? "border-[#0C2340] bg-[#0C2340] dark:bg-slate-800/[0.03] ring-1 ring-[#0C2340]/20"
-                : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
-                }`}
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${selectedCategory === category.id ? "bg-[#0C2340] dark:bg-slate-800/10" : "bg-slate-100 dark:bg-slate-800"}`}>
-                <span className={`text-[11px] font-bold ${selectedCategory === category.id ? "text-[#0C2340] dark:text-blue-50" : "text-slate-500 dark:text-slate-400"}`}>{category.icon}</span>
-              </div>
-              <h4 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{category.title}</h4>
-              <p className={`text-[10px] ${selectedCategory === category.id ? "text-[#0C2340] dark:text-blue-50" : "text-slate-500 dark:text-slate-400"}`}>{category.count}</p>
-              {selectedCategory === category.id && (
-                <div className="flex items-center justify-end mt-1">
-                  <div className="w-4 h-4 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center">
-                    <span className="text-white text-[8px]">✓</span>
-                  </div>
+      {/* Layout Grid: Select Category (left) and Config (right) */}
+      <div className="grid grid-cols-12 gap-6">
+        {/* Category Selector */}
+        <div className="col-span-12 lg:col-span-7">
+          <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Select Category</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => toggleCategory(category.id)}
+                className={`text-left rounded-lg border-2 transition-all p-4 ${selectedCategories.includes(category.id)
+                  ? "border-[#0C2340] bg-[#0C2340] dark:bg-slate-800/[0.03] ring-1 ring-[#0C2340]/20"
+                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                  }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${selectedCategories.includes(category.id) ? "bg-white/10 dark:bg-slate-800/10" : "bg-slate-100 dark:bg-slate-800"}`}>
+                  <span className={`text-[11px] font-bold ${selectedCategories.includes(category.id) ? "text-white dark:text-blue-50" : "text-slate-500 dark:text-slate-400"}`}>{category.icon}</span>
                 </div>
-              )}
-            </button>
-          ))}
+                <h4 className={`text-[12px] font-semibold mb-0.5 ${selectedCategories.includes(category.id) ? "text-white dark:text-blue-50" : "text-[#0C2340] dark:text-blue-50"}`}>{category.title}</h4>
+                <p className={`text-[10px] ${selectedCategories.includes(category.id) ? "text-blue-100 dark:text-slate-400" : "text-slate-500 dark:text-slate-400"}`}>{category.count}</p>
+                {selectedCategories.includes(category.id) && (
+                  <div className="flex items-center justify-end mt-1">
+                    <div className="w-4 h-4 rounded-full bg-white/20 dark:bg-slate-800 flex items-center justify-center">
+                      <span className="text-white text-[8px]">✓</span>
+                    </div>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Report Config */}
+        <div className="col-span-12 lg:col-span-5">
+          <Card className="shadow-sm overflow-hidden h-full">
+            <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">Report Configuration</h3>
+            </div>
+            <div className="p-5 space-y-6">
+              <div>
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Include Columns</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {(Object.keys(selectedColumns) as (keyof typeof selectedColumns)[]).map((col) => (
+                    <button key={col} onClick={() => toggleColumn(col)} className="flex items-center gap-2.5 text-[12px] text-slate-800 dark:text-slate-200">
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${selectedColumns[col] ? "bg-[#0C2340] dark:bg-slate-800 border-[#0C2340]" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-slate-400"
+                        }`}>
+                        {selectedColumns[col] && <span className="text-white text-[8px]">✓</span>}
+                      </div>
+                      {col.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Sort By</h4>
+                <select className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900">
+                  <option>Last Name (A-Z)</option>
+                  <option>Last Name (Z-A)</option>
+                  <option>Age (Youngest First)</option>
+                  <option>Age (Oldest First)</option>
+                </select>
+              </div>
+              
+              <div className="pt-2 flex flex-col gap-3">
+                <Button onClick={() => setShowDownloadDialog(true)} disabled={selectedCategories.length === 0} className="w-full bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Download PDF</Button>
+                <Button variant="outline" className="w-full bg-transparent" disabled={selectedCategories.length === 0} onClick={handlePreview}>Preview</Button>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
-      {/* Report Config + Preview */}
-      <div className="grid grid-cols-12 gap-6">
-        <Card className="col-span-7 shadow-sm overflow-hidden">
-          <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-700">
-            <h3 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">Report Configuration: {selectedCategoryObj.title}</h3>
-          </div>
-          <div className="p-5 space-y-5">
-            <div>
-              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Include Columns</h4>
-              <div className="grid grid-cols-2 gap-3">
-                {(Object.keys(selectedColumns) as (keyof typeof selectedColumns)[]).map((col) => (
-                  <button key={col} onClick={() => toggleColumn(col)} className="flex items-center gap-2.5 text-[12px] text-slate-800 dark:text-slate-200">
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${selectedColumns[col] ? "bg-[#0C2340] dark:bg-slate-800 border-[#0C2340]" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-slate-400"
-                      }`}>
-                      {selectedColumns[col] && <span className="text-white text-[8px]">✓</span>}
-                    </div>
-                    {col.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Sort By</h4>
-              <select className="w-52 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
-                <option>Last Name (A-Z)</option>
-                <option>Last Name (Z-A)</option>
-                <option>Age (Youngest First)</option>
-                <option>Age (Oldest First)</option>
-              </select>
-            </div>
-          </div>
-        </Card>
 
-        <Card className="col-span-5 shadow-sm overflow-hidden">
-          <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-700">
-            <h3 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">PDF Preview</h3>
-          </div>
-          <div className="p-5">
-            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded p-4 h-64 flex flex-col">
-              <div className="text-center space-y-1 mb-3">
-                <p className="text-[8px] text-slate-500 dark:text-slate-400">Republic of the Philippines</p>
-                <p className="text-[8px] text-slate-500 dark:text-slate-400">{municipality}</p>
-                <p className="text-[8px] text-slate-500 dark:text-slate-400">{barangayName}</p>
-                <div className="w-5 h-5 bg-slate-200 rounded mx-auto mt-1" />
-              </div>
-              <div className="h-px bg-slate-200 mb-2" />
-              <p className="text-[9px] font-bold text-[#0C2340] dark:text-blue-50 text-center mb-0.5">{selectedCategoryObj.reportTitle}</p>
-              <p className="text-[7px] text-slate-500 dark:text-slate-400 text-center mb-2">As of February 20, 2026</p>
-              <div className="bg-slate-200 h-3 rounded mb-1 flex gap-0.5 px-1">
-                {selectedColumns.fullName && <div className="flex-1 h-full rounded bg-slate-300" />}
-                {selectedColumns.address && <div className="flex-1 h-full rounded bg-slate-300" />}
-                {selectedColumns.age && <div className="flex-1 h-full rounded bg-slate-300" />}
-                {selectedColumns.contactNumber && <div className="flex-1 h-full rounded bg-slate-300" />}
-              </div>
-              <div className="space-y-0.5">
-                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded" />
-                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded" />
-                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded" />
-              </div>
-              <p className="text-[6px] text-slate-400 text-center mt-2">
-                ... {Math.max(0, Number.parseInt(categoryResidentCount.replace(/,/g, "")) - 3)} more rows
-              </p>
-              <div className="flex-1" />
-              <div className="mt-3 border-t border-slate-200 dark:border-slate-700 pt-2 text-center">
-                <p className="text-[6px] text-slate-400">Contact Us: {contactNumber} | Email: {email}</p>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Download Buttons */}
-      <div className="flex gap-3">
-        <Button onClick={() => setShowDownloadDialog(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33] px-8">Download PDF</Button>
-        <Button variant="outline" className="bg-transparent">Preview</Button>
-      </div>
 
       {/* Download Dialog */}
       {showDownloadDialog && (
@@ -373,7 +387,7 @@ export default function CategoryReports() {
           <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
             <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Download PDF Report?</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-              This will download a PDF report for {selectedCategoryObj.title} ({categoryResidentCount} residents) with the selected columns sorted by Last Name (A-Z).
+              This will download a PDF report for your selected categories with the specified columns sorted as requested.
             </p>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowDownloadDialog(false)} disabled={isDownloadingPdf}>Cancel</Button>
@@ -384,6 +398,37 @@ export default function CategoryReports() {
           </div>
         </div>
       )}
+
+      {/* PDF Preview Modal */}
+      <ModalOverlay isOpen={showPreviewModal} onClose={() => {
+        setShowPreviewModal(false)
+        if (previewPdfUrl) {
+          URL.revokeObjectURL(previewPdfUrl)
+          setPreviewPdfUrl(null)
+        }
+      }}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-5xl h-[85vh] p-6 shadow-2xl flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">PDF Preview</h3>
+            <Button variant="outline" size="sm" onClick={() => {
+              setShowPreviewModal(false)
+              if (previewPdfUrl) {
+                URL.revokeObjectURL(previewPdfUrl)
+                setPreviewPdfUrl(null)
+              }
+            }}>Close</Button>
+          </div>
+          <div className="flex-1 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            {previewPdfUrl && (
+              <iframe 
+                src={previewPdfUrl} 
+                className="w-full h-full border-0" 
+                title="PDF Preview"
+              />
+            )}
+          </div>
+        </div>
+      </ModalOverlay>
     </div>
   )
 }

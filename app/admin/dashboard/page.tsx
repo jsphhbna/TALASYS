@@ -4,7 +4,14 @@ import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useAdminData } from "@/hooks/use-admin-data"
+import { useState } from "react"
+import { useAdminData } from "@/hooks/admin"
+import dynamic from 'next/dynamic'
+
+const QuickReviewModal = dynamic(
+  () => import('@/components/admin/quick-review-modal').then(mod => mod.QuickReviewModal),
+  { ssr: false }
+)
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
@@ -14,6 +21,7 @@ import {
 
 export default function AdminDashboard() {
   const { stats, verifications, documentRequests, activityLogs, notifications } = useAdminData()
+  const [reviewItem, setReviewItem] = useState<{ data: any; type: "verification" | "request" } | null>(null)
 
   const kpis = [
     { label: "Total Requests", value: String(stats.totalRequests), sub: `${stats.pendingRequests} pending`, icon: ClipboardList, color: "#0C2340" },
@@ -23,28 +31,31 @@ export default function AdminDashboard() {
   ]
 
   const quickStats = [
-    { label: "Senior Citizens", value: String(stats.seniorCount), color: "bg-blue-50 text-blue-900" },
-    { label: "Minors", value: String(stats.minorCount), color: "bg-amber-50 text-amber-900" },
     { label: "Total Residents", value: String(stats.totalResidents), color: "bg-teal-50 text-teal-900" },
-    { label: "Active Accounts", value: String(stats.activeResidents), color: "bg-green-50 text-green-900" },
+    { label: "Verified Accounts", value: String(stats.activeResidents), color: "bg-green-50 text-green-900" },
+    { label: "Under Review", value: String(stats.pendingVerifications), color: "bg-amber-50 text-amber-900" },
     { label: "Expired Accounts", value: String(stats.expiredResidents), color: "bg-red-50 text-red-900" },
     { label: "Expiring Accounts", value: String(stats.expiringResidents), color: "bg-purple-50 text-purple-900" },
   ]
 
   const pendingItems = [
     ...verifications.slice(0, 3).map((v) => ({
+      id: v.id,
       type: v.type === "registration" ? "Registration" : v.type === "profile-edit" ? "Profile Edit" : "Reactivation",
       typeColor: v.type === "registration" ? "bg-amber-100 text-amber-900" : v.type === "profile-edit" ? "bg-green-100 text-green-900" : "bg-purple-100 text-purple-900",
       resident: v.name,
       date: v.submittedDate,
-      href: "/admin/verifications",
+      data: v,
+      itemType: "verification" as const,
     })),
     ...documentRequests.filter((r) => r.status === "Pending").slice(0, 3).map((r) => ({
+      id: r.id,
       type: "Doc Request",
       typeColor: "bg-blue-100 text-blue-900",
       resident: r.residentName,
       date: r.dateRequested,
-      href: "/admin/requests",
+      data: r,
+      itemType: "request" as const,
     })),
   ].slice(0, 5)
 
@@ -60,7 +71,7 @@ export default function AdminDashboard() {
         {kpis.map((kpi, i) => (
           <Card key={i} className="p-4 shadow-sm">
             <div className="flex items-start justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
                 <kpi.icon className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
               </div>
             </div>
@@ -72,7 +83,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         {quickStats.map((stat, i) => (
           <Card key={i} className={`p-3.5 shadow-sm ${stat.color}`}>
             <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70 mb-1">{stat.label}</p>
@@ -83,9 +94,9 @@ export default function AdminDashboard() {
 
       {/* Pending Actions + Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 shadow-sm">
-          <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Pending Actions</h2>
+        <Card className="lg:col-span-2 shadow-sm border-slate-200 dark:border-slate-800 p-0 gap-0 overflow-hidden">
+          <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Pending Actions</h2>
             <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{pendingItems.length} items</span>
           </div>
           <div className="p-5">
@@ -110,9 +121,14 @@ export default function AdminDashboard() {
                     <div className="col-span-3 text-[#0C2340] dark:text-blue-50 font-medium text-[12px]">{action.resident}</div>
                     <div className="col-span-3 text-slate-500 dark:text-slate-400 text-[11px]">{action.date}</div>
                     <div className="col-span-3">
-                      <Link href={action.href}>
-                        <Button variant="outline" size="sm" className="h-6 px-3 text-[10px] bg-transparent">Review</Button>
-                      </Link>
+                        <Button 
+                          onClick={() => setReviewItem({ data: action.data, type: action.itemType })} 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-6 px-3 text-[10px] bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                          Review
+                        </Button>
                     </div>
                   </div>
                 ))}
@@ -121,9 +137,9 @@ export default function AdminDashboard() {
           </div>
         </Card>
 
-        <Card className="shadow-sm">
-          <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
-            <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Recent Activity</h2>
+        <Card className="shadow-sm border-slate-200 dark:border-slate-800 p-0 gap-0 overflow-hidden flex flex-col">
+          <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 shrink-0">
+            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Recent Activity</h2>
           </div>
           <div className="p-5 space-y-3.5">
             {activityLogs.length === 0 ? (
@@ -179,27 +195,12 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Today's Summary */}
-      <Card className="mt-6 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
-          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Summary</h2>
-        </div>
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">Total Residents:</span>
-            <span className="text-[11px] font-bold text-[#0C2340] dark:text-blue-50">{stats.totalResidents}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">Pending Verifications:</span>
-            <span className="text-[11px] font-bold text-[#0C2340] dark:text-blue-50">{stats.pendingVerifications}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">Pending Requests:</span>
-            <span className="text-[11px] font-bold text-[#0C2340] dark:text-blue-50">{stats.pendingRequests}</span>
-          </div>
-        </div>
-      </Card>
+      <QuickReviewModal 
+        isOpen={!!reviewItem} 
+        onClose={() => setReviewItem(null)} 
+        item={reviewItem?.data} 
+        itemType={reviewItem?.type || null} 
+      />
     </AdminPageShell>
   )
 }

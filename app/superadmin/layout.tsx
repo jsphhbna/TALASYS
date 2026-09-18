@@ -2,11 +2,11 @@
 
 import type React from "react"
 
-import { useAuthGuard } from "@/hooks/use-auth-guard"
-import { SuperAdminHeader } from "@/components/layout/superadmin-header"
-import { SuperAdminSidebar } from "@/components/layout/superadmin-sidebar"
+import { useAuthGuard } from "@/hooks/auth"
+import { SuperAdminHeader } from "@/components/superadmin/layout/superadmin-header"
+import { SuperAdminSidebar } from "@/components/superadmin/layout/superadmin-sidebar"
 import { MainContentStage } from "@/components/layout/main-content-stage"
-import { useInactivityTimeout } from "@/hooks/use-inactivity-timeout"
+import { useInactivityTimeout } from "@/hooks/auth"
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthorized } = useAuthGuard({ requiredRole: "superadmin" })

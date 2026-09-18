@@ -1,83 +1,95 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useAdminData } from "@/hooks/use-admin-data"
-import {
-  PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from "recharts"
-import { ClipboardList, CheckCircle2, XCircle, FileText } from "lucide-react"
-import { useAuth } from "@/lib/auth-context"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { useAdminData } from "@/hooks/admin"
+import { useSuperAdminData } from "@/hooks/superadmin"
+import { useAuth } from "@/lib/auth"
 import { toast } from "sonner"
+import { FileText, Search } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
+import dynamic from 'next/dynamic'
 
-export default function DocumentRequests() {
-  const { documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
+const AdminPaymentProcessModal = dynamic(
+  () => import('@/components/admin/admin-payment-process-modal').then(mod => mod.AdminPaymentProcessModal),
+  { ssr: false }
+)
+
+function DocumentRequestsContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { residents, documentRequests: adminDocumentRequests, updateRequestStatus, confirmPayment, waivePayment } = useAdminData()
+  const { systemConfig } = useSuperAdminData()
   const { user } = useAuth()
-  const now = Date.now()
-  const dayMs = 1000 * 60 * 60 * 24
-
-  const colorPalette = ["#0C2340", "#2563eb", "#C5A55A", "#10b981", "#f59e0b", "#6366f1", "#ec4899"];
   
-  const requestCounts = adminDocumentRequests.reduce((acc, req) => {
-    const shortName = req.documentType.replace("Certificate of ", "").replace("Barangay ", "");
-    acc[shortName] = (acc[shortName] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const rawTypeDistribution = Object.entries(requestCounts)
-    .map(([name, value], idx) => ({
-      name,
-      value,
-      color: colorPalette[idx % colorPalette.length]
-    }))
-    .sort((a, b) => b.value - a.value);
-
-  const top3Types = rawTypeDistribution.slice(0, 3).map(t => t.name);
-
-  const requestTypeTrend = Array.from({ length: 6 }).map((_, i) => {
-    const start = now - (5 - i) * 30 * dayMs;
-    const end = start + 30 * dayMs;
-    const reqs = adminDocumentRequests.filter(r => r.createdAt >= start && r.createdAt < end);
-    
-    const dataPoint: any = { month: new Date(start).toLocaleDateString('en-US', { month: 'short' }) };
-    
-    top3Types.forEach(type => {
-      dataPoint[type] = reqs.filter(r => r.documentType.replace("Certificate of ", "").replace("Barangay ", "") === type).length;
-    });
-    
-    return dataPoint;
-  });
-  const [activeFilter, setActiveFilter] = useState("all")
+  const [docTypeFilter, setDocTypeFilter] = useState("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [showApproveDialog, setShowApproveDialog] = useState(false)
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [paymentProcessRequest, setPaymentProcessRequest] = useState<any>(null)
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
 
-  const uniqueTypes = Array.from(new Set(adminDocumentRequests.map(r => r.documentType)));
-  const filters = [
-    { id: "all", label: "All Requests" },
-    ...uniqueTypes.map(type => ({
+  // Derive activeTab directly from URL — always in sync with sidebar links
+  const activeTab = searchParams.get("tab") || "all"
+
+  const handleTabChange = (tabId: string) => {
+    if (tabId === "all") {
+      router.replace("/admin/requests")
+    } else {
+      router.replace(`/admin/requests?tab=${tabId}`)
+    }
+  }
+
+  const activeRequests = adminDocumentRequests.filter(r => r.status !== "Completed" && r.status !== "Rejected")
+
+  const defaultDocTypes = systemConfig?.documentTypes || []
+  const customDocTypes = (systemConfig?.customDocumentTypes || []).map((c: any) => c.name)
+  const allAvailableTypes = Array.from(new Set([...defaultDocTypes, ...customDocTypes]))
+
+  const tabs = [
+    { id: "all", label: "All Active" },
+    { id: "pending", label: "🕐 Awaiting Approval" },
+    { id: "processing", label: "⚙️ In Process" },
+    { id: "ready", label: "📦 Ready for Pick Up" }
+  ]
+
+  const docTypeOptions = [
+    { id: "all", label: "All Document Types" },
+    ...allAvailableTypes.map(type => ({
       id: type,
       label: type.replace("Certificate of ", "").replace("Barangay ", "")
     }))
   ]
 
-  const filteredRequests = adminDocumentRequests.filter(r =>
-    activeFilter === "all" || r.documentType === activeFilter
-  )
+  const filteredRequests = activeRequests.filter(r => {
+    // 1. Tab Filtering
+    let matchesTab = true;
+    if (activeTab === "pending") matchesTab = r.status === "Pending";
+    else if (activeTab === "payments") matchesTab = r.status === "Awaiting Payment" || (r as any).paymentStatus === "pending_verification";
+    else if (activeTab === "processing") matchesTab = r.status === "On Process" || r.status === "Approved";
+    else if (activeTab === "ready") matchesTab = r.status === "Ready for Pick Up";
 
-  const pendingCount = adminDocumentRequests.filter(r => r.status === "Pending").length
-  const approvedCount = adminDocumentRequests.filter(r => r.status === "Approved").length
-  const rejectedCount = adminDocumentRequests.filter(r => r.status === "Rejected").length
+    // 2. Doc Type Filtering
+    const matchesDocType = docTypeFilter === "all" || r.documentType === docTypeFilter;
+    
+    // 3. Search Query
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = r.residentName.toLowerCase().includes(searchLower) || 
+                          r.documentType.toLowerCase().includes(searchLower) ||
+                          r.id.toLowerCase().includes(searchLower) ||
+                          (r as any).receiptNumber?.toLowerCase().includes(searchLower);
 
-  const typeDistribution = rawTypeDistribution.filter(c => c.value > 0);
-  if (typeDistribution.length === 0) {
-    typeDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9" });
-  }
+    return matchesTab && matchesDocType && matchesSearch;
+  })
+
+
 
   return (
     <AdminPageShell>
@@ -86,135 +98,145 @@ export default function DocumentRequests() {
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Review and manage resident document requests</p>
       </div>
 
-      {/* KPI Strip + Charts */}
-      <div className="grid grid-cols-12 gap-6 mb-6">
-        <div className="col-span-5 grid grid-cols-2 gap-4">
-          {[
-            { label: "Pending", value: pendingCount, icon: ClipboardList, color: "text-amber-600", bg: "bg-amber-50" },
-            { label: "Approved Today", value: approvedCount, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
-            { label: "Rejected", value: rejectedCount, icon: XCircle, color: "text-red-600", bg: "bg-red-50" },
-            { label: "Monthly Total", value: adminDocumentRequests.length, icon: FileText, color: "text-[#0C2340] dark:text-blue-50", bg: "bg-[#0C2340] dark:bg-slate-800/[0.06]" },
-          ].map((kpi, i) => (
-            <Card key={i} className="p-4 shadow-sm">
-              <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center mb-2`}>
-                <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
-              </div>
-              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.label}</p>
-              <p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
-            </Card>
-          ))}
-        </div>
-        <Card className="col-span-4 p-4 shadow-sm flex flex-col">
-          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Request Trend</h3>
-          <div className="flex-1 min-h-[140px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={requestTypeTrend} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 9 }} stroke="#94a3b8" axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ fontSize: 10, borderRadius: 8 }} />
-              {top3Types.map((type, idx) => (
-                <Area key={type} type="monotone" dataKey={type} stroke={colorPalette[idx % colorPalette.length]} fill={colorPalette[idx % colorPalette.length]} fillOpacity={0.06} strokeWidth={1.5} />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card className="col-span-3 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Type Distribution</h3>
-          <div className="flex items-center gap-3">
-            <div className="w-20 h-20">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={typeDistribution} cx="50%" cy="50%" innerRadius={18} outerRadius={36} dataKey="value" stroke="none">
-                    {typeDistribution.map((e, i) => <Cell key={i} fill={e.color} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 10, borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-1.5">
-              {typeDistribution.map((t, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
-                  <span className="text-[10px] text-slate-600 dark:text-slate-400 truncate max-w-[80px]" title={t.name}>{t.name}</span>
-                  <span className="text-[10px] font-bold text-[#0C2340] dark:text-blue-50 ml-auto">{t.name === "No Data" ? "-" : t.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6">
-        {filters.map((filter) => (
+      {/* Tabs */}
+      <div className="flex flex-nowrap overflow-x-auto gap-6 border-b border-slate-200 dark:border-slate-800 mb-6">
+        {tabs.map(tab => (
           <button
-            key={filter.id}
-            onClick={() => setActiveFilter(filter.id)}
-            className={`px-4 py-2 rounded-lg text-xs transition-colors ${activeFilter === filter.id ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"
-              }`}
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === tab.id 
+                ? "border-[#0C2340] text-[#0C2340] dark:border-blue-500 dark:text-blue-500" 
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
           >
-            {filter.label}
+            {tab.label}
           </button>
         ))}
       </div>
 
+      {/* Filters and Search */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div className="w-[220px]">
+          <Select value={docTypeFilter} onValueChange={setDocTypeFilter}>
+            <SelectTrigger className="w-full bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus:ring-[#0C2340] dark:focus:ring-slate-700">
+              <SelectValue placeholder="Select Document Type" />
+            </SelectTrigger>
+            <SelectContent className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800">
+              {docTypeOptions.map((opt) => (
+                <SelectItem 
+                  key={opt.id} 
+                  value={opt.id}
+                  className="focus:bg-slate-100 dark:focus:bg-slate-900 cursor-pointer"
+                >
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="relative w-full md:w-80 lg:w-96">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Search by resident name or reference (PAY- / REC-)..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0C2340] dark:focus:ring-slate-700"
+          />
+        </div>
+      </div>
+
       {/* Table */}
-      <Card className="shadow-sm overflow-x-auto">
-        <div className="min-w-[800px]">
-          <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
-            <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              <div className="col-span-2">RESIDENT</div>
-              <div className="col-span-2">DOCUMENT</div>
-              <div className="col-span-2">PURPOSE</div>
-              <div className="col-span-1">DATE</div>
-              <div className="col-span-2">STATUS</div>
-              <div className="col-span-3">ACTIONS</div>
-            </div>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {filteredRequests.map((request) => (
-              <div key={request.id} className="grid grid-cols-12 gap-4 items-center px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => { setSelectedRequest(request); setShowViewDialog(true) }}>
-                <div className="col-span-2 flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">{request.residentInitials}</div>
+      <Card className="shadow-sm overflow-hidden p-0">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="px-6 py-3 font-bold min-w-[200px]">RESIDENT</th>
+                <th className="px-6 py-3 font-bold min-w-[200px]">DOCUMENT</th>
+                <th className="px-6 py-3 font-bold min-w-[150px]">PURPOSE</th>
+                <th className="px-6 py-3 font-bold whitespace-nowrap">DATE</th>
+                <th className="px-6 py-3 font-bold whitespace-nowrap">STATUS</th>
+                <th className="px-6 py-3 font-bold min-w-[220px]">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {filteredRequests.map((request) => {
+              const residentProfile = residents.find(r => r.id === request.residentId)
+              const profilePic = residentProfile?.profilePicture
+
+              return (
+              <tr key={request.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer" onClick={() => { setSelectedRequest(request); setShowViewDialog(true) }}>
+                <td className="px-6 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                  {profilePic ? (
+                    <img src={profilePic} alt={request.residentName} className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[#0C2340]/10 dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">
+                      {request.residentInitials || request.residentName?.charAt(0) || "U"}
+                    </div>
+                  )}
                   <div>
                     <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{request.residentName}</p>
                     <p className="text-[10px] text-slate-400">{request.residentCategory}</p>
                   </div>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium">{request.documentType}</span>
-                </div>
-                <div className="col-span-2">
+                  </div>
+                </td>
+                  <td className="px-6 py-3.5">
+                    <span className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium">{request.documentType}</span>
+                    {(request as any).paymentStatus === "unpaid" && (request.documentFee ?? 0) > 0 && (
+                      <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                        Pay Later
+                      </span>
+                    )}
+                    {request.id && (
+                      <p className="text-[10px] text-slate-500 font-mono mt-0.5" title={request.id}>Ref: {request.id.substring(0, 8).toUpperCase()}</p>
+                    )}
+                  </td>
+                <td className="px-6 py-3.5">
                   <span className="text-[11px] text-slate-600 dark:text-slate-400">{request.purpose}</span>
-                </div>
-                <div className="col-span-1">
+                </td>
+                <td className="px-6 py-3.5 whitespace-nowrap">
                   <span className="text-[11px] text-slate-500 dark:text-slate-400">{request.dateRequested}</span>
-                </div>
-                <div className="col-span-2">
+                </td>
+                <td className="px-6 py-3.5 whitespace-nowrap">
                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${request.status === "Pending" ? "bg-amber-50 text-amber-700" :
                       request.status === "On Process" || request.status === "Approved" ? "bg-blue-50 text-blue-700" :
-                        request.status === "Ready for Pick Up" ? "bg-emerald-50 text-emerald-700" :
-                          request.status === "Completed" ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" :
-                            "bg-red-50 text-red-700"
+                        request.status === "Awaiting Payment" ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" :
+                          request.status === "Ready for Pick Up" ? "bg-emerald-50 text-emerald-700" :
+                            request.status === "Completed" ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" :
+                              "bg-red-50 text-red-700"
                     }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${request.status === "Pending" ? "bg-amber-500" :
                         request.status === "On Process" || request.status === "Approved" ? "bg-blue-500" :
-                          request.status === "Ready for Pick Up" ? "bg-emerald-500" :
-                            request.status === "Completed" ? "bg-slate-400" :
-                              "bg-red-500"
+                          request.status === "Awaiting Payment" ? "bg-slate-500" :
+                            request.status === "Ready for Pick Up" ? "bg-emerald-500" :
+                              request.status === "Completed" ? "bg-slate-400" :
+                                "bg-red-500"
                       }`} />
-                    {request.status}
+                    {request.status === "Awaiting Payment" ? "Pay Later" : request.status}
                   </span>
+                  {(request as any).paymentStatus === "pending_verification" && (
+                    <span className="block mt-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded text-[9px] w-fit">
+                      Review Payment
+                    </span>
+                  )}
+                  {(request as any).paymentStatus === "paid" && (
+                    <span className="block mt-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[9px] w-fit">
+                      Paid
+                    </span>
+                  )}
                   {request.requestFor === "other" && (
                     <span className="ml-1.5 px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[9px]">Rep.</span>
                   )}
-                </div>
-                <div className="col-span-3 flex items-center gap-2">
+                </td>
+                <td className="px-6 py-3.5">
+                  <div className="flex items-center gap-2">
                   {user?.role !== "View Only" && (
                     <>
-                      {request.status === "Pending" && (
+                      {request.status === "Pending" && !(request.status === "Awaiting Payment" || (request as any).paymentStatus === "pending_verification") && (
                         <>
                           <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Approve</Button>
                           <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setRejectReason(""); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>
@@ -225,49 +247,81 @@ export default function DocumentRequests() {
                           )}
                         </>
                       )}
+                      {(request.status === "Awaiting Payment" || (request as any).paymentStatus === "pending_verification") && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200">
+                            ⏳ Payment pending — go to Payment Process
+                          </span>
+                        </div>
+                      )}
                       {(request.status === "On Process" || request.status === "Approved") && (
-                        <Button size="sm" onClick={async (e) => { 
-                          e.stopPropagation(); 
-                          try {
-                            await updateRequestStatus(request.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com")
-                            toast.success("Status updated to Ready for Pick Up")
-                          } catch (err: any) {
-                            toast.error(err.message || "Failed to update status")
-                          }
-                        }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Mark Ready</Button>
+                        <div className="flex items-center gap-2">
+                          {!(request as any).hasGenerated ? (
+                            <Button size="sm" onClick={(e) => { 
+                              e.stopPropagation(); 
+                              router.push(`/admin/generate?requestId=${request.id}`)
+                            }} className="h-6 px-3 text-[10px] bg-blue-600 hover:bg-blue-700">Generate</Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={async (e) => { 
+                              e.stopPropagation(); 
+                              try {
+                                await updateRequestStatus(request.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com")
+                                toast.success("Status updated to Ready for Pick Up")
+                              } catch (err: any) {
+                                toast.error(err.message || "Failed to update status")
+                              }
+                            }} className="h-6 px-3 text-[10px] bg-transparent text-slate-500">Mark Ready</Button>
+                          )}
+                        </div>
                       )}
                       {request.status === "Ready for Pick Up" && (
-                        <Button size="sm" onClick={async (e) => { 
-                          e.stopPropagation(); 
-                          try {
-                            await updateRequestStatus(request.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com")
-                            toast.success("Status updated to Completed")
-                          } catch (err: any) {
-                            toast.error(err.message || "Failed to update status")
-                          }
-                        }} className="h-6 px-3 text-[10px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c]">Complete</Button>
+                        <Button 
+                          size="sm" 
+                          disabled={(request as any).paymentStatus === "unpaid"}
+                          title={(request as any).paymentStatus === "unpaid" ? "Payment must be processed first" : ""}
+                          onClick={async (e) => { 
+                            e.stopPropagation(); 
+                            try {
+                              await updateRequestStatus(request.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com")
+                              toast.success("Status updated to Completed")
+                            } catch (err: any) {
+                              toast.error(err.message || "Failed to update status")
+                            }
+                          }} 
+                          className="h-6 px-3 text-[10px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Complete
+                        </Button>
                       )}
                     </>
                   )}
                   {(request.status === "Completed" || request.status === "Rejected") && (
                     <span className="text-[10px] text-slate-400">Processed</span>
                   )}
-                </div>
-              </div>
-            ))}
+                  </div>
+                </td>
+              </tr>
+            )
+            })}
+            
             {filteredRequests.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No document requests found</p>
-              </div>
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <div className="flex flex-col items-center justify-center">
+                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No document requests found</p>
+                  </div>
+                </td>
+              </tr>
             )}
-          </div>
+            </tbody>
+          </table>
         </div>
       </Card>
 
       {/* View Details Dialog */}
       {showViewDialog && selectedRequest && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <ModalOverlay isOpen={true} onClose={() => setShowViewDialog(false)}>
           <Card className="w-full max-w-lg p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Request Details</h3>
@@ -299,16 +353,47 @@ export default function DocumentRequests() {
                   <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Status</p>
                   <p className="text-sm text-slate-900 dark:text-slate-100">{selectedRequest.status}</p>
                 </div>
+                {selectedRequest.documentFee > 0 && (
+                  <>
+                    <div className="col-span-2 mt-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <h4 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 mb-3">Payment Details</h4>
+                      <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                        <div>
+                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Fee</p>
+                          <p className="text-sm font-bold text-[#0C2340]">₱{selectedRequest.documentFee.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</p>
+                          <p className="text-sm font-semibold capitalize text-amber-600">{selectedRequest.paymentStatus.replace("_", " ")}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Method</p>
+                          <p className="text-sm uppercase font-semibold">{selectedRequest.paymentMethod || "N/A"}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Reference</p>
+                          <p className="text-sm font-mono">{selectedRequest.paymentMethod === "gcash" ? selectedRequest.gcashRefNumber : selectedRequest.paymentReferenceNumber}</p>
+                        </div>
+                      </div>
+                    </div>
+                    {selectedRequest.paymentMethod === "gcash" && selectedRequest.gcashScreenshotUrl && (
+                      <div className="col-span-2">
+                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">GCash Screenshot</p>
+                        <img src={selectedRequest.gcashScreenshotUrl} alt="GCash proof" className="w-full max-h-64 object-contain rounded-lg border border-slate-200" />
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
               <Button onClick={() => setShowViewDialog(false)} className="w-full h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-900 dark:text-slate-100">Close</Button>
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Approve Dialog */}
       {showApproveDialog && selectedRequest && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <ModalOverlay isOpen={true} onClose={() => setShowApproveDialog(false)}>
           <Card className="w-full max-w-md p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Approve Request</h3>
@@ -322,31 +407,24 @@ export default function DocumentRequests() {
                     try {
                       await updateRequestStatus(selectedRequest.id, "On Process", undefined, user?.name || "Admin", user?.email || "admin@system.com"); 
                       setShowApproveDialog(false);
-                      toast.success("Status updated to On Process")
+                      toast.success(`Status updated to On Process`)
                     } catch (err: any) {
                       toast.error(err.message || "Failed to update status")
                     }
-                  }} className="flex-1 h-10 bg-blue-600 hover:bg-blue-700">Mark On Process</Button>
-                  <Button onClick={async () => { 
-                    try {
-                      await updateRequestStatus(selectedRequest.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com"); 
-                      setShowApproveDialog(false);
-                      toast.success("Status updated to Ready for Pick Up")
-                    } catch (err: any) {
-                      toast.error(err.message || "Failed to update status")
-                    }
-                  }} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">Mark Ready for Pick Up</Button>
+                  }} className="w-full h-10 bg-emerald-600 hover:bg-emerald-700">
+                    Confirm Approval
+                  </Button>
                 </div>
                 <Button variant="outline" onClick={() => setShowApproveDialog(false)} className="w-full h-10 bg-transparent">Cancel</Button>
               </div>
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Reject Dialog */}
       {showRejectDialog && selectedRequest && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <ModalOverlay isOpen={true} onClose={() => setShowRejectDialog(false)}>
           <Card className="w-full max-w-md p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Reject Request</h3>
@@ -383,12 +461,12 @@ export default function DocumentRequests() {
               </div>
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Authorization Letter Dialog */}
       {showAuthDialog && selectedRequest && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <ModalOverlay isOpen={true} onClose={() => setShowAuthDialog(false)}>
           <Card className="w-full max-w-lg p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Authorization Letter</h3>
@@ -410,8 +488,23 @@ export default function DocumentRequests() {
               <Button onClick={() => setShowAuthDialog(false)} className="w-full h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Close</Button>
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
+
+      {/* Payment Processing Modal */}
+      <AdminPaymentProcessModal
+        isOpen={!!paymentProcessRequest}
+        onClose={() => setPaymentProcessRequest(null)}
+        request={paymentProcessRequest}
+      />
     </AdminPageShell>
+  )
+}
+
+export default function DocumentRequests() {
+  return (
+    <Suspense fallback={<AdminPageShell><div className="p-8">Loading requests...</div></AdminPageShell>}>
+      <DocumentRequestsContent />
+    </Suspense>
   )
 }

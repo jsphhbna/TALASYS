@@ -6,11 +6,12 @@ import {
   PieChart, Pie, Cell,
 } from "recharts"
 import { Card } from "@/components/ui/card"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import { useAdminData } from "@/hooks/use-admin-data"
-import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useAdminData } from "@/hooks/admin"
+import { useSuperAdminData } from "@/hooks/superadmin"
 import { useMounted } from "@/hooks/use-mounted"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
@@ -34,6 +35,19 @@ export default function SystemReports() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+  const [selectedYear, setSelectedYear] = useState<string>("All")
+  const [selectedMonth, setSelectedMonth] = useState<string>("All")
+
+  const currentYear = new Date().getFullYear()
+  const yearsList = Array.from(new Set(documentRequests.map(r => {
+    if (!r.createdAt) return null;
+    const date = new Date(r.createdAt);
+    return date.getFullYear();
+  }).filter((y): y is number => y !== null))).sort((a, b) => b - a)
+  
+  if (yearsList.length === 0) yearsList.push(currentYear)
+
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   const mounted = useMounted()
 
   if (!mounted) {
@@ -161,7 +175,7 @@ export default function SystemReports() {
       {/* KPI Strip */}
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <FileText className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Reports Generated</p>
@@ -171,7 +185,7 @@ export default function SystemReports() {
           </div>
         </Card>
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <Download className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Most Requested</p>
@@ -179,7 +193,7 @@ export default function SystemReports() {
           <p className="text-[10px] text-slate-400 mt-1">{mostRequested ? `${mostRequested.value} of ${trueTotal} total` : "No data available"}</p>
         </Card>
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <Clock className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Avg Generation</p>
@@ -187,7 +201,7 @@ export default function SystemReports() {
           <p className="text-[10px] text-slate-400 mt-1">Processing time</p>
         </Card>
         <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+          <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <BarChart3 className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
           <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">This Month</p>
@@ -316,8 +330,26 @@ export default function SystemReports() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Date Range</label>
-            <input type="text" className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm" value="Jun 1 - Jun 30, 2024" readOnly />
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Year</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
+            >
+              <option value="All">All Years</option>
+              {yearsList.map(y => <option key={y} value={y.toString()}>{y}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Month</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
+            >
+              <option value="All">All Months</option>
+              {monthNames.map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Format</label>
@@ -332,20 +364,18 @@ export default function SystemReports() {
       </Card>
 
       {/* Generate Dialog */}
-      {showGenerateDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Generate Report?</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a Full Population report in PDF format for the date range Jun 1 - Jun 30, 2024.</p>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowGenerateDialog(false)} disabled={isGeneratingReport}>Cancel</Button>
-              <Button onClick={handleGenerateReport} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isGeneratingReport}>
-                {isGeneratingReport ? "Generating..." : "Confirm"}
-              </Button>
-            </div>
+      <ModalOverlay isOpen={showGenerateDialog} onClose={() => setShowGenerateDialog(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-2xl">
+          <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Generate Report?</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a Full Population report in PDF format for {selectedMonth === "All" && selectedYear === "All" ? "all time" : `${selectedMonth !== "All" ? monthNames[parseInt(selectedMonth)] : ""} ${selectedYear !== "All" ? selectedYear : ""}`}.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowGenerateDialog(false)} disabled={isGeneratingReport}>Cancel</Button>
+            <Button onClick={handleGenerateReport} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isGeneratingReport}>
+              {isGeneratingReport ? "Generating..." : "Confirm"}
+            </Button>
           </div>
         </div>
-      )}
+      </ModalOverlay>
     </div>
   )
 }

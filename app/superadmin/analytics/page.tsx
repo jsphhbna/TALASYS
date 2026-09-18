@@ -7,11 +7,12 @@ import {
   BarChart, Bar, Legend,
 } from "recharts"
 import { Card } from "@/components/ui/card"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { Button } from "@/components/ui/button"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import { useAdminData } from "@/hooks/use-admin-data"
-import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useAdminData } from "@/hooks/admin"
+import { useSuperAdminData } from "@/hooks/superadmin"
 import { useMounted } from "@/hooks/use-mounted"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
@@ -34,6 +35,33 @@ export default function ReasonAnalytics() {
   const [showExportPDF, setShowExportPDF] = useState(false)
   const [isExportingCsv, setIsExportingCsv] = useState(false)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
+
+  const [selectedYear, setSelectedYear] = useState<string>("All")
+  const [selectedMonth, setSelectedMonth] = useState<string>("All")
+  const [selectedDocType, setSelectedDocType] = useState<string>("All Documents")
+
+  const currentYear = new Date().getFullYear()
+  const yearsList = Array.from(new Set(documentRequests.map(r => {
+    if (!r.createdAt) return null;
+    const date = new Date(r.createdAt);
+    return date.getFullYear();
+  }).filter((y): y is number => y !== null))).sort((a, b) => b - a)
+  
+  if (yearsList.length === 0) yearsList.push(currentYear)
+
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+  const filteredRequests = documentRequests.filter(r => {
+    if (selectedDocType !== "All Documents" && r.documentType !== selectedDocType) return false
+    if (!r.createdAt && (selectedYear !== "All" || selectedMonth !== "All")) return false
+    
+    if (r.createdAt) {
+      const date = new Date(r.createdAt)
+      if (selectedYear !== "All" && date.getFullYear().toString() !== selectedYear) return false
+      if (selectedMonth !== "All" && date.getMonth().toString() !== selectedMonth) return false
+    }
+    return true
+  })
 
   const handleExportCsv = async () => {
     if (isExportingCsv) return
@@ -113,11 +141,11 @@ export default function ReasonAnalytics() {
 
   // Calculate reasonAnalytics dynamically
   const purposeCounts: Record<string, number> = {}
-  documentRequests.forEach(r => {
+  filteredRequests.forEach(r => {
     const p = r.purpose || "Other"
     purposeCounts[p] = (purposeCounts[p] || 0) + 1
   })
-  const totalRequests = documentRequests.length || 1
+  const totalRequests = filteredRequests.length || 1
 
   const reasonAnalytics = Object.entries(purposeCounts).map(([reason, count]) => ({
     reason,
@@ -132,10 +160,9 @@ export default function ReasonAnalytics() {
 
   const topReason = reasonAnalytics.length > 0 ? reasonAnalytics[0] : { reason: "None", percentage: 0 }
 
-  // Build reasonTrendData from real documentRequests grouped by month
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  // Build reasonTrendData from filteredRequests grouped by month
   const monthCounts: Record<string, Record<string, number>> = {}
-  documentRequests.forEach(r => {
+  filteredRequests.forEach(r => {
     const ts = r.createdAt ? new Date(r.createdAt) : null
     if (!ts || isNaN(ts.getTime())) return
     const monthKey = monthNames[ts.getMonth()]
@@ -151,10 +178,10 @@ export default function ReasonAnalytics() {
     return entry
   })
 
-  // Build reasonByDocType from real documentRequests
+  // Build reasonByDocType from filteredRequests
   const docTypes = ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency"]
   const reasonByDocType = docTypes.map(docType => {
-    const subset = documentRequests.filter(r => r.documentType === docType)
+    const subset = filteredRequests.filter(r => r.documentType === docType)
     const total = subset.length || 1
     const purposeBreakdown: Record<string, number> = {}
     subset.forEach(r => {
@@ -169,7 +196,7 @@ export default function ReasonAnalytics() {
     top3.forEach(([p, count], i) => { entry[`cat${i}`] = Math.round((count / total) * 100) })
     entry.other = Math.round((otherCount / total) * 100)
     return entry
-  }).filter((d, idx) => documentRequests.some(r => r.documentType === docTypes[idx] || true))
+  }).filter((d, idx) => filteredRequests.some(r => r.documentType === docTypes[idx] || true))
 
   // Calculate real growth
   const now = Date.now()
@@ -198,17 +225,40 @@ export default function ReasonAnalytics() {
 
       {/* Filters */}
       <Card className="p-4 shadow-sm">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div>
             <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Document Type</label>
-            <select className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
+            <select
+              value={selectedDocType}
+              onChange={(e) => setSelectedDocType(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+            >
               <option>All Documents</option>
+              <option>Barangay Clearance</option>
+              <option>Certificate of Indigency</option>
+              <option>Certificate of Residency</option>
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Time Period</label>
-            <select className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
-              <option>Last 6 Months</option>
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Year</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+            >
+              <option value="All">All Years</option>
+              {yearsList.map(y => <option key={y} value={y.toString()}>{y}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Month</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+            >
+              <option value="All">All Months</option>
+              {monthNames.map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
             </select>
           </div>
           <div>
@@ -224,7 +274,7 @@ export default function ReasonAnalytics() {
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
               <BarChart3 className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
           </div>
@@ -234,7 +284,7 @@ export default function ReasonAnalytics() {
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
               <Layers className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
           </div>
@@ -244,7 +294,7 @@ export default function ReasonAnalytics() {
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
               <Target className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
           </div>
@@ -369,36 +419,32 @@ export default function ReasonAnalytics() {
       </Card>
 
       {/* Export CSV Modal */}
-      {showExportCSV && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export to CSV?</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will export the reason analytics data to a CSV file for the selected time period.</p>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowExportCSV(false)} disabled={isExportingCsv}>Cancel</Button>
-              <Button onClick={handleExportCsv} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
-                {isExportingCsv ? "Exporting CSV..." : "Confirm Export"}
-              </Button>
-            </div>
+      <ModalOverlay isOpen={showExportCSV} onClose={() => setShowExportCSV(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-2xl">
+          <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export to CSV?</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will export the reason analytics data to a CSV file for the selected time period.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowExportCSV(false)} disabled={isExportingCsv}>Cancel</Button>
+            <Button onClick={handleExportCsv} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
+              {isExportingCsv ? "Exporting CSV..." : "Confirm Export"}
+            </Button>
           </div>
         </div>
-      )}
+      </ModalOverlay>
 
       {/* Export PDF Modal */}
-      {showExportPDF && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export to PDF?</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a PDF report with all analytics data, charts, and trends for the selected period.</p>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowExportPDF(false)} disabled={isExportingPdf}>Cancel</Button>
-              <Button onClick={handleExportPdf} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
-                {isExportingPdf ? "Exporting PDF..." : "Confirm Export"}
-              </Button>
-            </div>
+      <ModalOverlay isOpen={showExportPDF} onClose={() => setShowExportPDF(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-2xl">
+          <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export to PDF?</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a PDF report with all analytics data, charts, and trends for the selected period.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowExportPDF(false)} disabled={isExportingPdf}>Cancel</Button>
+            <Button onClick={handleExportPdf} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
+              {isExportingPdf ? "Exporting PDF..." : "Confirm Export"}
+            </Button>
           </div>
         </div>
-      )}
+      </ModalOverlay>
     </div>
   )
 }

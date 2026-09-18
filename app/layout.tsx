@@ -2,10 +2,10 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
-import { AuthProvider } from "@/lib/auth-context"
+import { AuthProvider } from "@/lib/auth"
 import { NavigationLoadingProvider } from "@/components/providers/navigation-loading-provider"
 import { Footer } from "@/components/layout/footer"
-import { ResidentMobileNavGate } from "@/components/layout/resident-mobile-nav-gate"
+import { ResidentMobileNavGate } from "@/components/resident/layout/resident-mobile-nav-gate"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
@@ -43,7 +43,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`font-sans antialiased flex flex-col min-h-screen overflow-x-hidden`}>
+      <body suppressHydrationWarning className={`font-sans antialiased flex flex-col min-h-screen`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
             <NavigationLoadingProvider>

@@ -1,46 +1,73 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, Suspense } from "react"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useAdminData } from "@/hooks/use-admin-data"
-import { useSuperAdminData } from "@/hooks/use-superadmin-data"
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from "recharts"
-import { Printer, TrendingUp, FileText, Clock, Loader2 } from "lucide-react"
+import { useAdminData } from "@/hooks/admin"
+import { useSuperAdminData } from "@/hooks/superadmin"
+import { Loader2, FileText } from "lucide-react"
 import { toPng } from "html-to-image"
 import jsPDF from "jspdf"
-import { useAuth } from "@/lib/auth-context"
+import { useAuth } from "@/lib/auth"
+import { useSearchParams, useRouter } from "next/navigation"
+import { toast } from "sonner"
 
-export default function GenerateDocuments() {
-  const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus } = useAdminData()
+function GenerateDocumentsContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus, updateRequestGenerated } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const { user } = useAuth()
 
-  const now = Date.now()
-  const dayMs = 1000 * 60 * 60 * 24
-
-  const generationVolumeTrend = Array.from({ length: 7 }).map((_, i) => {
-    const start = now - (6 - i) * dayMs;
-    const end = start + dayMs;
-    const reqs = adminDocumentRequests.filter(r => r.createdAt >= start && r.createdAt < end && r.status === "Completed");
-    return {
-      day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }),
-      volume: reqs.length
-    }
-  });
-
-  const [activeTab, setActiveTab] = useState("manual")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedResident, setSelectedResident] = useState<any>(null)
   const [selectedDocType, setSelectedDocType] = useState("")
   const [customDocTitle, setCustomDocTitle] = useState("C E R T I F I C A T I O N")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
-  
-  // Custom Template Logic
+
+  useEffect(() => {
+    const requestId = searchParams.get("requestId")
+    if (requestId && allResidents.length > 0 && adminDocumentRequests.length > 0) {
+      const req = adminDocumentRequests.find(r => r.id === requestId)
+      if (req) {
+        setProcessingRequestId(req.id)
+        const res = allResidents.find(r => r.id === req.residentId)
+        if (res) {
+          setSelectedResident(res)
+          setSearchQuery(res.name)
+        }
+        
+        let matchedId = "custom_blank";
+        const builtInLabels: Record<string, string> = {
+          "Funeral Certification": "funeral",
+          "PWD Certification (Adult)": "pwd_adult",
+          "PWD Certification (Minor)": "pwd_minor",
+          "Certificate of Indigency": "indigency",
+          "Proof of Residency": "residency",
+          "Business Clearance": "business",
+          "Business Clearance (Homeowner)": "business_homeowner",
+          "Business Clearance (Contractor)": "business_contractor",
+          "OSCA Certification": "osca"
+        }
+        
+        if (builtInLabels[req.documentType]) {
+          matchedId = builtInLabels[req.documentType]
+        } else if (req.documentType.toLowerCase().includes("clearance")) {
+          matchedId = "business"
+        } else if (req.documentType.toLowerCase().includes("residency")) {
+          matchedId = "residency"
+        } else if (req.documentType.toLowerCase().includes("indigency")) {
+          matchedId = "indigency"
+        }
+        
+        setSelectedDocType(matchedId)
+      }
+    }
+  }, [searchParams, allResidents, adminDocumentRequests])
+
   const getTemplateContent = () => {
     if (!selectedResident || !selectedDocType) return ""
     const templates = systemConfig?.templates || {}
@@ -56,12 +83,9 @@ export default function GenerateDocuments() {
     if (selectedDocType === "osca") template = templates.osca || "This is to certify that {{name}} is bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above cited person for <strong>OSCA ID application</strong> purposes.\n\nCity of Manila, {{date_issued}}."
     if (selectedDocType === "custom_blank") template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\n[TYPE YOUR CUSTOM CONTENT HERE]\n\nCity of Manila, {{date_issued}}."
     
-    // For any custom document type added by superadmin — read directly from Firebase templates
     if (!template && templates[selectedDocType]) template = templates[selectedDocType]
-    // Ultimate fallback for brand-new custom types with no saved template yet
     if (!template) template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}."
     
-    // Find matching request to inject specific data
     const docLabelMap: Record<string, string> = {
       funeral: "Funeral Certification",
       pwd_adult: "PWD Certification (Adult)",
@@ -74,70 +98,51 @@ export default function GenerateDocuments() {
       osca: "OSCA Certification"
     }
     const docLabel = docLabelMap[selectedDocType] || selectedDocType
-    const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+    const matchedReq = processingRequestId 
+      ? adminDocumentRequests.find(r => r.id === processingRequestId)
+      : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
     
-    const purpose = pendingReq?.purpose || "whatever legal purpose it may serve"
+    const purpose = matchedReq?.purpose || "_____________"
+    const age = selectedResident.age?.toString() || "___"
     
-    const date = new Date()
-    const dateStr = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(date)
-    const monthStr = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(date)
-    const yearStr = date.getFullYear().toString()
-    const getOrdinal = (n: number) => {
-      const s = ["th", "st", "nd", "rd"]
-      const v = n % 100
-      return n + (s[(v - 20) % 10] || s[v] || s[0])
-    }
-    const dayOrdinal = getOrdinal(date.getDate())
-    const dateOrdinalStr = `${dayOrdinal} of ${monthStr} ${yearStr}`
-    const dateDayStr = `${dayOrdinal.toUpperCase()} day of ${monthStr} ${yearStr}`
-    
-    const clearanceNumber = pendingReq?.id ? pendingReq.id.slice(0, 8).toUpperCase() : Math.floor(Math.random() * 1000000).toString()
+    const d = new Date()
+    const formatter = new Intl.DateTimeFormat('en', { day: 'numeric' })
+    const day = formatter.format(d)
+    const suffix = ["11", "12", "13"].includes(day) ? "th" : day.endsWith("1") ? "st" : day.endsWith("2") ? "nd" : day.endsWith("3") ? "rd" : "th"
+    const ordinalDay = `${day}${suffix}`
+    const monthYear = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
-    // Replace placeholders with bold HTML
-    return template
-      .replace(/{{name}}/g, `<strong>${selectedResident.name}</strong>`)
-      .replace(/{{resident_name}}/g, `<strong>${selectedResident.name}</strong>`)
-      .replace(/{{age}}/g, selectedResident.age?.toString() || "N/A")
-      .replace(/{{gender}}/g, selectedResident.gender || "resident")
-      .replace(/{{address}}/g, selectedResident.address || "this barangay")
-      .replace(/{{barangay_name}}/g, systemConfig?.barangayName || "Barangay Sample")
-      .replace(/{{municipality}}/g, systemConfig?.address?.split(',')[0] || "City of Sample")
-      .replace(/{{province}}/g, systemConfig?.address?.split(',')[1]?.trim() || "Province of Sample")
-      .replace(/{{date_issued}}/g, dateStr)
-      .replace(/{{date_ordinal_issued}}/g, dateOrdinalStr)
-      .replace(/{{date_day_issued}}/g, dateDayStr)
-      .replace(/{{captain_name}}/g, `<strong>${systemConfig?.barangayCaptainName || "Hon. Juan Dela Cruz"}</strong>`)
-      .replace(/{{purpose}}/g, `<strong>${purpose}</strong>`)
-      .replace(/{{clearance_number}}/g, clearanceNumber)
+    const dateIssued = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    const dateOrdinalIssued = `${ordinalDay} day of ${monthYear}`
+    const dateDayIssued = `${ordinalDay} of ${monthYear}`
+
+    let resolved = template
+      .replace(/{{name}}/g, `<strong>${selectedResident.name.toUpperCase()}</strong>`)
+      .replace(/{{address}}/g, `<strong>${selectedResident.address || "__________________"}</strong>`)
+      .replace(/{{age}}/g, age)
+      .replace(/{{purpose}}/g, `<strong>${purpose.toUpperCase()}</strong>`)
+      .replace(/{{date_issued}}/g, `<strong>${dateIssued}</strong>`)
+      .replace(/{{date_ordinal_issued}}/g, `<strong>${dateOrdinalIssued}</strong>`)
+      .replace(/{{date_day_issued}}/g, `<strong>${dateDayIssued}</strong>`)
+      .replace(/{{barangay_name}}/g, systemConfig?.barangayName || "__________________")
+    
+    return resolved
   }
 
-  // Whenever resident or doc type changes, push resolved content into the editable area
-  useEffect(() => {
-    if (!selectedResident || !selectedDocType || !editorRef.current) return
-    const resolved = getTemplateContent()
-    const paragraphs = resolved.split('\n\n').map(p =>
-      `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
-    ).join('')
-    editorRef.current.innerHTML = paragraphs
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedResident, selectedDocType])
-
- const searchResults = searchQuery.length >= 2
-    ? allResidents.filter(r => (r.name || "").toLowerCase().includes(searchQuery.toLowerCase()))
+  const searchResults = searchQuery.length > 1 
+    ? allResidents.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5)
     : []
 
-  const pendingGeneration = adminDocumentRequests.filter(r => r.status === "On Process" || r.status === "Approved")
-
   const builtInDocTypes = [
-    { id: "funeral", label: "Funeral Certification", icon: "🕊️", desc: "Certification for funeral assistance" },
-    { id: "pwd_adult", label: "PWD Certification (Adult)", icon: "♿", desc: "For PWD application purposes (Adult)" },
-    { id: "pwd_minor", label: "PWD Certification (Minor)", icon: "🚸", desc: "For PWD application purposes (Minor)" },
-    { id: "indigency", label: "Certificate of Indigency", icon: "📋", desc: "For medical or financial assistance" },
-    { id: "residency", label: "Proof of Residency", icon: "🏠", desc: "Proof of residence for various purposes" },
-    { id: "business", label: "Business Clearance", icon: "🏢", desc: "General business clearance or activity" },
-    { id: "business_homeowner", label: "Business Clearance (Homeowner)", icon: "🏡", desc: "Business clearance for homeowners" },
-    { id: "business_contractor", label: "Business Clearance (Contractor)", icon: "👷", desc: "Business clearance for contractors" },
-    { id: "osca", label: "OSCA Certification", icon: "👵", desc: "For Senior Citizen ID application" },
+    { id: "funeral", label: "Funeral Certification", icon: "🕊️", desc: "Certification for funeral assistance", enabled: true },
+    { id: "pwd_adult", label: "PWD Certification (Adult)", icon: "♿", desc: "For PWD application purposes (Adult)", enabled: true },
+    { id: "pwd_minor", label: "PWD Certification (Minor)", icon: "🚸", desc: "For PWD application purposes (Minor)", enabled: true },
+    { id: "indigency", label: "Certificate of Indigency", icon: "📋", desc: "For medical or financial assistance", enabled: true },
+    { id: "residency", label: "Proof of Residency", icon: "🏠", desc: "Proof of residence for various purposes", enabled: true },
+    { id: "business", label: "Business Clearance", icon: "🏢", desc: "General business clearance or activity", enabled: true },
+    { id: "business_homeowner", label: "Business Clearance (Homeowner)", icon: "🏡", desc: "Business clearance for homeowners", enabled: true },
+    { id: "business_contractor", label: "Business Clearance (Contractor)", icon: "👷", desc: "Business clearance for contractors", enabled: true },
+    { id: "osca", label: "OSCA Certification", icon: "👵", desc: "For Senior Citizen ID application", enabled: true },
   ]
 
   const customDocTypes = (systemConfig?.customDocumentTypes || []).map((c: any) => ({
@@ -146,207 +151,149 @@ export default function GenerateDocuments() {
     icon: c.icon || "📄",
     desc: `Custom document type`,
     header: c.header,
+    enabled: true
   }))
 
   const allDocTypes = [
     ...builtInDocTypes, 
-    ...customDocTypes,
-    { id: "custom_blank", label: "Blank Custom Document", icon: "📝", desc: "Write a one-off document from scratch", header: customDocTitle }
+    ...customDocTypes
   ]
 
-  const docTypes = allDocTypes.map(doc => {
-    let enabled = true;
-    if (systemConfig && systemConfig.documentTypes !== undefined) {
-      enabled = systemConfig.documentTypes.includes(doc.label)
-    }
-    if (doc.id === "custom_blank") enabled = true;
-    return { ...doc, enabled }
-  })
-
-  const mostGenerated = [
-    { name: "Clearance", count: adminDocumentRequests.filter(r => r.documentType.includes("Clearance") && (r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Completed")).length },
-    { name: "Residency", count: adminDocumentRequests.filter(r => r.documentType.includes("Residency") && (r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Completed")).length },
-    { name: "Indigency", count: adminDocumentRequests.filter(r => r.documentType.includes("Indigency") && (r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Completed")).length },
+  const enabledDocTypes = systemConfig?.documentTypes || [
+    "Funeral Certification", "PWD Certification (Adult)", "PWD Certification (Minor)", 
+    "Certificate of Indigency", "Proof of Residency", "Business Clearance", 
+    "Business Clearance (Homeowner)", "Business Clearance (Contractor)", "OSCA Certification"
   ]
-
-  const recentGenerations = pendingGeneration.slice(0, 3).map(r => ({
-    name: r.residentName,
-    doc: r.documentType,
-    time: r.dateRequested,
+  const docTypes = allDocTypes.map(doc => ({
+    ...doc,
+    enabled: enabledDocTypes.includes(doc.label)
   }))
+
+  const selectedDocConfig = docTypes.find(d => d.id === selectedDocType)
+
+  useEffect(() => {
+    if (editorRef.current && selectedResident && selectedDocType) {
+      const resolved = getTemplateContent()
+      const paragraphs = resolved.split('\n\n').map(p => 
+        `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
+      ).join('')
+      editorRef.current.innerHTML = paragraphs
+    }
+  }, [selectedResident, selectedDocType, systemConfig])
 
   return (
     <AdminPageShell>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Generate Documents</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Create and print official barangay documents</p>
-      </div>
-
-      {/* Volume KPI Strip */}
-      <div className="grid grid-cols-12 gap-6 mb-6">
-        <div className="col-span-8 grid grid-cols-4 gap-4">
-          {[
-            { label: "Generated Today", value: "0", icon: Printer, color: "text-[#0C2340] dark:text-blue-50", bg: "bg-[#0C2340] dark:bg-slate-800/[0.06]" },
-            { label: "This Week", value: "0", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-            { label: "Most Requested", value: "-", icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
-            { label: "Avg Per Day", value: "0", icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-          ].map((kpi, i) => (
-            <Card key={i} className="p-4 shadow-sm">
-              <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center mb-2`}>
-                <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
-              </div>
-              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.label}</p>
-              <p className={`text-xl font-bold ${kpi.color} mt-0.5`}>{kpi.value}</p>
-            </Card>
-          ))}
+      <div className="mb-6 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Generate Documents</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Create and print official barangay documents</p>
         </div>
-        <Card className="col-span-4 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Most Generated</h3>
-          <ResponsiveContainer width="100%" height={90}>
-            <BarChart data={mostGenerated} layout="vertical" barSize={10}>
-              <XAxis type="number" tick={{ fontSize: 9 }} stroke="#94a3b8" />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} stroke="#94a3b8" width={60} />
-              <Tooltip contentStyle={{ fontSize: 10, borderRadius: 8 }} />
-              <Bar dataKey="count" fill="#0C2340" radius={[0, 3, 3, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
+        {processingRequestId && (
+          <Button variant="outline" onClick={() => router.push("/admin/requests")} className="h-9 px-4 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">
+            ← Back to Queue
+          </Button>
+        )}
       </div>
 
-      {/* Recent Generations Strip */}
-      <Card className="p-4 shadow-sm mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Printer className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
-            <h3 className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50">Generation History</h3>
-          </div>
-          <div className="flex items-center gap-4">
-            {recentGenerations.map((g, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] font-medium text-[#0C2340] dark:text-blue-50">{g.name}</span>
-                <span className="text-[10px] text-slate-400">• {g.doc} • {g.time}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      <div className="flex gap-2 mb-6">
-        <button onClick={() => setActiveTab("manual")} className={`px-4 py-2 rounded-lg text-xs transition-colors ${activeTab === "manual" ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}>
-          Manual Generation
-        </button>
-        <button onClick={() => setActiveTab("processing")} className={`px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 ${activeTab === "processing" ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"}`}>
-          Processing Queue
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === "processing" ? "bg-white/20" : "bg-amber-100 text-amber-700"}`}>{pendingGeneration.length}</span>
-        </button>
-      </div>
-
-      {activeTab === "manual" ? (
-        <div className="grid grid-cols-12 gap-6">
-          {/* Search + Doc Type Selection */}
-          <div className="col-span-5 space-y-4">
-            <Card className="p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">1. Search Resident</h3>
-              <input
-                type="text"
-                placeholder="Type resident name..."
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setSelectedResident(null) }}
-                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
-              />
-              {searchResults.length > 0 && (
-                <div className="mt-2 max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100">
-                  {searchResults.map((r) => (
-                    <button key={r.id} onClick={() => { setSelectedResident(r); setSearchQuery(r.name) }} className={`w-full px-4 py-2.5 text-left hover:bg-slate-50 dark:bg-slate-950 ${selectedResident?.id === r.id ? "bg-[#0C2340] dark:bg-slate-800/[0.04]" : ""}`}>
-                      <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{r.name}</p>
-                      <p className="text-[10px] text-slate-400">{r.categories.join(", ")} • {r.status}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            <Card className="p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">2. Select Document Type</h3>
-              <div className="space-y-2">
-                {docTypes.map((doc) => (
-                  <button key={doc.id} onClick={() => doc.enabled && setSelectedDocType(doc.id)} className={`w-full p-3 rounded-lg text-left transition-colors border ${doc.enabled ? 'hover:bg-slate-50 dark:bg-slate-950' : 'opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-950'} ${selectedDocType === doc.id ? "border-[#0C2340] bg-[#0C2340] dark:bg-slate-800/[0.04]" : "border-slate-200 dark:border-slate-700"}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</span>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center">
-                            <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{doc.label}</p>
-                            {!doc.enabled && <span className="text-[9px] font-semibold bg-slate-200 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">Disabled</span>}
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{doc.desc}</p>
-                      </div>
-                    </div>
+      <div className="grid grid-cols-12 gap-6">
+        {/* Search + Doc Type Selection */}
+        <div className="col-span-5 space-y-4">
+          <Card className="p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">1. Search Resident</h3>
+            <input
+              type="text"
+              placeholder="Type resident name..."
+              value={searchQuery}
+              disabled={!!processingRequestId}
+              onChange={(e) => { setSearchQuery(e.target.value); setSelectedResident(null) }}
+              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340] disabled:bg-slate-100 disabled:dark:bg-slate-800 disabled:opacity-70 disabled:cursor-not-allowed"
+            />
+            {searchResults.length > 0 && !processingRequestId && (
+              <div className="mt-2 max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100">
+                {searchResults.map((r) => (
+                  <button key={r.id} onClick={() => { setSelectedResident(r); setSearchQuery(r.name) }} className={`w-full px-4 py-2.5 text-left hover:bg-slate-50 dark:bg-slate-950 ${selectedResident?.id === r.id ? "bg-[#0C2340]/[0.04] dark:bg-slate-800/[0.04]" : ""}`}>
+                    <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{r.name}</p>
+                    <p className="text-[10px] text-slate-400">{r.categories.join(", ")} • {r.status}</p>
                   </button>
                 ))}
               </div>
-            </Card>
-          </div>
+            )}
+          </Card>
 
-          {/* PDF Preview */}
-          <Card className="col-span-7 shadow-sm">
-            <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
-              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Document Preview</h3>
-            </div>
-            <div className="p-6">
-              {selectedResident && selectedDocType ? (
-                <div className="space-y-2">
-                  {/* Simple WYSIWYG toolbar */}
-                  <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mr-2 uppercase tracking-wider">Edit Document:</span>
-                    <button
-                      onMouseDown={e => { e.preventDefault(); document.execCommand('bold') }}
-                      className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 shadow-sm"
-                      title="Bold selected text"
-                    >B</button>
-                    <button
-                      onMouseDown={e => { e.preventDefault(); document.execCommand('italic') }}
-                      className="px-2.5 py-1 text-xs italic bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 shadow-sm"
-                      title="Italic selected text"
-                    >I</button>
-                    <button
-                      onMouseDown={e => {
-                        e.preventDefault()
-                        if (!editorRef.current) return
-                        const resolved = getTemplateContent()
-                        const paragraphs = resolved.split('\n\n').map(p =>
-                          `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
-                        ).join('')
-                        editorRef.current.innerHTML = paragraphs
-                      }}
-                      className="px-2.5 py-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 shadow-sm ml-1"
-                      title="Reset to original template"
-                    >↺ Reset</button>
-                    {selectedDocType === "custom_blank" && (
-                      <div className="ml-2 flex items-center gap-2">
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">Title:</span>
-                        <input
-                          type="text"
-                          value={customDocTitle}
-                          onChange={e => setCustomDocTitle(e.target.value)}
-                          className="px-2 py-0.5 text-xs border border-slate-200 dark:border-slate-700 rounded max-w-[150px]"
-                        />
+          <Card className="p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">2. Select Document Type</h3>
+            <div className="space-y-2">
+              {docTypes.map((doc) => (
+                <button 
+                  key={doc.id} 
+                  disabled={!!processingRequestId}
+                  onClick={() => doc.enabled && setSelectedDocType(doc.id)} 
+                  className={`w-full p-3 rounded-lg text-left transition-colors border 
+                  ${doc.enabled && !processingRequestId ? 'hover:bg-slate-50 dark:bg-slate-950' : ''} 
+                  ${!doc.enabled || processingRequestId ? 'opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-950' : ''} 
+                  ${selectedDocType === doc.id ? "border-[#0C2340] bg-[#0C2340]/[0.04] dark:bg-slate-800/[0.04]" : "border-slate-200 dark:border-slate-700"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</span>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center">
+                          <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{doc.label}</p>
+                          {!doc.enabled && <span className="text-[9px] font-semibold bg-slate-200 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">Disabled</span>}
                       </div>
-                    )}
-                    <span className="ml-auto text-[10px] text-slate-400">Click anywhere in the document to edit</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{doc.desc}</p>
+                    </div>
                   </div>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
 
-                  {/* Editable Paper Preview */}
+        {/* PDF Preview */}
+        <Card className="col-span-7 shadow-sm p-0 gap-0 overflow-hidden">
+          <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Document Preview</h3>
+          </div>
+          <div className="p-6">
+            {selectedResident && selectedDocType ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mr-2 uppercase tracking-wider">Edit Document:</span>
+                  <button
+                    onMouseDown={e => { e.preventDefault(); document.execCommand('bold') }}
+                    className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 shadow-sm"
+                  >B</button>
+                  <button
+                    onMouseDown={e => { e.preventDefault(); document.execCommand('italic') }}
+                    className="px-2.5 py-1 text-xs italic bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 shadow-sm"
+                  >I</button>
+                  <button
+                    onMouseDown={e => {
+                      e.preventDefault()
+                      if (!editorRef.current) return
+                      const resolved = getTemplateContent()
+                      const paragraphs = resolved.split('\n\n').map(p =>
+                        `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
+                      ).join('')
+                      editorRef.current.innerHTML = paragraphs
+                    }}
+                    className="px-2.5 py-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 shadow-sm ml-1"
+                  >↺ Reset</button>
+                  
+                </div>
+
+                <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-8 shadow-sm flex flex-col min-h-[600px] overflow-hidden">
                   <div
                     id="pdf-preview-container"
-                    className={`bg-white dark:bg-slate-900 relative w-full overflow-hidden ${selectedDocType === "residency" ? "font-sans" : "font-serif"}`}
+                    className={`bg-white relative w-full overflow-hidden ${selectedDocType === "residency" ? "font-sans" : "font-serif"}`}
                     style={{ aspectRatio: "8.5 / 11", padding: "0" }}
                   >
-                    {/* Static header — not editable */}
+                    {/* Official Document Header removed because user prints on pre-printed letterhead */}
+                    {/* Static body wrapper */}
                     <div style={{ position: "absolute", top: "28%", left: "12%", right: "12%", bottom: "8%" }}>
                       <div className="text-center mb-10">
                         <p className={`font-extrabold text-black uppercase whitespace-nowrap ${selectedDocType === "residency" ? "tracking-widest text-base" : "tracking-[0.25em] text-base"}`}>
                           {(() => {
-                             if (selectedDocType === "custom_blank") return customDocTitle.toUpperCase()
                              const customDoc = (systemConfig?.customDocumentTypes || []).find((c: any) => c.id === selectedDocType)
                              if (customDoc?.header) return customDoc.header.toUpperCase()
                              if (selectedDocType === "indigency") return "CERTIFICATE OF INDIGENCY"
@@ -367,42 +314,61 @@ export default function GenerateDocuments() {
                           className="outline-none focus:ring-1 focus:ring-blue-300 focus:ring-inset rounded min-h-[80px]"
                           style={{ cursor: "text" }}
                         />
-                        <div className="mt-16 flex justify-end">
-                          <div className="text-center w-48">
-                            <div className="border-b border-black mb-1 px-4 py-0.5">
-                              <p className="font-bold text-black uppercase text-xs">{systemConfig?.barangayCaptainName || "Hon. Juan Dela Cruz"}</p>
+                        {(systemConfig?.secretaryName?.trim() || systemConfig?.barangayCaptainName?.trim()) && (
+                          <div className="mt-16 flex justify-between">
+                            <div className="text-center w-48">
+                              {systemConfig?.secretaryName?.trim() && (
+                                <>
+                                  <div className="h-16 flex items-end justify-center mb-1 relative">
+                                    {systemConfig?.secretarySignatureUrl && (
+                                      <img src={systemConfig.secretarySignatureUrl} alt="Secretary Signature" className="absolute bottom-0 max-h-20 max-w-full mix-blend-multiply" />
+                                    )}
+                                  </div>
+                                  <div className="border-b border-black mb-1 px-4 py-0.5">
+                                    <p className="font-bold text-black uppercase text-xs">{systemConfig.secretaryName}</p>
+                                  </div>
+                                  <p className="text-xs text-black">Barangay Secretary</p>
+                                </>
+                              )}
                             </div>
-                            <p className="text-xs text-black">Punong Barangay</p>
+                            <div className="text-center w-48">
+                              {systemConfig?.barangayCaptainName?.trim() && (
+                                <>
+                                  <div className="h-16 flex items-end justify-center mb-1 relative">
+                                    {systemConfig?.captainSignatureUrl && (
+                                      <img src={systemConfig.captainSignatureUrl} alt="Captain Signature" className="absolute bottom-0 max-h-20 max-w-full mix-blend-multiply" />
+                                    )}
+                                  </div>
+                                  <div className="border-b border-black mb-1 px-4 py-0.5">
+                                    <p className="font-bold text-black uppercase text-xs">{systemConfig.barangayCaptainName}</p>
+                                  </div>
+                                  <p className="text-xs text-black">Punong Barangay</p>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center min-h-[400px]">
-                  <div className="text-center">
-                    <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                    <p className="text-sm text-slate-400">Select a resident and document type</p>
-                  </div>
-                </div>
-              )}
-              {selectedResident && selectedDocType && (
-                <div className="flex gap-3 mt-4">
+                
+                <div className="flex gap-2 pt-2">
                   <Button
                     onClick={async () => {
-                      setIsGenerating(true)
                       try {
+                        setIsGenerating(true)
                         const element = document.getElementById("pdf-preview-container")
                         if (!element) return
 
-                        // Render element to image using html-to-image
+                        const scale = 2
                         const imgData = await toPng(element, {
-                          pixelRatio: 2,
-                          backgroundColor: '#ffffff'
+                          quality: 1,
+                          pixelRatio: scale,
+                          backgroundColor: 'white',
+                          style: { transform: 'scale(1)', transformOrigin: 'top left' }
                         })
 
-                        // A4 is 210x297mm
                         const pdf = new jsPDF("p", "mm", "a4")
 
                         const rect = element.getBoundingClientRect()
@@ -427,7 +393,7 @@ export default function GenerateDocuments() {
                         }
                         const docTitle = docTitleMap[selectedDocType] || selectedDocType
                         pdf.save(`${docTitle}_${selectedResident.name.replace(/\s+/g, "_")}.pdf`)
-                        // Mark requests for this doc type as Completed
+                        
                         const docLabelMap: Record<string, string> = {
                           funeral: "Funeral Certification",
                           pwd_adult: "PWD Certification (Adult)",
@@ -440,12 +406,20 @@ export default function GenerateDocuments() {
                           osca: "OSCA Certification"
                         }
                         const docLabel = docLabelMap[selectedDocType] || selectedDocType
-                        const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+                        const pendingReq = processingRequestId 
+                          ? adminDocumentRequests.find(r => r.id === processingRequestId)
+                          : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+                        
                         if (pendingReq) {
-                           await updateRequestStatus(pendingReq.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com")
+                           await updateRequestGenerated(pendingReq.id)
+                           toast.success("Document downloaded successfully.")
+                           if (processingRequestId) router.push("/admin/requests")
+                        } else {
+                           toast.success("Document generated successfully.")
                         }
                       } catch (error) {
                         console.error("PDF Generation failed:", error)
+                        toast.error("Failed to generate PDF")
                       } finally {
                         setIsGenerating(false)
                       }
@@ -454,7 +428,7 @@ export default function GenerateDocuments() {
                     className="flex-1 h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Generate PDF
+                    Download PDF
                   </Button>
                   <Button
                     variant="outline"
@@ -476,63 +450,64 @@ export default function GenerateDocuments() {
                       `)
                       printWindow?.document.close()
                       
-                      const docLabel = selectedDocType === "clearance" ? "Barangay Clearance" : selectedDocType === "residency" ? "Certificate of Residency" : selectedDocType === "indigency" ? "Certificate of Indigency" : "Business Permit Clearance"
-                      const pendingReq = adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+                      const docLabelMap: Record<string, string> = {
+                        funeral: "Funeral Certification",
+                        pwd_adult: "PWD Certification (Adult)",
+                        pwd_minor: "PWD Certification (Minor)",
+                        indigency: "Certificate of Indigency",
+                        residency: "Proof of Residency",
+                        business: "Business Clearance",
+                        business_homeowner: "Business Clearance (Homeowner)",
+                        business_contractor: "Business Clearance (Contractor)",
+                        osca: "OSCA Certification"
+                      }
+                      const docLabel = docLabelMap[selectedDocType] || selectedDocType
+                      
+                      const pendingReq = processingRequestId 
+                        ? adminDocumentRequests.find(r => r.id === processingRequestId)
+                        : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+                      
                       if (pendingReq) {
-                         updateRequestStatus(pendingReq.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com").catch(console.error)
+                         updateRequestGenerated(pendingReq.id)
+                          .then(() => {
+                             toast.success("Document printed successfully.")
+                             if (processingRequestId) router.push("/admin/requests")
+                          })
+                          .catch(console.error)
+                      } else {
+                         toast.success("Document printed successfully.")
                       }
                     }}
-                    className="flex-1 h-10 bg-transparent"
+                    className={`flex-1 h-10 ${processingRequestId ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-0' : 'bg-transparent'}`}
                   >
                     Print Document
                   </Button>
                 </div>
-              )}
-            </div>
-          </Card>
-        </div>
-      ) : (
-        /* Processing Queue Tab */
-        <Card className="shadow-sm">
-          <div className="px-5 py-3.5 bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700 rounded-t-lg flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Processing Queue — Ready for Generation</h3>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {pendingGeneration.map((req) => (
-              <div key={req.id} className="px-5 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">{req.residentInitials}</div>
-                  <div>
-                    <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{req.residentName}</p>
-                    <p className="text-[10px] text-slate-400">{req.documentType} • {req.purpose}</p>
-                  </div>
-                </div>
-                <Button 
-                  size="sm" 
-                  onClick={() => {
-                    const r = allResidents.find(r => r.id === req.residentId)
-                    if (r) {
-                      setSelectedResident(r)
-                      setSearchQuery(r.name)
-                      const dt = req.documentType.includes("Clearance") ? "clearance" : req.documentType.includes("Residency") ? "residency" : req.documentType.includes("Indigency") ? "indigency" : "business"
-                      setSelectedDocType(dt)
-                      setActiveTab("manual")
-                    }
-                  }}
-                  className="h-7 px-4 text-[10px] bg-emerald-600 hover:bg-emerald-700"
-                >
-                  Generate
-                </Button>
               </div>
-            ))}
-            {pendingGeneration.length === 0 && (
-              <div className="p-8 text-center">
-                <p className="text-sm text-slate-400">No requests in the processing queue</p>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[600px] text-slate-400 bg-slate-50/50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
+                <FileText className="w-12 h-12 mb-4 opacity-30" />
+                <p className="text-sm font-medium">Select a resident and document type</p>
+                <p className="text-xs mt-1">The preview will appear here</p>
               </div>
             )}
           </div>
         </Card>
-      )}
+      </div>
     </AdminPageShell>
+  )
+}
+
+export default function GenerateDocuments() {
+  return (
+    <Suspense fallback={
+      <AdminPageShell>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-8 h-8 animate-spin text-slate-300" />
+        </div>
+      </AdminPageShell>
+    }>
+      <GenerateDocumentsContent />
+    </Suspense>
   )
 }

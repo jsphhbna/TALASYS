@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useAdminData } from "@/hooks/use-admin-data"
+import { useAdminData } from "@/hooks/admin"
 import { Bell, UserPlus, Clock, FileText, Mail } from "lucide-react"
 
 function formatRelativeTime(createdAt: number): string {
@@ -74,7 +75,7 @@ export default function Notifications() {
     if (!broadcastMessage.trim()) return;
     setIsSending(true);
     try {
-      const activeResidents = residents.filter(r => r.status === "Active");
+      const activeResidents = residents.filter(r => r.status === "Verified" || r.status === "Expiring");
       const promises = activeResidents.map(r => 
         addNotification({
           targetId: r.id,
@@ -116,29 +117,7 @@ export default function Notifications() {
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">System alerts and resident notifications</p>
       </div>
 
-      {/* Summary KPI Strip */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <Card className="p-4 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center mb-2">
-            <Bell className="w-4 h-4 text-red-600" />
-          </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Unread</p>
-          <p className="text-2xl font-bold text-red-600">{unreadCount}</p>
-        </Card>
-        {[
-          { type: "Registrations", count: adminNotifications.filter(n => n.type === "registration").length, color: "#2563eb" },
-          { type: "Expiring", count: adminNotifications.filter(n => n.type === "expiring").length, color: "#d97706" },
-          { type: "Requests", count: adminNotifications.filter(n => n.type === "success" || n.type === "reactivation").length, color: "#16a34a" }
-        ].map((ns, i) => (
-          <Card key={i} className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-2" style={{ backgroundColor: `${ns.color}15` }}>
-              {i === 0 ? <UserPlus className="w-4 h-4" style={{ color: ns.color }} /> : i === 1 ? <Clock className="w-4 h-4" style={{ color: ns.color }} /> : <FileText className="w-4 h-4" style={{ color: ns.color }} />}
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{ns.type}</p>
-            <p className="text-2xl font-bold" style={{ color: ns.color }}>{ns.count}</p>
-          </Card>
-        ))}
-      </div>
+
 
       {/* Filter Tabs */}
       <div className="flex items-center justify-between mb-6">
@@ -161,6 +140,27 @@ export default function Notifications() {
 
       {/* Notifications List */}
       <Card className="shadow-sm">
+        {/* Send Notification */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-4 rounded-t-xl">
+          <input
+            type="text"
+            value={broadcastMessage}
+            onChange={(e) => setBroadcastMessage(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleBroadcast()}
+            disabled={isSending}
+            placeholder="Send notification to everyone..."
+            className="flex-1 px-4 py-2 text-sm border-none bg-transparent focus:outline-none"
+          />
+          <Button 
+            size="sm" 
+            onClick={handleBroadcast} 
+            disabled={isSending || !broadcastMessage.trim()} 
+            className="h-9 px-6 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
+          >
+            {isSending ? "Sending..." : "Send"}
+          </Button>
+        </div>
+
         <div className="divide-y divide-slate-100">
           {filteredNotifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
@@ -217,32 +217,11 @@ export default function Notifications() {
             </div>
           ))}
         </div>
-
-        {/* Send Notification */}
-        <div className="p-4 bg-[#0C2340] dark:bg-slate-800/[0.03] border-t border-slate-200 dark:border-slate-700 flex items-center gap-4">
-          <input
-            type="text"
-            value={broadcastMessage}
-            onChange={(e) => setBroadcastMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleBroadcast()}
-            disabled={isSending}
-            placeholder="Send notification to everyone..."
-            className="flex-1 px-4 py-2 text-sm border-none bg-transparent focus:outline-none"
-          />
-          <Button 
-            size="sm" 
-            onClick={handleBroadcast} 
-            disabled={isSending || !broadcastMessage.trim()} 
-            className="h-9 px-6 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
-          >
-            {isSending ? "Sending..." : "Send"}
-          </Button>
-        </div>
       </Card>
 
       {/* Detail Dialog */}
       {showPreviewDialog && selectedNotification && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <ModalOverlay isOpen={true} onClose={() => setShowPreviewDialog(false)}>
           <Card className="w-full max-w-lg p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Notification Details</h3>
@@ -275,7 +254,7 @@ export default function Notifications() {
               )}
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
     </AdminPageShell>
   )

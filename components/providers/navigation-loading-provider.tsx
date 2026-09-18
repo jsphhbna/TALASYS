@@ -17,20 +17,29 @@ export function NavigationLoadingProvider({ children }: { children: React.ReactN
   const [pendingPath, setPendingPath] = useState<string | null>(null)
 
   const beginNavigation = (href: string) => {
-    if (!href || href === pathname) {
+    if (!href) return
+
+    // Extract base path (without query string) for comparison
+    const hrefBase = href.split('?')[0]
+
+    // Do not show loading skeleton if navigating to the same base page (just different tabs)
+    if (hrefBase === pathname) {
       return
     }
 
+    // Different page — show the skeleton
     setPendingPath(href)
     setIsNavigating(true)
   }
 
   useEffect(() => {
-    if (!pendingPath) {
-      return
-    }
+    if (!pendingPath) return
 
-    if (pathname === pendingPath) {
+    // Extract base path from pendingPath for comparison
+    const pendingBase = pendingPath.split('?')[0]
+
+    // When the current pathname matches the pending destination, clear loading
+    if (pathname === pendingBase) {
       setIsNavigating(false)
       setPendingPath(null)
     }

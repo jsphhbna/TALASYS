@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
+import { useAuth } from "@/lib/auth"
 import { BrandMark } from "@/components/layout/brand-mark"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -64,7 +64,7 @@ export function Header() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/profile")} className="cursor-pointer">
+              <DropdownMenuItem onClick={() => router.push("/resident/profile")} className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
                 My Profile
               </DropdownMenuItem>

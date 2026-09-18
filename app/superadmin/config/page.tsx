@@ -4,15 +4,17 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 const systemHealthMetrics: any = { uptime: 100, storageUsed: 12, storageTotal: 100, responseTime: 45, activeModules: 4, totalModules: 4, activeDocTypes: 5, totalDocTypes: 6 };
-import { useSuperAdminData } from "@/hooks/use-superadmin-data"
-import { useAdminData } from "@/hooks/use-admin-data"
+import { useSuperAdminData } from "@/hooks/superadmin"
+import { useAdminData } from "@/hooks/admin"
 import {
   Server, HardDrive, Clock, Activity, Shield, FileText,
-  Palette, LayoutTemplate, Files, Settings, CheckCircle, Pencil, Trash2, Plus, X,
+  Palette, LayoutTemplate, Files, Settings, CheckCircle, Pencil, Trash2, Plus, X, UploadCloud, Loader2
 } from "lucide-react"
+import { uploadFileToCloudinary } from "@/lib/resident/cloudinary"
 
 const changeTypeIcons: Record<string, typeof Palette> = {
   branding: Palette,
@@ -58,6 +60,9 @@ export default function SystemConfig() {
     contactNumber: systemConfig.contactNumber || "",
     emailAddress: systemConfig.emailAddress || "",
     barangayCaptainName: systemConfig.barangayCaptainName || "",
+    secretaryName: systemConfig.secretaryName || "",
+    captainSignatureUrl: systemConfig.captainSignatureUrl || "",
+    secretarySignatureUrl: systemConfig.secretarySignatureUrl || "",
     templates: systemConfig.templates || {
       funeral: `This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.
 
@@ -120,6 +125,9 @@ City of Manila, {{date_issued}}.`
         contactNumber: systemConfig.contactNumber || "",
         emailAddress: systemConfig.emailAddress || "",
         barangayCaptainName: systemConfig.barangayCaptainName || "",
+        secretaryName: systemConfig.secretaryName || "",
+        captainSignatureUrl: systemConfig.captainSignatureUrl || "",
+        secretarySignatureUrl: systemConfig.secretarySignatureUrl || "",
         templates: {
           funeral: `This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.
 
@@ -281,28 +289,7 @@ City of Manila, {{date_issued}}.`,
         <Button onClick={() => setShowSaveDialog(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Save All Changes</Button>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* Recent Changes */}
-        <Card className="col-span-12 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Recent Config Changes</h2>
-          <div className="space-y-3">
-            {configChangeLog.slice(0, 4).map((change, i) => {
-              const Icon = changeTypeIcons[change.type] || Settings
-              return (
-                <div key={i} className="flex items-start gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Icon className="w-3 h-3 text-[#0C2340] dark:text-blue-50" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-slate-800 dark:text-slate-200">{change.action}</p>
-                    <p className="text-[10px] text-slate-400">{change.timestamp}</p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </Card>
-      </div>
+
 
       {/* Tabs */}
       <div className="border-b border-slate-200 dark:border-slate-700">
@@ -325,62 +312,114 @@ City of Manila, {{date_issued}}.`,
 
       {/* Branding Tab */}
       {activeTab === "branding" && (
-        <div className="grid grid-cols-12 gap-6">
-          <Card className="col-span-7 p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Barangay Information</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Name</label>
-                <Input value={formData.barangayName} onChange={e => setFormData({ ...formData, barangayName: e.target.value })} placeholder="Barangay Sample" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Municipality / City</label>
-                <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="City of Sample" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+        <Card className="p-6 shadow-sm">
+          <div className="grid md:grid-cols-2 gap-10">
+            <div>
+              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">Barangay Information</h3>
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Contact Number</label>
-                  <Input value={formData.contactNumber} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} placeholder="(02) 8123-4567" />
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Name</label>
+                  <Input value={formData.barangayName} onChange={e => setFormData({ ...formData, barangayName: e.target.value })} placeholder="Barangay Sample" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
-                  <Input value={formData.emailAddress} onChange={e => setFormData({ ...formData, emailAddress: e.target.value })} placeholder="barangay@sample.gov.ph" />
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Municipality / City</label>
+                  <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="City of Sample" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Contact Number</label>
+                    <Input value={formData.contactNumber} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} placeholder="(02) 8123-4567" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
+                    <Input value={formData.emailAddress} onChange={e => setFormData({ ...formData, emailAddress: e.target.value })} placeholder="barangay@sample.gov.ph" />
+                  </div>
                 </div>
               </div>
             </div>
-          </Card>
-          <div className="col-span-5 space-y-6">
-            <Card className="p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Logo</h3>
-              <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-6 text-center">
-                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full mx-auto mb-3 flex items-center justify-center">
-                  <Palette className="w-7 h-7 text-slate-400" />
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">Drop your logo here or click to upload</p>
-                <Button variant="outline" className="text-xs bg-transparent">Browse Files</Button>
-              </div>
-            </Card>
-            <Card className="p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">E-Signatures</h3>
-              <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">E-Signatures</h3>
+              <div className="space-y-4">
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Captain</label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mb-2">
                     <Input value={formData.barangayCaptainName} onChange={e => setFormData({ ...formData, barangayCaptainName: e.target.value })} placeholder="Hon. Juan Dela Cruz" className="flex-1" />
-                    <Button variant="outline" className="text-xs bg-transparent">Upload Sig</Button>
+                    <Button variant="outline" className="text-xs bg-transparent relative overflow-hidden" onClick={() => document.getElementById("captain-sig-upload")?.click()}>
+                      <UploadCloud className="w-4 h-4 mr-1.5" />
+                      Upload Sig
+                      <input 
+                        id="captain-sig-upload" 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          toast.loading("Uploading captain's signature...");
+                          try {
+                            const url = await uploadFileToCloudinary(file);
+                            setFormData(prev => ({ ...prev, captainSignatureUrl: url }));
+                            toast.dismiss();
+                            toast.success("Captain's signature uploaded successfully");
+                          } catch (err) {
+                            toast.dismiss();
+                            toast.error("Failed to upload signature");
+                          }
+                        }} 
+                      />
+                    </Button>
                   </div>
+                  {formData.captainSignatureUrl && (
+                    <div className="w-full h-20 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded flex items-center justify-center p-2 relative group">
+                      <img src={formData.captainSignatureUrl} alt="Captain Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                      <button onClick={() => setFormData(prev => ({ ...prev, captainSignatureUrl: "" }))} className="absolute top-1 right-1 p-1 bg-red-100 text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Secretary</label>
-                  <div className="flex gap-2">
-                    <Input defaultValue="Maria Santos" className="flex-1" />
-                    <Button variant="outline" className="text-xs bg-transparent">Upload Sig</Button>
+                  <div className="flex gap-2 mb-2">
+                    <Input value={formData.secretaryName} onChange={e => setFormData({ ...formData, secretaryName: e.target.value })} placeholder="Maria Santos" className="flex-1" />
+                    <Button variant="outline" className="text-xs bg-transparent relative overflow-hidden" onClick={() => document.getElementById("secretary-sig-upload")?.click()}>
+                      <UploadCloud className="w-4 h-4 mr-1.5" />
+                      Upload Sig
+                      <input 
+                        id="secretary-sig-upload" 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          toast.loading("Uploading secretary's signature...");
+                          try {
+                            const url = await uploadFileToCloudinary(file);
+                            setFormData(prev => ({ ...prev, secretarySignatureUrl: url }));
+                            toast.dismiss();
+                            toast.success("Secretary's signature uploaded successfully");
+                          } catch (err) {
+                            toast.dismiss();
+                            toast.error("Failed to upload signature");
+                          }
+                        }} 
+                      />
+                    </Button>
                   </div>
+                  {formData.secretarySignatureUrl && (
+                    <div className="w-full h-20 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded flex items-center justify-center p-2 relative group">
+                      <img src={formData.secretarySignatureUrl} alt="Secretary Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                      <button onClick={() => setFormData(prev => ({ ...prev, secretarySignatureUrl: "" }))} className="absolute top-1 right-1 p-1 bg-red-100 text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Templates Tab */}
@@ -398,10 +437,10 @@ City of Manila, {{date_issued}}.`,
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{t.name}</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Edited {t.lastEdited}</p>
+                    <p className={`text-[12px] font-semibold ${selectedTemplate === t.id ? "text-white dark:text-blue-50" : "text-[#0C2340] dark:text-blue-50"}`}>{t.name}</p>
+                    <p className={`text-[10px] ${selectedTemplate === t.id ? "text-blue-100 dark:text-slate-400" : "text-slate-500 dark:text-slate-400"}`}>Edited {t.lastEdited}</p>
                   </div>
-                  {selectedTemplate === t.id && <CheckCircle className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />}
+                  {selectedTemplate === t.id && <CheckCircle className={`w-4 h-4 ${selectedTemplate === t.id ? "text-white dark:text-blue-50" : "text-[#0C2340] dark:text-blue-50"}`} />}
                 </div>
               </button>
             ))}
@@ -459,7 +498,7 @@ City of Manila, {{date_issued}}.`,
               <div key={doc.name} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
                   <div className="col-span-4 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
                       <span className="text-sm">{customEntry?.icon || "📄"}</span>
                     </div>
                     <div>
@@ -539,86 +578,82 @@ City of Manila, {{date_issued}}.`,
       )}
 
       {/* Add Document Type Modal */}
-      {showAddDocModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Add New Document Type</h3>
-              <button onClick={() => setShowAddDocModal(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <ModalOverlay isOpen={showAddDocModal} onClose={() => setShowAddDocModal(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Add New Document Type</h3>
+            <button onClick={() => setShowAddDocModal(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Document Name *</label>
-                <Input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="e.g. Good Moral Certificate" />
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Document Name *</label>
+              <Input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="e.g. Good Moral Certificate" />
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0">
+                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Icon</label>
+                <Input value={newDocIcon} onChange={e => setNewDocIcon(e.target.value)} placeholder="📄" className="w-16 text-center text-lg" />
               </div>
-              <div className="flex gap-3">
-                <div className="flex-shrink-0">
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Icon</label>
-                  <Input value={newDocIcon} onChange={e => setNewDocIcon(e.target.value)} placeholder="📄" className="w-16 text-center text-lg" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Fee (₱)</label>
-                  <Input type="number" min="0" value={newDocFee} onChange={e => setNewDocFee(e.target.value)} placeholder="0" />
-                </div>
+              <div className="flex-1">
+                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Fee (₱)</label>
+                <Input type="number" min="0" value={newDocFee} onChange={e => setNewDocFee(e.target.value)} placeholder="0" />
               </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">PDF Header Title</label>
-              <Input value={newDocHeader} onChange={e => setNewDocHeader(e.target.value)} placeholder="C E R T I F I C A T I O N" />
-              <p className="text-[10px] text-slate-400 mt-1">This is the bold heading that appears at the top of the PDF. E.g. "C E R T I F I C A T I O N" or "BARANGAY CLEARANCE"</p>
-            </div>
-
-            <div className="mb-2">
-              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Template Body</label>
-              <textarea
-                className="w-full h-48 p-4 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
-                value={newDocTemplate}
-                onChange={e => setNewDocTemplate(e.target.value)}
-                placeholder="Write the certificate body text here..."
-              />
-            </div>
-            <div className="mb-5 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <p className="text-[11px] font-semibold text-amber-700 mb-1">Available Placeholders</p>
-              <div className="flex flex-wrap gap-1.5">
-                {["{{name}}","{{age}}","{{address}}","{{barangay_name}}","{{purpose}}","{{date_issued}}","{{date_ordinal_issued}}","{{captain_name}}"].map(ph => (
-                  <button key={ph} onClick={() => setNewDocTemplate(prev => prev + ph)}
-                    className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono hover:bg-amber-200 transition-colors">
-                    {ph}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-amber-600 mt-2">Use <code className="bg-amber-100 px-1 rounded">&lt;strong&gt;text&lt;/strong&gt;</code> to bold specific words in the output.</p>
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowAddDocModal(false)} disabled={isAddingDoc}>Cancel</Button>
-              <Button onClick={handleAddDocType} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isAddingDoc || !newDocName.trim()}>
-                {isAddingDoc ? "Adding..." : "Add Document Type"}
-              </Button>
             </div>
           </div>
+
+          <div className="mb-4">
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">PDF Header Title</label>
+            <Input value={newDocHeader} onChange={e => setNewDocHeader(e.target.value)} placeholder="C E R T I F I C A T I O N" />
+            <p className="text-[10px] text-slate-400 mt-1">This is the bold heading that appears at the top of the PDF. E.g. "C E R T I F I C A T I O N" or "BARANGAY CLEARANCE"</p>
+          </div>
+
+          <div className="mb-2">
+            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Template Body</label>
+            <textarea
+              className="w-full h-48 p-4 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
+              value={newDocTemplate}
+              onChange={e => setNewDocTemplate(e.target.value)}
+              placeholder="Write the certificate body text here..."
+            />
+          </div>
+          <div className="mb-5 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <p className="text-[11px] font-semibold text-amber-700 mb-1">Available Placeholders</p>
+            <div className="flex flex-wrap gap-1.5">
+              {["{{name}}","{{age}}","{{address}}","{{barangay_name}}","{{purpose}}","{{date_issued}}","{{date_ordinal_issued}}","{{captain_name}}"].map(ph => (
+                <button key={ph} onClick={() => setNewDocTemplate(prev => prev + ph)}
+                  className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono hover:bg-amber-200 transition-colors">
+                  {ph}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-amber-600 mt-2">Use <code className="bg-amber-100 px-1 rounded">&lt;strong&gt;text&lt;/strong&gt;</code> to bold specific words in the output.</p>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowAddDocModal(false)} disabled={isAddingDoc}>Cancel</Button>
+            <Button onClick={handleAddDocType} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isAddingDoc || !newDocName.trim()}>
+              {isAddingDoc ? "Adding..." : "Add Document Type"}
+            </Button>
+          </div>
         </div>
-      )}
+      </ModalOverlay>
 
       {/* Save Dialog */}
-      {showSaveDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Save Changes?</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">All pending changes to branding, templates, and document types will be saved. These changes will take effect immediately.</p>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowSaveDialog(false)} disabled={isSavingChanges}>Cancel</Button>
-              <Button onClick={handleSaveAllChanges} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isSavingChanges}>
-                {isSavingChanges ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
+      <ModalOverlay isOpen={showSaveDialog} onClose={() => setShowSaveDialog(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-2xl">
+          <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Save Changes?</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">All pending changes to branding, templates, and document types will be saved. These changes will take effect immediately.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)} disabled={isSavingChanges}>Cancel</Button>
+            <Button onClick={handleSaveAllChanges} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isSavingChanges}>
+              {isSavingChanges ? "Saving..." : "Save Changes"}
+            </Button>
           </div>
         </div>
-      )}
+      </ModalOverlay>
     </div>
   )
 }

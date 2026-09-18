@@ -6,8 +6,8 @@ import {
   PieChart, Pie, Cell, BarChart, Bar,
 } from "recharts"
 import { Card } from "@/components/ui/card"
-import { useSuperAdminData } from "@/hooks/use-superadmin-data"
-import { useAdminData } from "@/hooks/use-admin-data"
+import { useSuperAdminData } from "@/hooks/superadmin"
+import { useAdminData } from "@/hooks/admin"
 import { useMounted } from "@/hooks/use-mounted"
 import {
   TrendingUp, TrendingDown, Users, FileText, ShieldCheck, Clock, CheckCircle,
@@ -37,7 +37,7 @@ function KpiCard({ label, value, unit, change, trend, icon: Icon, sparkData, spa
   return (
     <Card className="p-5 shadow-sm relative overflow-hidden">
       <div className="flex items-start justify-between mb-3">
-        <div className="w-9 h-9 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+        <div className="w-9 h-9 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
           <Icon className="w-[18px] h-[18px] text-[#0C2340] dark:text-blue-50" />
         </div>
         <Sparkline data={sparkData} color={sparkColor} />
@@ -99,7 +99,7 @@ type TimePeriod = "daily" | "weekly" | "monthly"
 
 export default function SuperAdminDashboard() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("weekly")
-  const { systemAlerts, auditLogs } = useSuperAdminData()
+  const { adminAccounts, systemAlerts, auditLogs } = useSuperAdminData()
   const { documentRequests, stats: adminStats } = useAdminData()
   const mounted = useMounted()
 
@@ -490,9 +490,9 @@ export default function SuperAdminDashboard() {
               <p className="text-[10px] text-slate-400">Resident feedback</p>
             </div>
             <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
-              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Active Admins</p>
-              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">0</p>
-              <p className="text-[10px] text-slate-400">Online now</p>
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Total Admins</p>
+              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{adminAccounts.length}</p>
+              <p className="text-[10px] text-slate-400">Registered</p>
             </div>
           </div>
         </Card>

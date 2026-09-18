@@ -4,11 +4,11 @@ import { useState } from "react"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useAdminData } from "@/hooks/use-admin-data"
+import { useAdminData } from "@/hooks/admin"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
-import { Activity, CheckCircle2, XCircle, FileText, Shield } from "lucide-react"
+import { Activity, CheckCircle2, XCircle, FileText, Shield, Search } from "lucide-react"
 
 export default function ActivityLogs() {
   const { activityLogs, addActivityLog } = useAdminData()
@@ -77,7 +77,7 @@ export default function ActivityLogs() {
       <div className="grid grid-cols-12 gap-6 mb-6">
         <div className="col-span-7 grid grid-cols-4 gap-4">
           <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
+            <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
               <Activity className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
             <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions Today</p>
@@ -132,39 +132,46 @@ export default function ActivityLogs() {
             </button>
           ))}
         </div>
-        <input
-          type="text"
-          placeholder="Search logs..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-64 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
-        />
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search logs..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-64 pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+          />
+        </div>
       </div>
 
       {/* Logs Table */}
-      <Card className="shadow-sm overflow-x-auto">
-        <div className="min-w-[800px]">
-          <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
-            <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              <div className="col-span-1">TIME</div>
-              <div className="col-span-2">ADMIN</div>
-              <div className="col-span-2">ACTION</div>
-              <div className="col-span-1">TYPE</div>
-              <div className="col-span-2">RESIDENT</div>
-              <div className="col-span-4">DETAILS</div>
-            </div>
-          </div>
-          <div className="divide-y divide-slate-100">
+      <Card className="shadow-sm overflow-hidden p-0">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="px-6 py-3 font-bold min-w-[100px]">TIME</th>
+                <th className="px-6 py-3 font-bold min-w-[150px]">ADMIN</th>
+                <th className="px-6 py-3 font-bold min-w-[150px]">ACTION</th>
+                <th className="px-6 py-3 font-bold whitespace-nowrap">TYPE</th>
+                <th className="px-6 py-3 font-bold min-w-[150px]">RESIDENT</th>
+                <th className="px-6 py-3 font-bold">DETAILS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {filteredLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No activity logs found</p>
-            </div>
+            <tr>
+              <td colSpan={6} className="py-12 text-center text-slate-400">
+                <div className="flex flex-col items-center justify-center">
+                  <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No activity logs found</p>
+                </div>
+              </td>
+            </tr>
           ) : filteredLogs.map((log) => (
-            <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
-              <div className="grid grid-cols-12 gap-4 items-center">
-                <div className="col-span-1">
-                  <div className="flex flex-col text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+            <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+              <td className="px-6 py-3.5 whitespace-nowrap">
+                <div className="flex flex-col text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                     {(() => {
                       const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
                       if (ts && !isNaN(ts)) {
@@ -184,8 +191,9 @@ export default function ActivityLogs() {
                       )
                     })()}
                   </div>
-                </div>
-                <div className="col-span-2 flex items-center gap-2">
+              </td>
+              <td className="px-6 py-3.5">
+                <div className="flex items-center gap-2">
                   {log.admin?.initials ? (
                     <div className="w-5 h-5 flex-shrink-0 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ backgroundColor: log.admin.color || "#0C2340" }}>
                       {log.admin.initials}
@@ -197,22 +205,23 @@ export default function ActivityLogs() {
                   )}
                   <span className="text-[11px] font-medium text-[#0C2340] dark:text-blue-50 truncate">{log.admin?.name || "System"}</span>
                 </div>
-                <div className="col-span-2">
-                  <span className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{log.action}</span>
-                </div>
-                <div className="col-span-1">
-                  {getActionBadge(log.actionType)}
-                </div>
-                <div className="col-span-2">
-                  <span className="text-[11px] text-slate-600 dark:text-slate-400">{log.residentName || "—"}</span>
-                </div>
-                <div className="col-span-4">
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">{log.details}</span>
-                </div>
-              </div>
-            </div>
+              </td>
+              <td className="px-6 py-3.5">
+                <span className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{log.action}</span>
+              </td>
+              <td className="px-6 py-3.5 whitespace-nowrap">
+                {getActionBadge(log.actionType)}
+              </td>
+              <td className="px-6 py-3.5">
+                <span className="text-[11px] text-slate-600 dark:text-slate-400">{log.residentName || "—"}</span>
+              </td>
+              <td className="px-6 py-3.5">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">{log.details}</span>
+              </td>
+            </tr>
           ))}
-          </div>
+          </tbody>
+        </table>
         </div>
         <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
           <p className="text-[10px] text-slate-500 dark:text-slate-400">Showing {filteredLogs.length} of {activityLogs.length} actions</p>
@@ -224,19 +233,6 @@ export default function ActivityLogs() {
         </div>
       </Card>
 
-      {/* Summary */}
-      <Card className="mt-6 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Activity className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
-          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Today&apos;s Summary</h2>
-        </div>
-        <div className="flex items-center gap-8 text-[11px]">
-          <span className="text-slate-500 dark:text-slate-400">Peak Hour: <strong className="text-[#0C2340] dark:text-blue-50">2:00 PM</strong></span>
-          <span className="text-slate-500 dark:text-slate-400">Most Common: <strong className="text-[#0C2340] dark:text-blue-50">Approvals</strong></span>
-          <span className="text-slate-500 dark:text-slate-400">First Action: <strong className="text-[#0C2340] dark:text-blue-50">9:30 AM</strong></span>
-          <span className="text-slate-500 dark:text-slate-400">Last Action: <strong className="text-[#0C2340] dark:text-blue-50">2:45 PM</strong></span>
-        </div>
-      </Card>
     </AdminPageShell>
   )
 }

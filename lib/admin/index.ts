@@ -1,0 +1,33 @@
+// Admin domain — admin-facing store operations and types
+export {
+  getAdminResidents,
+  updateAdminResident,
+  deleteAdminResident,
+  addAdminResident,
+  getAdminVerifications,
+  getAdminRejectedVerifications,
+  addAdminVerification,
+  approveVerification,
+  rejectVerification,
+  getAdminDocumentRequests,
+  addAdminDocumentRequest,
+  updateDocumentRequestStatus,
+  deleteAdminDocumentRequest,
+  getAdminNotifications,
+  addAdminNotification,
+  markAdminNotificationRead,
+  markAllAdminNotificationsRead,
+  deleteAdminNotification,
+  getAdminActivityLogs,
+  addAdminActivityLog,
+  clearAdminActivityLogs,
+  getAdminDashboardStats,
+  subscribeToAdminStorage,
+} from "./admin-store"
+export type {
+  AdminResident,
+  AdminDocumentRequest,
+  AdminNotification,
+  PendingVerification,
+  ActivityLog,
+} from "./admin-store"

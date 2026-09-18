@@ -4,26 +4,31 @@ import { useState } from "react"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useAdminData } from "@/hooks/use-admin-data"
+import { useAdminData } from "@/hooks/admin"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
-} from "recharts"
-import { Users, UserCheck, Clock, AlertTriangle, UserPlus, Inbox } from "lucide-react"
-import { useAuth } from "@/lib/auth-context"
+  Users, UserCheck, Clock, AlertTriangle, Search, Inbox,
+} from "lucide-react"
+import { useAuth } from "@/lib/auth"
+import dynamic from 'next/dynamic'
+import { ModalOverlay } from "@/components/ui/modal-overlay"
+
+const ResidentProfileModal = dynamic(
+  () => import('@/components/admin/resident-profile-modal').then(mod => mod.ResidentProfileModal),
+  { ssr: false }
+)
 
 export default function ResidentManagement() {
-  const { residents: allResidents, activityLogs, deleteResident, deactivateResident, activateResident, updateResident } = useAdminData()
+  const { residents: allResidents, activityLogs, stats, deleteResident, deactivateResident, activateResident, updateResident } = useAdminData()
   const { user } = useAuth()
   type ResidentRecord = (typeof allResidents)[number]
 
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedStatus, setSelectedStatus] = useState("all")
-  const [selectedAccountStatus, setSelectedAccountStatus] = useState("all")
+  const [selectedGender, setSelectedGender] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [showActionsMenu, setShowActionsMenu] = useState<string | null>(null)
   const [showViewDialog, setShowViewDialog] = useState(false)
-  const [showEditDialog, setShowEditDialog] = useState(false)
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
   const [showActivateDialog, setShowActivateDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -32,16 +37,12 @@ export default function ResidentManagement() {
   const filteredResidents = allResidents.filter((r) => {
     const matchesCategory = selectedCategory === "all" || r.categories.some(c => c.toLowerCase().includes(selectedCategory.toLowerCase()))
     const matchesStatus = selectedStatus === "all" || r.status === selectedStatus
-    const matchesAccountStatus =
-      selectedAccountStatus === "all" ||
-      (selectedAccountStatus === "Active" && r.status === "Active") ||
-      (selectedAccountStatus === "Expiring Soon" && r.status === "Expiring") ||
-      (selectedAccountStatus === "Expired" && r.status === "Expired")
+    const matchesGender = selectedGender === "all" || (r.gender || "").toLowerCase() === selectedGender.toLowerCase()
     const matchesSearch =
       searchQuery === "" ||
       (r.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (r.contactNumber || "").toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesSearch && matchesStatus && matchesCategory && matchesAccountStatus
+    return matchesSearch && matchesStatus && matchesCategory && matchesGender
   })
 
   const getCategoryDisplay = (categories: string[]) => {
@@ -53,28 +54,9 @@ export default function ResidentManagement() {
     return { label: cat, color: "bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100" }
   }
 
-  const activeCount = allResidents.filter(r => r.status === "Active").length
+  const activeCount = allResidents.filter(r => r.status === "Verified").length
   const expiringCount = allResidents.filter(r => r.status === "Expiring").length
   const expiredCount = allResidents.filter(r => r.status === "Expired").length
-
-  const statusDistribution = [
-    { name: "Active", value: activeCount, color: "#16a34a" },
-    { name: "Expiring", value: expiringCount, color: "#d97706" },
-    { name: "Expired", value: expiredCount, color: "#dc2626" },
-  ]
-
-  const recentUpdates = activityLogs.slice(0, 4).map((log) => ({
-    name: log.residentName || "System",
-    action: log.action,
-    time: (() => {
-      if (log.time && log.time !== "Just now") return log.time;
-      const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
-      if (ts && !isNaN(ts)) {
-        return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts));
-      }
-      return "Just now";
-    })(),
-  }))
 
   return (
     <AdminPageShell>
@@ -83,92 +65,19 @@ export default function ResidentManagement() {
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">View, search, and manage all registered residents</p>
       </div>
 
-      {/* Population Summary KPIs */}
-      <div className="grid grid-cols-12 gap-6 mb-6">
-        <div className="col-span-8 grid grid-cols-4 gap-4">
-          <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
-              <Users className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Population</p>
-            <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{allResidents.length.toLocaleString()}</p>
-          </Card>
-          <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
-              <UserCheck className="w-4 h-4 text-emerald-600" />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active</p>
-            <p className="text-2xl font-bold text-emerald-600">{activeCount}</p>
-          </Card>
-          <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center mb-2">
-              <Clock className="w-4 h-4 text-amber-600" />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Expiring</p>
-            <p className="text-2xl font-bold text-amber-600">{expiringCount}</p>
-          </Card>
-          <Card className="p-4 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center mb-2">
-              <AlertTriangle className="w-4 h-4 text-red-600" />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Expired</p>
-            <p className="text-2xl font-bold text-red-600">{expiredCount}</p>
-          </Card>
-        </div>
-        <Card className="col-span-4 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Status Distribution</h3>
-          <div className="flex items-center gap-4">
-            <div className="w-24 h-24">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={20} outerRadius={38} dataKey="value" stroke="none">
-                    {statusDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 10, borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-1.5">
-              {statusDistribution.map((s, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                  <span className="text-[10px] text-slate-600 dark:text-slate-400">{s.name}</span>
-                  <span className="text-[10px] font-bold text-[#0C2340] dark:text-blue-50">{s.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Recent Updates Strip */}
-      <Card className="p-4 shadow-sm mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
-            <h3 className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50">Recent Updates</h3>
-          </div>
-          <div className="flex items-center gap-4">
-            {recentUpdates.map((u, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] font-medium text-[#0C2340] dark:text-blue-50">{u.name}</span>
-                <span className="text-[10px] text-slate-400">• {u.action} • {u.time}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
-
       {/* Filters Section */}
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-5 shadow-sm mb-4">
         <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Search by resident name or contact number..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
-          />
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by resident name or contact number..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-[#0C2340] dark:focus:border-blue-400 bg-white dark:bg-slate-900 transition-colors"
+            />
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
@@ -190,21 +99,21 @@ export default function ResidentManagement() {
               <SelectTrigger className="w-full"><SelectValue placeholder="Select status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Verified">Verified</SelectItem>
                 <SelectItem value="Expiring">Expiring</SelectItem>
                 <SelectItem value="Expired">Expired</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Account Status</label>
-            <Select value={selectedAccountStatus} onValueChange={setSelectedAccountStatus}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Select account status" /></SelectTrigger>
+            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Gender</label>
+            <Select value={selectedGender} onValueChange={setSelectedGender}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Select gender" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Accounts</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Expiring Soon">Expiring Soon</SelectItem>
-                <SelectItem value="Expired">Expired</SelectItem>
+                <SelectItem value="all">All Genders</SelectItem>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -216,39 +125,54 @@ export default function ResidentManagement() {
       </p>
 
       {/* Residents Table */}
-      <Card className="shadow-sm overflow-x-auto">
-        <div className="min-w-[800px]">
-          <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700 rounded-t-lg">
-            <div className="grid grid-cols-12 gap-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              <div className="col-span-3">RESIDENT</div>
-              <div className="col-span-2">CATEGORY</div>
-              <div className="col-span-2">STATUS</div>
-              <div className="col-span-2">EXPIRES</div>
-              <div className="col-span-3">ACTIONS</div>
-            </div>
-          </div>
-          <div className="divide-y divide-slate-100">
+      <Card className="shadow-sm overflow-hidden p-0">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="px-6 py-3 font-bold">RESIDENT</th>
+                <th className="px-6 py-3 font-bold">CATEGORY</th>
+                <th className="px-6 py-3 font-bold">STATUS</th>
+                <th className="px-6 py-3 font-bold">EXPIRES</th>
+                <th className="px-6 py-3 font-bold text-right">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {filteredResidents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <Inbox className="w-8 h-8 mb-2" />
-              <p className="text-sm">No residents found</p>
-              <p className="text-[10px] mt-1">Residents will appear here after registration</p>
-            </div>
+            <tr>
+              <td colSpan={5} className="py-12 text-center text-slate-400">
+                <div className="flex flex-col items-center justify-center">
+                  <Inbox className="w-8 h-8 mb-2" />
+                  <p className="text-sm">No residents found</p>
+                  <p className="text-[10px] mt-1">Residents will appear here after registration</p>
+                </div>
+              </td>
+            </tr>
           ) : filteredResidents.map((resident) => {
             const categoryDisplay = getCategoryDisplay(resident.categories)
             return (
-              <div key={resident.id} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="grid grid-cols-12 gap-4 items-center">
-                  <div className="col-span-3 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">
-                      {resident.initials}
-                    </div>
+              <tr key={resident.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                <td className="px-6 py-3.5">
+                  <div className="flex items-center gap-3">
+                    {resident.profilePicture ? (
+                      <img 
+                        src={resident.profilePicture} 
+                        alt={resident.name} 
+                        className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-white dark:text-blue-50">
+                        {resident.initials}
+                      </div>
+                    )}
                     <div>
                       <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{resident.name}</p>
                       <p className="text-[10px] text-slate-400">{resident.gender}</p>
                     </div>
                   </div>
-                  <div className="col-span-2 flex flex-wrap gap-1">
+                </td>
+                <td className="px-6 py-3.5">
+                  <div className="flex flex-wrap gap-1">
                     {resident.categories.map((cat, ci) => {
                       const d = getCategoryDisplay([cat])
                       return (
@@ -258,28 +182,29 @@ export default function ResidentManagement() {
                       )
                     })}
                   </div>
-                  <div className="col-span-2">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${resident.status === "Active" ? "bg-emerald-50 text-emerald-700" :
+                </td>
+                <td className="px-6 py-3.5">
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${resident.status === "Verified" ? "bg-emerald-50 text-emerald-700" :
                       resident.status === "Expiring" ? "bg-amber-50 text-amber-700" :
                         "bg-red-50 text-red-700"
                       }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${resident.status === "Active" ? "bg-emerald-500" :
+                      <span className={`w-1.5 h-1.5 rounded-full ${resident.status === "Verified" ? "bg-emerald-500" :
                         resident.status === "Expiring" ? "bg-amber-500" :
                           "bg-red-500"
                         }`} />
                       {resident.status}
                     </span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className={`text-[11px] ${resident.status === "Expired" || resident.status === "Expiring" ? "text-red-500 font-medium" : "text-slate-500 dark:text-slate-400"}`}>
+                </td>
+                <td className="px-6 py-3.5 whitespace-nowrap">
+                  <span className={`text-[11px] ${resident.status === "Expired" || resident.status === "Expiring" ? "text-red-500 font-medium" : "text-slate-500 dark:text-slate-400"}`}>
                       {resident.expiryDate}
                     </span>
-                  </div>
-                  <div className="col-span-3 flex items-center gap-2 relative">
-                    <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowViewDialog(true) }} className="h-6 text-[10px] bg-transparent">View</Button>
+                </td>
+                <td className="px-6 py-3.5 text-right">
+                  <div className="flex items-center justify-end gap-2 relative">
+                    <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowViewDialog(true) }} className="h-6 text-[10px] bg-transparent hover:bg-[#0C2340] hover:text-white transition-colors">View Profile</Button>
                     {user?.role !== "View Only" && (
                       <>
-                        <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowEditDialog(true) }} className="h-6 text-[10px] bg-transparent">Edit</Button>
                         <button onClick={() => setShowActionsMenu(showActionsMenu === resident.id ? null : resident.id)} className="w-6 h-6 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-100 dark:bg-slate-800">
                           <span className="text-slate-600 dark:text-slate-400">⋮</span>
                         </button>
@@ -297,11 +222,12 @@ export default function ResidentManagement() {
                       </>
                     )}
                   </div>
-                </div>
-              </div>
+                </td>
+              </tr>
             )
           })}
-          </div>
+          </tbody>
+          </table>
         </div>
         <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
           <p className="text-[10px] text-slate-500 dark:text-slate-400">Showing 1-{Math.min(10, filteredResidents.length)} of {filteredResidents.length} residents</p>
@@ -315,120 +241,19 @@ export default function ResidentManagement() {
         </div>
       </Card>
 
-      {/* View Dialog */}
-      {showViewDialog && selectedResident && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <Card className="w-full max-w-2xl p-0 shadow-2xl max-h-[90vh] overflow-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
-              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Resident Profile</h3>
-              <button onClick={() => setShowViewDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
-            </div>
-            <div className="p-6 space-y-5">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-[#0C2340] dark:bg-slate-800/[0.08] flex items-center justify-center text-lg font-semibold text-[#0C2340] dark:text-blue-50">{selectedResident.initials}</div>
-                <div>
-                  <h4 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{selectedResident.name}</h4>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">{selectedResident.gender}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date of Birth</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.dateOfBirth}</p></div>
-                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact Number</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.contactNumber}</p></div>
-                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Email</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.email}</p></div>
-                <div>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Account Status</p>
-                  <span className={`px-2.5 py-0.5 rounded text-[10px] font-medium ${selectedResident.status === "Active" ? "bg-emerald-50 text-emerald-700" : selectedResident.status === "Expiring" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{selectedResident.status}</span>
-                </div>
-                <div className="col-span-2"><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Address</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.address}</p></div>
-                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Categories</p><div className="flex gap-1">{selectedResident.categories.map((c: string, i: number) => <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-900 rounded text-[10px]">{c}</span>)}</div></div>
-                <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Expiry Date</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedResident.expiryDate}</p></div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Edit Dialog */}
-      {showEditDialog && selectedResident && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <Card className="w-full max-w-2xl p-0 shadow-2xl max-h-[90vh] overflow-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
-              <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Edit Resident</h3>
-              <button onClick={() => setShowEditDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    defaultValue={selectedResident.name}
-                    id="edit-name"
-                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact Number</label>
-                  <input
-                    type="text"
-                    defaultValue={selectedResident.contactNumber}
-                    id="edit-contact"
-                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
-                    maxLength={11}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Email</label>
-                  <input
-                    type="email"
-                    defaultValue={selectedResident.email}
-                    id="edit-email"
-                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date of Birth</label>
-                  <input
-                    type="date"
-                    defaultValue={selectedResident.dateOfBirth}
-                    id="edit-dob"
-                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Address</label>
-                  <input
-                    type="text"
-                    defaultValue={selectedResident.address}
-                    id="edit-address"
-                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
-                  />
-                </div>
-              </div>
-              <Button
-                onClick={() => {
-                  const nameEl = document.getElementById('edit-name') as HTMLInputElement
-                  const addressEl = document.getElementById('edit-address') as HTMLInputElement
-                  if (nameEl && addressEl) {
-                    updateResident(selectedResident.id, {
-                      name: nameEl.value,
-                      address: addressEl.value,
-                    })
-                  }
-                  setShowEditDialog(false)
-                }}
-                className="w-full h-11 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
-              >
-                Save Changes
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* Resident Profile Modal */}
+      <ResidentProfileModal
+        isOpen={showViewDialog}
+        onClose={() => setShowViewDialog(false)}
+        resident={selectedResident}
+        userRole={user?.role}
+        adminName={user?.name}
+        updateResident={updateResident}
+      />
 
       {/* Deactivate Dialog */}
       {showDeactivateDialog && selectedResident && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <ModalOverlay isOpen={true} onClose={() => setShowDeactivateDialog(false)}>
           <Card className="w-full max-w-md p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Deactivate Account</h3>
@@ -442,12 +267,12 @@ export default function ResidentManagement() {
               </div>
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Activate Dialog */}
       {showActivateDialog && selectedResident && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <ModalOverlay isOpen={true} onClose={() => setShowActivateDialog(false)}>
           <Card className="w-full max-w-md p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Activate Account</h3>
@@ -461,13 +286,13 @@ export default function ResidentManagement() {
               </div>
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
 
 
       {/* Delete Dialog */}
       {showDeleteDialog && selectedResident && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <ModalOverlay isOpen={true} onClose={() => setShowDeleteDialog(false)}>
           <Card className="w-full max-w-md p-0 shadow-2xl border-red-200">
             <div className="flex items-center justify-between px-6 py-4 border-b border-red-100 bg-red-50">
               <h3 className="text-lg font-bold text-red-700 flex items-center gap-2">
@@ -497,7 +322,7 @@ export default function ResidentManagement() {
               </div>
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
     </AdminPageShell>
   )

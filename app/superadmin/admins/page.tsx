@@ -6,9 +6,10 @@ import {
   PieChart, Pie, Cell,
 } from "recharts"
 import { Card } from "@/components/ui/card"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useSuperAdminData } from "@/hooks/superadmin"
 import { useMounted } from "@/hooks/use-mounted"
 import {
   Users, ShieldCheck, Lock, Wifi, TrendingUp, TrendingDown,
@@ -72,9 +73,9 @@ export default function AdminManagement() {
 
   const roleDistribution = [
     { name: "Full Access", value: adminAccounts.filter(a => a.role === "Full Access" || a.role === "SuperAdmin").length, color: "#0C2340" },
-    { name: "Verification", value: adminAccounts.filter(a => a.role === "Verification Only").length, color: "#3b82f6" },
-    { name: "Documents", value: adminAccounts.filter(a => a.role === "Documents Only").length, color: "#C5A55A" },
-    { name: "View Only", value: adminAccounts.filter(a => a.role === "View Only").length, color: "#94a3b8" },
+    { name: "Resident Management", value: adminAccounts.filter(a => a.role === "Resident Management").length, color: "#3b82f6" },
+    { name: "Verifications", value: adminAccounts.filter(a => a.role === "Verifications").length, color: "#10b981" },
+    { name: "Document Processing", value: adminAccounts.filter(a => a.role === "Document Processing").length, color: "#C5A55A" },
   ].filter(r => r.value > 0)
   if (roleDistribution.length === 0) {
     roleDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9" })
@@ -117,9 +118,9 @@ export default function AdminManagement() {
 
   const roles = [
     { label: "Full Access", description: "All features" },
-    { label: "Verification Only", description: "Verify accounts only" },
-    { label: "Documents Only", description: "Process documents only" },
-    { label: "View Only", description: "Read-only access" },
+    { label: "Resident Management", description: "Manage resident profiles and statuses" },
+    { label: "Verifications", description: "Process new accounts and profile edits" },
+    { label: "Document Processing", description: "Manage document requests and payments" },
   ]
 
   const handleEditPrivileges = (adminId: string) => {
@@ -224,7 +225,6 @@ export default function AdminManagement() {
     { label: "Total Admins", value: adminAccounts.length, icon: Users, color: "#0C2340", spark: Array(6).fill(adminAccounts.length), change: 0 },
     { label: "Active", value: activeCount, icon: ShieldCheck, color: "#10b981", spark: Array(6).fill(activeCount), change: 0 },
     { label: "Locked", value: lockedCount, icon: Lock, color: "#ef4444", spark: Array(6).fill(lockedCount), change: 0 },
-    { label: "Online Now", value: onlineCount, icon: Wifi, color: "#3b82f6", spark: Array(6).fill(onlineCount), change: 0 },
   ]
 
   if (!mounted) {
@@ -245,11 +245,11 @@ export default function AdminManagement() {
       </div>
 
       {/* KPI Strip */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {kpis.map((kpi) => (
           <Card key={kpi.label} className="p-4 shadow-sm">
             <div className="flex items-start justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
                 <kpi.icon className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
               </div>
               <Sparkline data={kpi.spark} color={kpi.color} />
@@ -377,10 +377,9 @@ export default function AdminManagement() {
           <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="grid grid-cols-12 gap-4">
               <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Admin</p></div>
-              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Role</p></div>
+              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</p></div>
+              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Role</p></div>
               <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Last Active</p></div>
               <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</p></div>
             </div>
           </div>
@@ -398,24 +397,24 @@ export default function AdminManagement() {
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">Since {admin.createdDate}</p>
                   </div>
                 </div>
-                <div className="col-span-3"><p className="text-sm text-slate-700 dark:text-slate-300">{admin.email}</p></div>
-                <div className="col-span-2">
+                <div className="col-span-4"><p className="text-sm text-slate-700 dark:text-slate-300">{admin.email}</p></div>
+                <div className="col-span-3">
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
                     {admin.role === "Full Access" && <ShieldCheck className="w-3 h-3 text-[#0C2340] dark:text-blue-50" />}
-                    {admin.role === "Verification Only" && <CheckCircle className="w-3 h-3 text-blue-500" />}
-                    {admin.role === "Documents Only" && <Settings className="w-3 h-3 text-[#C5A55A]" />}
-                    {admin.role === "View Only" && <Eye className="w-3 h-3 text-slate-400" />}
+                    {admin.role === "Resident Management" && <Users className="w-3 h-3 text-blue-500" />}
+                    {admin.role === "Verifications" && <CheckCircle className="w-3 h-3 text-emerald-500" />}
+                    {admin.role === "Document Processing" && <Settings className="w-3 h-3 text-[#C5A55A]" />}
                     {admin.role}
                   </span>
                 </div>
                 <div className="col-span-1">
-                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${admin.status === "Active" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${admin.status === "Locked" ? "bg-orange-50 text-orange-700" : (admin.isVerified ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")
                     }`}>
-                    {admin.status === "Active" && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-                    {admin.status}
+                    {admin.status === "Locked" && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
+                    {admin.status !== "Locked" && admin.isVerified && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                    {admin.status === "Locked" ? "Locked" : (admin.isVerified ? "Verified" : "Not Verified")}
                   </div>
                 </div>
-                <div className="col-span-2"><p className="text-sm text-slate-600 dark:text-slate-400">{admin.lastActive}</p></div>
                 <div className="col-span-1 relative">
                   <button
                     onClick={() => setShowActionsDropdown(showActionsDropdown === admin.id ? null : admin.id)}
@@ -448,116 +447,110 @@ export default function AdminManagement() {
       </div>
 
       {/* Create Admin Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">Create New Admin</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-2xl text-slate-400 hover:text-slate-600 dark:text-slate-400">×</button>
-            </div>
-            <div className="p-6 space-y-6">
-              {formError && (
-                <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
-                  {formError}
+      <ModalOverlay isOpen={showCreateModal} onClose={() => setShowCreateModal(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+          <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">Create New Admin</h2>
+            <button onClick={() => setShowCreateModal(false)} className="text-2xl text-slate-400 hover:text-slate-600 dark:text-slate-400">×</button>
+          </div>
+          <div className="p-6 space-y-6 overflow-y-auto">
+            {formError && (
+              <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
+                {formError}
+              </div>
+            )}
+            <div>
+              <h3 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 mb-4">Personal Information</h3>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">First Name *</label><Input value={newAdminFirstName} onChange={e => setNewAdminFirstName(e.target.value)} placeholder="First Name" /></div>
+                  <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Last Name *</label><Input value={newAdminLastName} onChange={e => setNewAdminLastName(e.target.value)} placeholder="Last Name" /></div>
                 </div>
-              )}
-              <div>
-                <h3 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 mb-4">Personal Information</h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">First Name *</label><Input value={newAdminFirstName} onChange={e => setNewAdminFirstName(e.target.value)} placeholder="First Name" /></div>
-                    <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Last Name *</label><Input value={newAdminLastName} onChange={e => setNewAdminLastName(e.target.value)} placeholder="Last Name" /></div>
+                <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Middle Initial (Optional)</label><Input value={newAdminMiddleInitial} onChange={e => setNewAdminMiddleInitial(e.target.value)} placeholder="e.g. A" maxLength={2} /></div>
+                <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Email Address *</label><Input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="admin@barangay.gov.ph" /></div>
+                <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Contact Number *</label><Input value={newAdminContact} onChange={e => setNewAdminContact(e.target.value)} placeholder="+63 9XX XXX XXXX" /></div>
+              </div>
+            </div>
+            <div className="h-px bg-slate-200" />
+            <div>
+              <h3 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 mb-4">Access Privileges *</h3>
+              <div className="relative">
+                <button onClick={() => setShowRoleDropdown(!showRoleDropdown)} className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-md text-left text-sm text-slate-900 dark:text-slate-100 flex justify-between items-center">
+                  {selectedRole}
+                  <span className="text-slate-600 dark:text-slate-400">▼</span>
+                </button>
+                {showRoleDropdown && (
+                  <div className="absolute w-full mt-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg z-10">
+                    {roles.map((role, i) => (
+                      <button key={role.label} onClick={() => { setSelectedRole(role.label); setShowRoleDropdown(false) }}
+                        className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 dark:bg-slate-950 ${i === 0 ? "bg-slate-50 dark:bg-slate-950" : ""}`}>
+                        <p className="font-medium text-slate-900 dark:text-slate-100">{role.label}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 text-right">{role.description}</p>
+                      </button>
+                    ))}
                   </div>
-                  <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Middle Initial (Optional)</label><Input value={newAdminMiddleInitial} onChange={e => setNewAdminMiddleInitial(e.target.value)} placeholder="e.g. A" maxLength={2} /></div>
-                  <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Email Address *</label><Input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="admin@barangay.gov.ph" /></div>
-                  <div><label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Contact Number *</label><Input value={newAdminContact} onChange={e => setNewAdminContact(e.target.value)} placeholder="+63 9XX XXX XXXX" /></div>
-                </div>
-              </div>
-              <div className="h-px bg-slate-200" />
-              <div>
-                <h3 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 mb-4">Access Privileges *</h3>
-                <div className="relative">
-                  <button onClick={() => setShowRoleDropdown(!showRoleDropdown)} className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-md text-left text-sm text-slate-900 dark:text-slate-100 flex justify-between items-center">
-                    {selectedRole}
-                    <span className="text-slate-600 dark:text-slate-400">▼</span>
-                  </button>
-                  {showRoleDropdown && (
-                    <div className="absolute w-full mt-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg z-10">
-                      {roles.map((role, i) => (
-                        <button key={role.label} onClick={() => { setSelectedRole(role.label); setShowRoleDropdown(false) }}
-                          className={`w-full text-left px-4 py-3 text-sm hover:bg-slate-50 dark:bg-slate-950 ${i === 0 ? "bg-slate-50 dark:bg-slate-950" : ""}`}>
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{role.label}</p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400 text-right">{role.description}</p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Temporary Password *</label>
-                <div className="flex gap-3">
-                  <Input value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder="Auto-generated or enter manually" className="flex-1" />
-                  <Button variant="outline" onClick={() => setNewAdminPassword("Tal@sys" + Math.floor(Math.random() * 1000))} className="px-6 bg-transparent">Generate</Button>
-                </div>
+                )}
               </div>
             </div>
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-              <Button onClick={handleCreateAdmin} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Create Admin</Button>
+            <div>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">Temporary Password *</label>
+              <div className="flex gap-3">
+                <Input value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder="Auto-generated or enter manually" className="flex-1" />
+                <Button variant="outline" onClick={() => setNewAdminPassword("Tal@sys" + Math.floor(Math.random() * 1000))} className="px-6 bg-transparent">Generate</Button>
+              </div>
             </div>
           </div>
+          <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 shrink-0">
+            <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
+            <Button onClick={handleCreateAdmin} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Create Admin</Button>
+          </div>
         </div>
-      )}
+      </ModalOverlay>
 
       {/* Edit Privileges Modal */}
-      {showEditPrivilegesModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">Edit Admin Privileges</h2>
-              <button onClick={() => setShowEditPrivilegesModal(false)} className="text-2xl text-slate-400 hover:text-slate-600 dark:text-slate-400">×</button>
-            </div>
-            <div className="p-6">
-              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-3 font-semibold">SELECT ROLE</label>
-              <div className="space-y-2">
-                {roles.map((role) => (
-                  <button key={role.label} onClick={() => { updateAdmin(selectedAdminForEdit!, { role: role.label as any }); setShowEditPrivilegesModal(false) }} className="w-full text-left px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:bg-slate-950 text-sm">
-                    <p className="font-medium text-slate-900 dark:text-slate-100">{role.label}</p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">{role.description}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowEditPrivilegesModal(false)}>Cancel</Button>
+      <ModalOverlay isOpen={showEditPrivilegesModal} onClose={() => setShowEditPrivilegesModal(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md shadow-2xl">
+          <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">Edit Admin Privileges</h2>
+            <button onClick={() => setShowEditPrivilegesModal(false)} className="text-2xl text-slate-400 hover:text-slate-600 dark:text-slate-400">×</button>
+          </div>
+          <div className="p-6">
+            <label className="block text-xs text-slate-600 dark:text-slate-400 mb-3 font-semibold">SELECT ROLE</label>
+            <div className="space-y-2">
+              {roles.map((role) => (
+                <button key={role.label} onClick={() => { updateAdmin(selectedAdminForEdit!, { role: role.label as any }); setShowEditPrivilegesModal(false) }} className="w-full text-left px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:bg-slate-950 text-sm">
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{role.label}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">{role.description}</p>
+                </button>
+              ))}
             </div>
           </div>
+          <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowEditPrivilegesModal(false)}>Cancel</Button>
+          </div>
         </div>
-      )}
+      </ModalOverlay>
 
       {/* Action Dialog */}
-      {showActionDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">
-                {actionType === "reset" ? "Reset Password" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
-              </h2>
-            </div>
-            <div className="p-6"><p className="text-sm text-slate-700 dark:text-slate-300">{actionMessage}</p></div>
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowActionDialog(false)}>Cancel</Button>
-              <Button
-                className={actionType === "lock" || actionType === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"}
-                onClick={() => { confirmAction() }}
-              >
-                {actionType === "reset" ? "Confirm Reset" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
-              </Button>
-            </div>
+      <ModalOverlay isOpen={showActionDialog} onClose={() => setShowActionDialog(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md shadow-2xl">
+          <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+            <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">
+              {actionType === "reset" ? "Reset Password" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
+            </h2>
+          </div>
+          <div className="p-6"><p className="text-sm text-slate-700 dark:text-slate-300">{actionMessage}</p></div>
+          <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowActionDialog(false)}>Cancel</Button>
+            <Button
+              className={actionType === "lock" || actionType === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"}
+              onClick={() => { confirmAction() }}
+            >
+              {actionType === "reset" ? "Confirm Reset" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
+            </Button>
           </div>
         </div>
-      )}
+      </ModalOverlay>
     </div>
   )
 }

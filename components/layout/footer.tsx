@@ -11,7 +11,7 @@ export function Footer() {
 
   return (
     <footer className="bg-[#0C2340] dark:bg-slate-800 text-slate-100 py-8 px-6 border-t border-[#1a3a5c]/50" role="contentinfo">
-      <div className="max-w-7xl mx-auto" suppressHydrationWarning>
+      <div className="w-full" suppressHydrationWarning>
         {/* Footer Content Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" suppressHydrationWarning>
           {/* Brand Section */}
@@ -25,17 +25,17 @@ export function Footer() {
             <h4 className="text-xs font-semibold text-blue-200/70 uppercase tracking-wider mb-3">Quick Links</h4>
             <ul className="space-y-1.5">
               <li>
-                <Link href="/dashboard" className="text-sm text-blue-200/50 hover:text-white transition-colors">
+                <Link href="/resident/dashboard" className="text-sm text-blue-200/50 hover:text-white transition-colors">
                   Dashboard
                 </Link>
               </li>
               <li>
-                <Link href="/request" className="text-sm text-blue-200/50 hover:text-white transition-colors">
+                <Link href="/resident/request" className="text-sm text-blue-200/50 hover:text-white transition-colors">
                   Request Document
                 </Link>
               </li>
               <li>
-                <Link href="/history" className="text-sm text-blue-200/50 hover:text-white transition-colors">
+                <Link href="/resident/history" className="text-sm text-blue-200/50 hover:text-white transition-colors">
                   Track Request
                 </Link>
               </li>

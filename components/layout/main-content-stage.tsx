@@ -16,7 +16,7 @@ export function MainContentStage({ children, className }: MainContentStageProps)
   const targetPath = pendingPath || ""
 
   return (
-    <main className={cn("min-w-0 overflow-x-hidden", className)}>
+    <main id="main-scroll-stage" className={cn("min-w-0 overflow-x-hidden", className)}>
       <div className="relative min-h-full">
         {children}
 

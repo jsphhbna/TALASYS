@@ -1,7 +1,8 @@
 "use client"
-import type { AuthUser } from "@/lib/auth-types"
+import type { AuthUser } from "@/lib/auth"
 import { db } from "@/lib/firebase"
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore"
+import { MASTER_STORAGE_UPDATED_EVENT } from "@/lib/constants"
 
 // ─── Unified Types ───
 
@@ -28,6 +29,7 @@ export interface AdminAccount {
   isOnline: boolean
   lastActive: string
   createdDate: string
+  isVerified?: boolean
 }
 
 export interface ActivityLog {
@@ -49,6 +51,9 @@ export interface ActivityLog {
 export interface SystemConfig {
   barangayName: string
   barangayCaptainName: string
+  secretaryName?: string
+  captainSignatureUrl?: string
+  secretarySignatureUrl?: string
   contactNumber: string
   emailAddress: string
   address: string
@@ -83,7 +88,7 @@ export interface MasterDocumentRequest {
   documentType: string
   purpose: string
   dateRequested: string
-  status: "Pending" | "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected"
+  status: "Pending" | "Awaiting Payment" | "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected"
   refNumber?: string
   downloadUrl?: string
   createdAt: number
@@ -93,6 +98,18 @@ export interface MasterDocumentRequest {
   relationship?: string
   authorizationLetter?: string
   statusTimestamps?: Record<string, number>
+  
+  // Payment fields
+  documentFee?: number
+  paymentStatus?: "unpaid" | "pending_verification" | "paid" | "waived"
+  paymentMethod?: "gcash" | "cash"
+  paymentReferenceNumber?: string
+  gcashRefNumber?: string
+  gcashScreenshotUrl?: string
+  receiptNumber?: string
+  paymentConfirmedAt?: number
+  paymentConfirmedBy?: string
+  paymentSubmittedAt?: number
 }
 
 export interface MasterNotification {
@@ -119,11 +136,14 @@ export interface MasterVerification {
   rejectionReason?: string
   categories: string[]
   age?: number
-  gender?: "Male" | "Female"
+  gender?: "Male" | "Female" | string
   address?: string
+  contactNumber?: string
+  email?: string
+  dateOfBirth?: string
   changes?: { field: string; oldValue: string; newValue: string }[]
   reason?: string
-  documents: { name: string; status: "verified" | "pending" | "valid"; uploadDate?: string }[]
+  documents: { name: string; status: "verified" | "pending" | "valid"; uploadDate?: string; url?: string }[]
 }
 
 // ─── Master Storage Schema ───
@@ -139,13 +159,17 @@ export interface MasterStorage {
   systemConfig: SystemConfig
 }
 
-const MASTER_STORAGE_EVENT = "talasys-master-storage-updated"
-
 // ─── Core Helpers ───
 
+/** Generates a collision-resistant ID using timestamp + random suffix. */
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-export const getInitials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("")
-const canUseStorage = () => typeof window !== "undefined"
+
+/** Extracts up to the first two words of a name and returns their uppercase initials. */
+export const getInitials = (name: string) =>
+  name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("")
+
+/** Returns true when running in a browser context (not during SSR). */
+const isBrowserEnvironment = () => typeof window !== "undefined"
 
 const createDefaultMasterStorage = (): MasterStorage => ({
   residents: [],
@@ -171,31 +195,41 @@ const createDefaultMasterStorage = (): MasterStorage => ({
   },
 })
 
-// Global runtime instance (to preserve synchronous reads everywhere else)
-let memoryStore: MasterStorage = createDefaultMasterStorage()
-let isFirebaseInitialized = false
+// The in-memory store acts as a local cache so that synchronous reads throughout
+// the app can always return data without awaiting a Firestore call on every access.
+// Firestore onSnapshot listeners (in the hooks layer) push updates into this store.
+let inMemoryStore: MasterStorage = createDefaultMasterStorage()
 
 export const notifyMasterUpdated = () => {
-  if (!canUseStorage()) return
-  window.dispatchEvent(new Event(MASTER_STORAGE_EVENT))
+  if (!isBrowserEnvironment()) return
+  window.dispatchEvent(new Event(MASTER_STORAGE_UPDATED_EVENT))
 }
 
 export const initializeFirebaseStorage = (userRole: string | null, userId: string | null) => {
-    // No-op. Hook subscriptions handle this natively now.
+  // No-op. Hook subscriptions handle Firestore initialization reactively.
 }
 
+/** Returns the current in-memory master storage snapshot. */
 export const readMasterStorage = (): MasterStorage => {
-  return memoryStore
+  return inMemoryStore
 }
 
+/**
+ * @deprecated Writes are now performed directly against Firestore in the hooks layer.
+ * This function is retained for backward compatibility with legacy call sites.
+ */
 export const writeMasterStorage = (next: MasterStorage) => {
-  // Deprecated. We write to firestore directly now.
+  // Intentional no-op — direct Firestore writes replaced this local-write pattern.
 }
 
+/**
+ * Subscribes to in-memory store update events dispatched by `notifyMasterUpdated`.
+ * Returns an unsubscribe function to clean up the listener.
+ */
 export const subscribeToMasterStorage = (callback: () => void) => {
-  if (!canUseStorage()) return () => { }
-  window.addEventListener(MASTER_STORAGE_EVENT, callback)
+  if (!isBrowserEnvironment()) return () => { }
+  window.addEventListener(MASTER_STORAGE_UPDATED_EVENT, callback)
   return () => {
-    window.removeEventListener(MASTER_STORAGE_EVENT, callback)
+    window.removeEventListener(MASTER_STORAGE_UPDATED_EVENT, callback)
   }
 }

@@ -35,13 +35,13 @@ export function HeroSection() {
             </p>
             
             <div className="flex flex-wrap items-center gap-4 mt-4">
-              <Link href="/register">
+              <Link href="/auth/register">
                 <Button size="lg" className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1a30] text-white shadow-md h-12 px-8 text-base transition-all" style={{ borderRadius: "var(--radius-md)" }}>
                   Register as Resident
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
               </Link>
-              <Link href="/login">
+              <Link href="/auth/login">
                 <Button size="lg" variant="outline" className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-950 h-12 px-8 text-base shadow-sm transition-all" style={{ borderRadius: "var(--radius-md)" }}>
                   <FileText className="mr-2 w-4 h-4" />
                   Request Document

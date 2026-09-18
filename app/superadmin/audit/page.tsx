@@ -7,11 +7,12 @@ import {
   AreaChart, Area,
 } from "recharts"
 import { Card } from "@/components/ui/card"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-import { useSuperAdminData } from "@/hooks/use-superadmin-data"
+import { useSuperAdminData } from "@/hooks/superadmin"
 import { useMounted } from "@/hooks/use-mounted"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
@@ -45,6 +46,19 @@ export default function AuditLogs() {
   const [searchTerm, setSearchTerm] = useState("")
   const [adminFilter, setAdminFilter] = useState("all")
   const [actionFilter, setActionFilter] = useState("all")
+  const [selectedYear, setSelectedYear] = useState<string>("All")
+  const [selectedMonth, setSelectedMonth] = useState<string>("All")
+
+  const currentYear = new Date().getFullYear()
+  const yearsList = Array.from(new Set(auditLogs.map(l => {
+    const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
+    const logDate = (ts && !isNaN(ts)) ? new Date(ts) : null;
+    return logDate ? logDate.getFullYear() : null;
+  }).filter((y): y is number => y !== null))).sort((a, b) => b - a)
+  
+  if (yearsList.length === 0) yearsList.push(currentYear)
+
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   const [showExportCSV, setShowExportCSV] = useState(false)
   const [showExportPDF, setShowExportPDF] = useState(false)
   const [isExportingCsv, setIsExportingCsv] = useState(false)
@@ -155,7 +169,19 @@ export default function AuditLogs() {
     const matchesSearch = details.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesAdmin = adminFilter === "all" || adminName === adminFilter
     const matchesAction = actionFilter === "all" || actionType === actionFilter
-    return matchesSearch && matchesAdmin && matchesAction
+
+    const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp
+    const logDate = (ts && !isNaN(ts)) ? new Date(ts) : null
+
+    let matchesDate = true
+    if (logDate) {
+      if (selectedYear !== "All" && logDate.getFullYear().toString() !== selectedYear) matchesDate = false
+      if (selectedMonth !== "All" && logDate.getMonth().toString() !== selectedMonth) matchesDate = false
+    } else if (selectedYear !== "All" || selectedMonth !== "All") {
+      matchesDate = false
+    }
+
+    return matchesSearch && matchesAdmin && matchesAction && matchesDate
   })
 
   const getActionColor = (type: string) => {
@@ -243,7 +269,7 @@ export default function AuditLogs() {
         {kpis.map((kpi) => (
           <Card key={kpi.label} className="p-4 shadow-sm">
             <div className="flex items-start justify-between mb-2">
-              <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
                 <kpi.icon className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
               </div>
               <Sparkline data={kpi.spark} color={kpi.color} />
@@ -343,7 +369,24 @@ export default function AuditLogs() {
             <option value="Config Edit">Config Edit</option>
             <option value="Login">Login</option>
           </select>
-          <input type="text" className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm" value="Jun 1 - Jun 30, 2024" readOnly />
+          <div className="flex gap-2">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="w-1/2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
+            >
+              <option value="All">All Years</option>
+              {yearsList.map(y => <option key={y} value={y.toString()}>{y}</option>)}
+            </select>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-1/2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
+            >
+              <option value="All">All Months</option>
+              {monthNames.map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
+            </select>
+          </div>
           <div className="flex gap-3">
             <Input placeholder="Search by details..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1" />
             <Button className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Apply</Button>
@@ -424,36 +467,32 @@ export default function AuditLogs() {
       </div>
 
       {/* Export CSV Modal */}
-      {showExportCSV && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export Audit Logs to CSV?</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will export {filteredLogs.length} audit log entries to a CSV file with all applied filters.</p>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowExportCSV(false)} disabled={isExportingCsv}>Cancel</Button>
-              <Button onClick={handleExportCsv} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
-                {isExportingCsv ? "Exporting CSV..." : "Confirm Export"}
-              </Button>
-            </div>
+      <ModalOverlay isOpen={showExportCSV} onClose={() => setShowExportCSV(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-2xl">
+          <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export Audit Logs to CSV?</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will export {filteredLogs.length} audit log entries to a CSV file with all applied filters.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowExportCSV(false)} disabled={isExportingCsv}>Cancel</Button>
+            <Button onClick={handleExportCsv} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
+              {isExportingCsv ? "Exporting CSV..." : "Confirm Export"}
+            </Button>
           </div>
         </div>
-      )}
+      </ModalOverlay>
 
       {/* Export PDF Modal */}
-      {showExportPDF && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export Audit Logs to PDF?</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a PDF report with {filteredLogs.length} audit log entries including all filtered actions.</p>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowExportPDF(false)} disabled={isExportingPdf}>Cancel</Button>
-              <Button onClick={handleExportPdf} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
-                {isExportingPdf ? "Exporting PDF..." : "Confirm Export"}
-              </Button>
-            </div>
+      <ModalOverlay isOpen={showExportPDF} onClose={() => setShowExportPDF(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-2xl">
+          <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Export Audit Logs to PDF?</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a PDF report with {filteredLogs.length} audit log entries including all filtered actions.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowExportPDF(false)} disabled={isExportingPdf}>Cancel</Button>
+            <Button onClick={handleExportPdf} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
+              {isExportingPdf ? "Exporting PDF..." : "Confirm Export"}
+            </Button>
           </div>
         </div>
-      )}
+      </ModalOverlay>
     </div>
   )
 }
