@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [resetSent, setResetSent] = useState(false)
   const [isSigningIn, setIsSigningIn] = useState(false)
+  const [trustDevice, setTrustDevice] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
 
@@ -51,6 +52,7 @@ export default function LoginPage() {
     }
 
     if (user) {
+      localStorage.setItem("talasys_trusted_device", trustDevice.toString())
       if (user.role === "superadmin" || (user.role as any) === "SuperAdmin" || (user.role as any) === "Super Admin") {
         router.push("/superadmin/dashboard")
       } else if (["admin", "Full Access", "Verification Only", "Documents Only", "View Only"].includes(user.role)) {
@@ -139,6 +141,19 @@ export default function LoginPage() {
                 disabled={isSigningIn}
                 required
               />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="trustDevice"
+                checked={trustDevice}
+                onChange={(e) => setTrustDevice(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-[#0C2340] focus:ring-[#0C2340] dark:border-slate-600 dark:bg-slate-700"
+              />
+              <label htmlFor="trustDevice" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Trust this device for 30 days
+              </label>
             </div>
 
             {error && (

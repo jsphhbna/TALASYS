@@ -1,6 +1,7 @@
 import { initializeApp, getApps, cert, getApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { getAuth } from 'firebase-admin/auth';
 
 function initAdminApp() {
   if (getApps().length > 0) {
@@ -32,3 +33,4 @@ const adminApp = initAdminApp();
 // When used, they will throw a JS error, which is caught gracefully by our try/catch blocks!
 export const adminDb = adminApp ? getFirestore(adminApp) : null as any;
 export const adminStorage = adminApp ? getStorage(adminApp) : null as any;
+export const adminAuth = adminApp ? getAuth(adminApp) : null as any;

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/admin"
 import { useSuperAdminData } from "@/hooks/superadmin"
 import { showToastPreset } from "@/lib/app-toast"
+import { toast } from "sonner"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 
@@ -25,6 +26,7 @@ export default function CategoryReports() {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null)
+  const [lastDownload, setLastDownload] = useState(0)
 
 
 
@@ -207,6 +209,13 @@ export default function CategoryReports() {
 
   const handleDownload = async () => {
     if (isDownloadingPdf) return
+    
+    const now = Date.now();
+    if (now - lastDownload < 5000) {
+      toast.error("You are clicking too fast! Please try again in 5 seconds.");
+      return;
+    }
+    setLastDownload(now);
 
     setIsDownloadingPdf(true)
     

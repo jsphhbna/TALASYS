@@ -289,6 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Signs the user out of Firebase Auth and clears all local session state. */
   const logout = async () => {
     try {
+      localStorage.removeItem("talasys_trusted_device")
       await firebaseSignOut(auth)
     } catch (signOutError) {
       console.error("Firebase sign-out failed:", signOutError)

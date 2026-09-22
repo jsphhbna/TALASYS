@@ -26,6 +26,7 @@ function GenerateDocumentsContent() {
   const [customDocTitle, setCustomDocTitle] = useState("C E R T I F I C A T I O N")
   const [isGenerating, setIsGenerating] = useState(false)
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null)
+  const [lastDownload, setLastDownload] = useState(0)
   const editorRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -357,6 +358,13 @@ function GenerateDocumentsContent() {
                   <Button
                     onClick={async () => {
                       try {
+                        const now = Date.now();
+                        if (now - lastDownload < 5000) {
+                          toast.error("You are clicking too fast! Please try again in 5 seconds.");
+                          return;
+                        }
+                        setLastDownload(now);
+
                         setIsGenerating(true)
                         const element = document.getElementById("pdf-preview-container")
                         if (!element) return

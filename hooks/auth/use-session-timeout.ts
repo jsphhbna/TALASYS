@@ -4,9 +4,11 @@ import { useEffect, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
 
 const INACTIVITY_STORAGE_KEY = "talasys_last_activity"
+const TRUST_DEVICE_KEY = "talasys_trusted_device"
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000
 
-export function use30DayTimeout() {
+export function useSessionTimeout() {
   const { user, logout, isReady } = useAuth()
 
   // Update activity timestamp no more than once per minute to save performance
@@ -19,8 +21,11 @@ export function use30DayTimeout() {
     if (lastActivity) {
       const timeSinceLastActive = now - parseInt(lastActivity, 10)
       
-      // If 30 days have passed, force logout
-      if (timeSinceLastActive > THIRTY_DAYS_MS) {
+      const isTrusted = localStorage.getItem(TRUST_DEVICE_KEY) === "true"
+      const timeoutLimit = isTrusted ? THIRTY_DAYS_MS : THREE_DAYS_MS
+      
+      // If time limit has passed, force logout
+      if (timeSinceLastActive > timeoutLimit) {
         localStorage.removeItem(INACTIVITY_STORAGE_KEY)
         logout()
         return

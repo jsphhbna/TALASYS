@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
+import { db, auth } from "@/lib/firebase"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 const systemHealthMetrics: any = { uptime: 100, storageUsed: 12, storageTotal: 100, responseTime: 45, activeModules: 4, totalModules: 4, activeDocTypes: 5, totalDocTypes: 6 };
@@ -34,6 +35,7 @@ export default function SystemConfig() {
   const [isSavingChanges, setIsSavingChanges] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState("funeral")
   const [editingTemplate, setEditingTemplate] = useState(false)
+  const [lastDownload, setLastDownload] = useState(0)
 
   // Add Document Type modal state
   const [showAddDocModal, setShowAddDocModal] = useState(false)
@@ -604,23 +606,53 @@ City of Manila, {{date_issued}}.`,
             
             <div className="p-8">
               <div className="flex flex-col sm:flex-row items-center gap-4 max-w-lg">
-                <a 
-                  href="/api/backup/download?type=json" 
-                  target="_blank"
+                <button 
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    const now = Date.now();
+                    if (now - lastDownload < 5000) {
+                      toast.error("You are clicking too fast! Please try again in 5 seconds.");
+                      return;
+                    }
+                    setLastDownload(now);
+                    
+                    try {
+                      const token = await auth.currentUser?.getIdToken();
+                      if (!token) throw new Error("Not authenticated");
+                      window.open(`/api/backup/download?type=json&token=${token}`, '_blank');
+                    } catch (error) {
+                      toast.error("Failed to authenticate download request.");
+                    }
+                  }}
                   className="w-full flex items-center justify-center gap-2 rounded-lg text-sm font-semibold border-2 border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 py-3 px-4 transition-all text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   <Download className="w-4 h-4" />
                   Download as JSON
-                </a>
+                </button>
                 
-                <a 
-                  href="/api/backup/download?type=excel" 
-                  target="_blank"
+                <button 
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    const now = Date.now();
+                    if (now - lastDownload < 5000) {
+                      toast.error("You are clicking too fast! Please try again in 5 seconds.");
+                      return;
+                    }
+                    setLastDownload(now);
+                    
+                    try {
+                      const token = await auth.currentUser?.getIdToken();
+                      if (!token) throw new Error("Not authenticated");
+                      window.open(`/api/backup/download?type=excel&token=${token}`, '_blank');
+                    } catch (error) {
+                      toast.error("Failed to authenticate download request.");
+                    }
+                  }}
                   className="w-full flex items-center justify-center gap-2 rounded-lg text-sm font-semibold border-2 border-[#0C2340] bg-[#0C2340] text-white hover:bg-[#1a3a5c] py-3 px-4 transition-all dark:bg-blue-600 dark:border-blue-600 dark:hover:bg-blue-700 shadow-md hover:shadow-lg"
                 >
                   <Download className="w-4 h-4" />
                   Download as Excel
-                </a>
+                </button>
               </div>
               
               <div className="mt-6 flex items-start gap-3 p-4 bg-blue-50/50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50">

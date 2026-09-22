@@ -1,14 +1,49 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { adminDb, adminAuth } from "@/lib/firebase-admin";
 import * as xlsx from "xlsx";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    // Limit to 1 request every 5 seconds (5000 ms)
+    const { success, resetTime } = rateLimit(ip, 1, 5000);
+    
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Too Many Requests. Please wait 5 seconds.' }, 
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Reset': resetTime.toString()
+          }
+        }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'json';
+    const token = searchParams.get('token');
 
-    if (!adminDb) {
+    if (!adminDb || !adminAuth) {
       return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
+    }
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized: Missing authentication token' }, { status: 401 });
+    }
+
+    let decodedToken;
+    try {
+      decodedToken = await adminAuth.verifyIdToken(token);
+    } catch (authError) {
+      return NextResponse.json({ error: 'Unauthorized: Invalid or expired token' }, { status: 401 });
+    }
+
+    // Verify user is a superadmin
+    const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    if (!userDoc.exists || userDoc.data()?.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Forbidden: Requires superadmin privileges' }, { status: 403 });
     }
 
     const collectionsToBackup = [
