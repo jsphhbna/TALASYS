@@ -214,3 +214,50 @@ html {
 ::view-transition-new(root) {
   z-index: 9999;
 }
+
+/* 
+ * Premium UI/UX Details
+ */
+
+/* Selection Highlight */
+::selection {
+  background-color: oklch(0.45 0.1 250 / 0.3); /* Subtle primary-blue highlight */
+  color: inherit;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3); 
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.7);
+}
+
+/* Page Transitions */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.page-transition {
+  animation: fadeIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
