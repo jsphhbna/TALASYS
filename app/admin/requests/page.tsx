@@ -236,7 +236,7 @@ function DocumentRequestsContent() {
                   <div className="flex items-center gap-2">
                   {user?.role !== "View Only" && (
                     <>
-                      {request.status === "Pending" && !(request.status === "Awaiting Payment" || (request as any).paymentStatus === "pending_verification") && (
+                      {request.status === "Pending" && !((request as any).paymentStatus === "pending_verification") && (
                         <>
                           <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Approve</Button>
                           <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setRejectReason(""); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>

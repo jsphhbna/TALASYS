@@ -394,6 +394,10 @@ export default function RegisterPage() {
                   We've sent a verification link to <span className="font-semibold text-slate-900 dark:text-white break-all">{formData.email}</span>. 
                   <br /><br />
                   Please click the link in the email to verify your account before logging in.
+                  <br /><br />
+                  <span className="text-xs italic text-slate-500 dark:text-slate-500">
+                    If you don't see the email, please check your spam or junk folder.
+                  </span>
                 </p>
               </div>
               

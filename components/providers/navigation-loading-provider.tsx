@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { usePathname } from "next/navigation"
+import { use30DayTimeout } from "@/hooks/auth/use-30-day-timeout"
 
 interface NavigationLoadingContextType {
   isNavigating: boolean
@@ -12,6 +13,7 @@ interface NavigationLoadingContextType {
 const NavigationLoadingContext = createContext<NavigationLoadingContextType | null>(null)
 
 export function NavigationLoadingProvider({ children }: { children: React.ReactNode }) {
+  use30DayTimeout()
   const pathname = usePathname()
   const [isNavigating, setIsNavigating] = useState(false)
   const [pendingPath, setPendingPath] = useState<string | null>(null)

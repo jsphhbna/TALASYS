@@ -20,8 +20,6 @@ import {
     COLOR_ADMIN_GREEN,
     COLOR_ADMIN_RED,
     COLOR_ADMIN_AMBER,
-    COLOR_ADMIN_ORANGE,
-    COLOR_ADMIN_PURPLE,
 } from "@/lib/constants"
 import { useAuth } from "@/lib/auth"
 

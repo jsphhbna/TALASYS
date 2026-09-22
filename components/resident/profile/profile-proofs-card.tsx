@@ -22,7 +22,7 @@ export function ProfileProofsCard({
   onRequestProfileEdit,
 }: ProfileProofsCardProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
-  const isRejected = verification?.status === "rejected"
+  const isRejected = (verification?.status as string) === "rejected"
 
   const handleResubmit = () => {
     // Open the profile edit modal so they can upload new documents

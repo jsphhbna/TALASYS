@@ -43,12 +43,12 @@ export const IMAGE_COMPRESSION_TIMEOUT_MS = 8_000
 
 // ─── Cloudinary ───
 // Secrets must be loaded from environment variables; never hardcode them.
-export const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "gmseg91m"
-export const CLOUDINARY_API_KEY = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY ?? "588324923391267"
+export const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME as string
+export const CLOUDINARY_API_KEY = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY as string
 // NOTE: The API secret is intentionally not exposed to the browser via NEXT_PUBLIC_.
 // It is only used server-side for signed upload signature generation.
 // If it appears here, it means the project has not yet migrated to a server-side signing endpoint.
-export const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET ?? "2wGosQ3mRbcwLTpq4W2u0AXn8Sk"
+export const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET as string
 
 // ─── UI Badge Colors ───
 // Consistent role/action colors used across audit logs and admin badges.

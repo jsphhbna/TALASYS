@@ -7,6 +7,7 @@ import { SuperAdminHeader } from "@/components/superadmin/layout/superadmin-head
 import { SuperAdminSidebar } from "@/components/superadmin/layout/superadmin-sidebar"
 import { MainContentStage } from "@/components/layout/main-content-stage"
 import { useInactivityTimeout } from "@/hooks/auth"
+import { BackupReminderBanner } from "@/components/superadmin/layout/backup-reminder-banner"
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthorized } = useAuthGuard({ requiredRole: "superadmin" })
@@ -18,6 +19,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
+      <BackupReminderBanner />
       <SuperAdminHeader />
       <div className="flex flex-1 min-h-0">
         <SuperAdminSidebar />

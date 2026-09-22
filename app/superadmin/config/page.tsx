@@ -12,9 +12,12 @@ import { useSuperAdminData } from "@/hooks/superadmin"
 import { useAdminData } from "@/hooks/admin"
 import {
   Server, HardDrive, Clock, Activity, Shield, FileText,
-  Palette, LayoutTemplate, Files, Settings, CheckCircle, Pencil, Trash2, Plus, X, UploadCloud, Loader2
+  Palette, LayoutTemplate, Files, Settings, CheckCircle, Pencil, Trash2, Plus, X, UploadCloud, Loader2,
+  Database, Download, AlertTriangle, History
 } from "lucide-react"
+import { toast } from "sonner"
 import { uploadFileToCloudinary } from "@/lib/resident/cloudinary"
+import { BackupHistoryList } from "@/components/superadmin/layout/backup-history-list"
 
 const changeTypeIcons: Record<string, typeof Palette> = {
   branding: Palette,
@@ -26,7 +29,7 @@ const changeTypeIcons: Record<string, typeof Palette> = {
 export default function SystemConfig() {
   const { systemConfig, updateConfig, auditLogs } = useSuperAdminData()
   const { documentRequests } = useAdminData()
-  const [activeTab, setActiveTab] = useState<"branding" | "templates" | "documents">("branding")
+  const [activeTab, setActiveTab] = useState<"branding" | "templates" | "documents" | "backups">("branding")
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [isSavingChanges, setIsSavingChanges] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState("funeral")
@@ -189,6 +192,7 @@ City of Manila, {{date_issued}}.`,
     { id: "branding" as const, label: "Branding", icon: Palette },
     { id: "templates" as const, label: "Templates", icon: LayoutTemplate },
     { id: "documents" as const, label: "Document Types", icon: Files },
+    { id: "backups" as const, label: "Database Backups", icon: Database },
   ]
 
   const templates = [
@@ -575,6 +579,69 @@ City of Manila, {{date_issued}}.`,
             </Button>
           </div>
         </Card>
+      )}
+
+      {/* Database Backups Tab */}
+      {activeTab === "backups" && (
+        <div className="space-y-6">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">On-Demand Database Backups</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Generate a full export of your entire database on-the-fly. No storage costs required.
+            </p>
+          </div>
+
+          <Card>
+            <div className="bg-slate-50 dark:bg-slate-950 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Database className="w-5 h-5 text-blue-600" />
+                <div>
+                  <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Full Database Export</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Exports users, residents, requests, logs, and more.</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-8">
+              <div className="flex flex-col sm:flex-row items-center gap-4 max-w-lg">
+                <a 
+                  href="/api/backup/download?type=json" 
+                  target="_blank"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg text-sm font-semibold border-2 border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 py-3 px-4 transition-all text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <Download className="w-4 h-4" />
+                  Download as JSON
+                </a>
+                
+                <a 
+                  href="/api/backup/download?type=excel" 
+                  target="_blank"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg text-sm font-semibold border-2 border-[#0C2340] bg-[#0C2340] text-white hover:bg-[#1a3a5c] py-3 px-4 transition-all dark:bg-blue-600 dark:border-blue-600 dark:hover:bg-blue-700 shadow-md hover:shadow-lg"
+                >
+                  <Download className="w-4 h-4" />
+                  Download as Excel
+                </a>
+              </div>
+              
+              <div className="mt-6 flex items-start gap-3 p-4 bg-blue-50/50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50">
+                <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+                <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
+                  <strong>Zero-Storage Backup:</strong> Clicking these buttons will read your live Firestore database and stream the files directly to your browser. Your backups are generated instantly and securely without taking up any permanent cloud storage space.
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="bg-slate-50 dark:bg-slate-950 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+              <History className="w-4 h-4 text-slate-500" />
+              <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Recent Backup History</h3>
+            </div>
+            <div className="p-0">
+              <BackupHistoryList />
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* Add Document Type Modal */}

@@ -24,7 +24,7 @@ export interface AdminAccount {
   email: string
   password: string
   contactNumber?: string
-  role: "Full Access" | "Verification Only" | "Documents Only" | "View Only" | "SuperAdmin"
+  role: "Full Access" | "Verification Only" | "Documents Only" | "View Only" | "SuperAdmin" | "Resident Management" | "Verifications" | "Document Processing"
   status: "Active" | "Locked"
   isOnline: boolean
   lastActive: string
@@ -70,7 +70,7 @@ export interface ResidentProofDocument {
   filename: string
   url?: string
   uploadDate: string
-  status: "Valid" | "Pending" | "Expired"
+  status: "Valid" | "Pending" | "Expired" | "Rejected"
 }
 
 export interface ResidentAccountRecord {

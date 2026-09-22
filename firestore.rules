@@ -139,5 +139,15 @@ service cloud.firestore {
       allow create, update, delete: if isSuperAdmin();
     }
 
+    // ==============================================================
+    // BACKUP LOGS COLLECTION
+    // ==============================================================
+    match /backupLogs/{logId} {
+      // Only SuperAdmins can read backup logs.
+      allow read: if isSuperAdmin();
+      // Backups are logged securely via the Admin SDK API Route, no client writes allowed.
+      allow create, update, delete: if false; 
+    }
+
   }
 }
