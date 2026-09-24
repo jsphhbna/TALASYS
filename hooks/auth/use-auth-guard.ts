@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useAuth, type UserRole } from "@/lib/auth"
 
 interface UseAuthGuardOptions {
-  requiredRole?: UserRole
+  requiredRole?: UserRole | UserRole[]
   redirectTo?: string
 }
 
@@ -15,7 +15,9 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
   const router = useRouter()
 
   const isAuthorized = Boolean(
-    isReady && isAuthenticated && (!requiredRole || user?.role === requiredRole),
+    isReady && isAuthenticated && (!requiredRole || 
+      (Array.isArray(requiredRole) ? requiredRole.includes(user?.role as UserRole) : user?.role === requiredRole)
+    ),
   )
 
   useEffect(() => {

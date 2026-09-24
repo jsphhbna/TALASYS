@@ -44,7 +44,7 @@ export function SuperAdminHeader() {
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-3 focus:outline-none group">
+            <button className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0C2340] dark:focus-visible:ring-slate-300 rounded-md group">
               <span className="text-blue-100/80 text-sm hidden sm:inline group-hover:text-white transition-colors">
                 Super Admin
               </span>

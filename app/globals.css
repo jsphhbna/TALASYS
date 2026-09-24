@@ -261,3 +261,9 @@ html {
 .page-transition {
   animation: fadeIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
+
+/* Hide native Edge/IE password reveal icons */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}

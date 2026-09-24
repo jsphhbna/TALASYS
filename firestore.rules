@@ -149,5 +149,11 @@ service cloud.firestore {
       allow create, update, delete: if false; 
     }
 
+    // ==============================================================
+    // DEFAULT DENY
+    // ==============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }

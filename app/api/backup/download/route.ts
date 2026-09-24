@@ -42,7 +42,8 @@ export async function GET(request: Request) {
 
     // Verify user is a superadmin
     const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-    if (!userDoc.exists || userDoc.data()?.role !== 'superadmin') {
+    const role = userDoc.data()?.role;
+    if (!userDoc.exists || !["superadmin", "SuperAdmin", "Super Admin"].includes(role)) {
       return NextResponse.json({ error: 'Forbidden: Requires superadmin privileges' }, { status: 403 });
     }
 

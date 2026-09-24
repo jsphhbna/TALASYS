@@ -43,6 +43,7 @@ export default function AdminManagement() {
   const [showRevokeModal, setShowRevokeModal] = useState(false)
   const [showLogsModal, setShowLogsModal] = useState(false)
   const [selectedAdmin, setSelectedAdmin] = useState<any>(null)
+  const [isCreating, setIsCreating] = useState(false)
   
   const adminRecentActions = auditLogs.slice(0, 5).map(l => {
     const actionType = l.actionType || l.action || "Unknown"
@@ -198,6 +199,7 @@ export default function AdminManagement() {
     setFormError("")
     const fullName = `${newAdminFirstName} ${newAdminMiddleInitial ? newAdminMiddleInitial + '. ' : ''}${newAdminLastName}`
     
+    setIsCreating(true)
     try {
       await addAdmin({
         name: fullName,
@@ -218,6 +220,8 @@ export default function AdminManagement() {
       setFormError("")
     } catch (e: any) {
       setFormError(e.message || "Failed to create account. Please try again.")
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -501,8 +505,10 @@ export default function AdminManagement() {
             </div>
           </div>
           <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 shrink-0">
-            <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-            <Button onClick={handleCreateAdmin} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Create Admin</Button>
+            <Button variant="outline" onClick={() => setShowCreateModal(false)} disabled={isCreating}>Cancel</Button>
+            <Button onClick={handleCreateAdmin} disabled={isCreating} className="min-w-[140px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">
+              {isCreating ? "Creating..." : "Create Admin"}
+            </Button>
           </div>
         </div>
       </ModalOverlay>

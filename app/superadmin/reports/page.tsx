@@ -37,6 +37,7 @@ export default function SystemReports() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [selectedYear, setSelectedYear] = useState<string>("All")
   const [selectedMonth, setSelectedMonth] = useState<string>("All")
+  const [lastExport, setLastExport] = useState(0)
 
   const currentYear = new Date().getFullYear()
   const yearsList = Array.from(new Set(documentRequests.map(r => {
@@ -86,6 +87,12 @@ export default function SystemReports() {
 
   const handleGenerateReport = async () => {
     if (isGeneratingReport) return
+    const now = Date.now()
+    if (now - lastExport < 5000) {
+      showToastPreset("actionRateLimited")
+      return
+    }
+    setLastExport(now)
 
     setIsGeneratingReport(true)
     
@@ -370,7 +377,7 @@ export default function SystemReports() {
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a Full Population report in PDF format for {selectedMonth === "All" && selectedYear === "All" ? "all time" : `${selectedMonth !== "All" ? monthNames[parseInt(selectedMonth)] : ""} ${selectedYear !== "All" ? selectedYear : ""}`}.</p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowGenerateDialog(false)} disabled={isGeneratingReport}>Cancel</Button>
-            <Button onClick={handleGenerateReport} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isGeneratingReport}>
+            <Button onClick={handleGenerateReport} className="min-w-[140px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isGeneratingReport}>
               {isGeneratingReport ? "Generating..." : "Confirm"}
             </Button>
           </div>

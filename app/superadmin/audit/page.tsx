@@ -63,9 +63,16 @@ export default function AuditLogs() {
   const [showExportPDF, setShowExportPDF] = useState(false)
   const [isExportingCsv, setIsExportingCsv] = useState(false)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [lastExport, setLastExport] = useState(0)
 
   const handleExportCsv = async () => {
     if (isExportingCsv) return
+    const now = Date.now()
+    if (now - lastExport < 5000) {
+      showToastPreset("actionRateLimited")
+      return
+    }
+    setLastExport(now)
 
     setIsExportingCsv(true)
     try {
@@ -102,6 +109,12 @@ export default function AuditLogs() {
 
   const handleExportPdf = async () => {
     if (isExportingPdf) return
+    const now = Date.now()
+    if (now - lastExport < 5000) {
+      showToastPreset("actionRateLimited")
+      return
+    }
+    setLastExport(now)
 
     setIsExportingPdf(true)
     try {
@@ -458,11 +471,11 @@ export default function AuditLogs() {
       <div className="flex justify-between items-center">
         <p className="text-sm text-slate-600 dark:text-slate-400">Showing 1-10 of {filteredLogs.length} entries</p>
         <div className="flex gap-2">
-          <button className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">&lt;</button>
-          <button className="w-8 h-8 bg-[#0C2340] dark:bg-slate-800 rounded flex items-center justify-center text-white text-sm">1</button>
-          <button className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">2</button>
-          <button className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">3</button>
-          <button className="w-8 h-8 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">&gt;</button>
+          <button className="w-11 h-11 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">&lt;</button>
+          <button className="w-11 h-11 bg-[#0C2340] dark:bg-slate-800 rounded flex items-center justify-center text-white text-sm">1</button>
+          <button className="w-11 h-11 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">2</button>
+          <button className="w-11 h-11 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">3</button>
+          <button className="w-11 h-11 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">&gt;</button>
         </div>
       </div>
 
@@ -473,7 +486,7 @@ export default function AuditLogs() {
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will export {filteredLogs.length} audit log entries to a CSV file with all applied filters.</p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowExportCSV(false)} disabled={isExportingCsv}>Cancel</Button>
-            <Button onClick={handleExportCsv} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
+            <Button onClick={handleExportCsv} className="min-w-[160px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
               {isExportingCsv ? "Exporting CSV..." : "Confirm Export"}
             </Button>
           </div>
@@ -487,7 +500,7 @@ export default function AuditLogs() {
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a PDF report with {filteredLogs.length} audit log entries including all filtered actions.</p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowExportPDF(false)} disabled={isExportingPdf}>Cancel</Button>
-            <Button onClick={handleExportPdf} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
+            <Button onClick={handleExportPdf} className="min-w-[160px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
               {isExportingPdf ? "Exporting PDF..." : "Confirm Export"}
             </Button>
           </div>

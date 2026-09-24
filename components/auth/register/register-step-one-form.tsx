@@ -101,7 +101,7 @@ export function RegisterStepOneForm({
           type="button" 
           onClick={handleIdScanClick}
           disabled={isScanning}
-          className="whitespace-nowrap border-slate-300 dark:border-slate-600 hover:bg-slate-200"
+          className="min-w-[140px] whitespace-nowrap border-slate-300 dark:border-slate-600 hover:bg-slate-200"
         >
           {isScanning ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Scanning...</>

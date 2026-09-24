@@ -90,6 +90,11 @@ const presets = {
     title: "PDF exported",
     description: "Audit logs PDF export completed.",
   },
+  actionRateLimited: {
+    title: "Rate limited",
+    description: "You are clicking too fast! Please wait 5 seconds.",
+    variant: "destructive",
+  },
 } as const satisfies Record<string, ToastPreset>
 
 export type ToastPresetKey = keyof typeof presets

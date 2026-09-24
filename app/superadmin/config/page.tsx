@@ -733,7 +733,7 @@ City of Manila, {{date_issued}}.`,
 
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowAddDocModal(false)} disabled={isAddingDoc}>Cancel</Button>
-            <Button onClick={handleAddDocType} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isAddingDoc || !newDocName.trim()}>
+            <Button onClick={handleAddDocType} className="min-w-[160px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isAddingDoc || !newDocName.trim()}>
               {isAddingDoc ? "Adding..." : "Add Document Type"}
             </Button>
           </div>
@@ -747,7 +747,7 @@ City of Manila, {{date_issued}}.`,
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">All pending changes to branding, templates, and document types will be saved. These changes will take effect immediately.</p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowSaveDialog(false)} disabled={isSavingChanges}>Cancel</Button>
-            <Button onClick={handleSaveAllChanges} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isSavingChanges}>
+            <Button onClick={handleSaveAllChanges} className="min-w-[140px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isSavingChanges}>
               {isSavingChanges ? "Saving..." : "Save Changes"}
             </Button>
           </div>

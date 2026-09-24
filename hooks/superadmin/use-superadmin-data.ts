@@ -162,8 +162,9 @@ export function useSuperAdminData() {
                 const { sendEmailVerification } = await import("firebase/auth")
                 await sendEmailVerification(userCredential.user)
                 
+                const { password: _password, ...userDataToSave } = input;
                 await setDoc(doc(db, COLLECTION_USERS, newAdminUid), {
-                    ...input,
+                    ...userDataToSave,
                     initials: input.name.substring(0, 2).toUpperCase(),
                     isOnline: false,
                     lastActive: "Never",

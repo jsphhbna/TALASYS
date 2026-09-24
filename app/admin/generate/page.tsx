@@ -433,7 +433,7 @@ function GenerateDocumentsContent() {
                       }
                     }}
                     disabled={isGenerating}
-                    className="flex-1 h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
+                    className="flex-1 min-w-[160px] h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                     Download PDF

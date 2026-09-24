@@ -10,7 +10,7 @@ import { useInactivityTimeout } from "@/hooks/auth"
 import { BackupReminderBanner } from "@/components/superadmin/layout/backup-reminder-banner"
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthorized } = useAuthGuard({ requiredRole: "superadmin" })
+  const { isAuthorized } = useAuthGuard({ requiredRole: ["superadmin", "Super Admin"] })
   useInactivityTimeout()
 
   if (!isAuthorized) {

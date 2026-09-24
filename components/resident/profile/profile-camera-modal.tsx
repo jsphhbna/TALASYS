@@ -198,7 +198,7 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
           <Button 
             onClick={handleSave} 
             disabled={!capturedImage || isSaving}
-            className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] text-white"
+            className="min-w-[140px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] text-white"
           >
             {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {isSaving ? "Saving..." : "Save Picture"}

@@ -35,6 +35,7 @@ export default function ReasonAnalytics() {
   const [showExportPDF, setShowExportPDF] = useState(false)
   const [isExportingCsv, setIsExportingCsv] = useState(false)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [lastExport, setLastExport] = useState(0)
 
   const [selectedYear, setSelectedYear] = useState<string>("All")
   const [selectedMonth, setSelectedMonth] = useState<string>("All")
@@ -65,6 +66,12 @@ export default function ReasonAnalytics() {
 
   const handleExportCsv = async () => {
     if (isExportingCsv) return
+    const now = Date.now()
+    if (now - lastExport < 5000) {
+      showToastPreset("actionRateLimited")
+      return
+    }
+    setLastExport(now)
 
     setIsExportingCsv(true)
     try {
@@ -91,6 +98,12 @@ export default function ReasonAnalytics() {
 
   const handleExportPdf = async () => {
     if (isExportingPdf) return
+    const now = Date.now()
+    if (now - lastExport < 5000) {
+      showToastPreset("actionRateLimited")
+      return
+    }
+    setLastExport(now)
 
     setIsExportingPdf(true)
     try {
@@ -425,7 +438,7 @@ export default function ReasonAnalytics() {
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will export the reason analytics data to a CSV file for the selected time period.</p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowExportCSV(false)} disabled={isExportingCsv}>Cancel</Button>
-            <Button onClick={handleExportCsv} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
+            <Button onClick={handleExportCsv} className="min-w-[160px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingCsv}>
               {isExportingCsv ? "Exporting CSV..." : "Confirm Export"}
             </Button>
           </div>
@@ -439,7 +452,7 @@ export default function ReasonAnalytics() {
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a PDF report with all analytics data, charts, and trends for the selected period.</p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowExportPDF(false)} disabled={isExportingPdf}>Cancel</Button>
-            <Button onClick={handleExportPdf} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
+            <Button onClick={handleExportPdf} className="min-w-[160px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isExportingPdf}>
               {isExportingPdf ? "Exporting PDF..." : "Confirm Export"}
             </Button>
           </div>

@@ -188,7 +188,7 @@ export function ProfileEditRequestDialog({
           <Button
             onClick={onSubmit}
             disabled={!formData.reason.trim() || isSubmitting}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="min-w-[180px] bg-blue-600 hover:bg-blue-700"
           >
             {isSubmitting ? "Submitting Request..." : "Submit Request"}
           </Button>

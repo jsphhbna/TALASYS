@@ -90,6 +90,7 @@ export default function CategoryReports() {
   })
   const [showDownloadDialog, setShowDownloadDialog] = useState(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+  const [lastExport, setLastExport] = useState(0)
 
   const categories = [
     { id: "seniors", title: "Senior Citizens", count: `${adminStats.seniorCount} residents`, icon: "SC", reportTitle: "LIST OF SENIOR CITIZENS" },
@@ -185,6 +186,12 @@ export default function CategoryReports() {
 
   const handleConfirmDownload = async () => {
     if (isDownloadingPdf) return
+    const now = Date.now()
+    if (now - lastExport < 5000) {
+      showToastPreset("actionRateLimited")
+      return
+    }
+    setLastExport(now)
 
     setIsDownloadingPdf(true)
     
