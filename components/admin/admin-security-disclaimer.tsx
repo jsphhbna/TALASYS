@@ -32,7 +32,8 @@ export function AdminSecurityDisclaimer() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent 
-        className="sm:max-w-[500px] bg-white dark:bg-slate-900 border-red-100 dark:border-red-900 shadow-2xl overflow-hidden p-0"
+        className="sm:max-w-[500px] bg-white dark:bg-slate-900 border-red-100 dark:border-red-900 shadow-2xl p-0 overflow-y-auto"
+        showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
