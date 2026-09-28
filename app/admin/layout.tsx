@@ -3,6 +3,7 @@
 import type React from "react"
 import { useAuthGuard } from "@/hooks/auth/use-auth-guard"
 import { useInactivityTimeout } from "@/hooks/auth"
+import { AdminSecurityDisclaimer } from "@/components/admin/admin-security-disclaimer"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthorized } = useAuthGuard({ 
@@ -14,5 +15,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return null
   }
 
-  return <>{children}</>
+  return (
+    <>
+      <AdminSecurityDisclaimer />
+      {children}
+    </>
+  )
 }

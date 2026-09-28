@@ -1,0 +1,99 @@
+[debug] [2026-09-28T09:11:03.355Z] ----------------------------------------------------------------------
+[debug] [2026-09-28T09:11:03.358Z] Command:       D:\Programs\NodeJs\node.exe C:\Users\Administrator\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\bin\firebase.js login
+[debug] [2026-09-28T09:11:03.359Z] CLI Version:   15.31.0
+[debug] [2026-09-28T09:11:03.359Z] Platform:      win32
+[debug] [2026-09-28T09:11:03.359Z] Node Version:  v24.21.0
+[debug] [2026-09-28T09:11:03.359Z] Detected Agent: unknown
+[debug] [2026-09-28T09:11:03.359Z] Time:          Mon Sep 28 2026 17:11:03 GMT+0800 (Philippine Standard Time)
+[debug] [2026-09-28T09:11:03.359Z] ----------------------------------------------------------------------
+[debug] 
+[info] i  The Firebase CLI’s MCP server feature can optionally make use of Gemini in Firebase. Learn more about Gemini in Firebase and how it uses your data: https://firebase.google.com/docs/gemini-in-firebase#how-gemini-in-firebase-uses-your-data 
+[info] 
+[info] i  Firebase optionally collects CLI and Emulator Suite usage and error reporting information to help improve our products. Data is collected in accordance with Google's privacy policy (https://policies.google.com/privacy) and is not used to identify you. 
+[info] 
+[info] i  To change your preferences at any time, run `firebase logout` and `firebase login` again. 
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=217614326&redirect_uri=http%3A%2F%2Flocalhost%3A9005
+[info] 
+[info] Waiting for authentication...
+[debug] [2026-09-28T09:11:19.980Z] >>> [apiv2][query] POST https://accounts.google.com/o/oauth2/token [none]
+[debug] [2026-09-28T09:11:19.981Z] >>> [apiv2][body] POST https://accounts.google.com/o/oauth2/token [omitted]
+[debug] [2026-09-28T09:11:20.141Z] <<< [apiv2][status] POST https://accounts.google.com/o/oauth2/token 200
+[debug] [2026-09-28T09:11:20.141Z] <<< [apiv2][body] POST https://accounts.google.com/o/oauth2/token [omitted]
+[info] 
+[info] +  Success! Logged in as habanajoseph19@gmail.com 
+[debug] [2026-09-28T09:11:30.209Z] Error: Timed out.
+    at Timeout._onTimeout (C:\Users\Administrator\AppData\Local\npm-cache\_npx\7750544ccf494d8b\node_modules\firebase-tools\lib\utils.js:299:49)
+    at listOnTimeout (node:internal/timers:685:17)
+    at process.processTimers (node:internal/timers:618:7)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-09-28T09:12:16.971Z] ----------------------------------------------------------------------
+[debug] [2026-09-28T09:12:16.974Z] Command:       D:\Programs\NodeJs\node.exe C:\Users\Administrator\AppData\Local\npm-cache\_npx\ba4f1959e38407b5\node_modules\firebase-tools\lib\bin\firebase.js deploy --project talasyssystem --only firestore:rules
+[debug] [2026-09-28T09:12:16.974Z] CLI Version:   15.31.0
+[debug] [2026-09-28T09:12:16.975Z] Platform:      win32
+[debug] [2026-09-28T09:12:16.975Z] Node Version:  v24.21.0
+[debug] [2026-09-28T09:12:16.975Z] Detected Agent: antigravity
+[debug] [2026-09-28T09:12:16.975Z] Time:          Mon Sep 28 2026 17:12:16 GMT+0800 (Philippine Standard Time)
+[debug] [2026-09-28T09:12:16.975Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-28T09:12:19.099Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-09-28T09:12:19.100Z] > authorizing via signed-in user (habanajoseph19@gmail.com)
+[debug] [2026-09-28T09:12:19.100Z] [iam] checking project talasyssystem for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-09-28T09:12:19.116Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:19.116Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:19.117Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/talasyssystem:testIamPermissions [none]
+[debug] [2026-09-28T09:12:19.117Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/talasyssystem:testIamPermissions  x-goog-user-project=talasyssystem
+[debug] [2026-09-28T09:12:19.118Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/talasyssystem:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-09-28T09:12:20.426Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/talasyssystem:testIamPermissions 200
+[debug] [2026-09-28T09:12:20.426Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/talasyssystem:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'talasyssystem'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-09-28T09:12:20.436Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:20.436Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:20.436Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/talasyssystem/databases/(default) [none]
+[debug] [2026-09-28T09:12:21.671Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/talasyssystem/databases/(default) 200
+[debug] [2026-09-28T09:12:21.671Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/talasyssystem/databases/(default) {"name":"projects/talasyssystem/databases/(default)","uid":"dff70d18-21a7-49c1-8d89-c20d80274f59","createTime":"2026-04-27T14:59:48.668670Z","updateTime":"2026-04-27T14:59:48.668670Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-09-28T08:12:21.412937Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","enhancedTextSearchQueryMode":"ENHANCED_QUERY_MODE_ENABLED","etag":"IMKkpbX3kJcDMJzLl6+mjpQD"}
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-09-28T09:12:21.672Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:21.672Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:21.672Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/talasyssystem:test [none]
+[debug] [2026-09-28T09:12:21.673Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/talasyssystem:test [omitted]
+[debug] [2026-09-28T09:12:23.121Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/talasyssystem:test 200
+[debug] [2026-09-28T09:12:23.121Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/talasyssystem:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2026-09-28T09:12:23.122Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:23.122Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:23.122Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/talasyssystem/releases pageSize=10&pageToken=
+[debug] [2026-09-28T09:12:24.174Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/talasyssystem/releases 200
+[debug] [2026-09-28T09:12:24.174Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/talasyssystem/releases {"releases":[{"name":"projects/talasyssystem/releases/cloud.firestore","rulesetName":"projects/talasyssystem/rulesets/ed2cb058-76cb-47fe-9528-d11b02260dcd","createTime":"2026-04-27T14:59:53.356687Z","updateTime":"2026-09-28T09:10:29.384268Z"}]}
+[debug] [2026-09-28T09:12:24.174Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:24.174Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:24.175Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/talasyssystem/rulesets/ed2cb058-76cb-47fe-9528-d11b02260dcd [none]
+[debug] [2026-09-28T09:12:25.225Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/talasyssystem/rulesets/ed2cb058-76cb-47fe-9528-d11b02260dcd 200
+[debug] [2026-09-28T09:12:25.225Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/talasyssystem/rulesets/ed2cb058-76cb-47fe-9528-d11b02260dcd [omitted]
+[info] i  firestore: latest version of firestore.rules already up to date, skipping upload... 
+[debug] [2026-09-28T09:12:25.227Z] [rules] releasing cloud.firestore with ruleset projects/talasyssystem/rulesets/ed2cb058-76cb-47fe-9528-d11b02260dcd
+[debug] [2026-09-28T09:12:25.227Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:25.227Z] Checked if tokens are valid: true, expires at: 1790590279142
+[debug] [2026-09-28T09:12:25.227Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/talasyssystem/releases/cloud.firestore [none]
+[debug] [2026-09-28T09:12:25.227Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/talasyssystem/releases/cloud.firestore {"release":{"name":"projects/talasyssystem/releases/cloud.firestore","rulesetName":"projects/talasyssystem/rulesets/ed2cb058-76cb-47fe-9528-d11b02260dcd"}}
+[debug] [2026-09-28T09:12:26.351Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/talasyssystem/releases/cloud.firestore 200
+[debug] [2026-09-28T09:12:26.351Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/talasyssystem/releases/cloud.firestore {"name":"projects/talasyssystem/releases/cloud.firestore","rulesetName":"projects/talasyssystem/rulesets/ed2cb058-76cb-47fe-9528-d11b02260dcd","createTime":"2026-04-27T14:59:53.356687Z","updateTime":"2026-09-28T09:12:26.087960Z"}
+[debug] [2026-09-28T09:12:26.351Z] [rules] updated release projects/talasyssystem/releases/cloud.firestore
+[info] +  firestore: released rules firestore.rules to cloud.firestore 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/talasyssystem/overview
+[debug] [2026-09-28T09:12:36.378Z] Error: Timed out.
+    at Timeout._onTimeout (C:\Users\Administrator\AppData\Local\npm-cache\_npx\ba4f1959e38407b5\node_modules\firebase-tools\lib\utils.js:299:49)
+    at listOnTimeout (node:internal/timers:685:17)
+    at process.processTimers (node:internal/timers:618:7)
+[error] 
+[error] Error: An unexpected error has occurred.
