@@ -56,7 +56,7 @@ export function AdminSecurityDisclaimer() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent 
-        className="sm:max-w-[500px] bg-white dark:bg-slate-900 border-red-100 dark:border-red-900 shadow-2xl p-0 overflow-hidden"
+        className="sm:max-w-[500px] bg-white dark:bg-slate-900 border-red-100 dark:border-red-900 shadow-2xl flex flex-col gap-0 p-0 overflow-hidden max-h-[85vh]"
         showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
@@ -66,7 +66,8 @@ export function AdminSecurityDisclaimer() {
           <DialogDescription>Data Privacy Act of 2012 Compliance Warning</DialogDescription>
         </DialogHeader>
 
-        <div className="bg-red-50 dark:bg-red-950/30 p-6 flex flex-col items-center text-center border-b border-red-100 dark:border-red-900 shrink-0">
+        {/* Header - Fixed at top */}
+        <div className="bg-red-50 dark:bg-red-950/30 p-6 flex flex-col items-center text-center border-b border-red-100 dark:border-red-900 flex-none">
           <div className="w-16 h-16 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mb-4">
             <ShieldAlert className="w-8 h-8" />
           </div>
@@ -78,11 +79,12 @@ export function AdminSecurityDisclaimer() {
           </p>
         </div>
         
-        <div className="relative">
+        {/* Scrollable Content - Flex 1 */}
+        <div className="relative flex-1 min-h-0 overflow-hidden flex flex-col">
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="p-6 space-y-4 max-h-[50vh] overflow-y-auto"
+            className="p-6 space-y-4 overflow-y-auto flex-1"
           >
             <p className="text-sm text-slate-700 dark:text-slate-300">
               You are now accessing a restricted area containing highly sensitive Personally Identifiable Information (PII), including government-issued IDs, contact numbers, and addresses of barangay residents.
@@ -115,13 +117,14 @@ export function AdminSecurityDisclaimer() {
 
           {/* Floating Bouncing Arrow */}
           {showScrollArrow && (
-            <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white dark:from-slate-900 to-transparent pointer-events-none flex items-end justify-center pb-2">
+            <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white dark:from-slate-900 to-transparent pointer-events-none flex items-end justify-center pb-2 z-10">
               <ChevronDown className="w-6 h-6 text-slate-500 dark:text-slate-400 animate-bounce" />
             </div>
           )}
         </div>
 
-        <DialogFooter className="p-6 pt-0 flex-col sm:flex-col sm:items-center gap-4 shrink-0 border-t border-slate-100 dark:border-slate-800 pt-6">
+        {/* Footer - Fixed at bottom */}
+        <DialogFooter className="p-6 flex-col sm:flex-col sm:items-center gap-4 border-t border-slate-100 dark:border-slate-800 flex-none bg-white dark:bg-slate-900 relative z-20">
           <div className="flex items-center space-x-2 w-full justify-center">
             <Checkbox 
               id="never-show" 
