@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { ShieldCheck, LogIn, Menu } from "lucide-react"
+import Image from "next/image"
+import { LogIn, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
@@ -23,7 +24,7 @@ export function LandingNavbar() {
           
           {/* Logo / Brand */}
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-8 h-8 text-[#0C2340] dark:text-blue-50" />
+            <Image src="/ph-seal.svg" alt="Republic of the Philippines Seal" width={32} height={32} className="w-8 h-8 drop-shadow-sm" />
             <span className="font-bold text-xl tracking-tight text-[#0C2340] dark:text-blue-50">Barangay 634</span>
           </div>
 
