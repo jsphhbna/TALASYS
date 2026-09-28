@@ -140,7 +140,7 @@ export function DocumentHistoryContent() {
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-6 py-3 font-bold min-w-[200px]">RESIDENT</th>
                 <th className="px-6 py-3 font-bold min-w-[200px]">DOCUMENT</th>
                 <th className="px-6 py-3 font-bold whitespace-nowrap">SUBMITTED DATE</th>
@@ -165,35 +165,35 @@ export function DocumentHistoryContent() {
                     {profilePic ? (
                       <img src={profilePic} alt={request.residentName} className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700" />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-[#0C2340]/10 dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">
+                      <div className="w-8 h-8 rounded-full bg-[#0C2340]/10 dark:bg-slate-800 flex items-center justify-center text-2xs font-semibold text-[#0C2340] dark:text-blue-50">
                         {request.residentInitials || request.residentName?.charAt(0) || "U"}
                       </div>
                     )}
                     <div>
-                      <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{request.residentName}</p>
-                      <p className="text-[10px] text-slate-400">{request.residentCategory}</p>
+                      <p className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{request.residentName}</p>
+                      <p className="text-2xs text-slate-400">{request.residentCategory}</p>
                     </div>
                     </div>
                   </td>
                   <td className="px-6 py-3.5">
-                    <span className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium">{request.documentType}</span>
-                    <p className="text-[10px] text-slate-400 truncate">{request.purpose}</p>
+                    <span className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium">{request.documentType}</span>
+                    <p className="text-2xs text-slate-400 truncate">{request.purpose}</p>
                     {request.refNumber && (
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {request.refNumber}</p>
+                      <p className="text-2xs text-slate-500 font-mono mt-0.5">Ref: {request.refNumber}</p>
                     )}
                   </td>
                   <td className="px-6 py-3.5 whitespace-nowrap">
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">{formatDateTime(request.createdAt)}</span>
+                    <span className="text-xs-plus text-slate-500 dark:text-slate-400">{formatDateTime(request.createdAt)}</span>
                   </td>
                   <td className="px-6 py-3.5 whitespace-nowrap">
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">{formatDateTime(processedTs)}</span>
+                    <span className="text-xs-plus text-slate-500 dark:text-slate-400">{formatDateTime(processedTs)}</span>
                   </td>
                   <td className="px-6 py-3.5 whitespace-nowrap">
-                    <span className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium">{formatDateTime(completedTs)}</span>
+                    <span className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium">{formatDateTime(completedTs)}</span>
                   </td>
                   <td className="px-6 py-3.5 whitespace-nowrap">
                     <div className="flex items-center">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-2xs font-medium ${
                             request.status === "Completed" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
                       }`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${request.status === "Completed" ? "bg-emerald-500" : "bg-red-500"}`}></span>

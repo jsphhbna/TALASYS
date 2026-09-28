@@ -142,6 +142,16 @@ html {
   --color-gov-blue-lighter: #2a5080;
   --color-gov-gold: #C5A55A;
   --color-gov-gold-light: #d4ba78;
+
+  /* Custom text sizes to replace arbitrary values */
+  --text-2xs: 10px;
+  --text-2xs--line-height: 14px;
+  --text-xs-plus: 11px;
+  --text-xs-plus--line-height: 16px;
+  --text-sm-minus: 13px;
+  --text-sm-minus--line-height: 18px;
+  --text-xl-plus: 22px;
+  --text-xl-plus--line-height: 28px;
 }
 
 @layer base {

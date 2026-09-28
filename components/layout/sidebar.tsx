@@ -79,7 +79,7 @@ export function Sidebar() {
                 href={item.href}
                 onClick={(e) => handleNavClick(e, item.href)}
                 className={cn(
-                  "flex items-center gap-3 mx-2 mb-0.5 pl-5 pr-4 py-2.5 rounded-md text-[13px] relative transition-colors",
+                  "flex items-center gap-3 mx-2 mb-0.5 pl-5 pr-4 py-2.5 rounded-md text-sm-minus relative transition-colors",
                   isActive
                     ? "bg-white/10 text-white font-semibold"
                     : "text-blue-200/60 hover:text-white hover:bg-white/5",
@@ -89,7 +89,7 @@ export function Sidebar() {
                 {item.icon}
                 <span className="flex-1">{item.label}</span>
                 {(item.badge ?? 0) > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-medium">
+                  <span className="bg-red-500 text-white text-2xs w-5 h-5 rounded-full flex items-center justify-center font-medium">
                     {item.badge}
                   </span>
                 )}
@@ -101,7 +101,7 @@ export function Sidebar() {
         <div className="p-3 border-t border-white/10">
           <button
             onClick={() => setShowLogoutDialog(true)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-blue-200/60 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm-minus text-blue-200/60 hover:text-white hover:bg-white/5 rounded-md transition-colors"
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>

@@ -240,7 +240,7 @@ export default function ReasonAnalytics() {
       <Card className="p-4 shadow-sm">
         <div className="grid grid-cols-4 gap-4">
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Document Type</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Document Type</label>
             <select
               value={selectedDocType}
               onChange={(e) => setSelectedDocType(e.target.value)}
@@ -253,7 +253,7 @@ export default function ReasonAnalytics() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Year</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Year</label>
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
@@ -264,7 +264,7 @@ export default function ReasonAnalytics() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Month</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Month</label>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
@@ -275,7 +275,7 @@ export default function ReasonAnalytics() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Category</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Category</label>
             <select className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
               <option>All Categories</option>
             </select>
@@ -291,9 +291,9 @@ export default function ReasonAnalytics() {
               <BarChart3 className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Analyzed</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Analyzed</p>
           <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{totalRequests.toLocaleString()}</span>
-          <p className="text-[10px] text-slate-400 mt-1">Last 6 months</p>
+          <p className="text-2xs text-slate-400 mt-1">Last 6 months</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
@@ -301,9 +301,9 @@ export default function ReasonAnalytics() {
               <Layers className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Unique Reasons</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Unique Reasons</p>
           <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{reasonAnalytics.length}</span>
-          <p className="text-[10px] text-slate-400 mt-1">Categorized reasons</p>
+          <p className="text-2xs text-slate-400 mt-1">Categorized reasons</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
@@ -311,9 +311,9 @@ export default function ReasonAnalytics() {
               <Target className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Top Reason</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Top Reason</p>
           <span className="text-lg font-bold text-[#0C2340] dark:text-blue-50 truncate block max-w-full">{topReason.reason}</span>
-          <p className="text-[10px] text-[#C5A55A] font-semibold mt-1">{topReason.percentage}% of all requests</p>
+          <p className="text-2xs text-[#C5A55A] font-semibold mt-1">{topReason.percentage}% of all requests</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
@@ -321,9 +321,9 @@ export default function ReasonAnalytics() {
               <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Growth Trend</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Growth Trend</p>
           <span className="text-2xl font-bold text-emerald-600">{growthPct >= 0 ? "+" : ""}{growthPct}%</span>
-          <p className="text-[10px] text-slate-400 mt-1">vs previous period</p>
+          <p className="text-2xs text-slate-400 mt-1">vs previous period</p>
         </Card>
       </div>
 
@@ -335,17 +335,17 @@ export default function ReasonAnalytics() {
           <div className="space-y-3">
             {reasonAnalytics.map((item) => (
               <div key={item.rank} className="flex items-center gap-3">
-                <span className="text-[11px] font-bold text-[#C5A55A] w-4 text-center">{item.rank}</span>
+                <span className="text-xs-plus font-bold text-[#C5A55A] w-4 text-center">{item.rank}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[12px] text-[#0C2340] dark:text-blue-50 font-medium">{item.reason}</span>
-                    <span className="text-[11px] font-bold text-[#0C2340] dark:text-blue-50">{item.count.toLocaleString()}</span>
+                    <span className="text-xs text-[#0C2340] dark:text-blue-50 font-medium">{item.reason}</span>
+                    <span className="text-xs-plus font-bold text-[#0C2340] dark:text-blue-50">{item.count.toLocaleString()}</span>
                   </div>
                   <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full rounded-full bg-[#0C2340] dark:bg-slate-800" style={{ width: `${(item.percentage / (topReason.percentage || 1)) * 100}%` }} />
                   </div>
                 </div>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 w-8 text-right">{item.percentage}%</span>
+                <span className="text-2xs text-slate-500 dark:text-slate-400 w-8 text-right">{item.percentage}%</span>
                 {item.percentage > 20 && <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
               </div>
             ))}
@@ -357,7 +357,7 @@ export default function ReasonAnalytics() {
         {/* Reason Distribution Pie */}
         <Card className="col-span-3 p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Distribution</h3>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">Request reasons share</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-3">Request reasons share</p>
           <ResponsiveContainer width="100%" height={150}>
             <PieChart>
               <Pie data={reasonPieData} cx="50%" cy="50%" innerRadius={38} outerRadius={60} dataKey="value" stroke="none" paddingAngle={2}>
@@ -369,7 +369,7 @@ export default function ReasonAnalytics() {
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-1">
             {reasonPieData.slice(0, 5).map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-[10px]">
+              <div key={i} className="flex items-center justify-between text-2xs">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PIE_COLORS[i] }} />
                   <span className="text-slate-600 dark:text-slate-400">{r.name}</span>
@@ -383,7 +383,7 @@ export default function ReasonAnalytics() {
         {/* Reason Trends Over Time (Recharts) */}
         <Card className="col-span-4 p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Reason Trends</h3>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Top 4 reasons over 6 months</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-4">Top 4 reasons over 6 months</p>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={reasonTrendData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -398,7 +398,7 @@ export default function ReasonAnalytics() {
           </ResponsiveContainer>
           <div className="flex flex-wrap gap-3 mt-3">
             {top4Purposes.map((p, i) => (
-              <span key={i} className="flex items-center gap-1.5 text-[10px]"><span className={`w-2 h-2 rounded-full ${["bg-[#0C2340] dark:bg-slate-800", "bg-[#3b82f6]", "bg-[#10b981]", "bg-[#C5A55A]"][i]}`} />{p}</span>
+              <span key={i} className="flex items-center gap-1.5 text-2xs"><span className={`w-2 h-2 rounded-full ${["bg-[#0C2340] dark:bg-slate-800", "bg-[#3b82f6]", "bg-[#10b981]", "bg-[#C5A55A]"][i]}`} />{p}</span>
             ))}
           </div>
         </Card>
@@ -409,9 +409,9 @@ export default function ReasonAnalytics() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Breakdown by Document Type</h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Reason distribution per document (percentage)</p>
+            <p className="text-xs-plus text-slate-500 dark:text-slate-400 mt-0.5">Reason distribution per document (percentage)</p>
           </div>
-          <div className="flex items-center gap-4 text-[10px]">
+          <div className="flex items-center gap-4 text-2xs">
             {top4Purposes.slice(0, 3).map((p, i) => (
               <span key={i} className="flex items-center gap-1.5"><span className={`w-2.5 h-2.5 rounded-full ${["bg-[#0C2340] dark:bg-slate-800", "bg-[#3b82f6]", "bg-[#10b981]"][i]}`} />{p}</span>
             ))}

@@ -213,8 +213,8 @@ function GenerateDocumentsContent() {
               <div className="mt-2 max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100">
                 {searchResults.map((r) => (
                   <button key={r.id} onClick={() => { setSelectedResident(r); setSearchQuery(r.name) }} className={`w-full px-4 py-2.5 text-left hover:bg-slate-50 dark:bg-slate-950 ${selectedResident?.id === r.id ? "bg-[#0C2340]/[0.04] dark:bg-slate-800/[0.04]" : ""}`}>
-                    <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{r.name}</p>
-                    <p className="text-[10px] text-slate-400">{r.categories.join(", ")} • {r.status}</p>
+                    <p className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{r.name}</p>
+                    <p className="text-2xs text-slate-400">{r.categories.join(", ")} • {r.status}</p>
                   </button>
                 ))}
               </div>
@@ -238,10 +238,10 @@ function GenerateDocumentsContent() {
                     <span className="text-lg" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</span>
                     <div className="flex-1">
                       <div className="flex justify-between items-center">
-                          <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{doc.label}</p>
+                          <p className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{doc.label}</p>
                           {!doc.enabled && <span className="text-[9px] font-semibold bg-slate-200 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">Disabled</span>}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{doc.desc}</p>
+                      <p className="text-2xs text-slate-400 mt-0.5">{doc.desc}</p>
                     </div>
                   </div>
                 </button>
@@ -259,7 +259,7 @@ function GenerateDocumentsContent() {
             {selectedResident && selectedDocType ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mr-2 uppercase tracking-wider">Edit Document:</span>
+                  <span className="text-2xs text-slate-500 dark:text-slate-400 font-semibold mr-2 uppercase tracking-wider">Edit Document:</span>
                   <button
                     onMouseDown={e => { e.preventDefault(); document.execCommand('bold') }}
                     className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 shadow-sm"
@@ -305,7 +305,7 @@ function GenerateDocumentsContent() {
                            })()}
                         </p>
                       </div>
-                      <div className="text-[13px] text-black leading-relaxed">
+                      <div className="text-sm-minus text-black leading-relaxed">
                         <p className="mb-4">To Whom It May Concern:</p>
                         {/* EDITABLE AREA */}
                         <div

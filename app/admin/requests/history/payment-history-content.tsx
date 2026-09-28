@@ -94,19 +94,19 @@ export function PaymentHistoryContent() {
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
-          <p className="text-[11px] text-emerald-600 font-semibold uppercase tracking-wide mb-1">Total Collected</p>
+          <p className="text-xs-plus text-emerald-600 font-semibold uppercase tracking-wide mb-1">Total Collected</p>
           <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">₱{totalRevenue.toLocaleString()}</p>
         </div>
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <p className="text-[11px] text-blue-600 font-semibold uppercase tracking-wide mb-1">Paid</p>
+          <p className="text-xs-plus text-blue-600 font-semibold uppercase tracking-wide mb-1">Paid</p>
           <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{paidCount}</p>
         </div>
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-          <p className="text-[11px] text-amber-600 font-semibold uppercase tracking-wide mb-1">Waived</p>
+          <p className="text-xs-plus text-amber-600 font-semibold uppercase tracking-wide mb-1">Waived</p>
           <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{waivedCount}</p>
         </div>
         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-          <p className="text-[11px] text-orange-600 font-semibold uppercase tracking-wide mb-1">Pending Verification</p>
+          <p className="text-xs-plus text-orange-600 font-semibold uppercase tracking-wide mb-1">Pending Verification</p>
           <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">{pendingCount}</p>
         </div>
       </div>
@@ -176,7 +176,7 @@ export function PaymentHistoryContent() {
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-5 py-3 font-bold min-w-[180px]">RESIDENT</th>
                 <th className="px-5 py-3 font-bold min-w-[160px]">DOCUMENT</th>
                 <th className="px-5 py-3 font-bold">FEE</th>
@@ -199,18 +199,18 @@ export function PaymentHistoryContent() {
                   <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                     {/* Resident */}
                     <td className="px-5 py-3.5">
-                      <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{r.residentName}</p>
-                      <p className="text-[10px] text-slate-400">{r.residentCategory}</p>
+                      <p className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{r.residentName}</p>
+                      <p className="text-2xs text-slate-400">{r.residentCategory}</p>
                     </td>
 
                     {/* Document */}
                     <td className="px-5 py-3.5">
-                      <span className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">{r.documentType}</span>
+                      <span className="text-xs-plus text-slate-700 dark:text-slate-300 font-medium">{r.documentType}</span>
                     </td>
 
                     {/* Fee */}
                     <td className="px-5 py-3.5">
-                      <span className="text-[12px] font-bold text-slate-700 dark:text-slate-300">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                         {pStatus === "waived" ? (
                           <span className="flex items-center gap-1 text-amber-600"><Gift className="w-3 h-3" /> Waived</span>
                         ) : (r.documentFee || 0) > 0 ? `₱${r.documentFee}` : "Free"}
@@ -219,7 +219,7 @@ export function PaymentHistoryContent() {
 
                     {/* Method */}
                     <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium ${
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-2xs font-medium ${
                         method === "gcash" ? "bg-blue-50 text-blue-700" : "bg-emerald-50 text-emerald-700"
                       }`}>
                         {getMethodIcon(method)}
@@ -230,17 +230,17 @@ export function PaymentHistoryContent() {
                     {/* Receipt / Ref */}
                     <td className="px-5 py-3.5">
                       {refNum ? (
-                        <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-700 dark:text-slate-300">
+                        <span className="font-mono text-2xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-700 dark:text-slate-300">
                           {refNum}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-slate-400 italic">—</span>
+                        <span className="text-2xs text-slate-400 italic">—</span>
                       )}
                     </td>
 
                     {/* Payment Status */}
                     <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-medium ${
                         pStatus === "paid" ? "bg-emerald-50 text-emerald-700" :
                         pStatus === "waived" ? "bg-amber-50 text-amber-700" :
                         "bg-orange-50 text-orange-700"
@@ -260,16 +260,16 @@ export function PaymentHistoryContent() {
                           <div className="w-5 h-5 rounded-full bg-[#0C2340]/10 dark:bg-slate-700 flex items-center justify-center text-[9px] font-bold text-[#0C2340] dark:text-blue-200">
                             {confirmedBy.charAt(0).toUpperCase()}
                           </div>
-                          <span className="text-[11px] text-slate-600 dark:text-slate-400">{confirmedBy}</span>
+                          <span className="text-xs-plus text-slate-600 dark:text-slate-400">{confirmedBy}</span>
                         </div>
                       ) : (
-                        <span className="text-[10px] text-slate-400 italic">—</span>
+                        <span className="text-2xs text-slate-400 italic">—</span>
                       )}
                     </td>
 
                     {/* Date */}
                     <td className="px-5 py-3.5 whitespace-nowrap">
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">{formatDateTime(confirmedAt)}</span>
+                      <span className="text-xs-plus text-slate-500 dark:text-slate-400">{formatDateTime(confirmedAt)}</span>
                     </td>
                   </tr>
                 )

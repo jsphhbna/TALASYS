@@ -258,11 +258,11 @@ export default function AdminManagement() {
               </div>
               <Sparkline data={kpi.spark} color={kpi.color} />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{kpi.value}</span>
               {kpi.change !== 0 && (
-                <span className={`text-[10px] font-medium flex items-center gap-0.5 ${kpi.change > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                <span className={`text-2xs font-medium flex items-center gap-0.5 ${kpi.change > 0 ? "text-emerald-600" : "text-red-500"}`}>
                   {kpi.change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                   {kpi.change > 0 ? "+" : ""}{kpi.change}%
                 </span>
@@ -277,7 +277,7 @@ export default function AdminManagement() {
         {/* Activity Trend */}
         <Card className="col-span-5 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Admin Activity</h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Logins and actions over 6 months</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-4">Logins and actions over 6 months</p>
           <ResponsiveContainer width="100%" height={180}>
             <AreaChart data={adminActivityTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <defs>
@@ -301,7 +301,7 @@ export default function AdminManagement() {
               <Area type="monotone" dataKey="actions" stroke="#C5A55A" strokeWidth={2} fill="url(#gradActions)" name="Actions" />
             </AreaChart>
           </ResponsiveContainer>
-          <div className="flex items-center gap-4 mt-2 text-[10px]">
+          <div className="flex items-center gap-4 mt-2 text-2xs">
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#0C2340] dark:bg-slate-800" /> Logins</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#C5A55A]" /> Actions</span>
           </div>
@@ -310,7 +310,7 @@ export default function AdminManagement() {
         {/* Role Distribution */}
         <Card className="col-span-3 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Role Distribution</h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">Admin access levels</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-3">Admin access levels</p>
           <ResponsiveContainer width="100%" height={120}>
             <PieChart>
               <Pie data={roleDistribution} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={3}>
@@ -324,7 +324,7 @@ export default function AdminManagement() {
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-1">
             {roleDistribution.map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-[10px]">
+              <div key={i} className="flex items-center justify-between text-2xs">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
                   <span className="text-slate-600 dark:text-slate-400">{r.name}</span>
@@ -345,10 +345,10 @@ export default function AdminManagement() {
                   <span className="text-[8px] text-white font-bold">{act.admin.split(" ")[0][0]}{act.admin.split(" ")[1]?.[0] || ""}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-slate-800 dark:text-slate-200">
+                  <p className="text-xs-plus text-slate-800 dark:text-slate-200">
                     <span className="font-semibold text-[#0C2340] dark:text-blue-50">{act.admin}</span> {(act.action || "").toLowerCase()}
                   </p>
-                  <p className="text-[10px] text-slate-400">{act.time}</p>
+                  <p className="text-2xs text-slate-400">{act.time}</p>
                 </div>
               </div>
             ))}
@@ -380,11 +380,11 @@ export default function AdminManagement() {
         <div className="min-w-[800px]">
           <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Admin</p></div>
-              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</p></div>
-              <div className="col-span-3"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Role</p></div>
-              <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</p></div>
-              <div className="col-span-1"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</p></div>
+              <div className="col-span-3"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Admin</p></div>
+              <div className="col-span-4"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</p></div>
+              <div className="col-span-3"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Role</p></div>
+              <div className="col-span-1"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</p></div>
+              <div className="col-span-1"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</p></div>
             </div>
           </div>
 
@@ -394,16 +394,16 @@ export default function AdminManagement() {
               <div className="grid grid-cols-12 gap-4 items-center">
                 <div className="col-span-3 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center shrink-0">
-                    <span className="text-[10px] text-white font-medium">{admin.initials}</span>
+                    <span className="text-2xs text-white font-medium">{admin.initials}</span>
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-[#0C2340] dark:text-blue-50">{admin.name}</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Since {admin.createdDate}</p>
+                    <p className="text-2xs text-slate-500 dark:text-slate-400">Since {admin.createdDate}</p>
                   </div>
                 </div>
                 <div className="col-span-4"><p className="text-sm text-slate-700 dark:text-slate-300">{admin.email}</p></div>
                 <div className="col-span-3">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                  <span className="inline-flex items-center gap-1 text-xs-plus font-medium text-slate-700 dark:text-slate-300">
                     {admin.role === "Full Access" && <ShieldCheck className="w-3 h-3 text-[#0C2340] dark:text-blue-50" />}
                     {admin.role === "Resident Management" && <Users className="w-3 h-3 text-blue-500" />}
                     {admin.role === "Verifications" && <CheckCircle className="w-3 h-3 text-emerald-500" />}
@@ -412,7 +412,7 @@ export default function AdminManagement() {
                   </span>
                 </div>
                 <div className="col-span-1">
-                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${admin.status === "Locked" ? "bg-orange-50 text-orange-700" : (admin.isVerified ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-semibold ${admin.status === "Locked" ? "bg-orange-50 text-orange-700" : (admin.isVerified ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")
                     }`}>
                     {admin.status === "Locked" && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
                     {admin.status !== "Locked" && admin.isVerified && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}

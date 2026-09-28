@@ -133,7 +133,7 @@ export default function Notifications() {
             </button>
           ))}
         </div>
-        <button onClick={() => markAllNotificationsRead()} className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center">
+        <button onClick={() => markAllNotificationsRead()} className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center">
           <span>✓✓</span> Mark all as read
         </button>
       </div>
@@ -198,18 +198,18 @@ export default function Notifications() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <p className={`text-[12px] font-semibold ${notification.isRead ? "text-slate-500 dark:text-slate-400" : "text-[#0C2340] dark:text-blue-50"}`}>
+                    <p className={`text-xs font-semibold ${notification.isRead ? "text-slate-500 dark:text-slate-400" : "text-[#0C2340] dark:text-blue-50"}`}>
                       {notification.title}
                     </p>
                     {getPriorityBadge(notification.type, notification.isRead)}
                   </div>
-                  <p className={`text-[11px] mb-1 ${notification.isRead ? "text-slate-400" : "text-slate-600 dark:text-slate-400"}`}>
+                  <p className={`text-xs-plus mb-1 ${notification.isRead ? "text-slate-400" : "text-slate-600 dark:text-slate-400"}`}>
                     {notification.message}
                   </p>
-                  <p className="text-[10px] text-slate-400">{formatRelativeTime(notification.createdAt)}</p>
+                  <p className="text-2xs text-slate-400">{formatRelativeTime(notification.createdAt)}</p>
                 </div>
                 {notification.actionUrl && !notification.isRead && (
-                  <Button size="sm" className="h-7 px-4 text-[10px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">
+                  <Button size="sm" className="h-7 px-4 text-2xs bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">
                     {notification.type === "expiring" ? "View List" : "Review"}
                   </Button>
                 )}
@@ -241,7 +241,7 @@ export default function Notifications() {
                 <div className="flex-1">
                   <h4 className="text-base font-bold text-[#0C2340] dark:text-blue-50 mb-1">{selectedNotification.title}</h4>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{selectedNotification.message}</p>
-                  <p className="text-[10px] text-slate-400">{selectedNotification.timestamp}</p>
+                  <p className="text-2xs text-slate-400">{selectedNotification.timestamp}</p>
                 </div>
               </div>
               {selectedNotification.actionUrl && (

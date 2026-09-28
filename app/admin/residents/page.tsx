@@ -81,7 +81,7 @@ export default function ResidentManagement() {
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Category</label>
+            <label className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Category</label>
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
               <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
               <SelectContent>
@@ -94,7 +94,7 @@ export default function ResidentManagement() {
             </Select>
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Status</label>
+            <label className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Status</label>
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
               <SelectTrigger className="w-full"><SelectValue placeholder="Select status" /></SelectTrigger>
               <SelectContent>
@@ -106,7 +106,7 @@ export default function ResidentManagement() {
             </Select>
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Gender</label>
+            <label className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Gender</label>
             <Select value={selectedGender} onValueChange={setSelectedGender}>
               <SelectTrigger className="w-full"><SelectValue placeholder="Select gender" /></SelectTrigger>
               <SelectContent>
@@ -120,7 +120,7 @@ export default function ResidentManagement() {
         </div>
       </div>
 
-      <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3">
+      <p className="text-2xs text-slate-500 dark:text-slate-400 mb-3">
         Showing {filteredResidents.length} {selectedCategory !== "all" ? `${selectedCategory} residents` : "residents"} (filtered from {allResidents.length} total)
       </p>
 
@@ -129,7 +129,7 @@ export default function ResidentManagement() {
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-6 py-3 font-bold">RESIDENT</th>
                 <th className="px-6 py-3 font-bold">CATEGORY</th>
                 <th className="px-6 py-3 font-bold">STATUS</th>
@@ -144,7 +144,7 @@ export default function ResidentManagement() {
                 <div className="flex flex-col items-center justify-center">
                   <Inbox className="w-8 h-8 mb-2" />
                   <p className="text-sm">No residents found</p>
-                  <p className="text-[10px] mt-1">Residents will appear here after registration</p>
+                  <p className="text-2xs mt-1">Residents will appear here after registration</p>
                 </div>
               </td>
             </tr>
@@ -161,13 +161,13 @@ export default function ResidentManagement() {
                         className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
                       />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-white dark:text-blue-50">
+                      <div className="w-8 h-8 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center text-2xs font-semibold text-white dark:text-blue-50">
                         {resident.initials}
                       </div>
                     )}
                     <div>
-                      <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{resident.name}</p>
-                      <p className="text-[10px] text-slate-400">{resident.gender}</p>
+                      <p className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{resident.name}</p>
+                      <p className="text-2xs text-slate-400">{resident.gender}</p>
                     </div>
                   </div>
                 </td>
@@ -176,7 +176,7 @@ export default function ResidentManagement() {
                     {resident.categories.map((cat, ci) => {
                       const d = getCategoryDisplay([cat])
                       return (
-                        <span key={ci} className={`px-2.5 py-0.5 rounded text-[10px] font-medium ${d.color}`}>
+                        <span key={ci} className={`px-2.5 py-0.5 rounded text-2xs font-medium ${d.color}`}>
                           {d.label}
                         </span>
                       )
@@ -184,7 +184,7 @@ export default function ResidentManagement() {
                   </div>
                 </td>
                 <td className="px-6 py-3.5">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${resident.status === "Verified" ? "bg-emerald-50 text-emerald-700" :
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-2xs font-medium ${resident.status === "Verified" ? "bg-emerald-50 text-emerald-700" :
                       resident.status === "Expiring" ? "bg-amber-50 text-amber-700" :
                         "bg-red-50 text-red-700"
                       }`}>
@@ -196,13 +196,13 @@ export default function ResidentManagement() {
                     </span>
                 </td>
                 <td className="px-6 py-3.5 whitespace-nowrap">
-                  <span className={`text-[11px] ${resident.status === "Expired" || resident.status === "Expiring" ? "text-red-500 font-medium" : "text-slate-500 dark:text-slate-400"}`}>
+                  <span className={`text-xs-plus ${resident.status === "Expired" || resident.status === "Expiring" ? "text-red-500 font-medium" : "text-slate-500 dark:text-slate-400"}`}>
                       {resident.expiryDate}
                     </span>
                 </td>
                 <td className="px-6 py-3.5 text-right">
                   <div className="flex items-center justify-end gap-2 relative">
-                    <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowViewDialog(true) }} className="h-6 text-[10px] bg-transparent hover:bg-[#0C2340] hover:text-white transition-colors">View Profile</Button>
+                    <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowViewDialog(true) }} className="h-6 text-2xs bg-transparent hover:bg-[#0C2340] hover:text-white transition-colors">View Profile</Button>
                     {user?.role !== "View Only" && (
                       <>
                         <button onClick={() => setShowActionsMenu(showActionsMenu === resident.id ? null : resident.id)} className="w-6 h-6 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-100 dark:bg-slate-800">
@@ -211,12 +211,12 @@ export default function ResidentManagement() {
                         {showActionsMenu === resident.id && (
                           <div className="absolute right-0 top-8 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10">
                             {resident.status === "Expired" ? (
-                              <button onClick={() => { setSelectedResident(resident); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 dark:bg-slate-950 text-emerald-600">Activate Account</button>
+                              <button onClick={() => { setSelectedResident(resident); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-emerald-600">Activate Account</button>
                             ) : (
-                              <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 dark:bg-slate-950 text-amber-600">Deactivate Account</button>
+                              <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-amber-600">Deactivate Account</button>
                             )}
                             <div className="border-t border-slate-200 dark:border-slate-700" />
-                            <button onClick={() => { setSelectedResident(resident); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-[11px] text-left hover:bg-slate-50 dark:bg-slate-950 text-red-600">Delete Resident</button>
+                            <button onClick={() => { setSelectedResident(resident); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-red-600">Delete Resident</button>
                           </div>
                         )}
                       </>
@@ -230,12 +230,12 @@ export default function ResidentManagement() {
           </table>
         </div>
         <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
-          <p className="text-[10px] text-slate-500 dark:text-slate-400">Showing 1-{Math.min(10, filteredResidents.length)} of {filteredResidents.length} residents</p>
+          <p className="text-2xs text-slate-500 dark:text-slate-400">Showing 1-{Math.min(10, filteredResidents.length)} of {filteredResidents.length} residents</p>
           <div className="flex items-center gap-1.5">
             <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">‹</span></button>
-            <button className="w-7 h-7 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 text-white text-[10px] rounded">1</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-[10px] text-slate-500 dark:text-slate-400">2</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-[10px] text-slate-500 dark:text-slate-400">3</button>
+            <button className="w-7 h-7 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 text-white text-2xs rounded">1</button>
+            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-2xs text-slate-500 dark:text-slate-400">2</button>
+            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-2xs text-slate-500 dark:text-slate-400">3</button>
             <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">›</span></button>
           </div>
         </div>

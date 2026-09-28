@@ -51,7 +51,7 @@ export function DocumentUploadCard({
   return (
     <div className={`border rounded-lg p-4 ${classes.card}`}>
       <h3 className={`text-sm font-bold mb-1 ${classes.title}`}>{title}</h3>
-      <p className={`text-[11px] mb-3 ${classes.description}`}>{description}</p>
+      <p className={`text-xs-plus mb-3 ${classes.description}`}>{description}</p>
 
       <div className={`rounded-md p-6 text-center ${file ? "bg-green-50 border border-green-200" : `border-2 border-dashed ${classes.dropzone}`}`}>
         {isLoading ? (

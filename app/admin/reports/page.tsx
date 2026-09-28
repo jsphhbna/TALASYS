@@ -253,24 +253,24 @@ export default function CategoryReports() {
         <Card className="p-5 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center"><Users className="w-6 h-6 text-[#0C2340] dark:text-blue-50" /></div>
           <div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Population</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Population</p>
             <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{stats.totalResidents.toLocaleString()}</p>
           </div>
         </Card>
         <Card className="p-5 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-lg bg-emerald-50 flex items-center justify-center"><Award className="w-6 h-6 text-emerald-600" /></div>
           <div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Largest Category</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Largest Category</p>
             <p className="text-2xl font-bold text-emerald-600">{largestName}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{largestDesc}</p>
+            <p className="text-2xs text-slate-400 mt-0.5">{largestDesc}</p>
           </div>
         </Card>
         <Card className="p-5 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center"><TrendingUp className="w-6 h-6 text-amber-600" /></div>
           <div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Fastest Growing</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Fastest Growing</p>
             <p className="text-2xl font-bold text-amber-600">{fastestGrowingName}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{fastestGrowingDesc}</p>
+            <p className="text-2xs text-slate-400 mt-0.5">{fastestGrowingDesc}</p>
           </div>
         </Card>
       </div>
@@ -279,7 +279,7 @@ export default function CategoryReports() {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Category Selection */}
         <div className="col-span-1 md:col-span-6 lg:col-span-7">
-          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Select Categories</h3>
+          <h3 className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Select Categories</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
             {categories.map((category) => {
               const isSelected = selectedCategories.includes(category.id)
@@ -298,8 +298,8 @@ export default function CategoryReports() {
                       <div className="w-5 h-5 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center"><span className="text-white text-xs">✓</span></div>
                     )}
                   </div>
-                  <p className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50 mb-1">{category.name}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{category.count} residents</p>
+                  <p className="text-xs-plus font-semibold text-[#0C2340] dark:text-blue-50 mb-1">{category.name}</p>
+                  <p className="text-2xs text-slate-500 dark:text-slate-400">{category.count} residents</p>
                 </button>
               )
             })}
@@ -311,12 +311,12 @@ export default function CategoryReports() {
           <Card className="shadow-sm p-0 gap-0 overflow-hidden">
             <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Report Configuration</h3>
-              <span className="text-[11px] font-medium px-2 py-0.5 bg-[#0C2340]/10 dark:bg-slate-800 text-[#0C2340] dark:text-blue-50 rounded-full">
+              <span className="text-xs-plus font-medium px-2 py-0.5 bg-[#0C2340]/10 dark:bg-slate-800 text-[#0C2340] dark:text-blue-50 rounded-full">
                 {filteredResidents.length} {filteredResidents.length === 1 ? 'resident' : 'residents'} selected
               </span>
             </div>
             <div className="p-5">
-              <h4 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Include Columns</h4>
+              <h4 className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Include Columns</h4>
               <div className="grid grid-cols-2 gap-3 mb-5">
                 {Object.entries(selectedColumns).map(([key, checked]) => {
                   const labels: Record<string, string> = {
@@ -332,13 +332,13 @@ export default function CategoryReports() {
                       >
                         {checked && <span className="text-white text-sm">✓</span>}
                       </button>
-                      <span className="text-[11px] text-[#0C2340] dark:text-blue-50">{labels[key]}</span>
+                      <span className="text-xs-plus text-[#0C2340] dark:text-blue-50">{labels[key]}</span>
                     </label>
                   )
                 })}
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Sort By</label>
+                <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Sort By</label>
                 <select className="w-48 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]">
                   <option>Last Name (A-Z)</option>
                   <option>First Name (A-Z)</option>

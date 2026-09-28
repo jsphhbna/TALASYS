@@ -28,7 +28,7 @@ export function ProfileHeaderCard({
               title="Setup Profile Picture"
             >
               <span className="text-4xl text-slate-400 mb-1">📷</span>
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Take Photo</span>
+              <span className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Take Photo</span>
             </button>
           )}
 
@@ -40,14 +40,14 @@ export function ProfileHeaderCard({
         </div>
 
         <div className="flex-1">
-          <h2 className="text-[22px] font-bold text-slate-900 dark:text-slate-100 mb-2">{user.name}</h2>
+          <h2 className="text-xl-plus font-bold text-slate-900 dark:text-slate-100 mb-2">{user.name}</h2>
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">{user.status ?? "Resident"}</p>
           {user.isVerified ? (
-            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
+            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs-plus font-medium bg-green-100 text-green-700">
               ✓ Verified
             </span>
           ) : (
-            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-700">
+            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs-plus font-medium bg-amber-100 text-amber-700">
               ⏳ Pending Verification
             </span>
           )}

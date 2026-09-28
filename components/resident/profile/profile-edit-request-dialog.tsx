@@ -69,7 +69,7 @@ export function ProfileEditRequestDialog({
                 <p className="text-sm text-slate-700 dark:text-slate-300 font-medium mb-1">
                   {formData.newProfilePicture ? "New picture captured" : "Update your profile picture"}
                 </p>
-                <p className="text-[11px] text-slate-500 mb-2">Requires admin approval to take effect.</p>
+                <p className="text-xs-plus text-slate-500 mb-2">Requires admin approval to take effect.</p>
                 <Button 
                   type="button" 
                   variant="outline" 
@@ -125,28 +125,28 @@ export function ProfileEditRequestDialog({
                 <Checkbox checked={formData.statuses.includes("Underage")} disabled={true} />
                 <div className="flex-1">
                   <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">Underage (Under 18) - Auto-calculated from date of birth</label>
-                  <p className="text-[11px] text-slate-400">(Requires: Parent's Valid ID)</p>
+                  <p className="text-xs-plus text-slate-400">(Requires: Parent's Valid ID)</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 opacity-50">
                 <Checkbox checked={formData.statuses.includes("Adult")} disabled={true} />
                 <div className="flex-1">
                   <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">Adult (18-59) - Auto-calculated from date of birth</label>
-                  <p className="text-[11px] text-slate-400">(Requires: Valid Government ID)</p>
+                  <p className="text-xs-plus text-slate-400">(Requires: Valid Government ID)</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 opacity-50">
                 <Checkbox checked={formData.statuses.includes("Senior Citizen")} disabled={true} />
                 <div className="flex-1">
                   <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">Senior Citizen (60+) - Auto-calculated from date of birth</label>
-                  <p className="text-[11px] text-slate-400">(Requires: Senior Citizen ID)</p>
+                  <p className="text-xs-plus text-slate-400">(Requires: Senior Citizen ID)</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <Checkbox checked={formData.statuses.includes("Registered Voter")} onCheckedChange={() => onStatusToggle("Registered Voter")} />
                 <div className="flex-1">
                   <label className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer">Registered Voter</label>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">(Requires: Voter's ID / Cert)</p>
+                  <p className="text-xs-plus text-slate-500 dark:text-slate-400">(Requires: Voter's ID / Cert)</p>
                 </div>
               </div>
             </div>

@@ -11,7 +11,7 @@ export function ContactSection() {
           <h2 className="text-3xl sm:text-4xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight mb-4">
             Get In Touch
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-[15px] leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
             Have questions or need assistance? Reach out to our barangay office through our official contact channels.
           </p>
         </div>

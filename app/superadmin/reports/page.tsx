@@ -185,35 +185,35 @@ export default function SystemReports() {
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <FileText className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Reports Generated</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Reports Generated</p>
           <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{trueTotal}</span>
           <div className="flex items-center gap-1 mt-1">
-            <span className="text-[10px] font-medium text-slate-400">-</span>
+            <span className="text-2xs font-medium text-slate-400">-</span>
           </div>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <Download className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Most Requested</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Most Requested</p>
           <span className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{mostRequested ? mostRequested.name : "N/A"}</span>
-          <p className="text-[10px] text-slate-400 mt-1">{mostRequested ? `${mostRequested.value} of ${trueTotal} total` : "No data available"}</p>
+          <p className="text-2xs text-slate-400 mt-1">{mostRequested ? `${mostRequested.value} of ${trueTotal} total` : "No data available"}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <Clock className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Avg Generation</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Avg Generation</p>
           <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">0s</span>
-          <p className="text-[10px] text-slate-400 mt-1">Processing time</p>
+          <p className="text-2xs text-slate-400 mt-1">Processing time</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <BarChart3 className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">This Month</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">This Month</p>
           <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">0</span>
-          <p className="text-[10px] text-slate-400 mt-1">Reports this month</p>
+          <p className="text-2xs text-slate-400 mt-1">Reports this month</p>
         </Card>
       </div>
 
@@ -224,9 +224,9 @@ export default function SystemReports() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Report Generation Trend</h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Monthly breakdown by report category</p>
+              <p className="text-xs-plus text-slate-500 dark:text-slate-400 mt-0.5">Monthly breakdown by report category</p>
             </div>
-            <div className="flex items-center gap-4 text-[10px]">
+            <div className="flex items-center gap-4 text-2xs">
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0C2340] dark:bg-slate-800" />Population</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#2a5080]" />Documents</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#C5A55A]" />Analytics</span>
@@ -258,7 +258,7 @@ export default function SystemReports() {
         {/* Type Breakdown Pie */}
         <Card className="col-span-4 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Report Distribution</h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">By report type</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-3">By report type</p>
           <ResponsiveContainer width="100%" height={140}>
             <PieChart>
               <Pie data={reportTypeBreakdown} cx="50%" cy="50%" innerRadius={38} outerRadius={58} dataKey="value" stroke="none" paddingAngle={3}>
@@ -270,7 +270,7 @@ export default function SystemReports() {
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-2">
             {reportTypeBreakdown.map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-[10px]">
+              <div key={i} className="flex items-center justify-between text-2xs">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
                   <span className="text-slate-600 dark:text-slate-400">{r.name}</span>
@@ -292,11 +292,11 @@ export default function SystemReports() {
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${report.color}10` }}>
                   <report.icon className="w-4 h-4" style={{ color: report.color }} />
                 </div>
-                <span className="text-[10px] font-bold text-[#C5A55A]">{report.pct}%</span>
+                <span className="text-2xs font-bold text-[#C5A55A]">{report.pct}%</span>
               </div>
-              <h4 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{report.title}</h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-1">{report.description}</p>
-              <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{report.count}</p>
+              <h4 className="text-xs font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{report.title}</h4>
+              <p className="text-2xs text-slate-500 dark:text-slate-400 mb-1">{report.description}</p>
+              <p className="text-2xs font-medium text-slate-600 dark:text-slate-400">{report.count}</p>
             </Card>
           ))}
         </div>
@@ -311,13 +311,13 @@ export default function SystemReports() {
               <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${report.color}10` }}>
                 <report.icon className="w-4 h-4" style={{ color: report.color }} />
               </div>
-              <h4 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{report.title}</h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-1">{report.description}</p>
+              <h4 className="text-xs font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{report.title}</h4>
+              <p className="text-2xs text-slate-500 dark:text-slate-400 mb-1">{report.description}</p>
               {report.hasDatePicker && (
-                <button className="mt-1 px-3 py-1 text-[10px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800 transition-colors">Select dates</button>
+                <button className="mt-1 px-3 py-1 text-2xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800 transition-colors">Select dates</button>
               )}
-              {report.count && <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{report.count}</p>}
-              {report.details && <p className="text-[10px] text-slate-500 dark:text-slate-400">{report.details}</p>}
+              {report.count && <p className="text-2xs font-medium text-slate-600 dark:text-slate-400">{report.count}</p>}
+              {report.details && <p className="text-2xs text-slate-500 dark:text-slate-400">{report.details}</p>}
             </Card>
           ))}
         </div>
@@ -328,7 +328,7 @@ export default function SystemReports() {
         <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Generate Custom Report</h3>
         <div className="grid grid-cols-4 gap-4 items-end">
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Report Type</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Report Type</label>
             <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
               <option>Full Population</option>
               <option>Seniors Summary</option>
@@ -337,7 +337,7 @@ export default function SystemReports() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Year</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Year</label>
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
@@ -348,7 +348,7 @@ export default function SystemReports() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Month</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Month</label>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
@@ -359,7 +359,7 @@ export default function SystemReports() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Format</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Format</label>
             <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
               <option>PDF</option>
               <option>CSV</option>

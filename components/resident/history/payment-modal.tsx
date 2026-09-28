@@ -98,18 +98,18 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
             <h2 className="text-base font-bold text-[#0C2340] dark:text-blue-50">Complete Payment</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{request.documentType}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+          <button onClick={onClose} aria-label="Close modal" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="mx-6 mt-5 mb-4 bg-[#0C2340] dark:bg-slate-800 rounded-xl p-4 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">Amount Due</p>
+            <p className="text-2xs font-semibold text-blue-200 uppercase tracking-wider">Amount Due</p>
             <p className="text-2xl font-bold text-white">P{(request.documentFee ?? 0).toFixed(2)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-semibold text-blue-200 uppercase tracking-wider">Reference #</p>
+            <p className="text-2xs font-semibold text-blue-200 uppercase tracking-wider">Reference #</p>
             <p className="text-sm font-mono font-bold text-white">{request.paymentReferenceNumber || "N/A"}</p>
           </div>
         </div>
@@ -133,21 +133,21 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
           {activeTab === "gcash" ? (
             <>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">GCash Reference Number *</label>
+                <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">GCash Reference Number *</label>
                 <Input
                   value={gcashRef}
                   onChange={e => setGcashRef(e.target.value.replace(/\D/g, "").slice(0, 13))}
                   placeholder="13-digit reference number"
                   className="font-mono tracking-wider"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">{gcashRef.length}/13 digits</p>
+                <p className="text-2xs text-slate-400 mt-1">{gcashRef.length}/13 digits</p>
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Payment Screenshot (Optional)</label>
+                <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Payment Screenshot (Optional)</label>
                 {gcashPreview ? (
                   <div className="relative">
                     <img src={gcashPreview} alt="GCash screenshot" className="w-full rounded-lg border border-slate-200 dark:border-slate-700 object-contain max-h-48" />
-                    <button onClick={() => { setGcashFile(null); setGcashPreview(null) }} className="absolute top-2 right-2 w-6 h-6 bg-slate-800/80 text-white rounded-full flex items-center justify-center hover:bg-red-500 transition-colors">
+                    <button onClick={() => { setGcashFile(null); setGcashPreview(null) }} aria-label="Remove screenshot" className="absolute top-2 right-2 w-6 h-6 bg-slate-800/80 text-white rounded-full flex items-center justify-center hover:bg-red-500 transition-colors">
                       <X className="w-3 h-3" />
                     </button>
                   </div>
@@ -155,7 +155,7 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
                   <button onClick={() => fileRef.current?.click()} className="w-full border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-5 flex flex-col items-center gap-2 hover:border-[#0C2340] dark:hover:border-slate-500 transition-colors">
                     <Upload className="w-5 h-5 text-slate-400" />
                     <p className="text-xs text-slate-500 dark:text-slate-400">Click to upload screenshot</p>
-                    <p className="text-[10px] text-slate-400">PNG, JPG up to 5MB</p>
+                    <p className="text-2xs text-slate-400">PNG, JPG up to 5MB</p>
                   </button>
                 )}
                 <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={handleFileChange} />
@@ -170,7 +170,7 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
                 <p className="text-xs text-slate-500 dark:text-slate-400">Show this reference at the Barangay Treasurer</p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-xl font-mono font-bold text-[#0C2340] dark:text-blue-50 tracking-widest">{request.paymentReferenceNumber || "N/A"}</span>
-                  <button onClick={handleCopy} className="w-7 h-7 flex items-center justify-center rounded-full bg-[#0C2340]/10 dark:bg-slate-700 hover:bg-[#0C2340]/20 transition-colors">
+                  <button onClick={handleCopy} aria-label="Copy reference number" className="w-7 h-7 flex items-center justify-center rounded-full bg-[#0C2340]/10 dark:bg-slate-700 hover:bg-[#0C2340]/20 transition-colors">
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-[#0C2340] dark:text-blue-50" />}
                   </button>
                 </div>
@@ -180,7 +180,7 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
                 </div>
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center mt-4">
-                <p className="text-[11px] text-amber-800">
+                <p className="text-xs-plus text-amber-800">
                   Please present this reference number to the Barangay Treasurer to complete your payment. The admin will update your request status once paid.
                 </p>
               </div>

@@ -218,7 +218,7 @@ export function RegisterStepOneForm({
               <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">
                 Underage (Under 18) - Auto-calculated from date of birth
               </label>
-              <p className="text-[11px] text-slate-400">(Requires: Parent&apos;s Valid ID)</p>
+              <p className="text-xs-plus text-slate-400">(Requires: Parent&apos;s Valid ID)</p>
             </div>
           </div>
           <div className="flex items-start gap-3 opacity-50">
@@ -227,7 +227,7 @@ export function RegisterStepOneForm({
               <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">
                 Adult (18-59) - Auto-calculated from date of birth
               </label>
-              <p className="text-[11px] text-slate-400">(Requires: Valid Government ID)</p>
+              <p className="text-xs-plus text-slate-400">(Requires: Valid Government ID)</p>
             </div>
           </div>
           <div className="flex items-start gap-3 opacity-50">
@@ -236,7 +236,7 @@ export function RegisterStepOneForm({
               <label className="text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed">
                 Senior Citizen (60+) - Auto-calculated from date of birth
               </label>
-              <p className="text-[11px] text-slate-400">(Requires: Senior Citizen ID)</p>
+              <p className="text-xs-plus text-slate-400">(Requires: Senior Citizen ID)</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -246,7 +246,7 @@ export function RegisterStepOneForm({
             />
             <div className="flex-1">
               <label className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer">Registered Voter</label>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">(Requires: Voter&apos;s ID / Cert)</p>
+              <p className="text-xs-plus text-slate-500 dark:text-slate-400">(Requires: Voter&apos;s ID / Cert)</p>
             </div>
           </div>
         </div>

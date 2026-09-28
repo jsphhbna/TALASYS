@@ -50,11 +50,14 @@ service cloud.firestore {
       allow read: if isAdmin() || isOwner(userId);
       
       // Creating an account is allowed during registration if the UID matches.
-      // Admins/SuperAdmins can write to any user.
       allow create: if isOwner(userId) || isAdmin();
       
-      // Updates are allowed for the owner or an admin.
-      allow update: if isOwner(userId) || isAdmin();
+      // Updates: Admins can update anything. 
+      // Residents can update their profile but CANNOT escalate privileges.
+      allow update: if isAdmin() || (
+        isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isVerified', 'status'])
+      );
       
       // Owners can delete their own account. Admins/SuperAdmins can delete any user.
       allow delete: if isOwner(userId) || isAdmin();
@@ -70,8 +73,16 @@ service cloud.firestore {
       // Residents can create requests for themselves. Admins can create for anyone.
       allow create: if isAdmin() || (isAuthenticated() && request.resource.data.residentId == request.auth.uid);
       
-      // Updates and deletions are allowed by Admins, or residents managing their own unapproved requests.
-      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
+      // Updates: Admins can update anything.
+      // Residents can only update if they aren't manipulating payment or approval status.
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        resource.data.residentId == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'documentFee', 'paymentStatus'])
+      );
+
+      // Deletions allowed by Admins, or residents managing their own requests.
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
     }
 
     // ==============================================================

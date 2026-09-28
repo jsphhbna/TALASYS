@@ -26,16 +26,17 @@ export default function RequestHistoryPage() {
   const [selectedRequest, setSelectedRequest] = useState<ResidentRequest | null>(null)
   const [paymentRequest, setPaymentRequest] = useState<ResidentRequest | null>(null)
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
+  const [selectedMonth, setSelectedMonth] = useState<string>("All Months")
   const itemsPerPage = 5
   const mounted = useMounted()
 
   // Statistics Calculation
   const stats = useMemo(() => {
     const years = new Set<string>()
-    const monthlyStats: Record<string, { total: number; approved: number; declined: number }> = {}
-    let yearlyTotal = 0
-    let yearlyApproved = 0
-    let yearlyDeclined = 0
+    const availableMonthsForYear = new Set<string>()
+    let displayTotal = 0
+    let displayApproved = 0
+    let displayDeclined = 0
 
     requests.forEach(req => {
       if (!req.dateRequested) return
@@ -48,38 +49,35 @@ export default function RequestHistoryPage() {
       years.add(year)
 
       if (year === selectedYear) {
-        yearlyTotal++
-        if (req.status === "Approved" || req.status === "Ready for Pick Up" || req.status === "Completed") {
-          yearlyApproved++
-        } else if (req.status === "Rejected") {
-          yearlyDeclined++
-        }
-
-        if (!monthlyStats[month]) {
-          monthlyStats[month] = { total: 0, approved: 0, declined: 0 }
-        }
-        monthlyStats[month].total++
-        if (req.status === "Approved" || req.status === "Ready for Pick Up" || req.status === "Completed") {
-          monthlyStats[month].approved++
-        } else if (req.status === "Rejected") {
-          monthlyStats[month].declined++
+        availableMonthsForYear.add(month)
+        
+        if (selectedMonth === "All Months" || month === selectedMonth) {
+          displayTotal++
+          if (req.status === "Approved" || req.status === "Ready for Pick Up" || req.status === "Completed") {
+            displayApproved++
+          } else if (req.status === "Rejected") {
+            displayDeclined++
+          }
         }
       }
     })
 
-    // If no years exist, default to current year
     if (years.size === 0) {
       years.add(new Date().getFullYear().toString())
     }
+    
+    // Sort months chronologically
+    const monthOrder = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    const sortedMonths = Array.from(availableMonthsForYear).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b))
 
     return {
       availableYears: Array.from(years).sort().reverse(),
-      yearlyTotal,
-      yearlyApproved,
-      yearlyDeclined,
-      monthlyStats
+      availableMonths: sortedMonths,
+      displayTotal,
+      displayApproved,
+      displayDeclined
     }
-  }, [requests, selectedYear])
+  }, [requests, selectedYear, selectedMonth])
 
   if (!isAuthorized || !mounted) {
     return null
@@ -118,11 +116,22 @@ export default function RequestHistoryPage() {
 
       {/* Statistics Section */}
       <Card className="p-6 mb-8 shadow-sm border-slate-200 dark:border-slate-700">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-          <h2 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Yearly Summary</h2>
-          <div className="w-32 mt-3 sm:mt-0">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <h2 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Summary</h2>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-full sm:w-32 h-9 bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-600">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All Months">All Months</SelectItem>
+                {stats.availableMonths.map(month => (
+                  <SelectItem key={month} value={month}>{month}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-full h-9 bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-600">
+              <SelectTrigger className="w-full sm:w-28 h-9 bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-600">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -134,47 +143,21 @@ export default function RequestHistoryPage() {
           </div>
         </div>
 
-        {/* Yearly Totals */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
+        {/* Display Totals */}
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-slate-50 dark:bg-slate-950 p-3 sm:p-4 rounded-lg border border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center text-center">
-            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-bold mb-1 uppercase tracking-wide">Total</p>
-            <p className="text-xl sm:text-2xl font-bold text-[#0C2340] dark:text-blue-50 leading-none">{stats.yearlyTotal}</p>
+            <p className="text-2xs sm:text-xs text-slate-500 dark:text-slate-400 font-bold mb-1 uppercase tracking-wide">Total</p>
+            <p className="text-xl sm:text-2xl font-bold text-[#0C2340] dark:text-blue-50 leading-none">{stats.displayTotal}</p>
           </div>
           <div className="bg-emerald-50 p-3 sm:p-4 rounded-lg border border-emerald-100 flex flex-col items-center justify-center text-center">
-            <p className="text-[10px] sm:text-xs text-emerald-600 font-bold mb-1 uppercase tracking-wide">Approved</p>
-            <p className="text-xl sm:text-2xl font-bold text-emerald-700 leading-none">{stats.yearlyApproved}</p>
+            <p className="text-2xs sm:text-xs text-emerald-600 font-bold mb-1 uppercase tracking-wide">Approved</p>
+            <p className="text-xl sm:text-2xl font-bold text-emerald-700 leading-none">{stats.displayApproved}</p>
           </div>
           <div className="bg-red-50 p-3 sm:p-4 rounded-lg border border-red-100 flex flex-col items-center justify-center text-center">
-            <p className="text-[10px] sm:text-xs text-red-600 font-bold mb-1 uppercase tracking-wide">Declined</p>
-            <p className="text-xl sm:text-2xl font-bold text-red-700 leading-none">{stats.yearlyDeclined}</p>
+            <p className="text-2xs sm:text-xs text-red-600 font-bold mb-1 uppercase tracking-wide">Declined</p>
+            <p className="text-xl sm:text-2xl font-bold text-red-700 leading-none">{stats.displayDeclined}</p>
           </div>
         </div>
-
-        {/* Monthly Breakdown */}
-        {Object.keys(stats.monthlyStats).length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wide">Monthly Breakdown</h3>
-            <div className="flex overflow-x-auto pb-4 gap-4 snap-x sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:pb-0 sm:overflow-visible">
-              {Object.entries(stats.monthlyStats).map(([month, data]) => (
-                <div key={month} className="min-w-[240px] sm:min-w-0 flex-shrink-0 snap-start border border-slate-200 dark:border-slate-700 p-3 rounded-lg flex flex-col gap-2 bg-white dark:bg-slate-900">
-                  <p className="text-sm font-bold text-[#0C2340] dark:text-blue-50">{month}</p>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium">Total:</span>
-                    <span className="font-semibold">{data.total}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-emerald-600 font-medium">Approved:</span>
-                    <span className="font-semibold text-emerald-700">{data.approved}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-red-600 font-medium">Declined:</span>
-                    <span className="font-semibold text-red-700">{data.declined}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </Card>
 
       {/* Filters */}
@@ -211,21 +194,80 @@ export default function RequestHistoryPage() {
         </div>
       </Card>
 
-      {/* Table */}
-      <Card className="shadow-sm overflow-hidden py-0">
+      {/* Content Area */}
+      <Card className="shadow-sm overflow-hidden py-0 bg-transparent sm:bg-white sm:dark:bg-slate-900 border-none sm:border-solid">
+        
+        {/* Mobile Cards (Hidden on Desktop) */}
+        <div className="md:hidden flex flex-col gap-3 py-2">
+          {paginatedRequests.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-8">No requests found yet.</p>
+          ) : (
+            paginatedRequests.map((request) => (
+              <Card key={request.id} className="p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3 relative">
+                <div className="flex justify-between items-start pr-2">
+                  <div>
+                    <p className="font-bold text-sm text-[#0C2340] dark:text-blue-50 mb-0.5 leading-tight">{request.documentType}</p>
+                    <p className="text-xs-plus text-slate-500 uppercase tracking-wide">{request.refNumber}</p>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col gap-1">
+                  <span
+                    className={`self-start inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold uppercase tracking-wide ${
+                      request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                      request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 text-blue-800" :
+                      request.status === "Awaiting Payment" ? "bg-orange-100 text-orange-800" :
+                      request.status === "Ready for Pick Up" ? "bg-emerald-100 text-emerald-800" :
+                      request.status === "Completed" ? "bg-slate-200 text-slate-800" :
+                      "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {request.status}
+                  </span>
+                  
+                  {(request as any).paymentStatus === "pending_verification" && (
+                    <span className="self-start inline-flex items-center px-2 py-0.5 rounded text-[9px] font-medium bg-amber-100 text-amber-800">⏳ Payment under review</span>
+                  )}
+                  {(request as any).paymentStatus === "paid" && (
+                    <span className="self-start inline-flex items-center px-2 py-0.5 rounded text-[9px] font-medium bg-emerald-100 text-emerald-700">✓ Paid</span>
+                  )}
+                </div>
+
+                <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  <p className="mb-1"><span className="font-semibold text-slate-500">Date:</span> {request.dateRequested}</p>
+                  <p className="truncate"><span className="font-semibold text-slate-500">Purpose:</span> {request.purpose}</p>
+                </div>
+
+                <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 mt-1 flex-wrap">
+                  {request.status === "Pending" && (
+                    <Button size="sm" variant="outline" onClick={() => handleCancelRequest(request.id)} className="flex-1 text-xs-plus h-8 text-red-600 border-red-200">Cancel</Button>
+                  )}
+                  {((request as any).paymentStatus === "unpaid" || (request as any).paymentStatus === "pending_verification") && (request as any).documentFee > 0 && (
+                    <Button size="sm" onClick={() => setPaymentRequest(request)} className={`flex-1 text-xs-plus h-8 font-bold ${(request as any).paymentStatus === "unpaid" ? "bg-orange-500 text-white" : "bg-amber-500 text-white"}`}>
+                      {(request as any).paymentStatus === "unpaid" ? "💳 Pay Now" : "Resubmit"}
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => setTrackingRequestId(request.id)} className="flex-1 text-xs-plus h-8 border-slate-300">Track</Button>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Table (Hidden on Mobile) */}
         <div
-          className="history-scroll relative w-full max-w-full overflow-x-auto touch-pan-x [scrollbar-width:thin]"
+          className="hidden md:block history-scroll relative w-full max-w-full overflow-x-auto touch-pan-x [scrollbar-width:thin]"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <table className="w-full min-w-[900px] table-auto">
             <thead>
               <tr className="bg-[#0C2340] dark:bg-slate-800/[0.03] border-b border-slate-200 dark:border-slate-700">
-                <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Ref #</th>
-                <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Document Type</th>
-                <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Date Requested</th>
-                <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Status</th>
-                <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Purpose</th>
-                <th className="text-left px-6 py-3.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Actions</th>
+                <th className="text-left px-6 py-3.5 text-xs-plus font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Ref #</th>
+                <th className="text-left px-6 py-3.5 text-xs-plus font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Document Type</th>
+                <th className="text-left px-6 py-3.5 text-xs-plus font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Date Requested</th>
+                <th className="text-left px-6 py-3.5 text-xs-plus font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Status</th>
+                <th className="text-left px-6 py-3.5 text-xs-plus font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Purpose</th>
+                <th className="text-left px-6 py-3.5 text-xs-plus font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -247,7 +289,7 @@ export default function RequestHistoryPage() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium ${request.status === "Pending" ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300" :
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs-plus font-medium ${request.status === "Pending" ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300" :
                               request.status === "On Process" || request.status === "Approved" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300" :
                               request.status === "Awaiting Payment" ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300" :
                                 request.status === "Ready for Pick Up" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300" :
@@ -276,7 +318,7 @@ export default function RequestHistoryPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => handleCancelRequest(request.id)}
-                            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 text-[10px] h-7 px-3 bg-transparent"
+                            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 text-2xs h-7 px-3 bg-transparent"
                           >
                             Cancel
                           </Button>
@@ -285,7 +327,7 @@ export default function RequestHistoryPage() {
                           <Button
                             size="sm"
                             onClick={() => setPaymentRequest(request)}
-                            className={`text-[10px] h-7 px-3 font-semibold ${ 
+                            className={`text-2xs h-7 px-3 font-semibold ${ 
                               (request as any).paymentStatus === "unpaid" 
                                 ? ((request as any).paymentMethod === "cash" ? "bg-[#0C2340] hover:bg-[#0a1c33] dark:bg-slate-800 dark:hover:bg-slate-700 text-white" : "bg-orange-500 hover:bg-orange-600 text-white") 
                                 : "bg-amber-500 hover:bg-amber-600 text-white" 
@@ -301,14 +343,14 @@ export default function RequestHistoryPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-[10px] h-7 px-3 bg-transparent"
+                              className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-2xs h-7 px-3 bg-transparent"
                             >
                               Details
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-[10px] h-7 px-3 bg-transparent"
+                              className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-2xs h-7 px-3 bg-transparent"
                             >
                               Retry
                             </Button>
@@ -319,7 +361,7 @@ export default function RequestHistoryPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => { setSelectedRequest(request); setShowAuthDialog(true) }}
-                            className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-[10px] h-7 px-3 bg-transparent"
+                            className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-2xs h-7 px-3 bg-transparent"
                           >
                             Auth Letter
                           </Button>
@@ -328,7 +370,7 @@ export default function RequestHistoryPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => setTrackingRequestId(request.id)}
-                          className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-[10px] h-7 px-3 bg-transparent"
+                          className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-2xs h-7 px-3 bg-transparent"
                         >
                           View
                         </Button>
@@ -397,10 +439,10 @@ export default function RequestHistoryPage() {
             <div className="p-6">
               <div className="space-y-3 mb-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Requested For</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByName}</p></div>
-                  <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Relationship</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.relationship}</p></div>
-                  <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByContact}</p></div>
-                  <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">File Uploaded</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.authorizationLetter}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Requested For</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByName}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Relationship</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.relationship}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByContact}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">File Uploaded</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.authorizationLetter}</p></div>
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                   <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center border border-slate-200 dark:border-slate-700">

@@ -74,7 +74,7 @@ export default function PaymentProcessPage() {
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-6 py-3 font-bold min-w-[200px]">RESIDENT</th>
                 <th className="px-6 py-3 font-bold min-w-[180px]">DOCUMENT</th>
                 <th className="px-6 py-3 font-bold">FEE</th>
@@ -104,33 +104,33 @@ export default function PaymentProcessPage() {
                         {profilePic ? (
                           <img src={profilePic} alt={request.residentName} className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700" />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-[#0C2340]/10 dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">
+                          <div className="w-8 h-8 rounded-full bg-[#0C2340]/10 dark:bg-slate-800 flex items-center justify-center text-2xs font-semibold text-[#0C2340] dark:text-blue-50">
                             {request.residentName?.charAt(0) || "U"}
                           </div>
                         )}
                         <div>
-                          <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{request.residentName}</p>
-                          <p className="text-[10px] text-slate-400">{request.residentCategory}</p>
+                          <p className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{request.residentName}</p>
+                          <p className="text-2xs text-slate-400">{request.residentCategory}</p>
                         </div>
                       </div>
                     </td>
 
                     {/* Document */}
                     <td className="px-6 py-3.5">
-                      <span className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium">{request.documentType}</span>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{request.dateRequested}</p>
+                      <span className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium">{request.documentType}</span>
+                      <p className="text-2xs text-slate-400 mt-0.5">{request.dateRequested}</p>
                     </td>
 
                     {/* Fee */}
                     <td className="px-6 py-3.5">
-                      <span className="text-[12px] font-semibold text-slate-700 dark:text-slate-300">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         {(request.documentFee || 0) > 0 ? `₱${request.documentFee}` : "Free"}
                       </span>
                     </td>
 
                     {/* Payment Method */}
                     <td className="px-6 py-3.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-2xs font-medium ${
                         paymentMethod === "gcash" ? "bg-blue-50 text-blue-700" :
                         paymentMethod === "cash" ? "bg-emerald-50 text-emerald-700" :
                         "bg-slate-100 text-slate-500"
@@ -142,28 +142,28 @@ export default function PaymentProcessPage() {
                     {/* Reference Number */}
                     <td className="px-6 py-3.5">
                       {refNumber !== "—" ? (
-                        <span className="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-700 dark:text-slate-300">
+                        <span className="font-mono text-xs-plus bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-700 dark:text-slate-300">
                           {refNumber}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-slate-400 italic">No reference yet</span>
+                        <span className="text-xs-plus text-slate-400 italic">No reference yet</span>
                       )}
                     </td>
 
                     {/* Payment Status */}
                     <td className="px-6 py-3.5">
                       {paymentStatus === "pending_verification" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium bg-yellow-50 text-yellow-700">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-2xs font-medium bg-yellow-50 text-yellow-700">
                           <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
                           Pending Verification
                         </span>
                       ) : paymentStatus === "unpaid" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-2xs font-medium bg-slate-100 text-slate-700">
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
                           Pay Later
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-700">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-2xs font-medium bg-orange-50 text-orange-700">
                           <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
                           Awaiting Payment
                         </span>
@@ -179,7 +179,7 @@ export default function PaymentProcessPage() {
                             e.stopPropagation()
                             setPaymentProcessRequest(request)
                           }}
-                          className="h-7 px-3 text-[11px] bg-emerald-600 hover:bg-emerald-700"
+                          className="h-7 px-3 text-xs-plus bg-emerald-600 hover:bg-emerald-700"
                         >
                           Process Payment
                         </Button>
@@ -217,25 +217,25 @@ export default function PaymentProcessPage() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Resident</p>
+                  <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Resident</p>
                   <p className="text-sm font-medium">{selectedRequest.residentName}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Document</p>
+                  <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Document</p>
                   <p className="text-sm font-medium">{selectedRequest.documentType}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Fee</p>
+                  <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Fee</p>
                   <p className="text-sm font-semibold text-emerald-600">
                     {(selectedRequest.documentFee || 0) > 0 ? `₱${selectedRequest.documentFee}` : "Free"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Payment Method</p>
+                  <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Payment Method</p>
                   <p className="text-sm">{(selectedRequest as any).paymentMethod || "—"}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Reference Number</p>
+                  <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Reference Number</p>
                   <p className="font-mono text-sm bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded">
                     {(selectedRequest as any).gcashRefNumber || (selectedRequest as any).receiptNumber || (selectedRequest as any).paymentReferenceNumber || "No reference provided"}
                   </p>

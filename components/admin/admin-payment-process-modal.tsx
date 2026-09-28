@@ -90,24 +90,24 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
             <h2 className="text-base font-bold text-[#0C2340] dark:text-blue-50">Process Payment</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{request.documentType}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+          <button onClick={onClose} aria-label="Close modal" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="mx-6 mt-5 mb-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-4 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Amount Due</p>
+            <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Amount Due</p>
             <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">P{(request.documentFee ?? 0).toFixed(2)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Ref #</p>
+            <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Ref #</p>
             <p className="text-sm font-mono font-bold text-slate-700 dark:text-slate-300">{request.gcashRefNumber || request.paymentReferenceNumber || "N/A"}</p>
           </div>
         </div>
 
         <div className="px-6 mb-5">
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Resident</p>
+            <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Resident</p>
             <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{request.residentName}</p>
         </div>
 
@@ -143,7 +143,7 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
             <div className="space-y-5">
               {request.paymentMethod === "gcash" && request.gcashScreenshotUrl && (
                 <div className="mb-4">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Resident Uploaded Proof</p>
+                  <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Resident Uploaded Proof</p>
                   <img 
                     src={request.gcashScreenshotUrl} 
                     alt="GCash proof" 
@@ -153,9 +153,9 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
                 </div>
               )}
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">GCash Reference Number *</label>
+                <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">GCash Reference Number *</label>
                 <Input value={gcashRef} onChange={e => setGcashRef(e.target.value.replace(/\D/g, "").slice(0, 13))} placeholder="13-digit reference number" className="font-mono tracking-wider" maxLength={13} />
-                <p className="text-[10px] text-slate-400 mt-1">{gcashRef.length}/13 digits</p>
+                <p className="text-2xs text-slate-400 mt-1">{gcashRef.length}/13 digits</p>
               </div>
               <div className="flex flex-col gap-3 mt-4">
                 <Button onClick={handleConfirmGCash} disabled={!!submitType || gcashRef.length < 13} className="w-full h-11 bg-[#0049AF] hover:bg-[#0041a0] text-white font-semibold">

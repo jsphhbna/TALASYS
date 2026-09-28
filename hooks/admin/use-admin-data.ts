@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer } from "firebase/firestore"
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, limit } from "firebase/firestore"
 import type {
     AdminResident,
     PendingVerification,
@@ -56,6 +56,7 @@ export function useAdminData() {
     useEffect(() => {
         const unsubscribeFunctions: (() => void)[] = []
 
+        // Note: Missing orderBy, so a limit() here would fetch the oldest records. Pagination requires a composite index.
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_USERS), (snapshot) => {
             const allUserDocuments = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as any))
             const residentList = allUserDocuments.filter(userData => userData.role === "resident" && userData.isVerified !== false).map(userData => ({
@@ -96,7 +97,7 @@ export function useAdminData() {
             setStats(prev => ({ ...prev, pendingVerifications: pendingVerifications.length }))
         }, (err) => console.error("verifications snapshot error:", err)))
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), orderBy("createdAt", "desc")), (snapshot) => {
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), orderBy("createdAt", "desc"), limit(200)), (snapshot) => {
             const allRequests = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as AdminDocumentRequest))
             setDocumentRequests(allRequests)
             
@@ -117,12 +118,20 @@ export function useAdminData() {
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_NOTIFICATIONS), where("targetId", "==", "admin")), (snapshot) => {
             let adminNotifications = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as AdminNotification))
             adminNotifications = adminNotifications.filter(n => (n.createdAt || 0) >= userCreatedAt)
+            
+            // Filter by Admin Role to ensure admins only see relevant notifications
+            if (user?.role === "Verification Only" || user?.role === "Verifications" || user?.role === "Resident Management") {
+                adminNotifications = adminNotifications.filter(n => n.actionUrl?.includes("/admin/verifications") || n.type === "registration")
+            } else if (user?.role === "Documents Only" || user?.role === "Document Processing") {
+                adminNotifications = adminNotifications.filter(n => n.actionUrl?.includes("/admin/requests") || n.type === "info")
+            }
+            
             adminNotifications.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
             setNotifications(adminNotifications)
             setStats(prev => ({ ...prev, unreadNotifications: adminNotifications.filter(notification => !notification.isRead).length }))
         }, (err) => console.error("notifications snapshot error:", err)))
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc")), (snapshot) => {
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(100)), (snapshot) => {
             setActivityLogs(snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as ActivityLog)))
         }, (err) => console.error("activityLogs snapshot error:", err)))
 

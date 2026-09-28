@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth"
 import { db } from "@/lib/firebase"
-import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from "firebase/firestore"
+import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, limit } from "firebase/firestore"
 import {
   type CreateResidentRequestInput,
   type ResidentNotification,

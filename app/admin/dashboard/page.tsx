@@ -75,9 +75,9 @@ export default function AdminDashboard() {
                 <kpi.icon className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
               </div>
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.label}</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.label}</p>
             <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mt-0.5">{kpi.value}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{kpi.sub}</p>
+            <p className="text-2xs text-slate-400 mt-0.5">{kpi.sub}</p>
           </Card>
         ))}
       </div>
@@ -86,7 +86,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         {quickStats.map((stat, i) => (
           <Card key={i} className={`p-3.5 shadow-sm ${stat.color}`}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70 mb-1">{stat.label}</p>
+            <p className="text-2xs font-semibold uppercase tracking-wider opacity-70 mb-1">{stat.label}</p>
             <p className="text-xl font-bold">{stat.value}</p>
           </Card>
         ))}
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
         <Card className="lg:col-span-2 shadow-sm border-slate-200 dark:border-slate-800 p-0 gap-0 overflow-hidden">
           <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Pending Actions</h2>
-            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{pendingItems.length} items</span>
+            <span className="text-2xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{pendingItems.length} items</span>
           </div>
           <div className="p-5">
             {pendingItems.length === 0 ? (
@@ -107,7 +107,7 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="grid grid-cols-12 gap-4 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider pb-2 border-b border-slate-200 dark:border-slate-700">
+                <div className="grid grid-cols-12 gap-4 text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider pb-2 border-b border-slate-200 dark:border-slate-700">
                   <div className="col-span-3">TYPE</div>
                   <div className="col-span-3">RESIDENT</div>
                   <div className="col-span-3">DATE</div>
@@ -116,16 +116,16 @@ export default function AdminDashboard() {
                 {pendingItems.map((action, i) => (
                   <div key={i} className="grid grid-cols-12 gap-4 items-center text-sm">
                     <div className="col-span-3">
-                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-medium ${action.typeColor}`}>{action.type}</span>
+                      <span className={`px-2.5 py-0.5 rounded text-2xs font-medium ${action.typeColor}`}>{action.type}</span>
                     </div>
-                    <div className="col-span-3 text-[#0C2340] dark:text-blue-50 font-medium text-[12px]">{action.resident}</div>
-                    <div className="col-span-3 text-slate-500 dark:text-slate-400 text-[11px]">{action.date}</div>
+                    <div className="col-span-3 text-[#0C2340] dark:text-blue-50 font-medium text-xs">{action.resident}</div>
+                    <div className="col-span-3 text-slate-500 dark:text-slate-400 text-xs-plus">{action.date}</div>
                     <div className="col-span-3">
                         <Button 
                           onClick={() => setReviewItem({ data: action.data, type: action.itemType })} 
                           variant="outline" 
                           size="sm" 
-                          className="h-6 px-3 text-[10px] bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
+                          className="h-6 px-3 text-2xs bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                           Review
                         </Button>
@@ -153,14 +153,14 @@ export default function AdminDashboard() {
                   <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 bg-[#0C2340] dark:bg-slate-800" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-0.5">
-                      <p className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50 truncate">{log.action}</p>
+                      <p className="text-xs-plus font-semibold text-[#0C2340] dark:text-blue-50 truncate">{log.action}</p>
                       <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded font-medium shrink-0 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: log.admin?.color || "#94a3b8" }}></span>
                         {log.admin?.name || "System"}
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{log.details}</p>
-                    <p className="text-[10px] text-slate-400 mt-1 flex gap-1 items-center">
+                    <p className="text-2xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{log.details}</p>
+                    <p className="text-2xs text-slate-400 mt-1 flex gap-1 items-center">
                       {(() => {
                         const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
                         if (ts && !isNaN(ts)) {
@@ -187,7 +187,7 @@ export default function AdminDashboard() {
               ))
             )}
             {activityLogs.length > 0 && (
-              <Link href="/admin/logs" className="block text-[11px] text-[#0C2340] dark:text-blue-50 font-medium hover:underline text-center pt-1">
+              <Link href="/admin/logs" className="block text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline text-center pt-1">
                 View all activity →
               </Link>
             )}

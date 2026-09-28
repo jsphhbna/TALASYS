@@ -80,15 +80,15 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-5">
         <Card className="p-4 shadow-sm">
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pending in Queue</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pending in Queue</p>
           <p className={`text-2xl font-bold mt-1 ${c.stat}`}>{filteredItems.length}</p>
         </Card>
         <Card className="p-4 shadow-sm">
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Approved Today</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Approved Today</p>
           <p className="text-2xl font-bold mt-1 text-emerald-600">{approvedTodayCount}</p>
         </Card>
         <Card className="p-4 shadow-sm">
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Rejected Today</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Rejected Today</p>
           <p className="text-2xl font-bold mt-1 text-red-600">{rejectedTodayCount}</p>
         </Card>
       </div>
@@ -98,7 +98,7 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
         <Card className="w-full shadow-sm overflow-hidden">
           <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700">
             <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Pending Items</h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">{filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""} awaiting review</p>
+            <p className="text-2xs text-slate-400 mt-0.5">{filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""} awaiting review</p>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto max-h-[58vh]">
             {filteredItems.map((item) => {
@@ -122,7 +122,7 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           {item.categories?.slice(0, 3).map((cat: string, i: number) => (
-                            <span key={i} className="px-2 py-0.5 rounded text-[10px] bg-blue-50 text-blue-900">{cat}</span>
+                            <span key={i} className="px-2 py-0.5 rounded text-2xs bg-blue-50 text-blue-900">{cat}</span>
                           ))}
                         </div>
                         <p className="text-xs mt-1 text-slate-500">Submitted {item.submittedDate}</p>
@@ -171,25 +171,25 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Contact Number</p>
+                        <p className="text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Contact Number</p>
                         <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">
                           {selectedItem.contactNumber || selectedUserDetails?.contactNumber || "N/A"}
                         </p>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Email Address</p>
+                        <p className="text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Email Address</p>
                         <p className="text-sm text-slate-700 dark:text-slate-300 font-medium truncate" title={selectedItem.email || selectedUserDetails?.email}>
                           {selectedItem.email || selectedUserDetails?.email || "N/A"}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Date of Birth</p>
+                        <p className="text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Date of Birth</p>
                         <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">
                           {selectedItem.dateOfBirth || selectedUserDetails?.dateOfBirth ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(new Date(selectedItem.dateOfBirth || selectedUserDetails?.dateOfBirth)) : "N/A"}
                         </p>
                       </div>
                       <div className="col-span-full">
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Full Address</p>
+                        <p className="text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Full Address</p>
                         <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">{selectedItem.address || selectedUserDetails?.address || "N/A"}</p>
                       </div>
                     </div>

@@ -51,8 +51,12 @@ export function Header() {
                 <span className="text-blue-100/80 text-sm hidden md:inline group-hover:text-white transition-colors">
                   {user.name}
                 </span>
-                <div className="w-9 h-9 rounded-full bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-sm hover:bg-white/20 transition-colors cursor-pointer">
-                  <span className="text-white text-sm font-medium">{user.initials}</span>
+                <div className="w-9 h-9 rounded-full bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-sm hover:bg-white/20 transition-colors cursor-pointer overflow-hidden">
+                  {user.profilePicture ? (
+                    <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-white text-sm font-medium">{user.initials}</span>
+                  )}
                 </div>
               </button>
             </DropdownMenuTrigger>

@@ -287,7 +287,7 @@ export default function AuditLogs() {
               </div>
               <Sparkline data={kpi.spark} color={kpi.color} />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
             <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{kpi.value}</span>
           </Card>
         ))}
@@ -298,7 +298,7 @@ export default function AuditLogs() {
         {/* Hourly Activity Distribution */}
         <Card className="col-span-5 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Hourly Activity</h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Action distribution throughout the day</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-4">Action distribution throughout the day</p>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={auditHourlyActivity} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -308,13 +308,13 @@ export default function AuditLogs() {
               <Bar dataKey="actions" fill="#0C2340" radius={[3, 3, 0, 0]} barSize={18} name="Actions" />
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[10px] text-slate-400 mt-2">Peak activity: {peakHour.hour} ({peakHour.actions} actions)</p>
+          <p className="text-2xs text-slate-400 mt-2">Peak activity: {peakHour.hour} ({peakHour.actions} actions)</p>
         </Card>
 
         {/* Action Type Breakdown */}
         <Card className="col-span-3 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Action Breakdown</h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">By type this period</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-3">By type this period</p>
           <ResponsiveContainer width="100%" height={120}>
             <PieChart>
               <Pie data={auditActionBreakdown} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" stroke="none" paddingAngle={2}>
@@ -326,7 +326,7 @@ export default function AuditLogs() {
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-1">
             {auditActionBreakdown.map((a, i) => (
-              <div key={i} className="flex items-center justify-between text-[10px]">
+              <div key={i} className="flex items-center justify-between text-2xs">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: a.color }} />
                   <span className="text-slate-600 dark:text-slate-400">{a.name}</span>
@@ -341,11 +341,11 @@ export default function AuditLogs() {
         <Card className="col-span-4 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Weekly Trend</h2>
-            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+            <div className="flex items-center gap-1 text-2xs text-slate-400">
               <span className="font-medium">-</span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Daily action volume this week</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-4">Daily action volume this week</p>
           <ResponsiveContainer width="100%" height={180}>
             <AreaChart data={auditWeeklyTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <defs>
@@ -412,11 +412,11 @@ export default function AuditLogs() {
         <div className="min-w-[800px]">
           <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timestamp</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Admin</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Action</p></div>
-              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Details</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">IP Address</p></div>
+              <div className="col-span-2"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timestamp</p></div>
+              <div className="col-span-2"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Admin</p></div>
+              <div className="col-span-2"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Action</p></div>
+              <div className="col-span-4"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Details</p></div>
+              <div className="col-span-2"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">IP Address</p></div>
             </div>
           </div>
           <div className="divide-y divide-slate-100">
@@ -434,14 +434,14 @@ export default function AuditLogs() {
                           return (
                             <>
                               <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(d)}</span>
-                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d)}</span>
+                              <span className="text-2xs text-slate-500 dark:text-slate-400 font-mono">{new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d)}</span>
                             </>
                           )
                         }
                         return (
                           <>
                             <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{log.date || (log as any).date || "Unknown"}</span>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{log.time || (log as any).time || ""}</span>
+                            <span className="text-2xs text-slate-500 dark:text-slate-400 font-mono">{log.time || (log as any).time || ""}</span>
                           </>
                         )
                       })()}
@@ -454,12 +454,12 @@ export default function AuditLogs() {
                     <span className="text-sm text-[#0C2340] dark:text-blue-50">{log.admin?.name || (log as any).adminName || "System"}</span>
                   </div>
                   <div className="col-span-2">
-                    <span className={`inline-block px-2.5 py-1 rounded-md border text-[10px] font-semibold ${getActionColor(log.actionType || log.action || "Unknown")}`}>
+                    <span className={`inline-block px-2.5 py-1 rounded-md border text-2xs font-semibold ${getActionColor(log.actionType || log.action || "Unknown")}`}>
                       {(log.actionType || log.action || "Unknown").toUpperCase()}
                     </span>
                   </div>
                   <div className="col-span-4"><p className="text-sm text-slate-700 dark:text-slate-300">{log.details || (log as any).residentName || ""}</p></div>
-                  <div className="col-span-2"><p className="text-sm text-slate-500 dark:text-slate-400 font-mono text-[11px]">{log.ipAddress || "localhost"}</p></div>
+                  <div className="col-span-2"><p className="text-sm text-slate-500 dark:text-slate-400 font-mono text-xs-plus">{log.ipAddress || "localhost"}</p></div>
                 </div>
               </div>
             ))}

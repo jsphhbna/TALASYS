@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, where, setDoc } from "firebase/firestore"
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, where, setDoc, limit } from "firebase/firestore"
 import type {
     AdminAccount,
     AuditLog,
@@ -79,7 +79,7 @@ export function useSuperAdminData() {
             setStats(prev => ({ ...prev, adminCount: adminUsers.length }))
         }))
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc")), (snapshot) => {
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(500)), (snapshot) => {
             setAuditLogs(snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as AuditLog)))
         }))
 

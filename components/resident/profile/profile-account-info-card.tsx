@@ -53,11 +53,11 @@ export function ProfileAccountInfoCard({ user }: ProfileAccountInfoCardProps) {
         <div>
           <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Verification Status</p>
           {user.isVerified ? (
-            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700">
+            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs-plus font-medium bg-green-100 text-green-700">
               Verified
             </span>
           ) : (
-            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-700">
+            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs-plus font-medium bg-amber-100 text-amber-700">
               Pending Verification
             </span>
           )}
@@ -78,20 +78,20 @@ export function ProfileAccountInfoCard({ user }: ProfileAccountInfoCardProps) {
             <div className="flex-1 space-y-4">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-[#0C2340] dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-[10px] font-medium">1</span>
+                  <span className="text-white text-2xs font-medium">1</span>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Re-upload Documents</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Submit new proof of residency.</p>
+                  <p className="text-xs-plus text-slate-500 dark:text-slate-400">Submit new proof of residency.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                  <span className="text-slate-600 dark:text-slate-400 text-[10px]">2</span>
+                  <span className="text-slate-600 dark:text-slate-400 text-2xs">2</span>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Admin Verification</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Wait for admin approval.</p>
+                  <p className="text-xs-plus text-slate-500 dark:text-slate-400">Wait for admin approval.</p>
                 </div>
               </div>
             </div>
@@ -109,7 +109,7 @@ export function ProfileAccountInfoCard({ user }: ProfileAccountInfoCardProps) {
                   Request Reactivation
                 </button>
                 {!isExpired && (
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-[11px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-xs-plus rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
                     Account must be expired to request
                   </div>
                 )}

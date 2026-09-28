@@ -48,8 +48,12 @@ export function AdminHeader() {
               <span className="text-blue-100/80 text-sm hidden sm:inline group-hover:text-white transition-colors">
                 {user?.name}
               </span>
-              <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer">
-                <span className="text-white text-xs font-medium">{user?.initials}</span>
+              <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer overflow-hidden">
+                {user?.profilePicture ? (
+                  <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-white text-xs font-medium">{user?.initials}</span>
+                )}
               </div>
             </button>
           </DropdownMenuTrigger>

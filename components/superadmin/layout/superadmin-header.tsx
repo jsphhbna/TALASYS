@@ -48,8 +48,12 @@ export function SuperAdminHeader() {
               <span className="text-blue-100/80 text-sm hidden sm:inline group-hover:text-white transition-colors">
                 Super Admin
               </span>
-              <div className="w-8 h-8 rounded-full bg-[#C5A55A]/20 border border-[#C5A55A]/40 flex items-center justify-center hover:bg-[#C5A55A]/30 transition-colors cursor-pointer">
-                <span className="text-[#C5A55A] text-xs font-semibold">{user?.initials}</span>
+              <div className="w-8 h-8 rounded-full bg-[#C5A55A]/20 border border-[#C5A55A]/40 flex items-center justify-center hover:bg-[#C5A55A]/30 transition-colors cursor-pointer overflow-hidden">
+                {user?.profilePicture ? (
+                  <img src={user.profilePicture} alt={user.name || "Super Admin"} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[#C5A55A] text-xs font-semibold">{user?.initials}</span>
+                )}
               </div>
             </button>
           </DropdownMenuTrigger>

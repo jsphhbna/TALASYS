@@ -324,20 +324,20 @@ City of Manila, {{date_issued}}.`,
               <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">Barangay Information</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Name</label>
+                  <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Name</label>
                   <Input value={formData.barangayName} onChange={e => setFormData({ ...formData, barangayName: e.target.value })} placeholder="Barangay Sample" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Municipality / City</label>
+                  <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Municipality / City</label>
                   <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="City of Sample" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Contact Number</label>
+                    <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Contact Number</label>
                     <Input value={formData.contactNumber} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} placeholder="(02) 8123-4567" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
+                    <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
                     <Input value={formData.emailAddress} onChange={e => setFormData({ ...formData, emailAddress: e.target.value })} placeholder="barangay@sample.gov.ph" />
                   </div>
                 </div>
@@ -347,7 +347,7 @@ City of Manila, {{date_issued}}.`,
               <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">E-Signatures</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Captain</label>
+                  <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Captain</label>
                   <div className="flex gap-2 mb-2">
                     <Input value={formData.barangayCaptainName} onChange={e => setFormData({ ...formData, barangayCaptainName: e.target.value })} placeholder="Hon. Juan Dela Cruz" className="flex-1" />
                     <Button variant="outline" className="text-xs bg-transparent relative overflow-hidden" onClick={() => document.getElementById("captain-sig-upload")?.click()}>
@@ -385,7 +385,7 @@ City of Manila, {{date_issued}}.`,
                   )}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Secretary</label>
+                  <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Secretary</label>
                   <div className="flex gap-2 mb-2">
                     <Input value={formData.secretaryName} onChange={e => setFormData({ ...formData, secretaryName: e.target.value })} placeholder="Maria Santos" className="flex-1" />
                     <Button variant="outline" className="text-xs bg-transparent relative overflow-hidden" onClick={() => document.getElementById("secretary-sig-upload")?.click()}>
@@ -443,8 +443,8 @@ City of Manila, {{date_issued}}.`,
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className={`text-[12px] font-semibold ${selectedTemplate === t.id ? "text-white dark:text-blue-50" : "text-[#0C2340] dark:text-blue-50"}`}>{t.name}</p>
-                    <p className={`text-[10px] ${selectedTemplate === t.id ? "text-blue-100 dark:text-slate-400" : "text-slate-500 dark:text-slate-400"}`}>Edited {t.lastEdited}</p>
+                    <p className={`text-xs font-semibold ${selectedTemplate === t.id ? "text-white dark:text-blue-50" : "text-[#0C2340] dark:text-blue-50"}`}>{t.name}</p>
+                    <p className={`text-2xs ${selectedTemplate === t.id ? "text-blue-100 dark:text-slate-400" : "text-slate-500 dark:text-slate-400"}`}>Edited {t.lastEdited}</p>
                   </div>
                   {selectedTemplate === t.id && <CheckCircle className={`w-4 h-4 ${selectedTemplate === t.id ? "text-white dark:text-blue-50" : "text-[#0C2340] dark:text-blue-50"}`} />}
                 </div>
@@ -453,7 +453,7 @@ City of Manila, {{date_issued}}.`,
           </div>
           <Card className="col-span-8 shadow-sm overflow-hidden">
             <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">Template Editor — {templates.find((t) => t.id === selectedTemplate)?.name}</h3>
+              <h3 className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">Template Editor — {templates.find((t) => t.id === selectedTemplate)?.name}</h3>
               <Button variant="outline" className="text-xs bg-transparent h-8" onClick={() => setEditingTemplate(!editingTemplate)}>
                 <Pencil className="w-3 h-3 mr-1.5" /> {editingTemplate ? "Preview" : "Edit"}
               </Button>
@@ -488,11 +488,11 @@ City of Manila, {{date_issued}}.`,
         <Card className="shadow-sm overflow-hidden">
           <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-4"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Document Type</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Fee (₱)</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Requests</p></div>
-              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</p></div>
+              <div className="col-span-4"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Document Type</p></div>
+              <div className="col-span-2"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</p></div>
+              <div className="col-span-2"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Fee (₱)</p></div>
+              <div className="col-span-2"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Requests</p></div>
+              <div className="col-span-2"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</p></div>
             </div>
           </div>
           <div className="divide-y divide-slate-100">
@@ -513,7 +513,7 @@ City of Manila, {{date_issued}}.`,
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${doc.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-semibold ${doc.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                       }`}>
                       <div className={`w-1.5 h-1.5 rounded-full ${doc.enabled ? "bg-emerald-500" : "bg-slate-400"}`} />
                       {doc.enabled ? "Enabled" : "Disabled"}
@@ -573,7 +573,7 @@ City of Manila, {{date_issued}}.`,
             )})}
           </div>
           <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-xs-plus text-slate-500 dark:text-slate-400">
               {documentTypes.filter(d => d.enabled).length} of {documentTypes.length} document types enabled
             </p>
             <Button onClick={() => setShowAddDocModal(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33] text-xs gap-1.5">
@@ -688,29 +688,29 @@ City of Manila, {{date_issued}}.`,
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Document Name *</label>
+              <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Document Name *</label>
               <Input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="e.g. Good Moral Certificate" />
             </div>
             <div className="flex gap-3">
               <div className="flex-shrink-0">
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Icon</label>
+                <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Icon</label>
                 <Input value={newDocIcon} onChange={e => setNewDocIcon(e.target.value)} placeholder="📄" className="w-16 text-center text-lg" />
               </div>
               <div className="flex-1">
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Fee (₱)</label>
+                <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Fee (₱)</label>
                 <Input type="number" min="0" value={newDocFee} onChange={e => setNewDocFee(e.target.value)} placeholder="0" />
               </div>
             </div>
           </div>
 
           <div className="mb-4">
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">PDF Header Title</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">PDF Header Title</label>
             <Input value={newDocHeader} onChange={e => setNewDocHeader(e.target.value)} placeholder="C E R T I F I C A T I O N" />
-            <p className="text-[10px] text-slate-400 mt-1">This is the bold heading that appears at the top of the PDF. E.g. "C E R T I F I C A T I O N" or "BARANGAY CLEARANCE"</p>
+            <p className="text-2xs text-slate-400 mt-1">This is the bold heading that appears at the top of the PDF. E.g. "C E R T I F I C A T I O N" or "BARANGAY CLEARANCE"</p>
           </div>
 
           <div className="mb-2">
-            <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Template Body</label>
+            <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Template Body</label>
             <textarea
               className="w-full h-48 p-4 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
               value={newDocTemplate}
@@ -719,16 +719,16 @@ City of Manila, {{date_issued}}.`,
             />
           </div>
           <div className="mb-5 bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <p className="text-[11px] font-semibold text-amber-700 mb-1">Available Placeholders</p>
+            <p className="text-xs-plus font-semibold text-amber-700 mb-1">Available Placeholders</p>
             <div className="flex flex-wrap gap-1.5">
               {["{{name}}","{{age}}","{{address}}","{{barangay_name}}","{{purpose}}","{{date_issued}}","{{date_ordinal_issued}}","{{captain_name}}"].map(ph => (
                 <button key={ph} onClick={() => setNewDocTemplate(prev => prev + ph)}
-                  className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono hover:bg-amber-200 transition-colors">
+                  className="text-2xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono hover:bg-amber-200 transition-colors">
                   {ph}
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-amber-600 mt-2">Use <code className="bg-amber-100 px-1 rounded">&lt;strong&gt;text&lt;/strong&gt;</code> to bold specific words in the output.</p>
+            <p className="text-2xs text-amber-600 mt-2">Use <code className="bg-amber-100 px-1 rounded">&lt;strong&gt;text&lt;/strong&gt;</code> to bold specific words in the output.</p>
           </div>
 
           <div className="flex justify-end gap-3">

@@ -180,7 +180,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center space-y-3">
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Don&apos;t have an account?{" "}
+              Resident of Barangay 634?{" "}
               <Link href="/auth/register" className="text-[#0C2340] dark:text-blue-50 font-semibold hover:underline">
                 Create Account
               </Link>

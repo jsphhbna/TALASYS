@@ -19,7 +19,7 @@ export function RegisterStepIndicator({ step }: RegisterStepIndicatorProps) {
               )}
             </div>
             <span
-              className={`text-[11px] mt-2 font-medium ${num < step ? "text-green-600" : num === step ? "text-[#0C2340] dark:text-blue-50" : "text-slate-400"
+              className={`text-xs-plus mt-2 font-medium ${num < step ? "text-green-600" : num === step ? "text-[#0C2340] dark:text-blue-50" : "text-slate-400"
                 }`}
             >
               {num === 1 && "Info"}

@@ -73,7 +73,7 @@ export function SuperAdminSidebar() {
                 href={item.href}
                 onClick={(e) => handleNavClick(e, item.href)}
                 className={cn(
-                  "flex items-center gap-3 mx-2 mb-0.5 px-4 py-2.5 text-[13px] transition-colors rounded-md relative",
+                  "flex items-center gap-3 mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md relative",
                   isActive
                     ? "bg-white/10 text-white font-semibold"
                     : "text-blue-200/60 hover:text-white hover:bg-white/5",
@@ -89,7 +89,7 @@ export function SuperAdminSidebar() {
         <div className="p-3 border-t border-white/10">
           <button
             onClick={() => setShowLogoutDialog(true)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-blue-200/60 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm-minus text-blue-200/60 hover:text-white hover:bg-white/5 rounded-md transition-colors"
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>

@@ -35,7 +35,7 @@ export function LandingNavbar() {
                 <Link
                   key={link.name}
                   href={link.href}
-                  className="text-[15px] font-medium text-slate-600 dark:text-slate-400 hover:text-[#0C2340] dark:text-blue-50 transition-colors"
+                  className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-[#0C2340] dark:text-blue-50 transition-colors"
                   style={{ transitionDuration: "var(--transition-base)" }}
                 >
                   {link.name}

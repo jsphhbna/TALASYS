@@ -25,7 +25,7 @@ export function OfficialsSection() {
           <h2 className="text-3xl sm:text-4xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight mb-4">
             Barangay Officials
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-[15px] leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
             Meet the dedicated public servants of Barangay 634, committed to leading and serving our community with integrity and excellence.
           </p>
         </div>
@@ -41,7 +41,7 @@ export function OfficialsSection() {
             </div>
             <h3 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">Hon. Joel "Dudz" G. Capones</h3>
             <p className="text-blue-600 font-semibold text-sm mt-1 mb-4 uppercase tracking-wide">Punong Barangay</p>
-            <p className="text-slate-600 dark:text-slate-400 italic text-[15px] max-w-[280px]">
+            <p className="text-slate-600 dark:text-slate-400 italic text-sm max-w-[280px]">
               "It is about serving others with dedication, integrity, and compassion 🤍💙"
             </p>
           </div>
@@ -55,7 +55,7 @@ export function OfficialsSection() {
               className="flex flex-col items-center p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center transition-transform hover:-translate-y-1"
               style={{ borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)" }}
             >
-              <h4 className="text-[15px] font-bold text-slate-800 dark:text-slate-200">{name}</h4>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{name}</h4>
               <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 uppercase tracking-wider font-medium">Kagawad</p>
             </div>
           ))}
@@ -67,14 +67,14 @@ export function OfficialsSection() {
             className="flex flex-col items-center p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center transition-transform hover:-translate-y-1"
             style={{ borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)" }}
           >
-            <h4 className="text-[15px] font-bold text-slate-800 dark:text-slate-200">Treas. Ma. Theresa M. Borja</h4>
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">Treas. Ma. Theresa M. Borja</h4>
             <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 uppercase tracking-wider font-medium">Barangay Treasurer</p>
           </div>
           <div 
             className="flex flex-col items-center p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center transition-transform hover:-translate-y-1"
             style={{ borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)" }}
           >
-            <h4 className="text-[15px] font-bold text-slate-800 dark:text-slate-200">Sec. Manuel R. Salonga</h4>
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">Sec. Manuel R. Salonga</h4>
             <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 uppercase tracking-wider font-medium">Barangay Secretary</p>
           </div>
         </div>

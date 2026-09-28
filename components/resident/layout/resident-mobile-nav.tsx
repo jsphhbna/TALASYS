@@ -57,7 +57,7 @@ export function ResidentMobileNav() {
               href={item.href}
               onClick={(e) => handleNavClick(e, item.href)}
               className={cn(
-                "relative flex flex-col items-center justify-center gap-0.5 rounded-lg py-2 text-[10px] font-medium transition-colors",
+                "relative flex flex-col items-center justify-center gap-0.5 rounded-lg py-2 text-2xs font-medium transition-colors",
                 isActive ? "text-[#0C2340] dark:text-blue-50 bg-[#0C2340]/10 dark:bg-slate-800/[0.06]" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/30",
               )}
             >

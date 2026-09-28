@@ -105,7 +105,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Resident Profile</h3>
             {canEdit && (
-              <span className="text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded uppercase tracking-wider font-semibold">
+              <span className="text-2xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded uppercase tracking-wider font-semibold">
                 {isEditMode ? "Editing Mode" : "View Mode"}
               </span>
             )}
@@ -132,7 +132,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                 Cancel
               </Button>
             )}
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md transition-colors ml-2">✕</button>
+            <button onClick={onClose} aria-label="Close modal" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md transition-colors ml-2">✕</button>
           </div>
         </div>
 
@@ -160,7 +160,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               {isEditMode && resident.profilePicture && formData.profilePicture !== "" && (
                 <button 
                   onClick={() => setFormData({ ...formData, profilePicture: "" })}
-                  className="mt-2 text-[10px] text-red-500 font-semibold hover:text-red-600 uppercase tracking-wider"
+                  className="mt-2 text-2xs text-red-500 font-semibold hover:text-red-600 uppercase tracking-wider"
                 >
                   Remove Photo
                 </button>
@@ -170,7 +170,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
             <div className="flex-1 min-w-0 pt-1">
               {isEditMode && resident.profilePicture && formData.profilePicture === "" && (
                 <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-lg">
-                  <label className="block text-[10px] font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider mb-1">
+                  <label className="block text-2xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider mb-1">
                     Reason for Photo Removal (Required)
                   </label>
                   <Input 
@@ -184,7 +184,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                       setFormData({ ...formData, profilePicture: resident.profilePicture })
                       setRemovePhotoReason("")
                     }}
-                    className="mt-2 text-[10px] text-slate-500 hover:text-slate-700 font-medium"
+                    className="mt-2 text-2xs text-slate-500 hover:text-slate-700 font-medium"
                   >
                     Undo Removal
                   </button>
@@ -203,7 +203,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               )}
               
               <div className="flex items-center gap-3 mt-2 flex-wrap">
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                <span className={`px-2.5 py-0.5 rounded-full text-2xs font-semibold border ${
                   resident.status === "Active" || resident.status === "Verified" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : 
                   resident.status === "Expiring" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20" : 
                   "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20"
@@ -212,7 +212,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                 </span>
                 
                 {resident.categories.map((c: string, i: number) => (
-                  <span key={i} className="px-2.5 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-full text-[10px] font-semibold border border-blue-200 dark:border-blue-500/20">
+                  <span key={i} className="px-2.5 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-full text-2xs font-semibold border border-blue-200 dark:border-blue-500/20">
                     {c}
                   </span>
                 ))}
@@ -227,7 +227,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date of Birth</label>
+                  <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date of Birth</label>
                   {isEditMode ? (
                     <Input type="date" value={formData.dateOfBirth || ''} onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })} className="h-8 text-xs px-2" />
                   ) : (
@@ -235,13 +235,13 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                   )}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Gender</label>
+                  <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Gender</label>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-300 py-1">{resident.gender || "N/A"}</p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Address</label>
+                <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Address</label>
                 {isEditMode ? (
                   <Input value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} className="h-8 text-xs px-2" />
                 ) : (
@@ -256,7 +256,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact Number</label>
+                  <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact Number</label>
                   {isEditMode ? (
                     <Input value={formData.contactNumber || ''} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} className="h-8 text-xs px-2" maxLength={11} />
                   ) : (
@@ -264,13 +264,13 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                   )}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Expiry Date</label>
+                  <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Expiry Date</label>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-300 py-1">{resident.expiryDate || "N/A"}</p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Email Address</label>
+                <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Email Address</label>
                 {isEditMode ? (
                   <Input type="email" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} className="h-8 text-xs px-2" />
                 ) : (
@@ -292,7 +292,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                 {documents.map((doc, idx) => (
                   <div key={idx} className="group relative w-full rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
                     <div className="p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                      <span className="text-[11px] font-semibold text-[#0C2340] dark:text-blue-50 truncate pr-2">{doc.name}</span>
+                      <span className="text-xs-plus font-semibold text-[#0C2340] dark:text-blue-50 truncate pr-2">{doc.name}</span>
                       <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${doc.status === 'Valid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                         {doc.status}
                       </span>
@@ -311,7 +311,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
             ) : (
               <div className="h-32 w-full max-w-sm bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400">
                 <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1">No Documents on file</span>
-                <span className="text-[10px] text-slate-400">Resident has not uploaded any documents yet.</span>
+                <span className="text-2xs text-slate-400">Resident has not uploaded any documents yet.</span>
               </div>
             )}
           </div>

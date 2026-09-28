@@ -236,32 +236,32 @@ export default function CategoryReports() {
           <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <Users className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Population</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Population</p>
           <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{adminStats.totalResidents.toLocaleString()}</span>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340] dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <BarChart3 className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Largest Category</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Largest Category</p>
           <span className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{largestName}</span>
-          <p className="text-[10px] text-[#C5A55A] font-semibold mt-0.5">{largestDesc}</p>
+          <p className="text-2xs text-[#C5A55A] font-semibold mt-0.5">{largestDesc}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Fastest Growing</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Fastest Growing</p>
           <span className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{fastestGrowingName}</span>
-          <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">{fastestGrowingDesc}</p>
+          <p className="text-2xs text-emerald-600 font-semibold mt-0.5">{fastestGrowingDesc}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center mb-2">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
           </div>
-          <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Expiring Soon</p>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Expiring Soon</p>
           <span className="text-2xl font-bold text-amber-600">{adminStats.expiringResidents}</span>
-          <p className="text-[10px] text-slate-400 mt-0.5">Need renewal</p>
+          <p className="text-2xs text-slate-400 mt-0.5">Need renewal</p>
         </Card>
       </div>
 
@@ -270,19 +270,19 @@ export default function CategoryReports() {
         {/* Distribution Pie */}
         <Card className="col-span-5 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Age Distribution</h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">Population breakdown</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-3">Population breakdown</p>
           <ResponsiveContainer width="100%" height={130}>
             <PieChart>
               <Pie data={categoryDistribution} cx="50%" cy="50%" innerRadius={35} outerRadius={55} dataKey="value" stroke="none" paddingAngle={3}>
                 {categoryDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
-              <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-bold" fill="#0C2340">{totalPop.toLocaleString()}</text>
+              <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="text-xs font-bold" fill="#0C2340">{totalPop.toLocaleString()}</text>
               <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" className="text-[8px]" fill="#94a3b8">total</text>
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-2">
             {categoryDistribution.map((c, i) => (
-              <div key={i} className="flex items-center justify-between text-[10px]">
+              <div key={i} className="flex items-center justify-between text-2xs">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
                   <span className="text-slate-600 dark:text-slate-400">{c.name}</span>
@@ -299,7 +299,7 @@ export default function CategoryReports() {
         {/* Comparative Bar */}
         <Card className="col-span-7 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Category Comparison</h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Resident count by category</p>
+          <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-4">Resident count by category</p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={barData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -330,10 +330,10 @@ export default function CategoryReports() {
                   }`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${selectedCategories.includes(category.id) ? "bg-white/10 dark:bg-slate-800/10" : "bg-slate-100 dark:bg-slate-800"}`}>
-                  <span className={`text-[11px] font-bold ${selectedCategories.includes(category.id) ? "text-white dark:text-blue-50" : "text-slate-500 dark:text-slate-400"}`}>{category.icon}</span>
+                  <span className={`text-xs-plus font-bold ${selectedCategories.includes(category.id) ? "text-white dark:text-blue-50" : "text-slate-500 dark:text-slate-400"}`}>{category.icon}</span>
                 </div>
-                <h4 className={`text-[12px] font-semibold mb-0.5 ${selectedCategories.includes(category.id) ? "text-white dark:text-blue-50" : "text-[#0C2340] dark:text-blue-50"}`}>{category.title}</h4>
-                <p className={`text-[10px] ${selectedCategories.includes(category.id) ? "text-blue-100 dark:text-slate-400" : "text-slate-500 dark:text-slate-400"}`}>{category.count}</p>
+                <h4 className={`text-xs font-semibold mb-0.5 ${selectedCategories.includes(category.id) ? "text-white dark:text-blue-50" : "text-[#0C2340] dark:text-blue-50"}`}>{category.title}</h4>
+                <p className={`text-2xs ${selectedCategories.includes(category.id) ? "text-blue-100 dark:text-slate-400" : "text-slate-500 dark:text-slate-400"}`}>{category.count}</p>
                 {selectedCategories.includes(category.id) && (
                   <div className="flex items-center justify-end mt-1">
                     <div className="w-4 h-4 rounded-full bg-white/20 dark:bg-slate-800 flex items-center justify-center">
@@ -350,14 +350,14 @@ export default function CategoryReports() {
         <div className="col-span-12 lg:col-span-5">
           <Card className="shadow-sm overflow-hidden h-full">
             <div className="bg-slate-50 dark:bg-slate-950 px-5 py-3 border-b border-slate-200 dark:border-slate-700">
-              <h3 className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">Report Configuration</h3>
+              <h3 className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">Report Configuration</h3>
             </div>
             <div className="p-5 space-y-6">
               <div>
-                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Include Columns</h4>
+                <h4 className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Include Columns</h4>
                 <div className="grid grid-cols-2 gap-4">
                   {(Object.keys(selectedColumns) as (keyof typeof selectedColumns)[]).map((col) => (
-                    <button key={col} onClick={() => toggleColumn(col)} className="flex items-center gap-2.5 text-[12px] text-slate-800 dark:text-slate-200">
+                    <button key={col} onClick={() => toggleColumn(col)} className="flex items-center gap-2.5 text-xs text-slate-800 dark:text-slate-200">
                       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${selectedColumns[col] ? "bg-[#0C2340] dark:bg-slate-800 border-[#0C2340]" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-slate-400"
                         }`}>
                         {selectedColumns[col] && <span className="text-white text-[8px]">✓</span>}
@@ -368,7 +368,7 @@ export default function CategoryReports() {
                 </div>
               </div>
               <div>
-                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Sort By</h4>
+                <h4 className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Sort By</h4>
                 <select className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900">
                   <option>Last Name (A-Z)</option>
                   <option>Last Name (Z-A)</option>

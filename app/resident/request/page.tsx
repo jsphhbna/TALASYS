@@ -188,28 +188,36 @@ function RequestDocumentContent() {
       {/* Document Type Selection */}
       <div className="mb-8">
         <h2 className="text-base font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Select Document Type</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5">
           {dynamicDocumentTypes.map((doc) => (
             <Card
               key={doc.id}
+              role="button"
+              tabIndex={doc.enabled ? 0 : -1}
               onClick={() => doc.enabled && setSelectedType(doc.id)}
-              className={`p-6 transition-all border-2 ${doc.enabled ? "cursor-pointer hover:shadow-md hover:border-slate-300 dark:border-slate-600" : "opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-950"} ${selectedType === doc.id
+              onKeyDown={(e) => {
+                if (doc.enabled && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault()
+                  setSelectedType(doc.id)
+                }
+              }}
+              className={`p-4 sm:p-6 transition-all border-2 ${doc.enabled ? "cursor-pointer hover:shadow-md hover:border-slate-300 dark:border-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C2340] dark:focus-visible:ring-slate-300" : "opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-950"} ${selectedType === doc.id
                 ? "border-[#0C2340] bg-blue-50 dark:bg-slate-800/[0.02] shadow-sm"
                 : "border-transparent"
                 }`}
             >
-              <div className="relative h-full flex flex-col">
-                <div className="text-3xl mb-4" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</div>
-                <p className={`text-sm font-semibold ${selectedType === doc.id ? "text-[#0C2340]" : "text-[#0C2340]"} dark:text-blue-50 mb-1`}>{doc.title}</p>
-                <p className={`text-[11px] ${selectedType === doc.id ? "text-slate-600" : "text-slate-600"} dark:text-slate-400 leading-relaxed flex-grow`}>{doc.description}</p>
+              <div className="relative h-full flex flex-col items-center sm:items-start text-center sm:text-left justify-center sm:justify-start">
+                <div className="text-2xl sm:text-3xl mb-2 sm:mb-4" style={{ filter: doc.enabled ? 'none' : 'grayscale(100%)' }}>{doc.icon}</div>
+                <p className={`text-sm-minus sm:text-sm font-semibold leading-tight ${selectedType === doc.id ? "text-[#0C2340]" : "text-[#0C2340]"} dark:text-blue-50 mb-1`}>{doc.title}</p>
+                <p className={`text-2xs sm:text-xs-plus mt-1 ${selectedType === doc.id ? "text-slate-600" : "text-slate-600"} dark:text-slate-400 leading-tight sm:leading-relaxed flex-grow`}>{doc.description}</p>
                 {!doc.enabled && (
-                  <div className="mt-4 self-start inline-flex items-center px-2 py-1 rounded bg-slate-200 text-slate-600 dark:text-slate-400 text-[10px] font-semibold">
-                    Temporarily Unavailable
+                  <div className="mt-3 sm:mt-4 self-center sm:self-start inline-flex items-center px-2 py-0.5 sm:py-1 rounded bg-slate-200 text-slate-600 dark:text-slate-400 text-[9px] sm:text-2xs font-semibold">
+                    Unavailable
                   </div>
                 )}
                 {selectedType === doc.id && doc.enabled && (
-                  <div className="absolute top-0 right-0 w-6 h-6 bg-[#0C2340] dark:bg-slate-800 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs">✓</span>
+                  <div className="absolute -top-1 -right-1 sm:top-0 sm:right-0 w-5 h-5 sm:w-6 sm:h-6 bg-[#0C2340] dark:bg-slate-800 rounded-full flex items-center justify-center">
+                    <span className="text-white text-2xs sm:text-xs">✓</span>
                   </div>
                 )}
               </div>

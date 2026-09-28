@@ -153,7 +153,7 @@ function DocumentRequestsContent() {
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-6 py-3 font-bold min-w-[200px]">RESIDENT</th>
                 <th className="px-6 py-3 font-bold min-w-[200px]">DOCUMENT</th>
                 <th className="px-6 py-3 font-bold min-w-[150px]">PURPOSE</th>
@@ -174,35 +174,35 @@ function DocumentRequestsContent() {
                   {profilePic ? (
                     <img src={profilePic} alt={request.residentName} className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-[#0C2340]/10 dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-[#0C2340] dark:text-blue-50">
+                    <div className="w-8 h-8 rounded-full bg-[#0C2340]/10 dark:bg-slate-800 flex items-center justify-center text-2xs font-semibold text-[#0C2340] dark:text-blue-50">
                       {request.residentInitials || request.residentName?.charAt(0) || "U"}
                     </div>
                   )}
                   <div>
-                    <p className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{request.residentName}</p>
-                    <p className="text-[10px] text-slate-400">{request.residentCategory}</p>
+                    <p className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{request.residentName}</p>
+                    <p className="text-2xs text-slate-400">{request.residentCategory}</p>
                   </div>
                   </div>
                 </td>
                   <td className="px-6 py-3.5">
-                    <span className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium">{request.documentType}</span>
+                    <span className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium">{request.documentType}</span>
                     {(request as any).paymentStatus === "unpaid" && (request.documentFee ?? 0) > 0 && (
                       <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                         Pay Later
                       </span>
                     )}
                     {request.id && (
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5" title={request.id}>Ref: {request.id.substring(0, 8).toUpperCase()}</p>
+                      <p className="text-2xs text-slate-500 font-mono mt-0.5" title={request.id}>Ref: {request.id.substring(0, 8).toUpperCase()}</p>
                     )}
                   </td>
                 <td className="px-6 py-3.5">
-                  <span className="text-[11px] text-slate-600 dark:text-slate-400">{request.purpose}</span>
+                  <span className="text-xs-plus text-slate-600 dark:text-slate-400">{request.purpose}</span>
                 </td>
                 <td className="px-6 py-3.5 whitespace-nowrap">
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400">{request.dateRequested}</span>
+                  <span className="text-xs-plus text-slate-500 dark:text-slate-400">{request.dateRequested}</span>
                 </td>
                 <td className="px-6 py-3.5 whitespace-nowrap">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-medium ${request.status === "Pending" ? "bg-amber-50 text-amber-700" :
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-2xs font-medium ${request.status === "Pending" ? "bg-amber-50 text-amber-700" :
                       request.status === "On Process" || request.status === "Approved" ? "bg-blue-50 text-blue-700" :
                         request.status === "Awaiting Payment" ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" :
                           request.status === "Ready for Pick Up" ? "bg-emerald-50 text-emerald-700" :
@@ -238,10 +238,10 @@ function DocumentRequestsContent() {
                     <>
                       {request.status === "Pending" && !((request as any).paymentStatus === "pending_verification") && (
                         <>
-                          <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700">Approve</Button>
-                          <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setRejectReason(""); setShowRejectDialog(true) }} className="h-6 px-3 text-[10px] bg-red-600 hover:bg-red-700">Reject</Button>
+                          <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowApproveDialog(true) }} className="h-6 px-3 text-2xs bg-emerald-600 hover:bg-emerald-700">Approve</Button>
+                          <Button size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setRejectReason(""); setShowRejectDialog(true) }} className="h-6 px-3 text-2xs bg-red-600 hover:bg-red-700">Reject</Button>
                           {request.requestFor === "other" && request.authorizationLetter && (
-                            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowAuthDialog(true) }} className="h-6 px-3 text-[10px] bg-transparent">
+                            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); setShowAuthDialog(true) }} className="h-6 px-3 text-2xs bg-transparent">
                               📎 Auth
                             </Button>
                           )}
@@ -249,7 +249,7 @@ function DocumentRequestsContent() {
                       )}
                       {(request.status === "Awaiting Payment" || (request as any).paymentStatus === "pending_verification") && (
                         <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-2xs font-medium bg-orange-50 text-orange-600 border border-orange-200">
                             ⏳ Payment pending — go to Payment Process
                           </span>
                         </div>
@@ -260,7 +260,7 @@ function DocumentRequestsContent() {
                             <Button size="sm" onClick={(e) => { 
                               e.stopPropagation(); 
                               router.push(`/admin/generate?requestId=${request.id}`)
-                            }} className="h-6 px-3 text-[10px] bg-blue-600 hover:bg-blue-700">Generate</Button>
+                            }} className="h-6 px-3 text-2xs bg-blue-600 hover:bg-blue-700">Generate</Button>
                           ) : (
                             <Button size="sm" variant="outline" onClick={async (e) => { 
                               e.stopPropagation(); 
@@ -270,7 +270,7 @@ function DocumentRequestsContent() {
                               } catch (err: any) {
                                 toast.error(err.message || "Failed to update status")
                               }
-                            }} className="h-6 px-3 text-[10px] bg-transparent text-slate-500">Mark Ready</Button>
+                            }} className="h-6 px-3 text-2xs bg-transparent text-slate-500">Mark Ready</Button>
                           )}
                         </div>
                       )}
@@ -288,7 +288,7 @@ function DocumentRequestsContent() {
                               toast.error(err.message || "Failed to update status")
                             }
                           }} 
-                          className="h-6 px-3 text-[10px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="h-6 px-3 text-2xs bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Complete
                         </Button>
@@ -296,7 +296,7 @@ function DocumentRequestsContent() {
                     </>
                   )}
                   {(request.status === "Completed" || request.status === "Rejected") && (
-                    <span className="text-[10px] text-slate-400">Processed</span>
+                    <span className="text-2xs text-slate-400">Processed</span>
                   )}
                   </div>
                 </td>
@@ -330,27 +330,27 @@ function DocumentRequestsContent() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Reference Number</p>
+                  <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Reference Number</p>
                   <p className="text-sm font-mono text-slate-900 dark:text-slate-100">{selectedRequest.id.substring(0, 8).toUpperCase()}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date Requested</p>
+                  <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date Requested</p>
                   <p className="text-sm text-slate-900 dark:text-slate-100">{selectedRequest.dateRequested}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Document Type</p>
+                  <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Document Type</p>
                   <p className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">{selectedRequest.documentType}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Purpose</p>
+                  <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Purpose</p>
                   <p className="text-sm text-slate-900 dark:text-slate-100">{selectedRequest.purpose}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Resident</p>
+                  <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Resident</p>
                   <p className="text-sm text-slate-900 dark:text-slate-100">{selectedRequest.residentName}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Status</p>
+                  <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Status</p>
                   <p className="text-sm text-slate-900 dark:text-slate-100">{selectedRequest.status}</p>
                 </div>
                 {selectedRequest.documentFee > 0 && (
@@ -359,26 +359,26 @@ function DocumentRequestsContent() {
                       <h4 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 mb-3">Payment Details</h4>
                       <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
                         <div>
-                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Fee</p>
+                          <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Fee</p>
                           <p className="text-sm font-bold text-[#0C2340]">₱{selectedRequest.documentFee.toFixed(2)}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</p>
+                          <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Status</p>
                           <p className="text-sm font-semibold capitalize text-amber-600">{selectedRequest.paymentStatus.replace("_", " ")}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Method</p>
+                          <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Method</p>
                           <p className="text-sm uppercase font-semibold">{selectedRequest.paymentMethod || "N/A"}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Reference</p>
+                          <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Reference</p>
                           <p className="text-sm font-mono">{selectedRequest.paymentMethod === "gcash" ? selectedRequest.gcashRefNumber : selectedRequest.paymentReferenceNumber}</p>
                         </div>
                       </div>
                     </div>
                     {selectedRequest.paymentMethod === "gcash" && selectedRequest.gcashScreenshotUrl && (
                       <div className="col-span-2">
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">GCash Screenshot</p>
+                        <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-2">GCash Screenshot</p>
                         <img src={selectedRequest.gcashScreenshotUrl} alt="GCash proof" className="w-full max-h-64 object-contain rounded-lg border border-slate-200" />
                       </div>
                     )}
@@ -439,7 +439,7 @@ function DocumentRequestsContent() {
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
               />
-              <p className={`text-[10px] mb-4 ${rejectReason.trim().length >= 10 ? 'text-green-600' : 'text-red-500'}`}>
+              <p className={`text-2xs mb-4 ${rejectReason.trim().length >= 10 ? 'text-green-600' : 'text-red-500'}`}>
                 {rejectReason.trim().length}/10 characters minimum
               </p>
               <div className="flex gap-3">
@@ -475,10 +475,10 @@ function DocumentRequestsContent() {
             <div className="p-6">
               <div className="space-y-3 mb-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Requested By</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByName}</p></div>
-                  <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Relationship</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.relationship}</p></div>
-                  <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByContact}</p></div>
-                  <div><p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">File</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.authorizationLetter}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Requested By</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByName}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Relationship</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.relationship}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByContact}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">File</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.authorizationLetter}</p></div>
                 </div>
               </div>
               <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center mb-4">

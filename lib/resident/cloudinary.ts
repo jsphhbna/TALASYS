@@ -120,12 +120,18 @@ export async function uploadFileToCloudinary(file: File): Promise<string> {
 
   const uploadTimestamp = Math.round(new Date().getTime() / 1000)
 
-  // SHA-1 signature authenticates the upload without sending the secret over the wire.
-  const signatureString = `timestamp=${uploadTimestamp}${CLOUDINARY_API_SECRET}`
-  const encodedSignatureMessage = new TextEncoder().encode(signatureString)
-  const signatureHashBuffer = await crypto.subtle.digest("SHA-1", encodedSignatureMessage)
-  const signatureHashBytes = Array.from(new Uint8Array(signatureHashBuffer))
-  const signature = signatureHashBytes.map((byte) => byte.toString(16).padStart(2, "0")).join("")
+  // Request a signature from the backend so we don't expose CLOUDINARY_API_SECRET
+  const signResponse = await fetch("/api/cloudinary/sign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timestamp: uploadTimestamp }),
+  })
+  
+  if (!signResponse.ok) {
+    throw new Error("Failed to authenticate upload request securely.")
+  }
+  
+  const { signature } = await signResponse.json()
 
   const formData = new FormData()
   formData.append("file", compressedFile)

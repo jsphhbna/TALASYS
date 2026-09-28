@@ -148,7 +148,7 @@ export function AdminSidebar() {
                 <div key={item.name}>
                   <button
                     onClick={() => setIsDocOpen(v => !v)}
-                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-[13px] transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
+                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
                     style={{ width: 'calc(100% - 16px)' }}
                   >
                     <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export function AdminSidebar() {
                     </div>
                     <div className="flex items-center gap-2">
                       {(item.badge ?? 0) > 0 && (
-                        <span className="flex items-center justify-center min-w-[20px] h-[18px] px-1.5 bg-red-500 text-white text-[10px] rounded-full font-medium">
+                        <span className="flex items-center justify-center min-w-[20px] h-[18px] px-1.5 bg-red-500 text-white text-2xs rounded-full font-medium">
                           {item.badge}
                         </span>
                       )}
@@ -179,7 +179,7 @@ export function AdminSidebar() {
                             key={sub.name}
                             href={sub.href}
                             onClick={(e) => handleNavClick(e, sub.href)}
-                            className={`flex items-center justify-between mx-1 mb-0.5 px-3 py-2 text-[12px] transition-colors rounded-md relative ${
+                            className={`flex items-center justify-between mx-1 mb-0.5 px-3 py-2 text-xs transition-colors rounded-md relative ${
                               isSubActive ? "bg-white/10 text-white font-semibold" : "text-blue-200/50 hover:text-white hover:bg-white/5"
                             }`}
                           >
@@ -189,7 +189,7 @@ export function AdminSidebar() {
                               <span>{sub.name}</span>
                             </div>
                             {subBadge > 0 && (
-                              <span className="flex items-center justify-center min-w-[18px] h-[16px] px-1 bg-red-500 text-white text-[10px] rounded-full font-bold">
+                              <span className="flex items-center justify-center min-w-[18px] h-[16px] px-1 bg-red-500 text-white text-2xs rounded-full font-bold">
                                 {subBadge}
                               </span>
                             )}
@@ -207,7 +207,7 @@ export function AdminSidebar() {
                 <div key={item.name}>
                   <button
                     onClick={() => setIsResidentsOpen(v => !v)}
-                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-[13px] transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
+                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
                     style={{ width: 'calc(100% - 16px)' }}
                   >
                     <div className="flex items-center gap-3">
@@ -226,7 +226,7 @@ export function AdminSidebar() {
                             key={sub.name}
                             href={sub.href}
                             onClick={(e) => handleNavClick(e, sub.href)}
-                            className={`flex items-center gap-2.5 mx-1 mb-0.5 px-3 py-2 text-[12px] transition-colors rounded-md relative ${
+                            className={`flex items-center gap-2.5 mx-1 mb-0.5 px-3 py-2 text-xs transition-colors rounded-md relative ${
                               isSubActive ? "bg-white/10 text-white font-semibold" : "text-blue-200/50 hover:text-white hover:bg-white/5"
                             }`}
                           >
@@ -249,7 +249,7 @@ export function AdminSidebar() {
                   {/* Accordion Toggle */}
                   <button
                     onClick={() => setIsVerifOpen(v => !v)}
-                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-[13px] transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
+                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
                     style={{ width: 'calc(100% - 16px)' }}
                   >
                     <div className="flex items-center gap-3">
@@ -258,7 +258,7 @@ export function AdminSidebar() {
                     </div>
                     <div className="flex items-center gap-2">
                       {(item.badge ?? 0) > 0 && (
-                        <span className="flex items-center justify-center min-w-[20px] h-[18px] px-1.5 bg-red-500 text-white text-[10px] rounded-full font-medium">
+                        <span className="flex items-center justify-center min-w-[20px] h-[18px] px-1.5 bg-red-500 text-white text-2xs rounded-full font-medium">
                           {item.badge}
                         </span>
                       )}
@@ -282,7 +282,7 @@ export function AdminSidebar() {
                             key={sub.name}
                             href={sub.href}
                             onClick={(e) => handleNavClick(e, sub.href)}
-                            className={`flex items-center justify-between mx-1 mb-0.5 px-3 py-2 text-[12px] transition-colors rounded-md relative ${
+                            className={`flex items-center justify-between mx-1 mb-0.5 px-3 py-2 text-xs transition-colors rounded-md relative ${
                               isSubActive ? "bg-white/10 text-white font-semibold" : "text-blue-200/50 hover:text-white hover:bg-white/5"
                             }`}
                           >
@@ -292,7 +292,7 @@ export function AdminSidebar() {
                               <span>{sub.name}</span>
                             </div>
                             {subBadge > 0 && (
-                              <span className="flex items-center justify-center min-w-[18px] h-[16px] px-1 bg-red-500 text-white text-[10px] rounded-full font-bold">
+                              <span className="flex items-center justify-center min-w-[18px] h-[16px] px-1 bg-red-500 text-white text-2xs rounded-full font-bold">
                                 {subBadge}
                               </span>
                             )}
@@ -311,7 +311,7 @@ export function AdminSidebar() {
                 href={item.href}
                 onClick={(e) => handleNavClick(e, item.href)}
                 className={cn(
-                  "flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-[13px] transition-colors rounded-md relative",
+                  "flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md relative",
                   isActive
                     ? "bg-white/10 text-white font-semibold"
                     : "text-blue-200/60 hover:text-white hover:bg-white/5",
@@ -323,7 +323,7 @@ export function AdminSidebar() {
                   <span>{item.name}</span>
                 </div>
                 {(item.badge ?? 0) > 0 && (
-                  <span className="flex items-center justify-center min-w-[20px] h-[18px] px-1.5 bg-red-500 text-white text-[10px] rounded-full font-medium">
+                  <span className="flex items-center justify-center min-w-[20px] h-[18px] px-1.5 bg-red-500 text-white text-2xs rounded-full font-medium">
                     {item.badge}
                   </span>
                 )}
@@ -334,7 +334,7 @@ export function AdminSidebar() {
         <div className="p-3 border-t border-white/10">
           <button
             onClick={() => setShowLogoutDialog(true)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-blue-200/60 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm-minus text-blue-200/60 hover:text-white hover:bg-white/5 rounded-md transition-colors"
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>

@@ -67,18 +67,18 @@ export function QuickReviewModal({ item, itemType, isOpen, onClose }: QuickRevie
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Type</p>
+                    <p className="text-2xs font-semibold text-slate-500 uppercase">Type</p>
                     <p className="text-sm font-medium text-[#0C2340] dark:text-blue-50 capitalize">{item.type.replace("-", " ")}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Date</p>
+                    <p className="text-2xs font-semibold text-slate-500 uppercase">Date</p>
                     <p className="text-sm font-medium text-[#0C2340] dark:text-blue-50">{item.submittedDate}</p>
                   </div>
                 </div>
 
                 {item.changes && item.changes.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase mb-2">Requested Changes</p>
+                    <p className="text-2xs font-semibold text-slate-500 uppercase mb-2">Requested Changes</p>
                     <div className="bg-slate-50 dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
                       {item.changes.map((c: any, i: number) => (
                         <div key={i} className="p-3 text-sm flex gap-4">
@@ -95,11 +95,11 @@ export function QuickReviewModal({ item, itemType, isOpen, onClose }: QuickRevie
                 
                 {item.documents && item.documents.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase mb-2">Attached Documents</p>
+                    <p className="text-2xs font-semibold text-slate-500 uppercase mb-2">Attached Documents</p>
                     <div className="space-y-2">
                       {item.documents.map((doc: any, i: number) => (
                         <div key={i} className="flex flex-col gap-2 bg-slate-50 dark:bg-slate-900 p-3 rounded border border-slate-100 dark:border-slate-800">
-                          <span className="text-[11px] font-medium text-[#0C2340] dark:text-blue-50">{doc.name}</span>
+                          <span className="text-xs-plus font-medium text-[#0C2340] dark:text-blue-50">{doc.name}</span>
                           {doc.url && (
                             <button onClick={() => setSelectedImage(doc.url)} className="block w-full mt-2 overflow-hidden rounded border border-slate-200 dark:border-slate-700 hover:opacity-90 transition-opacity focus:outline-none">
                               <img src={doc.url} alt={doc.name} className="w-full max-h-32 object-cover cursor-zoom-in" />
@@ -118,17 +118,17 @@ export function QuickReviewModal({ item, itemType, isOpen, onClose }: QuickRevie
               <div className="space-y-3">
                  <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Document</p>
+                    <p className="text-2xs font-semibold text-slate-500 uppercase">Document</p>
                     <p className="text-sm font-medium text-[#0C2340] dark:text-blue-50">{item.documentType}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Purpose</p>
+                    <p className="text-2xs font-semibold text-slate-500 uppercase">Purpose</p>
                     <p className="text-sm font-medium text-[#0C2340] dark:text-blue-50">{item.purpose}</p>
                   </div>
                 </div>
                 {item.specificDetails && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Additional Details</p>
+                    <p className="text-2xs font-semibold text-slate-500 uppercase">Additional Details</p>
                     <p className="text-sm font-medium text-[#0C2340] dark:text-blue-50 mt-1">{item.specificDetails}</p>
                   </div>
                 )}

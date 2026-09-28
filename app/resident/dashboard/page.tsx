@@ -47,21 +47,21 @@ export default function DashboardPage() {
         {/* Account Status Card */}
         <Card className={`p-6 border-l-4 shadow-sm ${user.status === "Expired" ? "border-l-red-600" : user.isVerified === false ? "border-l-amber-500" : "border-l-[#0C2340]"}`}>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">Account Status</p>
-          <p className={`text-[22px] font-bold mb-2 ${user.status === "Expired" ? "text-red-600" : user.isVerified === false ? "text-amber-500" : "text-green-600"}`}>
+          <p className={`text-xl-plus font-bold mb-2 ${user.status === "Expired" ? "text-red-600" : user.isVerified === false ? "text-amber-500" : "text-green-600"}`}>
             {user.status === "Expired" ? "Deactivated" : user.isVerified === false ? "Under Review" : "Verified"}
           </p>
           {user.status === "Expired" ? (
-             <p className="text-[11px] text-red-500 font-medium leading-snug">
+             <p className="text-xs-plus text-red-500 font-medium leading-snug">
                Your account is currently inactive. You must request reactivation from your profile.
              </p>
           ) : user.isVerified === false ? (
-             <p className="text-[11px] text-amber-600 font-medium leading-snug">
+             <p className="text-xs-plus text-amber-600 font-medium leading-snug">
                Your registration is pending admin verification.
              </p>
           ) : (
             <>
               <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Valid until: {user.accountExpiry || "N/A"}</p>
-              <p className="text-[11px] text-slate-400 font-medium">{daysRemaining} days remaining</p>
+              <p className="text-xs-plus text-slate-400 font-medium">{daysRemaining} days remaining</p>
               <div className="mt-4 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
                 <div 
                   className="bg-green-500 h-full rounded-full transition-all duration-1000 ease-in-out" 
@@ -75,8 +75,8 @@ export default function DashboardPage() {
         {/* Total Requests */}
         <Card className="p-6 shadow-sm">
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">Total Requests</p>
-          <p className="text-[32px] font-bold text-[#0C2340] dark:text-blue-50 leading-none mb-2">{requests.length}</p>
-          <p className="text-[11px] text-slate-600 dark:text-slate-400">
+          <p className="text-4xl font-bold text-[#0C2340] dark:text-blue-50 leading-none mb-2">{requests.length}</p>
+          <p className="text-xs-plus text-slate-600 dark:text-slate-400">
             {approvedRequests.length} approved • {pendingRequests.length} pending
           </p>
         </Card>
@@ -86,29 +86,29 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="mb-8">
         <h2 className="text-base font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           <Link href="/resident/request?type=clearance">
-            <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40">
-              <div className="text-xl mb-3">📄</div>
-              <p className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Barangay Clearance</p>
+            <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40 flex flex-col items-center sm:items-start text-center sm:text-left justify-center sm:justify-start">
+              <div className="text-2xl sm:text-xl mb-2 sm:mb-3">📄</div>
+              <p className="text-sm-minus sm:text-sm leading-tight font-semibold text-[#0C2340] dark:text-blue-50">Barangay Clearance</p>
             </Card>
           </Link>
           <Link href="/resident/request?type=indigency">
-            <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40">
-              <div className="text-xl mb-3">📋</div>
-              <p className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Certificate of Indigency</p>
+            <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40 flex flex-col items-center sm:items-start text-center sm:text-left justify-center sm:justify-start">
+              <div className="text-2xl sm:text-xl mb-2 sm:mb-3">📋</div>
+              <p className="text-sm-minus sm:text-sm leading-tight font-semibold text-[#0C2340] dark:text-blue-50">Certificate of Indigency</p>
             </Card>
           </Link>
           <Link href="/resident/request?type=residency">
-            <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40">
-              <div className="text-xl mb-3">🏠</div>
-              <p className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Certificate of Residency</p>
+            <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40 flex flex-col items-center sm:items-start text-center sm:text-left justify-center sm:justify-start">
+              <div className="text-2xl sm:text-xl mb-2 sm:mb-3">🏠</div>
+              <p className="text-sm-minus sm:text-sm leading-tight font-semibold text-[#0C2340] dark:text-blue-50">Certificate of Residency</p>
             </Card>
           </Link>
           <Link href="/resident/request">
-            <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40">
-              <div className="text-xl mb-3">➕</div>
-              <p className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">More Documents</p>
+            <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40 flex flex-col items-center sm:items-start text-center sm:text-left justify-center sm:justify-start">
+              <div className="text-2xl sm:text-xl mb-2 sm:mb-3">➕</div>
+              <p className="text-sm-minus sm:text-sm leading-tight font-semibold text-[#0C2340] dark:text-blue-50">More Documents</p>
             </Card>
           </Link>
         </div>

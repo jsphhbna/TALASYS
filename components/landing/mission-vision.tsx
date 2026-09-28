@@ -11,7 +11,7 @@ export function MissionVisionSection() {
           <h2 className="text-3xl sm:text-4xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight mb-4">
             Our Guiding Principles
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-[15px] leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
             The foundation of Barangay 634 is built upon a strong commitment to our residents, environment, and continuous community development.
           </p>
         </div>
@@ -27,7 +27,7 @@ export function MissionVisionSection() {
               <Target className="w-7 h-7" />
             </div>
             <h3 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-4">Mission</h3>
-            <p className="text-slate-700 dark:text-slate-300 text-[16px] leading-relaxed font-medium">
+            <p className="text-slate-700 dark:text-slate-300 text-base leading-relaxed font-medium">
               Our mission is to provide a safe, vibrant, sustainable community while striving to constantly improve the quality of life for our citizens and economic partners.
             </p>
           </div>
@@ -41,7 +41,7 @@ export function MissionVisionSection() {
               <Compass className="w-7 h-7" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-4">Vision</h3>
-            <p className="text-slate-300 text-[16px] leading-relaxed font-medium">
+            <p className="text-slate-300 text-base leading-relaxed font-medium">
               Committed to managing the balance between the collective vision of its residents, the dictates of its environment, and its commercial needs. We strive to develop, provide, and maintain quality programs and facilities that meet the growing needs of our diverse community.
             </p>
           </div>

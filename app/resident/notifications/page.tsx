@@ -53,7 +53,7 @@ export default function NotificationsPage() {
         <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-1 tracking-tight">Notifications</h1>
         <button 
           onClick={handleMarkAllRead} 
-          className="text-[11px] text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center" 
+          className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center" 
           disabled={isMarkingAllRead || unreadCount === 0}
         >
           <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}
@@ -123,7 +123,7 @@ export default function NotificationsPage() {
                     </p>
                   </div>
 
-                  <span className="text-[11px] text-slate-400 whitespace-nowrap flex-shrink-0">
+                  <span className="text-xs-plus text-slate-400 whitespace-nowrap flex-shrink-0">
                     {relativeTime}
                   </span>
                 </button>

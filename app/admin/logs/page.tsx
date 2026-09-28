@@ -59,7 +59,7 @@ export default function ActivityLogs() {
     const badge = badges[type] || { bg: "bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300", text: type, icon: Activity }
     const Icon = badge.icon
     return (
-      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${badge.bg}`}>
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-medium ${badge.bg}`}>
         <Icon className="w-3 h-3" />
         {badge.text}
       </span>
@@ -80,33 +80,33 @@ export default function ActivityLogs() {
             <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
               <Activity className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions Today</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions Today</p>
             <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{activityLogs.length}</p>
           </Card>
           <Card className="p-4 shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Approvals</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Approvals</p>
             <p className="text-2xl font-bold text-emerald-600">{approvedCount}</p>
           </Card>
           <Card className="p-4 shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center mb-2">
               <XCircle className="w-4 h-4 text-red-600" />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Rejections</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Rejections</p>
             <p className="text-2xl font-bold text-red-600">{rejectedCount}</p>
           </Card>
           <Card className="p-4 shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mb-2">
               <FileText className="w-4 h-4 text-blue-600" />
             </div>
-            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Generated</p>
+            <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Generated</p>
             <p className="text-2xl font-bold text-blue-600">{generatedCount}</p>
           </Card>
         </div>
         <Card className="col-span-5 p-4 shadow-sm">
-          <h3 className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Hourly Frequency</h3>
+          <h3 className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Hourly Frequency</h3>
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={logActionFrequency} barSize={14}>
               <XAxis dataKey="hour" tick={{ fontSize: 8 }} stroke="#94a3b8" />
@@ -149,7 +149,7 @@ export default function ActivityLogs() {
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-6 py-3 font-bold min-w-[100px]">TIME</th>
                 <th className="px-6 py-3 font-bold min-w-[150px]">ADMIN</th>
                 <th className="px-6 py-3 font-bold min-w-[150px]">ACTION</th>
@@ -171,7 +171,7 @@ export default function ActivityLogs() {
           ) : filteredLogs.map((log) => (
             <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
               <td className="px-6 py-3.5 whitespace-nowrap">
-                <div className="flex flex-col text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                <div className="flex flex-col text-xs-plus text-slate-500 dark:text-slate-400 font-mono">
                     {(() => {
                       const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
                       if (ts && !isNaN(ts)) {
@@ -203,20 +203,20 @@ export default function ActivityLogs() {
                       ?
                     </div>
                   )}
-                  <span className="text-[11px] font-medium text-[#0C2340] dark:text-blue-50 truncate">{log.admin?.name || "System"}</span>
+                  <span className="text-xs-plus font-medium text-[#0C2340] dark:text-blue-50 truncate">{log.admin?.name || "System"}</span>
                 </div>
               </td>
               <td className="px-6 py-3.5">
-                <span className="text-[12px] font-semibold text-[#0C2340] dark:text-blue-50">{log.action}</span>
+                <span className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{log.action}</span>
               </td>
               <td className="px-6 py-3.5 whitespace-nowrap">
                 {getActionBadge(log.actionType)}
               </td>
               <td className="px-6 py-3.5">
-                <span className="text-[11px] text-slate-600 dark:text-slate-400">{log.residentName || "—"}</span>
+                <span className="text-xs-plus text-slate-600 dark:text-slate-400">{log.residentName || "—"}</span>
               </td>
               <td className="px-6 py-3.5">
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">{log.details}</span>
+                <span className="text-xs-plus text-slate-500 dark:text-slate-400 line-clamp-2">{log.details}</span>
               </td>
             </tr>
           ))}
@@ -224,10 +224,10 @@ export default function ActivityLogs() {
         </table>
         </div>
         <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
-          <p className="text-[10px] text-slate-500 dark:text-slate-400">Showing {filteredLogs.length} of {activityLogs.length} actions</p>
+          <p className="text-2xs text-slate-500 dark:text-slate-400">Showing {filteredLogs.length} of {activityLogs.length} actions</p>
           <div className="flex items-center gap-1.5">
             <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">‹</span></button>
-            <button className="w-7 h-7 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 text-white text-[10px] rounded">1</button>
+            <button className="w-7 h-7 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 text-white text-2xs rounded">1</button>
             <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">›</span></button>
           </div>
         </div>

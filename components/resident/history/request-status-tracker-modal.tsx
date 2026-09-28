@@ -128,7 +128,7 @@ export function RequestStatusTrackerModal({ request, isOpen, onClose }: RequestS
                         {step.description}
                       </p>
                       {isCompleted && (
-                        <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1.5 mt-1">
+                        <p className="text-xs-plus font-medium text-slate-400 dark:text-slate-500 flex items-center gap-1.5 mt-1">
                            <Clock className="w-3 h-3" /> {formattedTime || "Date unavailable (Legacy request)"}
                         </p>
                       )}
