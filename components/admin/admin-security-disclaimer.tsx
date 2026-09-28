@@ -1,14 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { ShieldAlert, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { ShieldAlert, AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 export function AdminSecurityDisclaimer() {
   const [isOpen, setIsOpen] = useState(false)
   const [neverShowAgain, setNeverShowAgain] = useState(false)
+  const [showScrollArrow, setShowScrollArrow] = useState(true)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const hasSeenSession = sessionStorage.getItem("adminSecurityDisclaimerShown")
@@ -19,6 +21,28 @@ export function AdminSecurityDisclaimer() {
       return () => clearTimeout(timer)
     }
   }, [])
+
+  // Check if content is actually scrollable on mount or resize
+  useEffect(() => {
+    if (isOpen && scrollContainerRef.current) {
+      const { scrollHeight, clientHeight } = scrollContainerRef.current
+      if (scrollHeight <= clientHeight) {
+        setShowScrollArrow(false)
+      }
+    }
+  }, [isOpen])
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
+      // If we've scrolled near the bottom (within 20px), hide the arrow
+      if (scrollTop + clientHeight >= scrollHeight - 20) {
+        setShowScrollArrow(false)
+      } else {
+        setShowScrollArrow(true)
+      }
+    }
+  }
 
   const handleAccept = () => {
     if (neverShowAgain) {
@@ -32,7 +56,7 @@ export function AdminSecurityDisclaimer() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent 
-        className="sm:max-w-[500px] bg-white dark:bg-slate-900 border-red-100 dark:border-red-900 shadow-2xl p-0 overflow-y-auto"
+        className="sm:max-w-[500px] bg-white dark:bg-slate-900 border-red-100 dark:border-red-900 shadow-2xl p-0 overflow-hidden"
         showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
@@ -42,7 +66,7 @@ export function AdminSecurityDisclaimer() {
           <DialogDescription>Data Privacy Act of 2012 Compliance Warning</DialogDescription>
         </DialogHeader>
 
-        <div className="bg-red-50 dark:bg-red-950/30 p-6 flex flex-col items-center text-center border-b border-red-100 dark:border-red-900">
+        <div className="bg-red-50 dark:bg-red-950/30 p-6 flex flex-col items-center text-center border-b border-red-100 dark:border-red-900 shrink-0">
           <div className="w-16 h-16 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mb-4">
             <ShieldAlert className="w-8 h-8" />
           </div>
@@ -54,37 +78,50 @@ export function AdminSecurityDisclaimer() {
           </p>
         </div>
         
-        <div className="p-6 space-y-4">
-          <p className="text-sm text-slate-700 dark:text-slate-300">
-            You are now accessing a restricted area containing highly sensitive Personally Identifiable Information (PII), including government-issued IDs, contact numbers, and addresses of barangay residents.
-          </p>
-          
-          <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-100 dark:border-slate-700 space-y-3">
-            <h4 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500" /> By proceeding, you agree to:
-            </h4>
-            <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
-                <span><strong>Never share or leak</strong> direct links to resident IDs or photos.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
-                <span><strong>Do not screenshot or download</strong> resident documents for personal use.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
-                <span>Keep your session secure and <strong>log out</strong> when leaving your device.</span>
-              </li>
-            </ul>
+        <div className="relative">
+          <div 
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="p-6 space-y-4 max-h-[50vh] overflow-y-auto"
+          >
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              You are now accessing a restricted area containing highly sensitive Personally Identifiable Information (PII), including government-issued IDs, contact numbers, and addresses of barangay residents.
+            </p>
+            
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-100 dark:border-slate-700 space-y-3">
+              <h4 className="text-sm font-bold text-[#0C2340] dark:text-blue-50 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" /> By proceeding, you agree to:
+              </h4>
+              <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                  <span><strong>Never share or leak</strong> direct links to resident IDs or photos.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                  <span><strong>Do not screenshot or download</strong> resident documents for personal use.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                  <span>Keep your session secure and <strong>log out</strong> when leaving your device.</span>
+                </li>
+              </ul>
+            </div>
+            
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center italic pb-4">
+              Unauthorized disclosure of this information is strictly prohibited and punishable by law.
+            </p>
           </div>
-          
-          <p className="text-xs text-slate-500 dark:text-slate-400 text-center italic">
-            Unauthorized disclosure of this information is strictly prohibited and punishable by law.
-          </p>
+
+          {/* Floating Bouncing Arrow */}
+          {showScrollArrow && (
+            <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white dark:from-slate-900 to-transparent pointer-events-none flex items-end justify-center pb-2">
+              <ChevronDown className="w-6 h-6 text-slate-500 dark:text-slate-400 animate-bounce" />
+            </div>
+          )}
         </div>
 
-        <DialogFooter className="p-6 pt-0 flex-col sm:flex-col sm:items-center gap-4">
+        <DialogFooter className="p-6 pt-0 flex-col sm:flex-col sm:items-center gap-4 shrink-0 border-t border-slate-100 dark:border-slate-800 pt-6">
           <div className="flex items-center space-x-2 w-full justify-center">
             <Checkbox 
               id="never-show" 
