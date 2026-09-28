@@ -4,22 +4,28 @@ import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { ShieldAlert, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export function AdminSecurityDisclaimer() {
   const [isOpen, setIsOpen] = useState(false)
+  const [neverShowAgain, setNeverShowAgain] = useState(false)
 
   useEffect(() => {
-    // Check if the disclaimer has already been shown in this session
-    const hasSeenDisclaimer = sessionStorage.getItem("adminSecurityDisclaimerShown")
-    if (!hasSeenDisclaimer) {
-      // Small delay for better UX after login redirect
+    const hasSeenSession = sessionStorage.getItem("adminSecurityDisclaimerShown")
+    const hasSeenForever = localStorage.getItem("adminSecurityDisclaimerShownForever")
+    
+    if (!hasSeenSession && !hasSeenForever) {
       const timer = setTimeout(() => setIsOpen(true), 500)
       return () => clearTimeout(timer)
     }
   }, [])
 
   const handleAccept = () => {
-    sessionStorage.setItem("adminSecurityDisclaimerShown", "true")
+    if (neverShowAgain) {
+      localStorage.setItem("adminSecurityDisclaimerShownForever", "true")
+    } else {
+      sessionStorage.setItem("adminSecurityDisclaimerShown", "true")
+    }
     setIsOpen(false)
   }
 
@@ -27,7 +33,7 @@ export function AdminSecurityDisclaimer() {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent 
         className="sm:max-w-[500px] bg-white dark:bg-slate-900 border-red-100 dark:border-red-900 shadow-2xl overflow-hidden p-0"
-        onInteractOutside={(e) => e.preventDefault()} // Force them to click "I Understand"
+        onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader className="sr-only">
@@ -77,10 +83,23 @@ export function AdminSecurityDisclaimer() {
           </p>
         </div>
 
-        <DialogFooter className="p-6 pt-0 sm:justify-center">
+        <DialogFooter className="p-6 pt-0 flex-col sm:flex-col sm:items-center gap-4">
+          <div className="flex items-center space-x-2 w-full justify-center">
+            <Checkbox 
+              id="never-show" 
+              checked={neverShowAgain} 
+              onCheckedChange={(checked) => setNeverShowAgain(checked === true)}
+            />
+            <label
+              htmlFor="never-show"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-600 dark:text-slate-400 cursor-pointer"
+            >
+              Don't show this again
+            </label>
+          </div>
           <Button 
             onClick={handleAccept}
-            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-semibold"
+            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-semibold px-8"
           >
             I Understand and Agree
           </Button>
