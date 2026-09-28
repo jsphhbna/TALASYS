@@ -295,6 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Firebase sign-out failed:", signOutError)
     }
     window.localStorage.removeItem(SUPERADMIN_LOCAL_STORAGE_KEY)
+    sessionStorage.removeItem("adminSecurityDisclaimerShown")
     setUser(null)
     router.push("/auth/login")
   }
