@@ -248,8 +248,14 @@ service cloud.firestore {
     // ==============================================================
     match /activityLogs/{logId} {
       allow read: if isAnyAdmin();
-      allow create: if isAnyAdmin();
+      // Authoritative mutation evidence is server-authored only. Admin SDK
+      // bypasses client rules inside trusted mutation operations.
+      allow create: if false;
       allow update, delete: if isSuperAdmin();
+    }
+
+    match /clientTelemetry/{telemetryId} {
+      allow read, write: if false;
     }
 
     // ==============================================================

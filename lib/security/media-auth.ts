@@ -1,4 +1,4 @@
-import crypto from "crypto"
+import { v2 as cloudinary } from "cloudinary"
 
 function isSuperAdminRole(role?: string | null): boolean {
   if (!role) return false
@@ -26,6 +26,11 @@ function canManageRequestsRole(role?: string | null): boolean {
   return r === "Document Processing" || r === "Documents Only"
 }
 
+function canManageResidentsRole(role?: string | null): boolean {
+  if (!role) return false
+  return isFullAdminRole(role) || role.trim() === "Resident Management"
+}
+
 export interface MediaAccessRequest {
   publicId?: string
   mediaUrl?: string
@@ -40,7 +45,8 @@ const SENSITIVE_FOLDERS = [
   "talasys/proofs",
   "talasys/receipts",
   "talasys/signatures",
-  "talasys/letters"
+  "talasys/letters",
+  "talasys/residents"
 ] as const
 
 /**
@@ -48,7 +54,20 @@ const SENSITIVE_FOLDERS = [
  */
 export function isSensitiveMedia(pathOrUrl: string): boolean {
   if (!pathOrUrl) return false
-  return SENSITIVE_FOLDERS.some(folder => pathOrUrl.includes(folder))
+  const publicId = parseCloudinaryAsset(pathOrUrl).publicId.replace(/^\//, "")
+  return SENSITIVE_FOLDERS.some(folder => publicId === folder || publicId.startsWith(`${folder}/`))
+}
+
+export function cloudinaryAssetIdentity(pathOrUrl: string): string | null {
+  const parsed = parseCloudinaryAsset(pathOrUrl)
+  if (!parsed.publicId) return null
+  return [parsed.cloudName || "", parsed.resourceType, parsed.publicId, parsed.format || ""].join(":")
+}
+
+export function sameCloudinaryAsset(left: string, right: string): boolean {
+  const leftIdentity = cloudinaryAssetIdentity(left)
+  const rightIdentity = cloudinaryAssetIdentity(right)
+  return !!leftIdentity && leftIdentity === rightIdentity
 }
 
 /**
@@ -56,30 +75,36 @@ export function isSensitiveMedia(pathOrUrl: string): boolean {
  */
 export function parseCloudinaryAsset(pathOrUrl: string): {
   publicId: string
-  resourceType: "image" | "raw"
+  resourceType: "image" | "video" | "raw"
+  deliveryType: "upload" | "private" | "authenticated"
+  cloudName?: string
   format?: string
+  version?: string
   folder?: string
 } {
-  const clean = pathOrUrl.split("?")[0].trim()
-  const isPdf = clean.toLowerCase().endsWith(".pdf")
-  const resourceType = isPdf ? "raw" : "image"
-
-  // Match folder and filename from standard Cloudinary delivery or upload URL
-  const match = clean.match(/(?:image|raw|auto)\/(?:upload|authenticated)\/(?:s--[^/]+--\/)?(?:v\d+\/)?(talasys\/[^?#]+)/)
+  const clean = pathOrUrl.split(/[?#]/)[0].trim()
+  const match = clean.match(/^https?:\/\/res\.cloudinary\.com\/([^/]+)\/(image|video|raw)\/(upload|private|authenticated)\/(?:s--[^/]+--\/)?(?:(v\d+)\/)?(.+)$/i)
   if (match) {
-    const fullAssetPath = match[1]
+    const [, cloudName, resourceType, deliveryType, version, encodedAssetPath] = match
+    const fullAssetPath = decodeURIComponent(encodedAssetPath)
     const extIndex = fullAssetPath.lastIndexOf(".")
     if (extIndex !== -1) {
       return {
         publicId: fullAssetPath.substring(0, extIndex),
         format: fullAssetPath.substring(extIndex + 1),
-        resourceType,
+        resourceType: resourceType.toLowerCase() as "image" | "video" | "raw",
+        deliveryType: deliveryType.toLowerCase() as "upload" | "private" | "authenticated",
+        cloudName,
+        version,
         folder: fullAssetPath.substring(0, fullAssetPath.lastIndexOf("/"))
       }
     }
     return {
       publicId: fullAssetPath,
-      resourceType,
+      resourceType: resourceType.toLowerCase() as "image" | "video" | "raw",
+      deliveryType: deliveryType.toLowerCase() as "upload" | "private" | "authenticated",
+      cloudName,
+      version,
       folder: fullAssetPath.substring(0, fullAssetPath.lastIndexOf("/"))
     }
   }
@@ -90,11 +115,12 @@ export function parseCloudinaryAsset(pathOrUrl: string): {
     return {
       publicId: clean.substring(0, extIndex),
       format: clean.substring(extIndex + 1),
-      resourceType
+      resourceType: "image",
+      deliveryType: "upload"
     }
   }
 
-  return { publicId: clean, resourceType }
+  return { publicId: clean, resourceType: "image", deliveryType: "upload" }
 }
 
 /**
@@ -118,11 +144,12 @@ export function canAccessMedia(params: MediaAccessRequest): { authorized: boolea
     return { authorized: false, reason: "Forbidden: Caller account is locked or inactive." }
   }
 
-  const assetPath = publicId || mediaUrl
-  const isSignature = assetPath.includes("talasys/signatures")
-  const isProof = assetPath.includes("talasys/proofs")
-  const isReceipt = assetPath.includes("talasys/receipts")
-  const isLetter = assetPath.includes("talasys/letters")
+  const assetPath = parseCloudinaryAsset(publicId || mediaUrl).publicId
+  const isSignature = assetPath.startsWith("talasys/signatures/")
+  const isProof = assetPath.startsWith("talasys/proofs/")
+  const isResidentProfile = assetPath.startsWith("talasys/residents/")
+  const isReceipt = assetPath.startsWith("talasys/receipts/")
+  const isLetter = assetPath.startsWith("talasys/letters/")
 
   // Signatures: only Super Admin and Full Admin may view official barangay signature assets
   if (isSignature) {
@@ -142,13 +169,12 @@ export function canAccessMedia(params: MediaAccessRequest): { authorized: boolea
     return { authorized: true }
   }
 
-  // Document Processing administrators: allowed to inspect receipts and authorization letters
-  if ((isReceipt || isLetter) && canManageRequestsRole(callerRole)) {
+  if (isResidentProfile && canManageResidentsRole(callerRole)) {
     return { authorized: true }
   }
 
-  // View Only administrators: read-only access to general proofs/receipts for audit review
-  if (callerRole === "View Only") {
+  // Document Processing administrators: allowed to inspect receipts and authorization letters
+  if ((isReceipt || isLetter) && canManageRequestsRole(callerRole)) {
     return { authorized: true }
   }
 
@@ -171,33 +197,26 @@ export function generateSignedDeliveryUrl(
   cloudName: string,
   apiSecret: string,
   expiresInSeconds: number = 900
-): { deliveryUrl: string; expiresAt: number } {
+): { deliveryUrl: string; expiresAt: null } {
   if (!cloudName || !apiSecret) {
     throw new Error("Missing Cloudinary configuration parameters for signed delivery.")
   }
 
   const parsed = parseCloudinaryAsset(publicId)
-  const resourceType = parsed.resourceType
-  const cleanPublicId = parsed.publicId.replace(/^\//, "")
-  const fileExt = parsed.format ? `.${parsed.format}` : (cleanPublicId.endsWith(".pdf") ? "" : ".webp")
-  const assetPathWithExt = `${cleanPublicId}${fileExt}`
-
-  const startTime = Math.floor(Date.now() / 1000)
-  const expiresAt = startTime + expiresInSeconds
-
-  // Cloudinary Token Authentication: st, exp, acl, hmac
-  const acl = `/${resourceType}/authenticated/${cleanPublicId}*`
-  const tokenPayload = `st=${startTime}~exp=${expiresAt}~acl=${acl}`
-  const hmac = crypto.createHmac("sha256", apiSecret).update(tokenPayload).digest("hex")
-  const token = `${tokenPayload}~hmac=${hmac}`
-
-  // Cloudinary URL signature for authenticated resource
-  const signatureString = `${assetPathWithExt}${apiSecret}`
-  const urlSig = crypto.createHash("sha1").update(signatureString).digest("base64url").slice(0, 8)
-
-  const deliveryUrl = `https://res.cloudinary.com/${cloudName}/${resourceType}/authenticated/s--${urlSig}--/${assetPathWithExt}?__cld_token__=${token}`
-
-  return { deliveryUrl, expiresAt }
+  if (parsed.cloudName && parsed.cloudName !== cloudName) throw new Error("Foreign Cloudinary cloud is not allowed")
+  cloudinary.config({ cloud_name: cloudName, api_secret: apiSecret, secure: true })
+  const deliveryUrl = cloudinary.url(parsed.publicId.replace(/^\//, ""), {
+    secure: true,
+    sign_url: true,
+    type: "authenticated",
+    resource_type: parsed.resourceType,
+    ...(parsed.format ? { format: parsed.format } : {}),
+    ...(parsed.version ? { version: parsed.version.replace(/^v/, "") } : {}),
+  })
+  // A signed authenticated URL is access-controlled but not time-limited.
+  // True expiry requires Cloudinary token auth (separate hex token key/plan) or
+  // an application proxy. Never claim API-secret query parameters expire.
+  return { deliveryUrl, expiresAt: null }
 }
 
 /**

@@ -29,11 +29,12 @@ import {
   Check,
   X,
   AlertTriangle,
+  Bell,
 } from "lucide-react"
 import { toast } from "sonner"
 
 export function VerificationWorkspace() {
-  const { verifications, rejectedVerifications, activityLogs, approveVerification, rejectVerification } = useAdminData()
+  const { verifications, rejectedVerifications, activityLogs, notifications, approveVerification, rejectVerification } = useAdminData()
   const { user } = useAuth()
 
   const [activeTab, setActiveTab] = useState<"all" | "registration" | "profile-edit" | "reactivation" | "history">("all")
@@ -190,6 +191,24 @@ export function VerificationWorkspace() {
           </div>
         </div>
       </div>
+
+      {notifications.length > 0 && (
+        <Card className="p-4 border-blue-200 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/20" aria-label="Verification notifications">
+          <div className="flex items-center gap-2 mb-3">
+            <Bell className="w-4 h-4 text-blue-600" />
+            <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-100">Verification Notifications</h2>
+            <span className="ml-auto text-2xs font-semibold rounded-full bg-blue-100 text-blue-700 px-2 py-0.5">{notifications.filter(item => !item.isRead).length} unread</span>
+          </div>
+          <div className="space-y-2">
+            {notifications.slice(0, 5).map(item => (
+              <div key={item.id} className="rounded-md border border-blue-100 dark:border-blue-900/60 bg-white/80 dark:bg-slate-900/60 p-2.5">
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{item.title}</p>
+                <p className="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">{item.message}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Strictly Scoped KPI Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -609,6 +628,8 @@ export function VerificationWorkspace() {
                           <SecureMediaViewer
                             src={typeof docUrl === "string" ? docUrl : docUrl?.url}
                             alt={docTitle}
+                            recordId={reviewItem.id}
+                            recordType="verification"
                             className="max-h-44 object-contain rounded"
                           />
                         </div>

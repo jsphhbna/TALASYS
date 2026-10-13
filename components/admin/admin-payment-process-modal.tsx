@@ -24,6 +24,7 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
   const [gcashRef, setGcashRef] = useState(request?.gcashRefNumber || "")
   const [submitType, setSubmitType] = useState<"cash" | "gcash" | "payLater" | null>(null)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (request) {
@@ -151,7 +152,7 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
                     recordId={request.id}
                     recordType="request"
                     className="w-full h-32 object-contain bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700"
-                    onZoom={() => setIsLightboxOpen(true)}
+                    onZoom={(signedUrl) => { setLightboxUrl(signedUrl); setIsLightboxOpen(true) }}
                   />
                 </div>
               )}
@@ -186,7 +187,7 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
             <X className="w-6 h-6" />
           </button>
           <img 
-            src={request.gcashScreenshotUrl} 
+            src={lightboxUrl || ""}
             alt="GCash proof enlarged" 
             className="max-w-full max-h-[85vh] object-contain rounded-md shadow-2xl" 
           />

@@ -1,5 +1,62 @@
 # TALASYS Comprehensive Remediation Plan (61 Findings)
 
+> **Independent-review correction (2026-10-13): REOPENED.** The former
+> "completed and verified" summary below is historical and must not be used as
+> current release evidence. Source inspection found unfinished migrations,
+> client-authored audit events, non-atomic identity approval, insecure media
+> fallbacks/substring ownership, hard-coded request types, and simulation-only
+> tests. The active repair checklist is authoritative until every item has
+> executed evidence.
+
+## Active repair checklist
+
+Status vocabulary: `IN PROGRESS`, `IMPLEMENTED - NOT VERIFIED`, `VERIFIED`,
+`DEPLOYMENT PENDING`, and `BLOCKED`.
+
+- [x] M1 inventory: canonical collections and persisted fields inspected;
+  inaccurate handoff and issue status reopened. Historical media protection is
+  `IN PROGRESS`; production migration remains separately `DEPLOYMENT PENDING`.
+- [x] M2 audit timestamp migration: canonical collection, shared Admin/env
+  initialization, safe chunking, restartability, rollback, and CLI tests.
+- [x] M3 Cloudinary migration: real provider/Firestore execution, complete
+  sensitive-field discovery, manifest/checkpoint/resume, recovery, and tests.
+- [x] M4 super-admin provisioning: create/modify separation, explicit promotion
+  and reset controls, profile preservation, reconciliation, operator audit, and
+  secret-safe password input.
+- [x] M5 approval coordination: authoritative server workflow, concurrency
+  claim, idempotency, cross-service recovery, notification/audit consistency.
+- [ ] M6 authoritative mutation audit (`IN PROGRESS`): server-derived facts, durable coupling,
+  telemetry separation, proxy trust validation, and negative authorization test.
+- [ ] M7 protected media (`IN PROGRESS` / provider expiry `BLOCKED`): deny fallback, exact identity matching, full schema,
+  authoritative attachment, all consumers, provider-enforced expiry verification.
+- [x] M8 configured documents: authoritative enabled types/fees, custom types,
+  account expiry, idempotent request/notification creation.
+- [x] M9 Verification Only UX: verification-only navigation/content/routes and
+  backend permission checks across desktop, mobile, and live role changes.
+- [ ] M10 implementation evidence (`PARTIALLY VERIFIED`): rules emulator,
+  controlled actual-handler tests, failure/concurrency and migration tests,
+  app/test type checks, expanded lint, production build, and public/redirect
+  browser smoke tests pass. Authenticated role workflows and live provider
+  checks remain open. Production audit has no high/critical advisories (two
+  moderate); the full audit still reports development-tool advisories.
+
+## 2026-10-13 verification checkpoint
+
+- `npm test`: PASS, 110/110. The copied `reopened-remediation.test.ts` suite was
+  removed; it is not evidence.
+- `npm run test:rules`: PASS, 5/5 against the Firestore Emulator.
+- `npm run typecheck` and `npm run typecheck:test`: PASS.
+- `npm run lint -- --quiet`: PASS with scripts/tests included. Legacy warnings
+  remain visible without `--quiet` and are not represented as zero warnings.
+- `npm run build`: PASS, 45 application routes.
+- Playwright: PASS, 4/4 desktop/mobile unauthenticated redirect and reflow
+  smoke checks against a real local Next server. Authenticated role E2E is open.
+- `npm audit --omit=dev`: no high or critical advisories; two moderate `uuid`
+  advisories through ExcelJS remain. Full audit: 11 high and 5 moderate in
+  development tooling, primarily Firebase CLI and ESLint transitive trees.
+- No production deployment, security-rule publication, account provisioning,
+  or data/media migration was executed.
+
 ## 1. Project & Architecture Context
 - **Repository**: [TALASYS](https://github.com/jsphhbna/TALASYS)
 - **Base Commit**: `afae47d31c2072b300177679884238f10cf65e32`

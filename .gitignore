@@ -15,6 +15,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+firebase-debug.log*
+firestore-debug.log*
+/test-results/
+/playwright-report/
 
 # env files
 .env*
@@ -35,3 +39,6 @@ GEMINI.md
 
 # audit 
 TALASYS-combined-audit.md
+
+# local operator migration checkpoints/manifests (may contain sensitive URLs)
+/.talasys-migrations/

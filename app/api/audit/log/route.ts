@@ -1,119 +1,39 @@
-import { NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
-import { extractClientIp } from "@/lib/security/request-ip"
-import { isAnyAdminRole } from "@/lib/auth/auth-types"
-import { COLLECTION_ACTIVITY_LOGS } from "@/lib/constants"
+import { NextResponse } from "next/server.js"
+import { adminAuth, adminDb } from "../../../../lib/firebase-admin.ts"
+import { extractClientIp } from "../../../../lib/security/request-ip.ts"
+import { isAnyAdminRole } from "../../../../lib/auth/auth-types.ts"
 
-export async function POST(req: Request) {
-  try {
-    // Fail closed if Firebase Admin is unconfigured (#6)
-    if (!adminAuth || !adminDb) {
-      return NextResponse.json(
-        { error: "Server authentication service unavailable. Missing Firebase Admin configuration." },
-        { status: 503 }
-      )
-    }
+const ALLOWED_TELEMETRY = new Set(["admin_ui_mutation_observed", "admin_ui_error"])
 
-    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Missing or invalid authorization token" }, { status: 401 })
-    }
-
-    const token = authHeader.replace("Bearer ", "").trim()
-    let decodedToken: any
+/**
+ * This endpoint records non-authoritative UI telemetry only. Authoritative
+ * mutation audits are written in the same trusted server operation/transaction
+ * as the mutation (for example verification approval). Client input can never
+ * create an activityLogs record.
+ */
+export function createAuditTelemetryHandler(injected?: { auth?: any; db?: any; now?: () => number }) {
+  return async function POST(req: Request) {
     try {
-      decodedToken = await adminAuth.verifyIdToken(token, true)
-    } catch {
-      return NextResponse.json({ error: "Session invalid or expired" }, { status: 401 })
+      const auth = injected?.auth ?? adminAuth
+      const db = injected?.db ?? adminDb
+      if (!auth || !db) return NextResponse.json({ error: "Server telemetry service unavailable" }, { status: 503 })
+      const header = req.headers.get("authorization")
+      if (!header?.startsWith("Bearer ")) return NextResponse.json({ error: "Missing authorization token" }, { status: 401 })
+      let decoded: any
+      try { decoded = await auth.verifyIdToken(header.slice(7), true) } catch { return NextResponse.json({ error: "Session invalid or expired" }, { status: 401 }) }
+      const callerSnapshot = await db.collection("users").doc(decoded.uid).get()
+      const caller = callerSnapshot.exists ? callerSnapshot.data() || {} : null
+      if (!caller || !isAnyAdminRole(caller.role) || ["Locked", "Deleted", "Deleted by Resident"].includes(caller.status)) return NextResponse.json({ error: "Telemetry caller is not authorized" }, { status: 403 })
+      const body = await req.json().catch(() => ({}))
+      if (body.action || body.actionType || body.details) return NextResponse.json({ error: "Client-authored mutation audit descriptions are forbidden" }, { status: 403 })
+      if (!ALLOWED_TELEMETRY.has(body.event)) return NextResponse.json({ error: "Unsupported telemetry event" }, { status: 400 })
+      const now = (injected?.now || Date.now)()
+      const ref = await db.collection("clientTelemetry").add({ event: body.event, actorUid: decoded.uid, actorRole: caller.role, targetId: typeof body.targetId === "string" ? body.targetId : null, targetCollection: typeof body.targetCollection === "string" ? body.targetCollection : null, ipAddress: extractClientIp(req), timestamp: now, createdAt: now, authoritative: false })
+      return NextResponse.json({ success: true, telemetryId: ref.id, authoritative: false })
+    } catch (error: any) {
+      return NextResponse.json({ error: error?.message || "Telemetry write failed" }, { status: 500 })
     }
-
-    const callerUid = decodedToken.uid
-
-    // Authoritative caller account lookup in Firestore `users` collection (#6, #28, #30)
-    const callerDoc = await adminDb.collection("users").doc(callerUid).get()
-    if (!callerDoc.exists) {
-      return NextResponse.json({ error: "Caller account not found" }, { status: 403 })
-    }
-
-    const callerData = callerDoc.data() || {}
-    const callerRole = (callerData.role as string | undefined) || "unknown"
-    const callerStatus = callerData.status as string | undefined
-
-    if (callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerRole === "Deleted") {
-      return NextResponse.json({ error: "Account is inactive or locked. Audit logging forbidden." }, { status: 403 })
-    }
-
-    // Only administrative roles may write administrative audit events
-    if (!isAnyAdminRole(callerRole)) {
-      return NextResponse.json({ error: "Only administrators may log administrative audit actions." }, { status: 403 })
-    }
-
-    const body = await req.json().catch(() => ({}))
-    const { action, actionType, details, targetId, targetName, targetCollection } = body
-
-    if (!action || typeof action !== "string" || !details || typeof details !== "string") {
-      return NextResponse.json({ error: "Invalid audit action or details parameters" }, { status: 400 })
-    }
-
-    // Extract real client IP at server boundary using trusted proxy headers (#6)
-    const clientIp = extractClientIp(req)
-
-    const now = Date.now()
-    const manilaDate = new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "Asia/Manila"
-    }).format(new Date(now))
-
-    const manilaTime = new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "Asia/Manila"
-    }).format(new Date(now))
-
-    const callerName = callerData.name || decodedToken.name || "Administrator"
-    const callerEmail = callerData.email || decodedToken.email || "unknown"
-    const callerInitials = callerName.substring(0, 2).toUpperCase()
-
-    const logPayload = {
-      actor: {
-        id: callerUid,
-        name: callerName,
-        email: callerEmail,
-        role: callerRole,
-        initials: callerInitials
-      },
-      admin: {
-        name: callerName,
-        email: callerEmail,
-        initials: callerInitials,
-        color: callerRole.toLowerCase().includes("super") ? "#d97706" : "#2563eb"
-      },
-      role: callerRole,
-      action: action.trim(),
-      actionType: (actionType || action).trim(),
-      details: details.trim(),
-      targetId: targetId || null,
-      targetName: targetName || null,
-      targetCollection: targetCollection || null,
-      ipAddress: clientIp, // Real server-captured IP
-      timestamp: now,
-      date: manilaDate,
-      time: manilaTime,
-      createdAt: now
-    }
-
-    const docRef = await adminDb.collection(COLLECTION_ACTIVITY_LOGS).add(logPayload)
-
-    return NextResponse.json({
-      success: true,
-      logId: docRef.id,
-      ipAddress: clientIp
-    })
-  } catch (error: any) {
-    console.error("Audit log route error:", error)
-    return NextResponse.json({ error: error.message || "Failed to author audit log" }, { status: 500 })
   }
 }
+
+export const POST = createAuditTelemetryHandler()

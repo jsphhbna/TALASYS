@@ -151,7 +151,7 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
     throw new Error(errBody.error || "Failed to authenticate upload request securely.")
   }
   
-  const { signature, timestamp, folder, type, apiKey } = await signResponse.json()
+  const { signature, timestamp, folder, type, publicId, apiKey } = await signResponse.json()
 
   const formData = new FormData()
   formData.append("file", compressedFile)
@@ -160,6 +160,9 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
   formData.append("signature", signature)
   if (folder) {
     formData.append("folder", folder)
+  }
+  if (publicId) {
+    formData.append("public_id", publicId)
   }
   if (type) {
     formData.append("type", type)

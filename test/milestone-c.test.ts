@@ -94,17 +94,17 @@ describe('Milestone C — Upload/Media/API/Dependency Security', () => {
     });
     assert.equal(otherResidentAccess.authorized, false);
 
-    // Signed delivery URL generation using documented Cloudinary Token Authentication
+    // Cloudinary authenticated delivery uses the SDK's URL signature. It does not
+    // claim time-limited token authentication without a separate token key/plan.
     const { deliveryUrl, expiresAt } = generateSignedDeliveryUrl('talasys/proofs/id_123', 'talasys-cloud', 'secret123', 900);
     assert.ok(deliveryUrl.includes('res.cloudinary.com'));
     assert.ok(deliveryUrl.includes('authenticated'));
-    assert.ok(deliveryUrl.includes('__cld_token__'));
-    assert.ok(expiresAt > Math.floor(Date.now() / 1000));
+    assert.match(deliveryUrl, /\/s--[^/]+--\//);
+    assert.equal(expiresAt, null);
 
     // Expiration verification
     assert.equal(isDeliveryUrlExpired(deliveryUrl), false, 'Fresh URL must not be expired');
-    const expiredUrl = deliveryUrl.replace(/exp=\d+/, 'exp=' + (Math.floor(Date.now() / 1000) - 60));
-    assert.equal(isDeliveryUrlExpired(expiredUrl), true, 'Past timestamp URL must be marked expired');
+    assert.equal(isDeliveryUrlExpired(deliveryUrl), false, 'A signed URL does not contain a fabricated expiry');
   });
 
   test('#53: Backup export endpoint rejects URL query tokens and enforces Bearer auth', () => {

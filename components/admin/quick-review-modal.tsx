@@ -117,7 +117,13 @@ export function QuickReviewModal({ item, itemType, isOpen, onClose }: QuickRevie
                           <span className="text-xs-plus font-medium text-[#0C2340] dark:text-blue-50">{doc.name}</span>
                           {doc.url && (
                             <div className="w-full mt-2 overflow-hidden rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 flex items-center justify-center">
-                              <SecureMediaViewer src={doc.url} alt={doc.name} className="w-full max-h-48 object-contain rounded" />
+                              <SecureMediaViewer
+                                src={doc.url}
+                                alt={doc.name}
+                                recordId={item.id}
+                                recordType="verification"
+                                className="w-full max-h-48 object-contain rounded"
+                              />
                             </div>
                           )}
                         </div>

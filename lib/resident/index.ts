@@ -28,7 +28,7 @@ export type {
   CreateResidentRequestInput,
 } from "./local-storage-store"
 
-export { uploadFileToCloudinary } from "./cloudinary"
+export { uploadFileToCloudinary, uploadProtectedFileToCloudinary } from "./cloudinary"
 
 export {
   getRequiredDocuments,

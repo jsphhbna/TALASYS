@@ -1,38 +1,100 @@
-# TALASYS Remediation Handoff Document
+# TALASYS Remediation Handoff
 
-## Current Working State
-- **Branch**: `remediation/61-findings`
-- **Status**: **Reopened Remediation Independent Review Pass Finished (Milestones A through I)**
-- **Findings Remediated**: All 61 findings (#1 through #61) in [docs/TALASYS-ISSUE-REGISTER.md](file:///c:/Users/Administrator/Downloads/TALASYS/docs/TALASYS-ISSUE-REGISTER.md) are `fixed and verified`, with all 10 independent review areas repaired.
-- **Test Evidence**: 94/94 passing automated tests in `npm test` across 39 test suites (including `test/reopened-remediation.test.ts`).
-- **Type Safety**: Clean TypeScript compilation with zero errors (`npx tsc --noEmit`).
-- **Code Quality**: ESLint 9 flat config passing with zero errors (`npm run lint`).
-- **Production Build**: 44/44 routes successfully compiled with Next.js 16.4.0 Turbopack (`npm run build`).
+## Current state — 2026-10-13
 
-## Completed Milestones
-1. **Milestone A**: Baseline mapping & Node test runner harness.
-2. **Milestone B**: RBAC canonical matrix, rules hardening, deletion of hardcoded credentials/session spoofing (#54), session revocation on lock (#30), atomic writes (#61).
-3. **Milestone C**: Stored XSS escaping (#50), registration upload tickets (#51), protected media delivery (#52), Bearer auth for backups (#53), dependency security triage (#60).
-4. **Milestone D**: Signals producer (#1), 1700s epoch year bug resolved (#3), server IP fallback (#6), truthful growth/presence metrics (#11), un-truncated exports (#14), normalized numeric audit timestamps (#15), activity log crash fallback (#16), 30-day expiring resident lifecycle (#17), verification history scope (#18), Manila boundaries (#19), SuperAdmin audit logging (#31).
-5. **Milestone E**: Custom reports date range picker & format generator (#2, #8, #9), Reason Analytics category filtering and shared purpose keys (#4, #12, #13), real pagination across lists and history (#5, #7, #21), Category report columns (#10), Resident history date filtering (#20).
-6. **Milestone F**: Rejection details & letter download (#22), clearance shortcut & letter upload before write (#23, #24), awaited request write (#25), payment modal reset (#38), profile photo approval (#42), voter status preservation (#43), dual-write email synchronization with Firebase Auth (#44), explicit Cancelled state (#45), mandatory proofs validation (#47), registration resubmission & account reactivation flows (#48, #49).
-7. **Milestone G**: Permissions-Policy `camera=(self)` (#32), camera stream & timer ref unmount cleanup (#33), accessible modal dialog semantics with focus trap & Escape (#34), responsive mobile drawer navigation & adaptive padding (#35), non-nested verification item controls (#36), 3-day overdue calculation (#37), async review target race guards (#39), Sonner Toaster mounted in RootLayout (#40), awaited review & save dialogs (#41), truthful retryable error states vs empty lists (#46).
-8. **Milestone H**: Integrated regression, migration script ([scripts/migrate-audit-timestamps.ts](file:///c:/Users/Administrator/Downloads/TALASYS/scripts/migrate-audit-timestamps.ts)), initial superadmin provisioning CLI ([scripts/seed-superadmin.ts](file:///c:/Users/Administrator/Downloads/TALASYS/scripts/seed-superadmin.ts)).
-9. **Milestone I (Independent Review Repair Pass)**:
-   - Verification Only role dedicated workspace (`VerificationWorkspace`), stripped unrelated cards/navigation, direct URL guard in `AdminLayout`, dynamic session role change propagation.
-   - Reopened #28/#30: `/api/admin/update-resident-email` fail closed on unconfigured Admin SDK (503), checkRevoked token check, authoritative `users` lookup, rejects Locked/Deleted, explicit RBAC, target resident check, server audit IP.
-   - Reopened #51: Upload signing token length fallback removed, role-constrained folders, single-use ticket nonce tracking (`verifyAndConsumeRegistrationTicket`), authenticated signature signing.
-   - Reopened #52: Cloudinary token URL authentication (`__cld_token__` with `st`, `exp`, `acl`, `hmac`), authoritative record-based ownership resolution (`/api/media/view`), `SecureMediaViewer` component for images and PDFs, historical migration script `scripts/migrate-cloudinary-access.ts`.
-   - Reopened #56: Authoritative statutory fee computation and initial payment state via `/api/resident/requests/create`, direct client write blocked in `firestore.rules`.
-   - Reopened #61/#44: Atomic `writeBatch` in `approveVerification` and `updateResident`, pre-commit Auth email sync with propagated failure halting write, duplicate approval guard.
-   - Reopened #6: Trusted reverse-proxy IP extraction (`extractClientIp`) and server-authored audit logs via `/api/audit/log`.
-   - Dashboard signals & refresh: Real-time listeners, dynamic clearing of locked admin/backlog alerts, working `refresh()`, separation of residents from admins.
-   - Reopened #60: Upgrade to Next.js `^16.4.0` in `package.json` and `package-lock.json`, `npm audit fix` applied, reachability triage documented.
-   - Verification rigor: Real implementation tested, 94 automated unit/integration tests passing, ESLint 9 passing, Next.js 16.4.0 production build verified.
+Branch: `remediation/61-findings`.
 
-## Next Safe Operator Actions
-1. Deploy updated security rules: `firebase deploy --only firestore:rules`.
-2. Set environment variables: `REGISTRATION_TICKET_SECRET`, Firebase Admin credentials, Cloudinary API credentials.
-3. Provision initial Super Admin: `npm run seed:superadmin -- --email <email> --password <password>`.
-4. Sign in to `/auth/login` and seed system defaults via `/superadmin/config`.
-5. Run historical media access migration when ready: `npx ts-node scripts/migrate-cloudinary-access.ts`.
+This branch is not represented as production-complete. It contains substantial
+local remediation and reproducible evidence, but M6, M7, and parts of M9/M10
+remain open. No production deployment, Firestore Rules publication, account
+provisioning, data migration, or Cloudinary migration was performed.
+
+## Implemented and locally verified
+
+- Audit timestamp migration: dry-run first, canonical `activityLogs`, bounded
+  fresh batches, invalid-value reporting, restart cursor, original-value
+  history, partial-failure reporting, and rollback guidance.
+- Cloudinary migration: real Rename API integration, schema field discovery,
+  exact identity and foreign-cloud rejection, deduplication, checkpoint/resume,
+  transactional reference updates, and old/new access verification hooks.
+- Super-admin provisioning: hidden password input, explicit existing-account
+  promotion/reset flags, profile preservation, durable operation state,
+  compensation, reconciliation, and audit evidence.
+- Verification approval: authenticated server handler, authoritative state,
+  transaction lease/claim, idempotency, Auth retry/compensation, deterministic
+  notification/audit IDs, and incomplete-state reporting.
+- Request creation: server-resolved enabled/custom document types and fees,
+  explicit waiver policy only, account expiry checks, idempotent transaction,
+  and resident direct-create denial in rules.
+- Audit boundary: clients cannot write `activityLogs`; `/api/audit/log` accepts
+  allowlisted non-authoritative telemetry only; forwarding headers are ignored
+  unless one exact trusted proxy header is configured.
+- Media boundary: official Cloudinary SDK signing, exact asset identity,
+  authoritative record attachment checks, scoped role/owner authorization,
+  protected upload IDs, and fail-closed viewers without original-URL fallback.
+  An authenticated signed Cloudinary URL is correctly described as non-expiring.
+- Verification-only policy/navigation: only verification routes and scoped
+  workspace content are exposed for both supported verification roles.
+- Vulnerable `xlsx` was replaced by ExcelJS; production dependency audit has
+  no high or critical advisories. The Firebase browser gRPC tree is overridden
+  to a patched release.
+
+## Reproducible local evidence
+
+- `npm test` — 110/110 pass.
+- `npm run test:rules` — 5/5 pass in the Firestore Emulator.
+- `npm run typecheck` — pass.
+- `npm run typecheck:test` — pass.
+- `npm run lint -- --quiet` — pass with app, scripts, and tests included.
+  Running without `--quiet` exposes existing warnings; do not claim zero warnings.
+- `npm run build` — pass; 45 application routes.
+- Playwright against an externally managed local Next server — 4/4 pass for
+  desktop/mobile unauthenticated redirect and public/login horizontal reflow.
+- `npm audit --omit=dev` — zero critical/high, two moderate ExcelJS/uuid.
+- Full `npm audit` — 11 high and 5 moderate in development tooling.
+
+The deleted `test/reopened-remediation.test.ts` copied/simulated suite is not
+acceptance evidence. Controlled dependency tests are labelled as such in
+`docs/EVIDENCE_LEDGER.md`.
+
+## Exact remaining blockers
+
+1. M6 authoritative audit coupling: several legacy privileged mutations still
+   execute in client hooks. Their former direct `activityLogs` writes were
+   removed, but UI telemetry after a mutation is not authoritative evidence.
+   Move each mutation into a typed server operation that commits its derived
+   audit event with the Firestore mutation, with explicit cross-service
+   recovery where Firebase Auth is involved. Findings #6/#31/#61 remain open
+   for those paths.
+2. M7 provider proof: Cloudinary token-auth expiry requires a separate token
+   key/eligible plan or an application proxy. No safe provider test account was
+   supplied, so expired-link rejection, old-public denial, CDN invalidation,
+   and the production migration are unverified and deployment-pending.
+3. M9/M10 authenticated browser matrix: local Firebase test identities and an
+   Auth/Firestore emulator-integrated app setup are needed to drive View Only,
+   Verification Only, Document Processing, Resident Management, Full Admin,
+   locked/deleted, and live role-change sessions end to end. Current browser
+   evidence is smoke coverage only.
+4. Dependency tooling: the production high-severity gate passes, but the full
+   audit retains high advisories in Firebase CLI and ESLint transitive trees.
+   Do not run `npm audit fix --force`; npm proposes breaking/downgrade changes.
+5. Production migrations and rules deployment require an approved maintenance
+   window, backups, real credentials, project-ID confirmation, dry-run review,
+   monitoring, and rollback ownership.
+
+## Operator commands (do not run against production without approval)
+
+- Audit migration preview: `npm run migrate:audit-timestamps -- --limit 10000`
+- Audit migration commit: add `--commit` only after backup/project review; use
+  `--start-after <document-id>` to resume.
+- Media migration preview: `npm run migrate:cloudinary-access`
+- Media migration commit: add `-- --commit` only after manifest backup and a
+  safe provider validation window.
+- Super-admin provisioning: `npm run seed:superadmin -- --email <email>`;
+  existing accounts require explicit `--promote-existing` and/or
+  `--reset-password`.
+
+Required runtime configuration includes Firebase client/Admin credentials,
+Cloudinary cloud/API credentials, `REGISTRATION_TICKET_SECRET`, and optionally
+`TRUSTED_PROXY_IP_HEADER` set to the single exact header injected by the trusted
+hosting proxy. Leave it unset if that contract is not documented.

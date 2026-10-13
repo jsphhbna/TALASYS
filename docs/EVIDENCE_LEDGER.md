@@ -1,5 +1,43 @@
 # TALASYS Evidence Ledger
 
+> **Evidence correction (2026-10-13):** E17-E21 and earlier entries remain as
+> historical command records only. They are not evidence for the reopened
+> independent-review acceptance criteria. Current verification starts with the
+> entries below and distinguishes inspection from executed behavior.
+
+| ID | Scope | Evidence | Result | Date | Classification |
+|---|---|---|---|---|---|
+| R-E01 | Branch/status reconciliation | `git branch --show-current`, `git status --short`, source inspection | Requested branch selected; clean baseline before edits | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E02 | M1 schema/caller inventory | Inspected required scripts/routes/hooks/rules/tests and repository field references | Reopened defects confirmed; canonical collections and sensitive fields identified | 2026-10-13 | IMPLEMENTATION_EVIDENCE / REVIEWED |
+| R-E03 | Production migration/deployment | Not run by instruction | No production state changed | 2026-10-13 | NOT TESTED / DEPLOYMENT PENDING |
+| R-E04 | M2 audit migration behavior | `node --test --experimental-strip-types test/audit-timestamp-migration.test.ts` | PASS (5/5): zero-write dry-run, canonical collection, 805 records in 400/400/5 fresh batches, invalid skip reasons, idempotent rerun, partial failure progress | 2026-10-13 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| R-E05 | M2 app static compatibility | `npx.cmd tsc --noEmit --incremental false` | PASS (0 errors) | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E06 | M3 Cloudinary migration core | `node --test --experimental-strip-types test/cloudinary-migration.test.ts` | PASS (7/7): real fields, dedupe, URL resource identity, foreign cloud rejection, dry-run, commit/checkpoint, partial resume, verification veto | 2026-10-13 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| R-E07 | M3 static compatibility | `npx.cmd tsc --noEmit --incremental false` | PASS (0 errors) | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E08 | M3 live Cloudinary behavior | Not run: no safe test product-environment credentials/configuration supplied | Authenticated existence, CDN invalidation, and old-public denial remain production/operator checks | 2026-10-13 | BLOCKED / PRODUCTION MIGRATION PENDING |
+| R-E09 | M4 super-admin provisioning | `node --test --experimental-strip-types test/superadmin-provisioning.test.ts` | PASS (5/5): new create, no-op existing rejection, profile preservation, Auth compensation, durable reconciliation state | 2026-10-13 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| R-E10 | M4 static compatibility | `npx.cmd tsc --noEmit --incremental false` | PASS (0 errors) | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E11 | M5 approval coordinator | `node --test --experimental-strip-types test/verification-approval.test.ts` | PASS (9/9): all types, conflict, Auth failure, compensation, reconciliation, intended-email retry, completed retry | 2026-10-13 | TEST_EVIDENCE / VERIFIED WITH CONTROLLED DEPENDENCIES |
+| R-E12 | M5 actual route handler | `node --test --experimental-strip-types test/verification-approval-route.test.ts` | PASS (4/4): success, revoked token, authorization/conflict status, actionable incomplete response | 2026-10-13 | TEST_EVIDENCE / VERIFIED WITH CONTROLLED DEPENDENCIES |
+| R-E13 | M5 static compatibility | `npx.cmd tsc --noEmit --incremental false` | PASS (0 errors) | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E14 | M6 audit authority boundary | `node --test --experimental-strip-types test/audit-authority.test.ts` | PASS (4/4): arbitrary privileged event denied, telemetry separated, actor protected, forwarding headers untrusted by default | 2026-10-13 | TEST_EVIDENCE / PARTIAL - LEGACY MUTATIONS OPEN |
+| R-E15 | M7 protected-media core | `node --test --experimental-strip-types test/protected-media.test.ts` | PASS (4/4): exact identity, URL resource type, owner/domain roles/locked denial, SDK signed authenticated URL without false expiry | 2026-10-13 | TEST_EVIDENCE / PARTIAL |
+| R-E16 | M7 live unsigned/expired delivery | Not run: separate Cloudinary token key/plan/test environment not supplied | Token expiry and CDN enforcement remain blocked; signed authenticated URL is not described as expiring | 2026-10-13 | BLOCKED |
+| R-E17 | M8 configured document resolver | `node --test --experimental-strip-types test/configured-document-types.test.ts` | PASS (4/4): standard/custom, disabled, forged/invalid fee, explicit waiver policy | 2026-10-13 | TEST_EVIDENCE / VERIFIED WITH CONTROLLED DEPENDENCIES |
+| R-E18 | M6-M8 static compatibility | `npx.cmd tsc --noEmit --incremental false` | PASS (0 errors) | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E19 | M9 Verification Only route policy | `node --test --experimental-strip-types test/verification-only-access.test.ts` | PASS (2/2 equivalent roles; allowed verification sections and denied unrelated routes) | 2026-10-13 | TEST_EVIDENCE / VERIFIED POLICY |
+| R-E20 | M9 static compatibility | `npx.cmd tsc --noEmit --incremental false` | PASS (0 errors) | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E21 | M9 browser behavior | See R-E27 | Unauthenticated desktop/mobile smoke passes; authenticated role and live role-change coverage remains open | 2026-10-13 | PARTIAL |
+| R-E22 | Firestore rules enforcement | `npm.cmd run test:rules` | PASS (5/5): unauthenticated/locked, View Only denial, resident forged request denial, specialized scopes, audit/telemetry client denial | 2026-10-13 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| R-E23 | Integrated implementation suite | `npm.cmd test` | PASS (110/110); emulator suite excluded and executed separately | 2026-10-13 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| R-E24 | App and test/script TypeScript | `npm.cmd run typecheck`; `npm.cmd run typecheck:test` | PASS / PASS | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E25 | Expanded lint | `npm.cmd run lint -- --quiet` | PASS (0 errors); scripts/tests are included; legacy warnings remain outside quiet mode | 2026-10-13 | TEST_EVIDENCE / VERIFIED WITH QUALIFICATION |
+| R-E26 | Production build | `npm.cmd run build` | PASS; Next 16.4.0 generated 45 routes | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
+| R-E27 | Browser smoke | External local Next server + `PLAYWRIGHT_EXTERNAL_SERVER=1 npm.cmd run test:e2e` | PASS (4/4), desktop/mobile unauthenticated admin redirect and public/login reflow | 2026-10-13 | TEST_EVIDENCE / PARTIAL; AUTHENTICATED ROLE E2E OPEN |
+| R-E28 | Production dependency audit | `npm.cmd audit --omit=dev` | 0 critical/high; 2 moderate through ExcelJS `uuid`; vulnerable `xlsx` removed and gRPC overridden to patched line | 2026-10-13 | TEST_EVIDENCE / PASS FOR HIGH-SEVERITY GATE |
+| R-E29 | Full dependency audit | `npm.cmd audit` | 11 high, 5 moderate in development-tool dependency trees; no forced breaking downgrade applied | 2026-10-13 | BLOCKED / FOLLOW-UP REQUIRED |
+| R-E30 | Production/provider operations | Not run by instruction | No deploy, rules publication, account creation, or production migration | 2026-10-13 | DEPLOYMENT PENDING |
+
 | Check ID | Target Finding | Command / Test | Result | Date | Notes |
 |---|---|---|---|---|---|---|
 | E01 | Baseline TS | `npx tsc --noEmit --incremental false` | PASS (0 errors) | 2026-10-13 | Clean baseline compilation |

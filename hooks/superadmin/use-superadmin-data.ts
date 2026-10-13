@@ -351,17 +351,18 @@ export function useSuperAdminData() {
             }
         }, []),
         addAuditLog: useCallback(async (input: Omit<AuditLog, "id" | "time" | "date" | "timestamp">) => {
-            await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                ...input,
-                date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                timestamp: Date.now()
+            await recordServerAudit({
+                action: input.action,
+                actionType: input.actionType,
+                details: input.details,
+                targetId: input.targetId,
+                targetName: input.residentName,
+                targetCollection: input.targetCollection,
             })
         }, []),
         clearAuditLogs: useCallback(async () => {
-             // Delete all audit logs concurrently rather than sequentially.
-             await Promise.all(auditLogs.map(auditLog => deleteDoc(doc(db, COLLECTION_ACTIVITY_LOGS, auditLog.id))))
-        }, [auditLogs]),
+            throw new Error("Audit log deletion is restricted to a dedicated server-authorized retention workflow.")
+        }, []),
 
         // System Alerts
         addAlert: useCallback(async (input: Omit<SystemAlert, "id" | "timestamp">) => {
@@ -374,17 +375,11 @@ export function useSuperAdminData() {
         // System Config
         updateConfig: useCallback(async (updates: Partial<SystemConfig>) => {
             await setDoc(doc(db, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID), updates, { merge: true })
-            await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                timestamp: Date.now(),
-                admin: { name: SUPERADMIN_DISPLAY_NAME, initials: SUPERADMIN_INITIALS, color: COLOR_SUPERADMIN_GOLD },
-                role: "SuperAdmin",
+            await recordServerAudit({
                 action: "Config Edit",
                 actionType: "Config Edit",
                 details: `Updated system configuration (${Object.keys(updates).join(", ")})`,
-                targetCollection: "system_config",
-                ipAddress: "Not captured"
+                targetCollection: "systemConfig",
             })
         }, []),
     }

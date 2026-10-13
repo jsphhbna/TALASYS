@@ -11,26 +11,13 @@ export function extractClientIp(reqOrHeaders: Request | Headers): string {
     const headers = reqOrHeaders instanceof Headers ? reqOrHeaders : (reqOrHeaders as Request)?.headers
     if (!headers) return "Unknown"
 
-    // Cloudflare
-    const cfIp = headers.get("cf-connecting-ip")
-    if (cfIp && isValidIp(cfIp.trim())) {
-      return cfIp.trim()
-    }
-
-    // Standard X-Forwarded-For: client, proxy1, proxy2...
-    const forwardedFor = headers.get("x-forwarded-for")
-    if (forwardedFor) {
-      const firstIp = forwardedFor.split(",")[0].trim()
-      if (isValidIp(firstIp)) {
-        return firstIp
-      }
-    }
-
-    // X-Real-IP
-    const realIp = headers.get("x-real-ip")
-    if (realIp && isValidIp(realIp.trim())) {
-      return realIp.trim()
-    }
+    // Next.js route handlers do not receive Netlify Functions `Context.ip`.
+    // Trust no user-spoofable forwarding header unless deployment explicitly
+    // configures the single header that its verified proxy adapter overwrites.
+    const trustedHeader = process.env.TRUSTED_PROXY_IP_HEADER?.trim().toLowerCase()
+    if (!trustedHeader || !/^[a-z0-9-]+$/.test(trustedHeader)) return "Unknown"
+    const candidate = headers.get(trustedHeader)?.split(",")[0].trim()
+    if (candidate && isValidIp(candidate)) return candidate
 
     return "Unknown"
   } catch {
@@ -41,7 +28,7 @@ export function extractClientIp(reqOrHeaders: Request | Headers): string {
 /**
  * Basic IPv4 / IPv6 format validator to prevent header injection or garbage values.
  */
-function isValidIp(ip: string): boolean {
+export function isValidIp(ip: string): boolean {
   if (!ip || ip.length > 45) return false
   
   // Basic IPv4: 4 octets

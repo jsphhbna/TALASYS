@@ -15,6 +15,7 @@ import { useResidentData } from "@/hooks/resident"
 import type { ResidentRequest } from "@/lib/resident"
 import { RequestStatusTrackerModal } from "@/components/resident/history/request-status-tracker-modal"
 import { PaymentModal } from "@/components/resident/history/payment-modal"
+import { SecureMediaViewer } from "@/components/media/secure-image"
 
 export default function RequestHistoryPage() {
   const router = useRouter()
@@ -487,13 +488,7 @@ export default function RequestHistoryPage() {
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                   {selectedRequest.authorizationLetter?.startsWith("http") || selectedRequest.authorizationLetter?.startsWith("/") || selectedRequest.authorizationLetter?.startsWith("data:") ? (
-                    selectedRequest.authorizationLetter.match(/\.(jpeg|jpg|gif|png|webp)($|\?)/i) ? (
-                      <div className="max-h-64 overflow-hidden rounded border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-                        <img src={selectedRequest.authorizationLetter} alt="Authorization Letter" className="max-h-64 object-contain" />
-                      </div>
-                    ) : (
-                      <iframe src={selectedRequest.authorizationLetter} className="w-full h-64 rounded border border-slate-200 dark:border-slate-700" title="Authorization Letter" />
-                    )
+                    <SecureMediaViewer url={selectedRequest.authorizationLetter} alt="Authorization Letter" recordId={selectedRequest.id} recordType="request" className="max-h-64 object-contain" />
                   ) : (
                     <div className="aspect-video bg-slate-50 dark:bg-slate-800 rounded flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700 p-4 text-center">
                       <p className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">{selectedRequest.authorizationLetter || "Physical Document Reference"}</p>
@@ -503,21 +498,8 @@ export default function RequestHistoryPage() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <Button 
-                  onClick={() => {
-                    const letterUrl = selectedRequest.authorizationLetter
-                    if (letterUrl && (letterUrl.startsWith("http") || letterUrl.startsWith("/"))) {
-                      const link = document.createElement("a")
-                      link.href = letterUrl
-                      link.download = `Authorization_Letter_${selectedRequest.refNumber || selectedRequest.id}`
-                      link.target = "_blank"
-                      document.body.appendChild(link)
-                      link.click()
-                      document.body.removeChild(link)
-                    } else {
-                      window.print()
-                    }
-                  }}
+                <Button
+                  onClick={() => window.print()}
                   className="flex-1 h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
                 >
                   Download / View File

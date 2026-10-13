@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { XCircle, Eye } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import type { ResidentProofDocument } from "@/lib/resident"
+import { SecureMediaViewer } from "@/components/media/secure-image"
 
 interface ProfileProofsCardProps {
   proofs: ResidentProofDocument[]
@@ -62,13 +63,17 @@ export function ProfileProofsCard({
                   <p className="text-xs-plus text-slate-600 dark:text-slate-400">
                     {doc.filename} • Uploaded {doc.uploadDate}
                   </p>
-                  {doc.url && (
-                    <button 
-                      onClick={() => setSelectedImage(doc.url as string)}
-                      className="text-xs-plus text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-2 focus:outline-none"
-                    >
-                      <Eye className="w-3.5 h-3.5" /> View Document
-                    </button>
+                  {doc.url && verification?.id && (
+                    <div className="mt-2">
+                      <SecureMediaViewer
+                        src={doc.url}
+                        alt={doc.name}
+                        recordId={verification.id}
+                        recordType="verification"
+                        className="w-full max-h-48 object-contain"
+                        onZoom={setSelectedImage}
+                      />
+                    </div>
                   )}
                 </div>
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-2xs font-medium ml-3 ${

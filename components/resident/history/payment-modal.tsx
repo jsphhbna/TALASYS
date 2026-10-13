@@ -5,7 +5,7 @@ import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useResidentData } from "@/hooks/resident"
-import { uploadFileToCloudinary } from "@/lib/resident"
+import { uploadProtectedFileToCloudinary } from "@/lib/resident"
 import { showToastPreset } from "@/lib/app-toast"
 import { Copy, Check, Upload, X, CreditCard, Banknote } from "lucide-react"
 
@@ -74,7 +74,7 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
     try {
       let screenshotUrl = ""
       if (gcashFile) {
-        screenshotUrl = await uploadFileToCloudinary(gcashFile)
+        screenshotUrl = await uploadProtectedFileToCloudinary(gcashFile, { folder: "talasys/receipts" })
       }
       await submitPayment(request.id, "gcash", {
         gcashRefNumber: gcashRef.trim(),

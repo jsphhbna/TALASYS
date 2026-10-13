@@ -7,16 +7,18 @@ import { FileText, ExternalLink, Loader2 } from "lucide-react"
 export function useSecureMediaUrl(
   originalUrl?: string | null,
   recordId?: string,
-  recordType?: "verification" | "request"
+  recordType?: "verification" | "request" | "user"
 ) {
-  const [url, setUrl] = useState<string | null>(originalUrl || null)
-  const [loading, setLoading] = useState(false)
+  const initiallySensitive = !!originalUrl && ["talasys/proofs", "talasys/receipts", "talasys/letters", "talasys/signatures", "talasys/residents"].some(folder => originalUrl.includes(folder))
+  const [url, setUrl] = useState<string | null>(initiallySensitive ? null : (originalUrl || null))
+  const [loading, setLoading] = useState(initiallySensitive)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let isCurrent = true
     if (!originalUrl) {
       setUrl(null)
+      setLoading(false)
       return
     }
 
@@ -24,10 +26,13 @@ export function useSecureMediaUrl(
       originalUrl.includes("talasys/proofs") ||
       originalUrl.includes("talasys/receipts") ||
       originalUrl.includes("talasys/letters") ||
-      originalUrl.includes("talasys/signatures")
+      originalUrl.includes("talasys/signatures") ||
+      originalUrl.includes("talasys/residents")
 
     if (!isSensitive) {
       setUrl(originalUrl)
+      setError(null)
+      setLoading(false)
       return
     }
 
@@ -36,7 +41,10 @@ export function useSecureMediaUrl(
       try {
         const token = await auth.currentUser?.getIdToken()
         if (!token) {
-          if (isCurrent) setUrl(originalUrl)
+          if (isCurrent) {
+            setUrl(null)
+            setError("Sign in to view this protected media.")
+          }
           return
         }
 
@@ -59,12 +67,16 @@ export function useSecureMediaUrl(
             setUrl(data.deliveryUrl)
           }
         } else {
-          if (isCurrent) setUrl(originalUrl)
+          const body = await res.json().catch(() => ({}))
+          if (isCurrent) {
+            setUrl(null)
+            setError(body.error || "You are not authorized to view this protected media.")
+          }
         }
       } catch (err: any) {
         if (isCurrent) {
           setError(err.message)
-          setUrl(originalUrl)
+          setUrl(null)
         }
       } finally {
         if (isCurrent) setLoading(false)
@@ -86,7 +98,7 @@ interface SecureMediaViewerProps {
   alt?: string
   className?: string
   recordId?: string
-  recordType?: "verification" | "request"
+  recordType?: "verification" | "request" | "user"
   onZoom?: (url: string) => void
 }
 
@@ -100,7 +112,7 @@ export function SecureMediaViewer({
   onZoom,
 }: SecureMediaViewerProps) {
   const targetUrl = url || src
-  const { url: secureUrl, loading } = useSecureMediaUrl(targetUrl, recordId, recordType)
+  const { url: secureUrl, loading, error } = useSecureMediaUrl(targetUrl, recordId, recordType)
   const isPdf = (targetUrl || "").toLowerCase().endsWith(".pdf")
 
   if (!targetUrl) {
@@ -115,6 +127,10 @@ export function SecureMediaViewer({
     )
   }
 
+  if (error || !secureUrl) {
+    return <div role="alert" className="p-4 text-sm text-red-700 bg-red-50 dark:bg-red-950/30 dark:text-red-300 rounded-lg border border-red-200 dark:border-red-900">{error || "Protected media is unavailable."}</div>
+  }
+
   if (isPdf) {
     return (
       <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
@@ -126,7 +142,7 @@ export function SecureMediaViewer({
           </div>
         </div>
         <a
-          href={secureUrl || targetUrl || undefined}
+          href={secureUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400 rounded-md hover:bg-blue-100"
@@ -137,7 +153,7 @@ export function SecureMediaViewer({
     )
   }
 
-  const activeSrc = secureUrl || targetUrl || ""
+  const activeSrc = secureUrl
 
   return (
     <button
@@ -151,12 +167,6 @@ export function SecureMediaViewer({
         src={activeSrc}
         alt={alt}
         className={`${className} cursor-zoom-in`}
-        onError={(e) => {
-          // If delivery URL fails, fallback gracefully
-          if (secureUrl && targetUrl && secureUrl !== targetUrl) {
-            ;(e.target as HTMLImageElement).src = targetUrl
-          }
-        }}
       />
     </button>
   )

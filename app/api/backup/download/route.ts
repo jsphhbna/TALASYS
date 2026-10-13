@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { adminDb, adminAuth } from "@/lib/firebase-admin"
-import * as xlsx from "xlsx"
+import ExcelJS from "exceljs"
 import { rateLimit } from "@/lib/rate-limit"
+import { extractClientIp } from "@/lib/security/request-ip"
 
 async function handleBackupDownload(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || request.headers.get("x-real-ip") || "unknown"
+    const ip = extractClientIp(request)
     const { success, resetTime } = rateLimit(`backup:${ip}`, 2, 10000) // 2 requests per 10s
     
     if (!success) {
@@ -126,12 +127,14 @@ async function handleBackupDownload(request: Request) {
     }
 
     if (type === "excel") {
-      const wb = xlsx.utils.book_new()
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = "TALASYS"
+      workbook.created = new Date()
 
       for (const [collectionName, data] of Object.entries(backupData)) {
+        const worksheet = workbook.addWorksheet(collectionName.slice(0, 31))
         if (data.length === 0) {
-          const ws = xlsx.utils.json_to_sheet([{ _empty: "No data" }])
-          xlsx.utils.book_append_sheet(wb, ws, collectionName)
+          worksheet.addRow(["No data"])
           continue
         }
 
@@ -145,13 +148,16 @@ async function handleBackupDownload(request: Request) {
           return flat
         })
 
-        const ws = xlsx.utils.json_to_sheet(flatData)
-        xlsx.utils.book_append_sheet(wb, ws, collectionName)
+        const headers = Array.from(new Set(flatData.flatMap(item => Object.keys(item))))
+        worksheet.columns = headers.map(header => ({ header, key: header, width: Math.min(Math.max(header.length + 2, 12), 40) }))
+        for (const row of flatData) worksheet.addRow(row)
+        worksheet.getRow(1).font = { bold: true }
+        worksheet.views = [{ state: "frozen", ySplit: 1 }]
       }
 
-      const excelBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" })
+      const excelBuffer = await workbook.xlsx.writeBuffer()
       
-      return new NextResponse(excelBuffer, {
+      return new NextResponse(new Uint8Array(excelBuffer), {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "Content-Disposition": `attachment; filename="backup-${timestamp}.xlsx"`,

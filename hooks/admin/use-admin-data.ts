@@ -270,17 +270,12 @@ export function useAdminData() {
             // and auto-recreate a blank profile if the Firestore document were physically removed.
             await updateDoc(doc(db, COLLECTION_USERS, id), { role: "Deleted" })
             if (adminName && residentName) {
-                await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now(),
-                    admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_RED },
-                    role: "Admin",
+                await recordServerAudit({
                     action: "Deleted Resident",
                     actionType: "Deleted Resident",
                     details: `Deleted resident account for ${residentName}`,
-                    residentName: residentName,
                     targetId: id,
+                    targetName: residentName,
                     targetCollection: "residents"
                 })
             }
@@ -288,17 +283,12 @@ export function useAdminData() {
         deactivateResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
             await updateDoc(doc(db, COLLECTION_USERS, id), { status: "Expired" })
             if (adminName && residentName) {
-                await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now(),
-                    admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_AMBER },
-                    role: "Admin",
+                await recordServerAudit({
                     action: "Deactivated Resident",
                     actionType: "Deactivated Resident",
                     details: `Deactivated account for ${residentName}`,
-                    residentName: residentName,
                     targetId: id,
+                    targetName: residentName,
                     targetCollection: "residents"
                 })
             }
@@ -306,17 +296,12 @@ export function useAdminData() {
         activateResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
             await updateDoc(doc(db, COLLECTION_USERS, id), { status: "Active" })
             if (adminName && residentName) {
-                await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now(),
-                    admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_GREEN },
-                    role: "Admin",
+                await recordServerAudit({
                     action: "Activated Resident",
                     actionType: "Activated Resident",
                     details: `Re-activated account for ${residentName}`,
-                    residentName: residentName,
                     targetId: id,
+                    targetName: residentName,
                     targetCollection: "residents"
                 })
             }
@@ -327,125 +312,21 @@ export function useAdminData() {
             throw new Error("This operation is only permitted from the resident portal.")
         }, []),
         approveVerification: useCallback(async (id: string, adminName?: string, adminEmail?: string) => {
-            const verification = verifications.find(ver => ver.id === id)
-            if (!verification) {
-                throw new Error("Verification record not found.")
-            }
-            if (verification.status !== "pending") {
-                throw new Error("This verification request has already been processed or is no longer pending.")
-            }
-            if (!verification.residentId) {
-                throw new Error("Verification record has no associated resident ID.")
-            }
-
-            const profileUpdates: Record<string, any> = {}
-
-            if (verification.type === "profile-edit" && verification.changes) {
-                // Apply each changed field to the resident's user document.
-                verification.changes.forEach((profileChange: any) => {
-                    if (profileChange.field === "Full Name") profileUpdates.name = profileChange.newValue
-                    if (profileChange.field === "Date of Birth") profileUpdates.dateOfBirth = profileChange.newValue
-                    if (profileChange.field === "Contact Number") profileUpdates.contactNumber = profileChange.newValue
-                    if (profileChange.field === "Email Address") profileUpdates.email = profileChange.newValue
-                    if (profileChange.field === "Address") profileUpdates.address = profileChange.newValue
-                    if (profileChange.field === "Resident Statuses") {
-                        profileUpdates.statuses = profileChange.newValue === "None" ? [] : profileChange.newValue.split(", ")
-                        if (profileUpdates.statuses.length > 0) profileUpdates.status = profileUpdates.statuses[0]
-                    }
-                    // #42: Profile photo update support
-                    if (profileChange.field === "Profile Picture" || profileChange.field === "New Profile Picture" || profileChange.field?.toLowerCase().includes("photo") || profileChange.field?.toLowerCase().includes("picture")) {
-                        profileUpdates.profilePicture = profileChange.newValue
-                    }
-                })
-
-                if (!profileUpdates.profilePicture && verification.documents) {
-                    const photoDoc = (verification.documents as any)["New Profile Picture"] || (verification.documents as any)["Profile Picture"]
-                    if (photoDoc) profileUpdates.profilePicture = photoDoc
-                }
-
-                // #44, #61: Synchronize email with Firebase Auth FIRST if email changed.
-                // Do NOT update verification status if email sync fails! Propagate errors!
-                if (profileUpdates.email) {
-                    const token = await auth.currentUser?.getIdToken()
-                    if (!token) throw new Error("Active session token required to authorize email update.")
-
-                    const emailRes = await fetch("/api/admin/update-resident-email", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                        body: JSON.stringify({ 
-                            residentId: verification.residentId, 
-                            newEmail: profileUpdates.email,
-                            verificationId: id
-                        })
-                    })
-
-                    if (!emailRes.ok) {
-                        const errData = await emailRes.json().catch(() => ({}))
-                        throw new Error(errData.error || "Failed to synchronize email with Auth service. Approval aborted.")
-                    }
-                }
-
-                // #48: If resident was unverified, mark verified and active
-                const resRecord = residents.find(r => r.id === verification.residentId)
-                if (resRecord && !resRecord.isVerified) {
-                    profileUpdates.isVerified = true
-                    profileUpdates.status = "Active"
-                }
-            } else if (verification.type === "reactivation") {
-                const oneYearFromNow = Date.now() + 365 * 24 * 60 * 60 * 1000
-                profileUpdates.isVerified = true
-                profileUpdates.status = "Active"
-                profileUpdates.accountExpiry = oneYearFromNow
-            } else {
-                profileUpdates.isVerified = true
-                profileUpdates.status = "Active"
-            }
-
-            profileUpdates.updatedAt = Date.now()
-
-            // Atomic batch commit for verification approval, user document update, and notification (#61)
-            const batch = writeBatch(db)
-            const now = Date.now()
-
-            // 1. Mark verification approved
-            const verifRef = doc(db, COLLECTION_VERIFICATIONS, id)
-            batch.update(verifRef, {
-                status: "approved",
-                approvedAt: now,
-                approvedBy: adminName || "Admin"
+            const token = await auth.currentUser?.getIdToken()
+            if (!token) throw new Error("Active session token required to approve verification.")
+            const attemptId = crypto.randomUUID()
+            const response = await fetch("/api/admin/verifications/approve", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ verificationId: id, attemptId }),
             })
-
-            // 2. Update resident user document
-            const userRef = doc(db, COLLECTION_USERS, verification.residentId)
-            batch.update(userRef, profileUpdates)
-
-            // 3. Create resident notification
-            const notifRef = doc(collection(db, COLLECTION_NOTIFICATIONS))
-            const actionPrefix = verification.type === "profile-edit" ? "Profile Edit" : (verification.type === "reactivation" ? "Reactivation" : "Verification")
-            batch.set(notifRef, {
-                targetId: verification.residentId,
-                type: "success",
-                title: `${actionPrefix} Approved`,
-                message: `Your ${actionPrefix.toLowerCase()} has been approved.`,
-                timestamp: "Just now",
-                isRead: false,
-                createdAt: now
-            })
-
-            await batch.commit()
-
-            // 4. Record server-authored audit event (#6)
-            if (adminName) {
-                await recordServerAudit({
-                    action: `Approved ${actionPrefix}`,
-                    actionType: "approved",
-                    details: `Approved ${actionPrefix.toLowerCase()} for Resident ID ${verification.residentId}`,
-                    targetId: verification.residentId,
-                    targetName: (verification as any).name || "Resident",
-                    targetCollection: "verifications"
-                })
+            const payload = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(payload.error || (payload.operationIncomplete
+                    ? "Approval is incomplete and requires reconciliation. Retry after resolving the reported state."
+                    : "Verification approval failed."))
             }
-        }, [verifications, residents]),
+        }, []),
         rejectVerification: useCallback(async (id: string, reason: string, adminName?: string, adminEmail?: string) => {
             if (!reason || reason.trim().length < 10) {
                 throw new Error("Rejection requires a reason of at least 10 characters.")
@@ -527,17 +408,13 @@ export function useAdminData() {
                     })
 
                     if (adminName) {
-                        await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                            admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: status === "Rejected" ? COLOR_ADMIN_RED : COLOR_ADMIN_GREEN },
+                        await recordServerAudit({
                             actionType: status.toLowerCase(),
                             action: `Updated Document Status`,
                             details: `Updated ${documentRequest.documentType} to ${status} for ${documentRequest.residentName}.${reason ? ` Reason: ${reason}` : ""}`,
-                            residentName: documentRequest.residentName,
                             targetId: id,
-                            targetCollection: "document_requests",
-                            date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
-                            time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                            timestamp: Date.now()
+                            targetName: documentRequest.residentName,
+                            targetCollection: "documentRequests"
                         })
                     }
                 }
@@ -588,17 +465,13 @@ export function useAdminData() {
                     createdAt: Date.now()
                 })
                 const confirmedPaymentMethod = paymentMethodOverride || documentRequest.paymentMethod || "Cash"
-                await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                    admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_GREEN },
+                await recordServerAudit({
                     actionType: "approved",
                     action: "Payment Confirmed",
                     details: `Confirmed ${confirmedPaymentMethod} payment for ${documentRequest.documentType} (${documentRequest.residentName}). Receipt: ${receiptNumber}`,
-                    residentName: documentRequest.residentName,
                     targetId: id,
-                    targetCollection: "document_requests",
-                    date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
-                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now()
+                    targetName: documentRequest.residentName,
+                    targetCollection: "documentRequests"
                 })
             }
         }, [documentRequests]),
@@ -610,12 +483,12 @@ export function useAdminData() {
             const { updateDoc, doc, collection, addDoc } = await import("firebase/firestore")
             const { db } = await import("@/lib/firebase")
 
-            await updateDoc(doc(db, "document_requests", id), {
+            await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, id), {
                 paymentStatus: "unpaid",
                 paymentMethod: "cash"
             })
             if (documentRequest.residentId) {
-                await addDoc(collection(db, "notifications"), {
+                await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
                     targetId: documentRequest.residentId,
                     type: "info",
                     title: "Payment Option Updated",
@@ -624,17 +497,13 @@ export function useAdminData() {
                     isRead: false,
                     createdAt: Date.now()
                 })
-                await addDoc(collection(db, "activity_logs"), {
-                    admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: "bg-blue-600" },
+                await recordServerAudit({
                     actionType: "updated",
                     action: "Payment Updated to Pay Later",
                     details: `Admin ${adminName} marked payment for ${documentRequest.documentType} as Pay Later.`,
-                    residentName: documentRequest.residentName,
                     targetId: id,
-                    targetCollection: "document_requests",
-                    date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
-                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now()
+                    targetName: documentRequest.residentName,
+                    targetCollection: "documentRequests"
                 })
             }
         }, [documentRequests]),
@@ -659,17 +528,13 @@ export function useAdminData() {
                     isRead: false,
                     createdAt: Date.now()
                 })
-                await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                    admin: { name: adminName, email: adminEmail || "", initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_AMBER },
+                await recordServerAudit({
                     actionType: "approved",
                     action: "Fee Waived",
                     details: `Waived document fee for ${documentRequest.documentType} (${documentRequest.residentName}).`,
-                    residentName: documentRequest.residentName,
                     targetId: id,
-                    targetCollection: "document_requests",
-                    date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
-                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now()
+                    targetName: documentRequest.residentName,
+                    targetCollection: "documentRequests"
                 })
             }
         }, [documentRequests]),
@@ -695,15 +560,17 @@ export function useAdminData() {
 
         // Activity Logs
         addActivityLog: useCallback(async (input: Omit<ActivityLog, "id" | "time">) => {
-            await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                ...input,
-                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                timestamp: Date.now()
+            await recordServerAudit({
+                action: input.action,
+                actionType: input.actionType,
+                details: input.details,
+                targetId: input.targetId,
+                targetName: input.residentName,
+                targetCollection: input.targetCollection,
             })
         }, []),
         clearActivityLogs: useCallback(async () => {
-             // Delete all logs concurrently rather than sequentially to minimize total round-trip time.
-             await Promise.all(activityLogs.map(activityLog => deleteDoc(doc(db, COLLECTION_ACTIVITY_LOGS, activityLog.id))))
-        }, [activityLogs]),
+            throw new Error("Audit log deletion is restricted to a dedicated server-authorized retention workflow.")
+        }, []),
     }
 }

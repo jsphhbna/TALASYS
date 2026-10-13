@@ -1,21 +1,31 @@
-import { NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
-import { COLLECTION_DOCUMENT_REQUESTS, COLLECTION_NOTIFICATIONS, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID } from "@/lib/constants"
+import { NextResponse } from "next/server.js"
+import { adminAuth, adminDb } from "../../../../../lib/firebase-admin.ts"
+import { COLLECTION_DOCUMENT_REQUESTS, COLLECTION_NOTIFICATIONS, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID } from "../../../../../lib/constants.ts"
+import { parseCloudinaryAsset } from "../../../../../lib/security/media-auth.ts"
 
-// Statutory and standard baseline fees
-const STANDARD_DOCUMENT_FEES: Record<string, number> = {
-  "Barangay Clearance": 50,
-  "Certificate of Indigency": 0, // Free by law
-  "Certificate of Residency": 50,
-  "Barangay ID": 100,
-  "Business Permit / Clearance": 200,
-  "First Time Jobseeker Certificate": 0, // Free under RA 11261
+function isOwnedProtectedAsset(url: unknown, residentId: string, folder: "talasys/receipts" | "talasys/letters"): boolean {
+  if (typeof url !== "string") return false
+  const parsed = parseCloudinaryAsset(url)
+  const expectedCloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+  return !!expectedCloud && parsed.cloudName === expectedCloud && parsed.deliveryType === "authenticated" && parsed.publicId.startsWith(`${folder}/${residentId}/`)
 }
 
-const STATUTORY_FREE_DOCUMENTS = new Set([
-  "Certificate of Indigency",
-  "First Time Jobseeker Certificate",
-])
+export function resolveConfiguredDocument(config: Record<string, any>, documentType: string, residentStatuses: string[]) {
+  const enabled = Array.isArray(config.documentTypes) ? config.documentTypes : []
+  const custom = Array.isArray(config.customDocumentTypes) ? config.customDocumentTypes : []
+  if (!enabled.includes(documentType)) throw Object.assign(new Error("Document type is disabled or unknown."), { status: 400 })
+  const customEntry = custom.find((entry: any) => entry?.name === documentType)
+  const configuredFee = config.documentFees?.[documentType] ?? customEntry?.fee
+  if (typeof configuredFee !== "number" || !Number.isFinite(configuredFee) || configuredFee < 0) throw Object.assign(new Error("Document fee configuration is missing or invalid."), { status: 503 })
+  let fee = configuredFee
+  const policy = config.feeWaiverPolicy
+  if (policy?.enabled === true && Array.isArray(policy.documentTypes) && policy.documentTypes.includes(documentType) && Array.isArray(policy.eligibleStatuses)) {
+    const normalized = residentStatuses.map(status => status.toLowerCase())
+    if (policy.eligibleStatuses.some((status: unknown) => typeof status === "string" && normalized.includes(status.toLowerCase()))) fee = 0
+  }
+  const id = typeof customEntry?.id === "string" && customEntry.id ? customEntry.id : documentType.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+  return { id, name: documentType, fee }
+}
 
 export async function POST(req: Request) {
   try {
@@ -74,10 +84,14 @@ export async function POST(req: Request) {
       paymentMethod = "cash",
       gcashRefNumber,
       gcashScreenshotUrl,
+      idempotencyKey,
     } = body
 
-    if (!documentType || typeof documentType !== "string" || !(documentType in STANDARD_DOCUMENT_FEES)) {
+    if (!documentType || typeof documentType !== "string") {
       return NextResponse.json({ error: "Invalid or unsupported document type requested." }, { status: 400 })
+    }
+    if (typeof idempotencyKey !== "string" || !/^[a-zA-Z0-9_-]{16,80}$/.test(idempotencyKey)) {
+      return NextResponse.json({ error: "A valid idempotencyKey is required." }, { status: 400 })
     }
 
     if (!purpose || typeof purpose !== "string" || purpose.trim().length === 0) {
@@ -103,48 +117,26 @@ export async function POST(req: Request) {
       if (!authorizationLetter || typeof authorizationLetter !== "string") {
         return NextResponse.json({ error: "An authorization letter is mandatory when requesting for another individual." }, { status: 400 })
       }
-    }
-
-    // Duplicate check for active pending request of the same document type
-    if (requestFor === "myself") {
-      const activePendingSnap = await adminDb
-        .collection(COLLECTION_DOCUMENT_REQUESTS)
-        .where("residentId", "==", callerUid)
-        .where("documentType", "==", documentType)
-        .where("status", "==", "Pending")
-        .get()
-
-      if (!activePendingSnap.empty) {
-        return NextResponse.json(
-          { error: `You already have an active pending request for ${documentType}. Please wait for it to be processed.` },
-          { status: 409 }
-        )
+      if (!isOwnedProtectedAsset(authorizationLetter, callerUid, "talasys/letters")) {
+        return NextResponse.json({ error: "Authorization letter is not an authenticated asset owned by this resident." }, { status: 400 })
       }
     }
+    const expiry = callerData.accountExpiry ? new Date(callerData.accountExpiry).getTime() : NaN
+    if (!Number.isFinite(expiry) || expiry <= Date.now()) {
+      return NextResponse.json({ error: "Resident verification has expired. Reactivate the account before requesting documents." }, { status: 403 })
+    }
 
-    // Authoritatively derive document fee from system configuration and statutory policy (#56)
-    // NEVER accept client-supplied documentFee or forged waivers!
-    let authoritativeFee = STANDARD_DOCUMENT_FEES[documentType]
+    if (gcashScreenshotUrl && !isOwnedProtectedAsset(gcashScreenshotUrl, callerUid, "talasys/receipts")) {
+      return NextResponse.json({ error: "Payment screenshot is not an authenticated asset owned by this resident." }, { status: 400 })
+    }
 
     const configDoc = await adminDb.collection(COLLECTION_SYSTEM_CONFIG).doc(SYSTEM_CONFIG_DOCUMENT_ID).get()
-    if (configDoc.exists) {
-      const configFees = configDoc.data()?.documentFees
-      if (configFees && typeof configFees[documentType] === "number") {
-        authoritativeFee = configFees[documentType]
-      }
-    }
-
-    // Statutory exemptions: Indigency & First Time Jobseekers are legally guaranteed free
-    if (STATUTORY_FREE_DOCUMENTS.has(documentType)) {
-      authoritativeFee = 0
-    }
-
-    // Check indigent resident category demographic waiver
+    if (!configDoc.exists) return NextResponse.json({ error: "Document request configuration is unavailable." }, { status: 503 })
     const residentStatuses: string[] = Array.isArray(callerData.statuses) ? callerData.statuses : (callerData.status ? [callerData.status] : [])
-    const isIndigent = residentStatuses.some(s => typeof s === "string" && s.toLowerCase().includes("indigent"))
-    if (isIndigent && (documentType === "Barangay Clearance" || documentType === "Certificate of Residency")) {
-      authoritativeFee = 0
-    }
+    let configuredDocument
+    try { configuredDocument = resolveConfiguredDocument(configDoc.data() || {}, documentType, residentStatuses) }
+    catch (error: any) { return NextResponse.json({ error: error.message }, { status: error.status || 400 }) }
+    const authoritativeFee = configuredDocument.fee
 
     // Authoritative initial payment state
     const requiresPayment = authoritativeFee > 0
@@ -185,6 +177,7 @@ export async function POST(req: Request) {
       residentCategory: callerData.status || "Resident",
       refNumber,
       documentType,
+      documentTypeId: configuredDocument.id,
       dateRequested: manilaDate,
       status: "Pending",
       purpose: purpose.trim(),
@@ -194,6 +187,7 @@ export async function POST(req: Request) {
       paymentStatus, // Authoritative initial payment state
       paymentMethod: effectivePaymentMethod,
       paymentReferenceNumber: paymentRefNumber,
+      idempotencyKey,
       ...(gcashRefNumber ? { gcashRefNumber } : {}),
       ...(gcashScreenshotUrl ? { gcashScreenshotUrl } : {}),
       ...(requestFor === "other"
@@ -207,10 +201,18 @@ export async function POST(req: Request) {
         : { requestFor: "myself" }),
     }
 
-    const docRef = await adminDb.collection(COLLECTION_DOCUMENT_REQUESTS).add(requestPayload)
-
-    // Create administrative notification
-    await adminDb.collection(COLLECTION_NOTIFICATIONS).add({
+    const docRef = adminDb.collection(COLLECTION_DOCUMENT_REQUESTS).doc(`req_${callerUid}_${idempotencyKey}`)
+    const notificationRef = adminDb.collection(COLLECTION_NOTIFICATIONS).doc(`request_${callerUid}_${idempotencyKey}`)
+    const stored = await adminDb.runTransaction(async (transaction: any) => {
+      const existing = await transaction.get(docRef)
+      if (existing.exists) return { idempotent: true, data: existing.data() }
+      if (requestFor === "myself") {
+        const activeQuery = adminDb.collection(COLLECTION_DOCUMENT_REQUESTS).where("residentId", "==", callerUid).where("documentTypeId", "==", configuredDocument.id).where("status", "==", "Pending")
+        const active = await transaction.get(activeQuery)
+        if (!active.empty) throw Object.assign(new Error(`You already have an active pending request for ${documentType}.`), { status: 409 })
+      }
+      transaction.create(docRef, requestPayload)
+      transaction.create(notificationRef, {
       targetId: "admin",
       type: "info",
       title: "New Document Request",
@@ -220,15 +222,19 @@ export async function POST(req: Request) {
       createdAt: now,
       residentName: callerData.name || "Resident",
       actionUrl: "/admin/requests",
+      operationId: idempotencyKey,
+      })
+      return { idempotent: false, data: requestPayload }
     })
 
     return NextResponse.json({
       success: true,
       id: docRef.id,
-      request: { id: docRef.id, ...requestPayload },
+      idempotent: stored.idempotent,
+      request: { id: docRef.id, ...stored.data },
     })
   } catch (error: any) {
     console.error("Failed to create document request:", error)
-    return NextResponse.json({ error: error.message || "Failed to submit document request" }, { status: 500 })
+    return NextResponse.json({ error: error.message || "Failed to submit document request" }, { status: error.status || 500 })
   }
 }

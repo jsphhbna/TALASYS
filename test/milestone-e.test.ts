@@ -217,10 +217,10 @@ test("Milestone E — Issue #20: Resident history table filters by selectedYear 
   const filterByDate = (year: string, month: string) => {
     return requests.filter(request => {
       if (!request.dateRequested && !request.createdAt) return false
-      const date = request.dateRequested ? new Date(request.dateRequested) : new Date(request.createdAt)
+      const date = request.dateRequested ? new Date(`${request.dateRequested}T00:00:00`) : new Date(request.createdAt)
       if (isNaN(date.getTime())) return false
       const reqYear = date.getFullYear().toString()
-      const reqMonth = date.toLocaleString('default', { month: 'long' })
+      const reqMonth = date.toLocaleString('en-US', { month: 'long' })
       if (year !== "All Years" && year !== "All" && reqYear !== year) return false
       if (month !== "All Months" && reqMonth !== month) return false
       return true

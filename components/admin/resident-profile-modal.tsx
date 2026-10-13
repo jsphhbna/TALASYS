@@ -8,6 +8,7 @@ import { collection, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import type { AdminResident } from "@/lib/admin"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
+import { SecureMediaViewer } from "@/components/media/secure-image"
 
 interface ResidentProfileModalProps {
   isOpen: boolean
@@ -21,7 +22,7 @@ interface ResidentProfileModalProps {
 export function ResidentProfileModal({ isOpen, onClose, resident, userRole, adminName, updateResident }: ResidentProfileModalProps) {
   const [isEditMode, setIsEditMode] = useState(false)
   const [formData, setFormData] = useState<Partial<AdminResident>>({})
-  const [documents, setDocuments] = useState<{name: string; url: string; status: string}[]>([])
+  const [documents, setDocuments] = useState<{name: string; url: string; status: string; verificationId: string}[]>([])
   const [validIdUrl, setValidIdUrl] = useState<string | null>(null)
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
   const [removePhotoReason, setRemovePhotoReason] = useState("")
@@ -57,7 +58,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
           if (!isCurrent) return
 
           if (!snapshot.empty) {
-            const allVerifs = snapshot.docs.map(d => d.data())
+            const allVerifs: Array<Record<string, any> & { id: string }> = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
             allVerifs.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
             
             const aggregatedDocs = new Map<string, any>()
@@ -66,7 +67,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               if (v.documents) {
                 v.documents.forEach((doc: any) => {
                   const status = v.status === "approved" ? "Valid" : (v.status === "rejected" ? "Rejected" : "Pending")
-                  aggregatedDocs.set(doc.name, { ...doc, status })
+                  aggregatedDocs.set(doc.name, { ...doc, status, verificationId: v.id })
                 })
               }
             }
@@ -154,16 +155,14 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
           <div className="flex items-start gap-5 pb-6 border-b border-slate-100 dark:border-slate-800">
             <div className="shrink-0 relative group flex flex-col items-center">
               {resident.profilePicture && formData.profilePicture !== "" ? (
-                <button
-                  onClick={() => setIsPhotoLightboxOpen(true)}
-                  className="relative focus:outline-none"
-                  title="Click to enlarge"
-                >
-                  <img src={resident.profilePicture} alt={resident.name} className="w-20 h-20 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-sm transition-all group-hover:ring-2 group-hover:ring-[#0C2340]/40" />
-                  <span className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
-                  </span>
-                </button>
+                <SecureMediaViewer
+                  src={resident.profilePicture}
+                  alt={resident.name}
+                  recordId={resident.id}
+                  recordType="user"
+                  className="w-20 h-20 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-sm"
+                  onZoom={(signedUrl) => { setValidIdUrl(signedUrl); setIsPhotoLightboxOpen(true) }}
+                />
               ) : (
                 <div className="w-20 h-20 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl font-bold text-slate-400 dark:text-slate-500 shadow-sm">
                   {resident.initials}
@@ -310,12 +309,14 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                       </span>
                     </div>
                     <div className="relative">
-                      <img src={doc.url} alt={doc.name} className="w-full h-auto object-cover max-h-48 bg-slate-100 dark:bg-slate-800" />
-                      <div className="absolute inset-0 bg-[#0C2340]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                        <button onClick={() => { setValidIdUrl(doc.url); setIsFullImageOpen(true); }} className="bg-white text-[#0C2340] text-xs font-bold px-4 py-2 rounded shadow-lg hover:bg-slate-50 transition-colors">
-                          Open Full Image
-                        </button>
-                      </div>
+                      <SecureMediaViewer
+                        src={doc.url}
+                        alt={doc.name}
+                        recordId={doc.verificationId}
+                        recordType="verification"
+                        className="w-full h-auto object-cover max-h-48 bg-slate-100 dark:bg-slate-800"
+                        onZoom={(signedUrl) => { setValidIdUrl(signedUrl); setIsFullImageOpen(true) }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -369,7 +370,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       </ModalOverlay>
 
       {/* Profile Photo Lightbox */}
-      <ModalOverlay isOpen={isPhotoLightboxOpen && !!resident.profilePicture} onClose={() => setIsPhotoLightboxOpen(false)} className="bg-black/90 z-[70] flex-col">
+      <ModalOverlay isOpen={isPhotoLightboxOpen && !!validIdUrl} onClose={() => setIsPhotoLightboxOpen(false)} className="bg-black/90 z-[70] flex-col">
         <button
           onClick={() => setIsPhotoLightboxOpen(false)}
           className="absolute top-4 right-4 text-white hover:text-slate-300 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
@@ -380,7 +381,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
         <p className="text-white/60 text-sm font-medium mb-4 tracking-wide">{resident.name}'s Profile Photo</p>
 
         <img
-          src={resident.profilePicture}
+          src={validIdUrl || ""}
           alt={resident.name}
           onClick={(e) => e.stopPropagation()}
           className="max-w-sm w-full max-h-[65vh] object-contain rounded-2xl shadow-2xl border border-white/10"

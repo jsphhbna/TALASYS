@@ -1,23 +1,19 @@
-import nextPlugin from "@next/eslint-plugin-next"
+import { defineConfig, globalIgnores } from "eslint/config"
+import nextVitals from "eslint-config-next/core-web-vitals"
+import nextTypescript from "eslint-config-next/typescript"
 
-export default [
+export default defineConfig([
+  ...nextVitals,
+  ...nextTypescript,
   {
-    ignores: [
-      ".next/**",
-      "node_modules/**",
-      "test/**",
-      "public/**",
-      "scripts/**",
-    ],
-  },
-  {
-    plugins: {
-      "@next/next": nextPlugin,
-    },
     rules: {
-      ...nextPlugin.configs.recommended.rules,
-      ...nextPlugin.configs["core-web-vitals"].rules,
       "@next/next/no-img-element": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "react/no-unescaped-entities": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/purity": "warn",
+      "prefer-const": "warn",
     },
   },
-]
+  globalIgnores([".next/**", "node_modules/**", "public/**"]),
+])

@@ -10,15 +10,14 @@ interface ServerAuditParams {
 }
 
 /**
- * Sends critical administrative mutation audit records to the server endpoint (#6),
- * ensuring authentic server IP capture and server-validated actor identity.
+ * Legacy compatibility wrapper for non-authoritative UI telemetry.
+ * Critical audit records must be authored by the server mutation itself.
  */
 export async function recordServerAudit(params: ServerAuditParams): Promise<void> {
   try {
     const token = await auth.currentUser?.getIdToken()
     if (!token) {
-      console.warn("recordServerAudit: No authenticated session available.")
-      return
+      throw new Error("No authenticated session available for telemetry")
     }
 
     const res = await fetch("/api/audit/log", {
@@ -27,14 +26,18 @@ export async function recordServerAudit(params: ServerAuditParams): Promise<void
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(params),
+      body: JSON.stringify({
+        event: "admin_ui_mutation_observed",
+        targetId: params.targetId,
+        targetCollection: params.targetCollection,
+      }),
     })
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}))
-      console.error("Failed to author server audit log:", errData.error || res.statusText)
+      throw new Error(errData.error || res.statusText || "Telemetry write failed")
     }
   } catch (err) {
-    console.error("recordServerAudit network error:", err)
+    throw err
   }
 }

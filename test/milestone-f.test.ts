@@ -159,7 +159,7 @@ describe("Milestone F — Resident Workflows, Identity & Evidence Persistence", 
 
   describe("#45 — Explicit tracking for Cancelled requests", () => {
     it("identifies Cancelled as a distinct terminal state without faking Under Review progress", () => {
-      const requestA = { status: "Cancelled" as const }
+      const requestA: { status: string } = { status: "Cancelled" }
       const isRejected = requestA.status === "Rejected"
       const isCancelled = requestA.status === "Cancelled"
 

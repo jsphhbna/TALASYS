@@ -98,18 +98,8 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
     reactivation: verifications?.filter((v: any) => v.type === "reactivation").length ?? 0,
   }
 
-  let allowedNavNames = baseNavigation.map(n => n.name)
+  let allowedNavNames = getAdminNavigationNames(user?.role)
   const userRole = user?.role
-  if (isVerificationOnlyRole(userRole)) {
-    // Verification Only / Verifications role: ONLY Verification Workspace, Verifications queue, and Notifications
-    allowedNavNames = ["Dashboard", "Verifications", "Notifications"]
-  } else if (isDocumentProcessingRole(userRole)) {
-    allowedNavNames = ["Dashboard", "Document Processing", "Notifications"]
-  } else if (isResidentManagementRole(userRole)) {
-    allowedNavNames = ["Dashboard", "Resident Management", "Category Reports", "Notifications"]
-  } else if (isReadOnlyAdminRole(userRole)) {
-    allowedNavNames = ["Dashboard", "Resident Management", "Verifications", "Document Processing", "Category Reports", "Notifications", "Activity Logs"]
-  }
 
   const navigation = baseNavigation
     .filter(item => allowedNavNames.includes(item.name))
@@ -334,6 +324,14 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
           })}
     </nav>
   )
+}
+
+export function getAdminNavigationNames(userRole?: string | null): string[] {
+  if (isVerificationOnlyRole(userRole)) return ["Verifications"]
+  if (isDocumentProcessingRole(userRole)) return ["Dashboard", "Document Processing", "Notifications"]
+  if (isResidentManagementRole(userRole)) return ["Dashboard", "Resident Management", "Category Reports", "Notifications"]
+  if (isReadOnlyAdminRole(userRole)) return ["Dashboard", "Resident Management", "Verifications", "Document Processing", "Category Reports", "Notifications", "Activity Logs"]
+  return baseNavigation.map(item => item.name)
 }
 
 export function AdminSidebar() {

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useResidentData } from "@/hooks/resident"
-import { uploadFileToCloudinary } from "@/lib/resident/cloudinary"
+import { uploadProtectedFileToCloudinary } from "@/lib/resident/cloudinary"
 
 type DocumentType = "clearance" | "funeral" | "pwd_adult" | "pwd_minor" | "indigency" | "residency" | "business" | "business_homeowner" | "business_contractor" | "osca"
 type RequestFor = "myself" | "other"
@@ -133,7 +133,7 @@ function RequestDocumentContent() {
       let authLetterUrl: string | undefined = undefined
       if (requestFor === "other" && authorizationLetter) {
         setIsUploadingAuthorization(true)
-        const uploadRes = await uploadFileToCloudinary(authorizationLetter)
+        const uploadRes = await uploadProtectedFileToCloudinary(authorizationLetter, { folder: "talasys/letters" })
         setIsUploadingAuthorization(false)
         if (!uploadRes) {
           setErrors(prev => ({ ...prev, authorizationLetter: "Failed to upload authorization letter. Please try again." }))
@@ -391,7 +391,7 @@ function RequestDocumentContent() {
 
                       setIsSubmittingRequest(true)
                       try {
-                        const url = await uploadFileToCloudinary(gcashScreenshot!)
+                        const url = await uploadProtectedFileToCloudinary(gcashScreenshot!, { folder: "talasys/receipts" })
                         await processSubmit(purpose === "Other" ? customPurpose : purpose, { gcashRefNumber, gcashScreenshotUrl: url })
                       } catch (e) {
                         console.error(e)

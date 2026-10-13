@@ -148,6 +148,13 @@ export function useResidentData() {
         throw new Error("You must be signed in to submit a document request.")
       }
 
+      const idempotencyStorageKey = `talasys.request.idempotency.${residentId}.${input.documentType}.${input.requestFor || "myself"}`
+      let idempotencyKey = typeof window !== "undefined" ? window.sessionStorage.getItem(idempotencyStorageKey) : null
+      if (!idempotencyKey) {
+        idempotencyKey = crypto.randomUUID()
+        if (typeof window !== "undefined") window.sessionStorage.setItem(idempotencyStorageKey, idempotencyKey)
+      }
+
       const res = await fetch("/api/resident/requests/create", {
         method: "POST",
         headers: {
@@ -165,6 +172,7 @@ export function useResidentData() {
           paymentMethod: input.paymentMethod,
           gcashRefNumber: input.gcashRefNumber,
           gcashScreenshotUrl: input.gcashScreenshotUrl,
+          idempotencyKey,
         }),
       })
 
@@ -174,6 +182,7 @@ export function useResidentData() {
       }
 
       const data = await res.json()
+      if (typeof window !== "undefined") window.sessionStorage.removeItem(idempotencyStorageKey)
       return data.request
     },
     [residentId, user]

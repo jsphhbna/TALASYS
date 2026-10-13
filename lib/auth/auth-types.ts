@@ -150,12 +150,12 @@ export function isRouteAllowedForRole(pathname: string, role?: string | null): b
   }
 
   // 3. Verification Only / Verifications:
-  // ONLY the verification workspace, verification queues/history, and admin notifications.
+  // ONLY the verification workspace and its queues/history. Verification
+  // notifications are embedded inside that workspace.
   // Explicitly forbids: residents, requests, generate, reports, activity logs.
   if (isVerificationOnlyRole(r)) {
     if (pathname === "/admin/dashboard") return true
     if (pathname.startsWith("/admin/verifications")) return true
-    if (pathname.startsWith("/admin/notifications")) return true
     return false
   }
 

@@ -155,16 +155,19 @@ export async function POST(req: Request) {
     const isProtected = SENSITIVE_FOLDERS.has(targetFolder)
     const type = isProtected ? "authenticated" : undefined
 
-    // 5. Server-generated timestamp
+    // 5. Bind the asset identity to the authenticated owner. This prevents a
+    // resident from attaching another resident's copied URL as new evidence.
+    const publicId = `${callerUid || "registration"}/${crypto.randomUUID()}`
+
+    // 6. Server-generated timestamp
     const timestamp = Math.floor(Date.now() / 1000)
 
-    // 6. Sign parameters in strict alphabetical order as required by Cloudinary
+    // 7. Sign parameters in strict alphabetical order as required by Cloudinary
     let signatureString: string
     if (type) {
-      // alphabetical: folder, timestamp, type
-      signatureString = `folder=${targetFolder}&timestamp=${timestamp}&type=${type}${secret}`
+      signatureString = `folder=${targetFolder}&public_id=${publicId}&timestamp=${timestamp}&type=${type}${secret}`
     } else {
-      signatureString = `folder=${targetFolder}&timestamp=${timestamp}${secret}`
+      signatureString = `folder=${targetFolder}&public_id=${publicId}&timestamp=${timestamp}${secret}`
     }
 
     const signature = crypto.createHash("sha1").update(signatureString).digest("hex")
@@ -173,6 +176,7 @@ export async function POST(req: Request) {
       signature,
       timestamp,
       folder: targetFolder,
+      publicId,
       type,
       apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY
     })
