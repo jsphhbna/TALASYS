@@ -14,10 +14,20 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
   const { user, isAuthenticated, isReady } = useAuth()
   const router = useRouter()
 
+  const isLockedOrDeleted = Boolean(
+    user?.status === "Locked" || 
+    user?.status === "Deleted" || 
+    user?.status === "Deleted by Resident" ||
+    user?.role === "Deleted"
+  )
+
   const isAuthorized = Boolean(
-    isReady && isAuthenticated && (!requiredRole || 
+    isReady && 
+    isAuthenticated && 
+    !isLockedOrDeleted &&
+    (!requiredRole || 
       (Array.isArray(requiredRole) ? requiredRole.includes(user?.role as UserRole) : user?.role === requiredRole)
-    ),
+    )
   )
 
   useEffect(() => {

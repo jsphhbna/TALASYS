@@ -20,6 +20,7 @@ import {
   Activity, FileText, Users, Shield, AlertTriangle,
   TrendingUp,
 } from "lucide-react"
+import { formatAuditIp, parseAuditTimestamp, isTimestampThisWeek, isTimestampToday, extractValidYear } from "@/lib/security/audit-utils"
 
 // --- Mini Sparkline ---
 function Sparkline({ data, color }: { data: number[]; color: string }) {
@@ -48,13 +49,13 @@ export default function AuditLogs() {
   const [actionFilter, setActionFilter] = useState("all")
   const [selectedYear, setSelectedYear] = useState<string>("All")
   const [selectedMonth, setSelectedMonth] = useState<string>("All")
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
-  const currentYear = new Date().getFullYear()
+  const currentYear = new Date().getFullYear().toString()
   const yearsList = Array.from(new Set(auditLogs.map(l => {
-    const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
-    const logDate = (ts && !isNaN(ts)) ? new Date(ts) : null;
-    return logDate ? logDate.getFullYear() : null;
-  }).filter((y): y is number => y !== null))).sort((a, b) => b - a)
+    return extractValidYear(l.timestamp || l.date)
+  }).filter((y): y is string => y !== null))).sort((a, b) => Number(b) - Number(a))
   
   if (yearsList.length === 0) yearsList.push(currentYear)
 
@@ -183,8 +184,8 @@ export default function AuditLogs() {
     const matchesAdmin = adminFilter === "all" || adminName === adminFilter
     const matchesAction = actionFilter === "all" || actionType === actionFilter
 
-    const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp
-    const logDate = (ts && !isNaN(ts)) ? new Date(ts) : null
+    const ts = parseAuditTimestamp(log.timestamp || log.date)
+    const logDate = ts !== null ? new Date(ts) : null
 
     let matchesDate = true
     if (logDate) {
@@ -196,6 +197,12 @@ export default function AuditLogs() {
 
     return matchesSearch && matchesAdmin && matchesAction && matchesDate
   })
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize))
+  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+  const startIndex = (safePage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, filteredLogs.length)
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex)
 
   const getActionColor = (type: string) => {
     switch (type) {
@@ -214,8 +221,15 @@ export default function AuditLogs() {
     return act === "Deleted Admin" || act === "Config Edit"
   }).length
 
-  const todaysActions = auditLogs.filter(l => l.date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })).length
-  const activeAdminCount = new Set(auditLogs.map(l => l.admin?.name || "System")).size
+  const todaysActions = auditLogs.filter(l => {
+    const ts = parseAuditTimestamp(l.timestamp || l.date)
+    return ts !== null && isTimestampToday(ts)
+  }).length
+  const thisWeekCount = auditLogs.filter(l => {
+    const ts = parseAuditTimestamp(l.timestamp || l.date)
+    return ts !== null && isTimestampThisWeek(ts)
+  }).length
+  const activeAdminCount = new Set(auditLogs.map(l => l.admin?.name || (l as any).adminName || (typeof l.admin === "string" ? l.admin : "System"))).size
 
   // Generate dynamic data based on auditLogs
   const now = Date.now()
@@ -224,10 +238,9 @@ export default function AuditLogs() {
   const auditWeeklyTrend = Array.from({ length: 7 }).map((_, i) => {
     const start = now - (6 - i) * dayMs;
     const end = start + dayMs;
-    // We map createdAt to our date structure
     const acts = auditLogs.filter(l => {
-      const ts = typeof l.timestamp === 'number' ? l.timestamp : new Date(l.timestamp).getTime()
-      return ts >= start && ts < end
+      const ts = parseAuditTimestamp(l.timestamp || l.date)
+      return ts !== null && ts >= start && ts < end
     })
     return {
       day: new Date(now - (6 - i) * dayMs).toLocaleDateString('en-US', { weekday: 'short' }),
@@ -240,8 +253,8 @@ export default function AuditLogs() {
   const auditHourlyActivity = Array.from({ length: 12 }).map((_, i) => {
     const hour = i + 8 // 8am to 7pm
     const count = auditLogs.filter(l => {
-      const ts = typeof l.timestamp === 'number' ? l.timestamp : 0
-      if (ts === 0) return false
+      const ts = parseAuditTimestamp(l.timestamp || l.date)
+      if (ts === null) return false
       const d = new Date(ts)
       return d.getHours() === hour
     }).length
@@ -254,7 +267,7 @@ export default function AuditLogs() {
 
   const kpis = [
     { label: "Today's Actions", value: todaysActions.toString(), icon: Activity, color: "#0C2340", spark: sparklineData },
-    { label: "This Week", value: auditLogs.length.toString(), icon: FileText, color: "#2a5080", spark: sparklineData },
+    { label: "This Week", value: thisWeekCount.toString(), icon: FileText, color: "#2a5080", spark: sparklineData },
     { label: "Active Admins", value: activeAdminCount.toString(), icon: Users, color: "#10b981", spark: sparklineData },
     { label: "Flagged", value: suspiciousCount.toString(), icon: AlertTriangle, color: "#ef4444", spark: sparklineData },
   ]
@@ -367,13 +380,27 @@ export default function AuditLogs() {
       {/* Filters */}
       <Card className="p-4 shadow-sm">
         <div className="grid grid-cols-4 gap-4">
-          <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
+          <select
+            value={adminFilter}
+            onChange={(e) => {
+              setAdminFilter(e.target.value)
+              setCurrentPage(1)
+            }}
+            className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+          >
             <option value="all">All Admins</option>
             {Array.from(new Set(auditLogs.map((l: any) => l.admin?.name || l.adminName || (typeof l.admin === "string" ? l.admin : "System")))).map(name => (
               <option key={name as string} value={name as string}>{name as string}</option>
             ))}
           </select>
-          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
+          <select
+            value={actionFilter}
+            onChange={(e) => {
+              setActionFilter(e.target.value)
+              setCurrentPage(1)
+            }}
+            className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+          >
             <option value="all">All Actions</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
@@ -385,7 +412,10 @@ export default function AuditLogs() {
           <div className="flex gap-2">
             <select
               value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
+              onChange={(e) => {
+                setSelectedYear(e.target.value)
+                setCurrentPage(1)
+              }}
               className="w-1/2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
             >
               <option value="All">All Years</option>
@@ -393,7 +423,10 @@ export default function AuditLogs() {
             </select>
             <select
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
+              onChange={(e) => {
+                setSelectedMonth(e.target.value)
+                setCurrentPage(1)
+              }}
               className="w-1/2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
             >
               <option value="All">All Months</option>
@@ -401,7 +434,15 @@ export default function AuditLogs() {
             </select>
           </div>
           <div className="flex gap-3">
-            <Input placeholder="Search by details..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1" />
+            <Input
+              placeholder="Search by details..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="flex-1"
+            />
             <Button className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Apply</Button>
           </div>
         </div>
@@ -420,16 +461,16 @@ export default function AuditLogs() {
             </div>
           </div>
           <div className="divide-y divide-slate-100">
-            {filteredLogs.length === 0 ? (
+            {paginatedLogs.length === 0 ? (
               <div className="p-8 text-center text-slate-500 dark:text-slate-400">No logs found matching filters.</div>
-            ) : filteredLogs.map((log) => (
+            ) : paginatedLogs.map((log) => (
               <div key={log.id} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
                   <div className="col-span-2">
                     <div className="flex flex-col">
                       {(() => {
-                        const ts = typeof log.timestamp === 'string' ? parseInt(log.timestamp) : log.timestamp;
-                        if (ts && !isNaN(ts)) {
+                        const ts = parseAuditTimestamp(log.timestamp || log.date);
+                        if (ts !== null) {
                           const d = new Date(ts);
                           return (
                             <>
@@ -459,7 +500,7 @@ export default function AuditLogs() {
                     </span>
                   </div>
                   <div className="col-span-4"><p className="text-sm text-slate-700 dark:text-slate-300">{log.details || (log as any).residentName || ""}</p></div>
-                  <div className="col-span-2"><p className="text-sm text-slate-500 dark:text-slate-400 font-mono text-xs-plus">{log.ipAddress || "localhost"}</p></div>
+                  <div className="col-span-2"><p className="text-sm text-slate-500 dark:text-slate-400 font-mono text-xs-plus">{formatAuditIp(log.ipAddress)}</p></div>
                 </div>
               </div>
             ))}
@@ -469,13 +510,43 @@ export default function AuditLogs() {
 
       {/* Pagination */}
       <div className="flex justify-between items-center">
-        <p className="text-sm text-slate-600 dark:text-slate-400">Showing 1-10 of {filteredLogs.length} entries</p>
-        <div className="flex gap-2">
-          <button className="w-11 h-11 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">&lt;</button>
-          <button className="w-11 h-11 bg-[#0C2340] dark:bg-slate-800 rounded flex items-center justify-center text-white text-sm">1</button>
-          <button className="w-11 h-11 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">2</button>
-          <button className="w-11 h-11 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">3</button>
-          <button className="w-11 h-11 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950 text-sm">&gt;</button>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Showing {filteredLogs.length === 0 ? 0 : startIndex + 1}-{endIndex} of {filteredLogs.length} entries
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+            className="w-10 h-10 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+            aria-label="Previous page"
+          >
+            &lt;
+          </button>
+          {Array.from({ length: totalPages }).slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2)).map((_, i) => {
+            const pageNum = Math.max(0, safePage - 3) + i + 1
+            const isActive = pageNum === safePage
+            return (
+              <button
+                key={pageNum}
+                onClick={() => setCurrentPage(pageNum)}
+                className={`w-10 h-10 rounded flex items-center justify-center text-sm font-medium ${
+                  isActive
+                    ? "bg-[#0C2340] dark:bg-slate-800 text-white"
+                    : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                }`}
+              >
+                {pageNum}
+              </button>
+            )
+          })}
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+            className="w-10 h-10 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+            aria-label="Next page"
+          >
+            &gt;
+          </button>
         </div>
       </div>
 

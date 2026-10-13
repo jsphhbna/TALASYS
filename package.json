@@ -6,7 +6,9 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
+    "seed:superadmin": "node --experimental-strip-types scripts/seed-superadmin.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "1.1.4",

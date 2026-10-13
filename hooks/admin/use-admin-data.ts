@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { db } from "@/lib/firebase"
+import { db, auth } from "@/lib/firebase"
 import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, limit } from "firebase/firestore"
 import type {
     AdminResident,
@@ -22,6 +22,7 @@ import {
     COLOR_ADMIN_AMBER,
 } from "@/lib/constants"
 import { useAuth } from "@/lib/auth"
+import { parseAuditTimestamp } from "@/lib/security/audit-utils"
 
 export function useAdminData() {
     const [residents, setResidents] = useState<AdminResident[]>([])
@@ -31,6 +32,7 @@ export function useAdminData() {
     const [notifications, setNotifications] = useState<AdminNotification[]>([])
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
     const [isLoaded, setIsLoaded] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     const [stats, setStats] = useState({
         totalResidents: 0,
@@ -59,34 +61,62 @@ export function useAdminData() {
         // Note: Missing orderBy, so a limit() here would fetch the oldest records. Pagination requires a composite index.
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_USERS), (snapshot) => {
             const allUserDocuments = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as any))
-            const residentList = allUserDocuments.filter(userData => userData.role === "resident" && userData.isVerified !== false).map(userData => ({
-                id: userData.id,
-                name: userData.name,
-                initials: userData.initials || "U",
-                age: userData.dateOfBirth ? Math.floor((new Date().getTime() - new Date(userData.dateOfBirth).getTime()) / 31557600000) : 0,
-                gender: (userData.gender || userData.sex || "Other") as "Male" | "Female" | "Other",
-                address: userData.address || "",
-                categories: userData.statuses || [userData.status].filter(Boolean) || [],
-                status: (userData.status === "Expired" ? "Expired" : "Verified") as "Verified" | "Expired" | "Expiring",
-                isVoter: (userData.statuses || []).includes("Registered Voter"),
-                expiryDate: userData.accountExpiry || "",
-                dateOfBirth: userData.dateOfBirth || "",
-                contactNumber: userData.contactNumber || "",
-                email: userData.email || "",
-                profilePicture: userData.profilePicture || "",
-                createdAt: userData.createdAt?.toDate ? userData.createdAt.toDate().toISOString() : (userData.createdAt || new Date().toISOString()),
-            }))
+            const now = Date.now()
+            const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+
+            const residentList = allUserDocuments.filter(userData => userData.role === "resident" && userData.isVerified !== false).map(userData => {
+                let lifecycleStatus: "Verified" | "Expired" | "Expiring" = "Verified"
+                if (userData.status === "Expired") {
+                    lifecycleStatus = "Expired"
+                } else if (userData.accountExpiry) {
+                    const expiryTime = new Date(userData.accountExpiry).getTime()
+                    if (!isNaN(expiryTime)) {
+                        if (expiryTime < now) {
+                            lifecycleStatus = "Expired"
+                        } else if (expiryTime <= now + thirtyDaysMs) {
+                            lifecycleStatus = "Expiring"
+                        }
+                    }
+                }
+
+                return {
+                    id: userData.id,
+                    name: userData.name,
+                    initials: userData.initials || "U",
+                    age: userData.dateOfBirth ? Math.floor((new Date().getTime() - new Date(userData.dateOfBirth).getTime()) / 31557600000) : 0,
+                    gender: (userData.gender || userData.sex || "Other") as "Male" | "Female" | "Other",
+                    address: userData.address || "",
+                    categories: userData.statuses || [userData.status].filter(Boolean) || [],
+                    status: lifecycleStatus,
+                    isVoter: (userData.statuses || []).includes("Registered Voter"),
+                    expiryDate: userData.accountExpiry || "",
+                    dateOfBirth: userData.dateOfBirth || "",
+                    contactNumber: userData.contactNumber || "",
+                    email: userData.email || "",
+                    profilePicture: userData.profilePicture || "",
+                    createdAt: userData.createdAt?.toDate ? userData.createdAt.toDate().toISOString() : (userData.createdAt || new Date().toISOString()),
+                }
+            })
             setResidents(residentList)
             
+            const expiredCount = residentList.filter(r => r.status === "Expired").length
+            const expiringCount = residentList.filter(r => r.status === "Expiring").length
+            const verifiedCount = residentList.filter(r => r.status === "Verified").length
+
             setStats(prev => ({ ...prev, 
                 totalResidents: residentList.length, 
-                activeResidents: residentList.length,
+                activeResidents: verifiedCount + expiringCount,
+                expiringResidents: expiringCount,
+                expiredResidents: expiredCount,
                 seniorCount: residentList.filter(resident => resident.categories.includes("Senior Citizen")).length,
                 minorCount: residentList.filter(resident => resident.categories.includes("Underage")).length,
                 adultCount: residentList.filter(resident => resident.categories.includes("Adult") || resident.categories.includes("Resident")).length,
                 voterCount: residentList.filter(resident => resident.isVoter).length
             }))
-        }, (err) => console.error("users snapshot error:", err)))
+        }, (err) => {
+            console.error("users snapshot error:", err)
+            setError(err.message || "Failed to load residents")
+        }))
 
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_VERIFICATIONS), (snapshot) => {
             const allVerifications = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as PendingVerification))
@@ -95,7 +125,10 @@ export function useAdminData() {
             setVerifications(pendingVerifications)
             setRejectedVerifications(rejectedVerificationsList)
             setStats(prev => ({ ...prev, pendingVerifications: pendingVerifications.length }))
-        }, (err) => console.error("verifications snapshot error:", err)))
+        }, (err) => {
+            console.error("verifications snapshot error:", err)
+            setError(err.message || "Failed to load verifications")
+        }))
 
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), orderBy("createdAt", "desc"), limit(200)), (snapshot) => {
             const allRequests = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as AdminDocumentRequest))
@@ -113,7 +146,10 @@ export function useAdminData() {
                 totalRequests: allRequests.length,
                 totalDocumentsGenerated: approvedRequests.length
             }))
-        }, (err) => console.error("documentRequests snapshot error:", err)))
+        }, (err) => {
+            console.error("documentRequests snapshot error:", err)
+            setError(err.message || "Failed to load document requests")
+        }))
 
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_NOTIFICATIONS), where("targetId", "==", "admin")), (snapshot) => {
             let adminNotifications = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as AdminNotification))
@@ -129,11 +165,26 @@ export function useAdminData() {
             adminNotifications.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
             setNotifications(adminNotifications)
             setStats(prev => ({ ...prev, unreadNotifications: adminNotifications.filter(notification => !notification.isRead).length }))
-        }, (err) => console.error("notifications snapshot error:", err)))
+        }, (err) => {
+            console.error("notifications snapshot error:", err)
+            setError(err.message || "Failed to load notifications")
+        }))
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(100)), (snapshot) => {
-            setActivityLogs(snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as ActivityLog)))
-        }, (err) => console.error("activityLogs snapshot error:", err)))
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(250)), (snapshot) => {
+            setActivityLogs(snapshot.docs.map(snapshotDoc => {
+                const data = snapshotDoc.data()
+                return {
+                    id: snapshotDoc.id,
+                    ...data,
+                    timestamp: parseAuditTimestamp(data.timestamp) || 0,
+                    action: data.action || data.actionType || "Action",
+                    actionType: data.actionType || data.action || "Action",
+                } as unknown as ActivityLog
+            }))
+        }, (err) => {
+            console.error("activityLogs snapshot error:", err)
+            setError(err.message || "Failed to load activity logs")
+        }))
 
         // A brief delay ensures all listeners are initialized before the UI renders data.
         setTimeout(() => setIsLoaded(true), 500)
@@ -152,6 +203,8 @@ export function useAdminData() {
         activityLogs,
         stats,
         isLoaded,
+        error,
+        hasError: !!error,
         refresh,
 
         // Residents
@@ -160,6 +213,18 @@ export function useAdminData() {
         }, []),
         updateResident: useCallback(async (id: string, updates: Partial<AdminResident>, adminName?: string, residentName?: string, removePhotoReason?: string) => {
             await updateDoc(doc(db, COLLECTION_USERS, id), updates)
+            if (updates.email && auth.currentUser) {
+                try {
+                    const token = await auth.currentUser.getIdToken()
+                    await fetch("/api/admin/update-resident-email", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                        body: JSON.stringify({ residentId: id, newEmail: updates.email })
+                    })
+                } catch (e) {
+                    console.warn("Failed to sync Firebase Auth email:", e)
+                }
+            }
             if (removePhotoReason) {
                 await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
                     targetId: id,
@@ -180,9 +245,10 @@ export function useAdminData() {
                 await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
                     date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
                     time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now().toString(),
+                    timestamp: Date.now(),
                     admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_BLUE },
                     role: "Admin",
+                    action: "Edited Resident",
                     actionType: "Edited Resident",
                     details: auditDetails,
                     residentName: residentName,
@@ -199,9 +265,10 @@ export function useAdminData() {
                 await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
                     date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
                     time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now().toString(),
+                    timestamp: Date.now(),
                     admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_RED },
                     role: "Admin",
+                    action: "Deleted Resident",
                     actionType: "Deleted Resident",
                     details: `Deleted resident account for ${residentName}`,
                     residentName: residentName,
@@ -216,9 +283,10 @@ export function useAdminData() {
                 await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
                     date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
                     time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now().toString(),
+                    timestamp: Date.now(),
                     admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_AMBER },
                     role: "Admin",
+                    action: "Deactivated Resident",
                     actionType: "Deactivated Resident",
                     details: `Deactivated account for ${residentName}`,
                     residentName: residentName,
@@ -233,9 +301,10 @@ export function useAdminData() {
                 await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
                     date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
                     time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now().toString(),
+                    timestamp: Date.now(),
                     admin: { name: adminName, initials: adminName.charAt(0).toUpperCase(), color: COLOR_ADMIN_GREEN },
                     role: "Admin",
+                    action: "Activated Resident",
                     actionType: "Activated Resident",
                     details: `Re-activated account for ${residentName}`,
                     residentName: residentName,
@@ -266,7 +335,38 @@ export function useAdminData() {
                             profileUpdates.statuses = profileChange.newValue === "None" ? [] : profileChange.newValue.split(", ")
                             if (profileUpdates.statuses.length > 0) profileUpdates.status = profileUpdates.statuses[0]
                         }
+                        // #42: Profile photo update support
+                        if (profileChange.field === "Profile Picture" || profileChange.field === "New Profile Picture" || profileChange.field?.toLowerCase().includes("photo") || profileChange.field?.toLowerCase().includes("picture")) {
+                            profileUpdates.profilePicture = profileChange.newValue
+                        }
                     })
+                    // Also check verification documents if photo was uploaded there
+                    if (!profileUpdates.profilePicture && verification.documents) {
+                        const photoDoc = (verification.documents as any)["New Profile Picture"] || (verification.documents as any)["Profile Picture"]
+                        if (photoDoc) profileUpdates.profilePicture = photoDoc
+                    }
+
+                    // #44: Synchronize email with Firebase Auth if email changed
+                    if (profileUpdates.email && auth.currentUser) {
+                        try {
+                            const token = await auth.currentUser.getIdToken()
+                            await fetch("/api/admin/update-resident-email", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                                body: JSON.stringify({ residentId: verification.residentId, newEmail: profileUpdates.email })
+                            })
+                        } catch (e) {
+                            console.warn("Failed to sync Firebase Auth email:", e)
+                        }
+                    }
+
+                    // #48: If resident was unverified (e.g. registration resubmission), mark verified and active
+                    const resRecord = residents.find(r => r.id === verification.residentId)
+                    if (resRecord && !resRecord.isVerified) {
+                        profileUpdates.isVerified = true
+                        profileUpdates.status = "Active"
+                    }
+
                     if (Object.keys(profileUpdates).length > 0) {
                         await updateDoc(doc(db, COLLECTION_USERS, verification.residentId), profileUpdates)
                     }
@@ -288,16 +388,26 @@ export function useAdminData() {
                             action: "Approved Profile Edit",
                             details: `Approved profile edits for Resident ID ${verification.residentId}`,
                             residentName: (verification as any).name || "Unknown Resident",
+                            targetId: verification.residentId,
+                            targetCollection: "verifications",
                             date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
                             time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                            timestamp: Date.now().toString()
+                            timestamp: Date.now()
                         })
                     }
                 } else {
                     if (verification.type === "reactivation") {
-                        await updateDoc(doc(db, COLLECTION_USERS, verification.residentId), { isVerified: true, status: "Active" })
+                        const oneYearFromNow = Date.now() + 365 * 24 * 60 * 60 * 1000
+                        await updateDoc(doc(db, COLLECTION_USERS, verification.residentId), { 
+                            isVerified: true, 
+                            status: "Active",
+                            accountExpiry: oneYearFromNow 
+                        })
                     } else {
-                        await updateDoc(doc(db, COLLECTION_USERS, verification.residentId), { isVerified: true })
+                        await updateDoc(doc(db, COLLECTION_USERS, verification.residentId), { 
+                            isVerified: true,
+                            status: "Active" 
+                        })
                     }
                     
                     const actionPrefix = verification.type === "reactivation" ? "Reactivation" : "Verification"
@@ -319,9 +429,11 @@ export function useAdminData() {
                             action: `Approved ${actionPrefix}`,
                             details: `Approved ${actionPrefix.toLowerCase()} for Resident ID ${verification.residentId}`,
                             residentName: (verification as any).name || "Unknown Resident",
+                            targetId: verification.residentId,
+                            targetCollection: "verifications",
                             date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
                             time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                            timestamp: Date.now().toString()
+                            timestamp: Date.now()
                         })
                     }
                 }
@@ -351,9 +463,11 @@ export function useAdminData() {
                         action: verification.type === "profile-edit" ? "Rejected Profile Edit" : (verification.type === "reactivation" ? "Rejected Reactivation" : "Rejected Verification"),
                         details: `Rejected ${verification.type === "profile-edit" ? "profile edit" : (verification.type === "reactivation" ? "reactivation" : "verification")} for Resident ID ${verification.residentId}. Reason: ${reason}`,
                         residentName: (verification as any).name || "Unknown Resident",
+                        targetId: verification.residentId,
+                        targetCollection: "verifications",
                         date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
                         time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                        timestamp: Date.now().toString()
+                        timestamp: Date.now()
                     })
                 }
             }
@@ -394,9 +508,11 @@ export function useAdminData() {
                             action: `Updated Document Status`,
                             details: `Updated ${documentRequest.documentType} to ${status} for ${documentRequest.residentName}.${reason ? ` Reason: ${reason}` : ""}`,
                             residentName: documentRequest.residentName,
+                            targetId: id,
+                            targetCollection: "document_requests",
                             date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
                             time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                            timestamp: Date.now().toString()
+                            timestamp: Date.now()
                         })
                     }
                 }
@@ -453,9 +569,11 @@ export function useAdminData() {
                     action: "Payment Confirmed",
                     details: `Confirmed ${confirmedPaymentMethod} payment for ${documentRequest.documentType} (${documentRequest.residentName}). Receipt: ${receiptNumber}`,
                     residentName: documentRequest.residentName,
+                    targetId: id,
+                    targetCollection: "document_requests",
                     date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
                     time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now().toString()
+                    timestamp: Date.now()
                 })
             }
         }, [documentRequests]),
@@ -487,9 +605,11 @@ export function useAdminData() {
                     action: "Payment Updated to Pay Later",
                     details: `Admin ${adminName} marked payment for ${documentRequest.documentType} as Pay Later.`,
                     residentName: documentRequest.residentName,
+                    targetId: id,
+                    targetCollection: "document_requests",
                     date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
                     time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now().toString()
+                    timestamp: Date.now()
                 })
             }
         }, [documentRequests]),
@@ -520,9 +640,11 @@ export function useAdminData() {
                     action: "Fee Waived",
                     details: `Waived document fee for ${documentRequest.documentType} (${documentRequest.residentName}).`,
                     residentName: documentRequest.residentName,
+                    targetId: id,
+                    targetCollection: "document_requests",
                     date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date()),
                     time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now().toString()
+                    timestamp: Date.now()
                 })
             }
         }, [documentRequests]),

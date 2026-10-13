@@ -43,14 +43,14 @@ export default function CategoryReports() {
   const totalPop = adminStats.totalResidents || 1
 
   const rawCategoryDistribution = [
-    { name: "Seniors", value: adminStats.seniorCount, color: "#0C2340", change: 2.1 },
-    { name: "Adults", value: adminStats.adultCount, color: "#2a5080", change: 0.5 },
-    { name: "Minors", value: adminStats.minorCount, color: "#C5A55A", change: 3.2 },
+    { name: "Seniors", value: adminStats.seniorCount, color: "#0C2340", pct: adminStats.totalResidents ? ((adminStats.seniorCount / adminStats.totalResidents) * 100).toFixed(1) : "0.0" },
+    { name: "Adults", value: adminStats.adultCount, color: "#2a5080", pct: adminStats.totalResidents ? ((adminStats.adultCount / adminStats.totalResidents) * 100).toFixed(1) : "0.0" },
+    { name: "Minors", value: adminStats.minorCount, color: "#C5A55A", pct: adminStats.totalResidents ? ((adminStats.minorCount / adminStats.totalResidents) * 100).toFixed(1) : "0.0" },
   ]
   const categoryDistribution = rawCategoryDistribution.filter(c => c.value > 0)
   
   if (categoryDistribution.length === 0) {
-    categoryDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9", change: 0 })
+    categoryDistribution.push({ name: "No Data", value: 1, color: "#f1f5f9", pct: "0.0" })
   }
 
   const largestCategory = rawCategoryDistribution.sort((a, b) => b.value - a.value)[0]
@@ -154,6 +154,8 @@ export default function CategoryReports() {
     if (selectedColumns.contactNumber) cols.push("Contact")
     if (selectedColumns.registrationDate) cols.push("Reg. Date")
     if (selectedColumns.accountStatus) cols.push("Status")
+    if (selectedColumns.expiryDate) cols.push("Expiry Date")
+    if (selectedColumns.otherCategories) cols.push("Other Categories")
 
     const body = filtered.map(r => {
       const row = []
@@ -163,6 +165,8 @@ export default function CategoryReports() {
       if (selectedColumns.contactNumber) row.push(r.contactNumber || "N/A")
       if (selectedColumns.registrationDate) row.push((r as any).createdAt ? new Date((r as any).createdAt).toLocaleDateString() : "N/A")
       if (selectedColumns.accountStatus) row.push(r.status)
+      if (selectedColumns.expiryDate) row.push(r.expiryDate || "N/A")
+      if (selectedColumns.otherCategories) row.push(r.categories && r.categories.length > 0 ? r.categories.join(", ") : "None")
       return row
     })
 
@@ -289,7 +293,7 @@ export default function CategoryReports() {
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-[#0C2340] dark:text-blue-50">{c.name === "No Data" ? "-" : c.value.toLocaleString()}</span>
-                  <span className="text-emerald-600 font-medium">{c.name === "No Data" ? "" : `+${c.change}%`}</span>
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">{c.name === "No Data" ? "" : `${c.pct}%`}</span>
                 </div>
               </div>
             ))}

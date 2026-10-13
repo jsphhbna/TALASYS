@@ -21,9 +21,10 @@ import {
 } from "lucide-react"
 
 const PIE_COLORS = ["#0C2340", "#1a3a5c", "#2a5080", "#3b82f6", "#C5A55A", "#94a3b8", "#64748b"]
+const BAR_COLORS = ["#0C2340", "#3b82f6", "#10b981"]
 
 export default function ReasonAnalytics() {
-  const { documentRequests } = useAdminData()
+  const { documentRequests, residents } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const mounted = useMounted()
   
@@ -40,6 +41,7 @@ export default function ReasonAnalytics() {
   const [selectedYear, setSelectedYear] = useState<string>("All")
   const [selectedMonth, setSelectedMonth] = useState<string>("All")
   const [selectedDocType, setSelectedDocType] = useState<string>("All Documents")
+  const [selectedCategory, setSelectedCategory] = useState<string>("All Categories")
 
   const currentYear = new Date().getFullYear()
   const yearsList = Array.from(new Set(documentRequests.map(r => {
@@ -52,8 +54,59 @@ export default function ReasonAnalytics() {
 
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
+  const availableDocTypes = Array.from(new Set([
+    ...(systemConfig?.documentTypes || [
+      "Barangay Clearance",
+      "Certificate of Indigency",
+      "Proof of Residency",
+      "Certificate of Residency",
+    ]),
+    ...documentRequests.map(r => r.documentType).filter(Boolean)
+  ]))
+
+  // Helper to extract demographic categories from request snapshot or resident profile
+  const getRequestCategories = (r: typeof documentRequests[0]): string[] => {
+    const cats = new Set<string>()
+    const lifecycleWords = ["active", "inactive", "verified", "unverified", "pending", "expired", "expiring", "rejected"]
+
+    // 1. Snapshot demographic category (excluding lifecycle status strings)
+    if (r.residentCategory && !lifecycleWords.includes(r.residentCategory.toLowerCase().trim())) {
+      cats.add(r.residentCategory.trim())
+    }
+
+    // 2. Cross-reference resident profile
+    const resident = residents.find(res => res.id === r.residentId || (r.residentName && res.name.toLowerCase() === r.residentName.toLowerCase()))
+    if (resident) {
+      if (Array.isArray(resident.categories)) {
+        resident.categories.forEach(c => {
+          if (!lifecycleWords.includes(c.toLowerCase().trim())) {
+            cats.add(c.trim())
+          }
+        })
+      }
+      if (resident.isVoter) cats.add("Registered Voter")
+      if (resident.age >= 60) cats.add("Senior Citizen")
+      if (resident.age > 0 && resident.age < 18) cats.add("Minor")
+      if (resident.age >= 18 && resident.age < 60) cats.add("Adult")
+    }
+    return Array.from(cats)
+  }
+
+  const matchesCategory = (r: typeof documentRequests[0], cat: string): boolean => {
+    if (cat === "All Categories" || cat === "All") return true
+    const cats = getRequestCategories(r).map(c => c.toLowerCase())
+    if (cat === "Senior Citizens") return cats.some(c => c.includes("senior"))
+    if (cat === "Adults") return cats.some(c => c.includes("adult") || c === "resident")
+    if (cat === "Minors") return cats.some(c => c.includes("minor") || c.includes("underage"))
+    if (cat === "Registered Voters") return cats.some(c => c.includes("voter"))
+    if (cat === "PWD") return cats.some(c => c.includes("pwd"))
+    if (cat === "Solo Parents") return cats.some(c => c.includes("solo parent"))
+    return cats.includes(cat.toLowerCase())
+  }
+
   const filteredRequests = documentRequests.filter(r => {
     if (selectedDocType !== "All Documents" && r.documentType !== selectedDocType) return false
+    if (!matchesCategory(r, selectedCategory)) return false
     if (!r.createdAt && (selectedYear !== "All" || selectedMonth !== "All")) return false
     
     if (r.createdAt) {
@@ -75,15 +128,16 @@ export default function ReasonAnalytics() {
 
     setIsExportingCsv(true)
     try {
+      const filterMetadata = `# Filter: DocType=${selectedDocType}, Category=${selectedCategory}, Year=${selectedYear}, Month=${selectedMonth}`
       const headers = ["Rank,Reason,Count,Percentage"]
-      const rows = reasonAnalytics.map(r => `${r.rank},"${r.reason}",${r.count},${r.percentage}%`)
-      const csvContent = headers.concat(rows).join("\n")
+      const rows = reasonAnalytics.map(r => `${r.rank},"${r.reason.replace(/"/g, '""')}",${r.count},${r.percentage}%`)
+      const csvContent = [filterMetadata, ...headers, ...rows].join("\n")
       
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement("a")
       const url = URL.createObjectURL(blob)
       link.setAttribute("href", url)
-      link.setAttribute("download", "Reason_Analytics.csv")
+      link.setAttribute("download", `Reason_Analytics_${selectedYear}_${selectedMonth}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
@@ -123,15 +177,18 @@ export default function ReasonAnalytics() {
       doc.setFont("helvetica", "bold")
       doc.text("REASON ANALYTICS REPORT", pageWidth / 2, 45, { align: "center" })
       
-      doc.setFontSize(10)
+      doc.setFontSize(9)
       doc.setTextColor(100, 100, 100)
       doc.setFont("helvetica", "normal")
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 52, { align: "center" })
+      doc.text(`Filters: ${selectedDocType} | ${selectedCategory} | ${selectedYear} ${selectedMonth !== "All" ? monthNames[parseInt(selectedMonth)] : ""}`, pageWidth / 2, 51, { align: "center" })
+      doc.text(`Generated on: ${new Date().toLocaleDateString()} | Total Analyzed: ${totalRequests}`, pageWidth / 2, 56, { align: "center" })
 
       autoTable(doc, {
         startY: 65,
         head: [['Rank', 'Reason', 'Count', 'Percentage']],
-        body: reasonAnalytics.map(r => [r.rank.toString(), r.reason, r.count.toString(), `${r.percentage}%`]),
+        body: reasonAnalytics.length > 0 
+          ? reasonAnalytics.map(r => [r.rank.toString(), r.reason, r.count.toString(), `${r.percentage}%`])
+          : [['-', 'No requests found for selected period', '0', '0%']],
         theme: 'grid',
         headStyles: { fillColor: [12, 35, 64] },
         margin: { bottom: 30 },
@@ -143,7 +200,7 @@ export default function ReasonAnalytics() {
         }
       })
 
-      doc.save("Reason_Analytics_Report.pdf")
+      doc.save(`Reason_Analytics_Report_${selectedYear}.pdf`)
       showToastPreset("reasonPdfExported")
       setShowExportPDF(false)
     } catch (e) {
@@ -152,22 +209,23 @@ export default function ReasonAnalytics() {
     setIsExportingPdf(false)
   }
 
-  // Calculate reasonAnalytics dynamically
+  // Calculate reasonAnalytics dynamically (Finding #12: separate real total from division guard)
   const purposeCounts: Record<string, number> = {}
   filteredRequests.forEach(r => {
     const p = r.purpose || "Other"
     purposeCounts[p] = (purposeCounts[p] || 0) + 1
   })
-  const totalRequests = filteredRequests.length || 1
+  const totalRequests = filteredRequests.length
+  const safeTotalRequests = Math.max(1, filteredRequests.length)
 
   const reasonAnalytics = Object.entries(purposeCounts).map(([reason, count]) => ({
     reason,
     count,
-    percentage: Math.round((count / totalRequests) * 100)
+    percentage: totalRequests === 0 ? 0 : Math.round((count / safeTotalRequests) * 100)
   })).sort((a, b) => b.count - a.count).map((r, i) => ({ ...r, rank: i + 1 }))
 
   const reasonPieData = reasonAnalytics.map((r) => ({
-    name: r.reason.split(" ")[0],
+    name: r.reason.length > 15 ? r.reason.slice(0, 12) + "..." : r.reason,
     value: r.count,
   }))
 
@@ -191,25 +249,39 @@ export default function ReasonAnalytics() {
     return entry
   })
 
-  // Build reasonByDocType from filteredRequests
-  const docTypes = ["Barangay Clearance", "Certificate of Indigency", "Certificate of Residency"]
-  const reasonByDocType = docTypes.map(docType => {
+  // Finding #13: Stable purpose keys shared by every row, derived from actual/configured data
+  const top3Purposes = top4Purposes.slice(0, 3)
+  const activeDocTypes = selectedDocType !== "All Documents" 
+    ? [selectedDocType]
+    : availableDocTypes.filter(dt => filteredRequests.some(r => r.documentType === dt))
+  
+  const displayDocTypes = activeDocTypes.length > 0 ? activeDocTypes : availableDocTypes.slice(0, 3)
+
+  const reasonByDocType = displayDocTypes.map(docType => {
     const subset = filteredRequests.filter(r => r.documentType === docType)
-    const total = subset.length || 1
+    const subsetTotal = subset.length
+    const safeSubsetTotal = Math.max(1, subsetTotal)
     const purposeBreakdown: Record<string, number> = {}
     subset.forEach(r => {
       const p = r.purpose || "Other"
       purposeBreakdown[p] = (purposeBreakdown[p] || 0) + 1
     })
-    // Get top 3 purposes + other
-    const sorted = Object.entries(purposeBreakdown).sort((a, b) => b[1] - a[1])
-    const top3 = sorted.slice(0, 3)
-    const otherCount = sorted.slice(3).reduce((s, [, v]) => s + v, 0)
-    const entry: any = { docType: docType.replace("Certificate of ", "") }
-    top3.forEach(([p, count], i) => { entry[`cat${i}`] = Math.round((count / total) * 100) })
-    entry.other = Math.round((otherCount / total) * 100)
+
+    const entry: any = { 
+      docType: docType.replace("Certificate of ", "").replace("Proof of ", "") 
+    }
+    
+    // Assign stable shared purpose keys rather than independent row rankings
+    let accountedCount = 0
+    top3Purposes.forEach(p => {
+      const count = purposeBreakdown[p] || 0
+      accountedCount += count
+      entry[p] = subsetTotal === 0 ? 0 : Math.round((count / safeSubsetTotal) * 100)
+    })
+    const otherCount = Math.max(0, subsetTotal - accountedCount)
+    entry.other = subsetTotal === 0 ? 0 : Math.round((otherCount / safeSubsetTotal) * 100)
     return entry
-  }).filter((d, idx) => filteredRequests.some(r => r.documentType === docTypes[idx] || true))
+  })
 
   // Calculate real growth
   const now = Date.now()
@@ -244,12 +316,12 @@ export default function ReasonAnalytics() {
             <select
               value={selectedDocType}
               onChange={(e) => setSelectedDocType(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
             >
-              <option>All Documents</option>
-              <option>Barangay Clearance</option>
-              <option>Certificate of Indigency</option>
-              <option>Certificate of Residency</option>
+              <option value="All Documents">All Documents</option>
+              {availableDocTypes.map(dt => (
+                <option key={dt} value={dt}>{dt}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -257,7 +329,7 @@ export default function ReasonAnalytics() {
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
             >
               <option value="All">All Years</option>
               {yearsList.map(y => <option key={y} value={y.toString()}>{y}</option>)}
@@ -268,7 +340,7 @@ export default function ReasonAnalytics() {
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
             >
               <option value="All">All Months</option>
               {monthNames.map((m, i) => <option key={m} value={i.toString()}>{m}</option>)}
@@ -276,8 +348,18 @@ export default function ReasonAnalytics() {
           </div>
           <div>
             <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Category</label>
-            <select className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
-              <option>All Categories</option>
+            <select 
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
+            >
+              <option value="All Categories">All Categories</option>
+              <option value="Senior Citizens">Senior Citizens</option>
+              <option value="Adults">Adults</option>
+              <option value="Minors">Minors / Youth</option>
+              <option value="Registered Voters">Registered Voters</option>
+              <option value="PWD">PWD</option>
+              <option value="Solo Parents">Solo Parents</option>
             </select>
           </div>
         </div>
@@ -423,9 +505,15 @@ export default function ReasonAnalytics() {
             <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} unit="%" />
             <YAxis type="category" dataKey="docType" width={100} tick={{ fontSize: 11, fill: "#0C2340" }} axisLine={false} tickLine={false} />
             <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} labelStyle={{ fontWeight: 600, color: "#0C2340" }} formatter={(value: number) => `${value}%`} />
-            <Bar dataKey="cat0" stackId="a" fill="#0C2340" name={top4Purposes[0] || "Cat 1"} />
-            <Bar dataKey="cat1" stackId="a" fill="#3b82f6" name={top4Purposes[1] || "Cat 2"} />
-            <Bar dataKey="cat2" stackId="a" fill="#10b981" name={top4Purposes[2] || "Cat 3"} />
+            {top3Purposes.map((p, i) => (
+              <Bar 
+                key={p} 
+                dataKey={p} 
+                stackId="a" 
+                fill={["#0C2340", "#3b82f6", "#10b981"][i]} 
+                name={p} 
+              />
+            ))}
             <Bar dataKey="other" stackId="a" fill="#94a3b8" name="Other" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>

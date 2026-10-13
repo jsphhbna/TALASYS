@@ -1,23 +1,19 @@
 import {
   CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY,
-  CLOUDINARY_API_SECRET,
   IMAGE_MAX_DIMENSION_PX,
   IMAGE_COMPRESSION_QUALITY,
   IMAGE_UPLOAD_TIMEOUT_MS,
   IMAGE_COMPRESSION_TIMEOUT_MS,
 } from "../constants"
+import { auth } from "../firebase"
 
 /**
  * Compresses an image file to WebP at reduced dimensions before upload.
- * Non-image files are returned unchanged.
- *
- * WebP at 70% quality is used because it produces files ~3-5x smaller than
- * JPEG at equivalent visual quality, drastically reducing Cloudinary upload time.
+ * Non-image files (e.g. PDFs) are returned unchanged.
  */
 const compressImage = (file: File): Promise<Blob> => {
   return new Promise((resolve) => {
-    // Safety net: if canvas operations hang (e.g. corrupt file), fall back to the original.
     const compressionTimeoutTimer = setTimeout(() => {
       console.warn("Image compression timed out — uploading original file as fallback.")
       resolve(file)
@@ -62,8 +58,8 @@ const compressImage = (file: File): Promise<Blob> => {
           canvas.height = height
           const ctx = canvas.getContext("2d")
           if (!ctx) {
-             finishWithResult(file)
-             return
+            finishWithResult(file)
+            return
           }
           ctx.drawImage(img, 0, 0, width, height)
 
@@ -88,14 +84,10 @@ const compressImage = (file: File): Promise<Blob> => {
   })
 }
 
-/**
- * Wraps a promise with a hard timeout. Rejects with a descriptive error if
- * the promise does not resolve within `timeoutMs` milliseconds.
- */
 const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
   return new Promise((resolve, reject) => {
     const timeoutTimer = setTimeout(
-      () => reject(new Error(`Image upload timed out after ${timeoutMs / 1000} seconds. Your connection may be too slow — try a smaller image or check your internet.`)),
+      () => reject(new Error(`Image upload timed out after ${timeoutMs / 1000} seconds. Please check your internet connection.`)),
       timeoutMs
     )
     promise.then(
@@ -105,39 +97,70 @@ const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => 
   })
 }
 
+export interface UploadOptions {
+  folder?: "talasys/residents" | "talasys/proofs" | "talasys/receipts" | "talasys/signatures" | "talasys/letters"
+  ticket?: string
+}
+
 /**
- * Compresses and uploads a file to Cloudinary using a signed upload request.
- * Returns the secure CDN URL of the uploaded file.
- *
- * Why signed upload: unsigned uploads require relaxed Cloudinary security settings.
- * A SHA-1 signature generated from the timestamp and API secret ensures each upload
- * request is authenticated without exposing the secret in the network request body.
- *
- * @throws {Error} if the upload fails or times out.
+ * Uploads a file to Cloudinary with authenticated signing and constrained parameters (#51, #52).
  */
-export async function uploadFileToCloudinary(file: File): Promise<string> {
+export async function uploadFileToCloudinary(file: File, options?: UploadOptions): Promise<string> {
   const compressedFile = await compressImage(file)
 
-  const uploadTimestamp = Math.round(new Date().getTime() / 1000)
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  }
 
-  // Request a signature from the backend so we don't expose CLOUDINARY_API_SECRET
+  // Use Firebase Auth ID token if available
+  let token: string | null = null
+  if (auth.currentUser) {
+    try {
+      token = await auth.currentUser.getIdToken()
+      headers["Authorization"] = `Bearer ${token}`
+    } catch {
+      // Unauthenticated or token fetch failed
+    }
+  }
+
+  // If unauthenticated (e.g. during resident registration), acquire a registration ticket (#51)
+  let ticket = options?.ticket
+  if (!token && !ticket) {
+    try {
+      const ticketRes = await fetch("/api/auth/registration-ticket", { method: "POST" })
+      if (ticketRes.ok) {
+        const ticketData = await ticketRes.json()
+        ticket = ticketData.ticket
+      }
+    } catch (ticketErr) {
+      console.warn("Could not acquire registration ticket:", ticketErr)
+    }
+  }
+
   const signResponse = await fetch("/api/cloudinary/sign", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ timestamp: uploadTimestamp }),
+    headers,
+    body: JSON.stringify({
+      folder: options?.folder || "talasys/residents",
+      ticket,
+    }),
   })
   
   if (!signResponse.ok) {
-    throw new Error("Failed to authenticate upload request securely.")
+    const errBody = await signResponse.json().catch(() => ({}))
+    throw new Error(errBody.error || "Failed to authenticate upload request securely.")
   }
   
-  const { signature } = await signResponse.json()
+  const { signature, timestamp, folder, apiKey } = await signResponse.json()
 
   const formData = new FormData()
   formData.append("file", compressedFile)
-  formData.append("api_key", CLOUDINARY_API_KEY)
-  formData.append("timestamp", uploadTimestamp.toString())
+  formData.append("api_key", apiKey || CLOUDINARY_API_KEY)
+  formData.append("timestamp", timestamp.toString())
   formData.append("signature", signature)
+  if (folder) {
+    formData.append("folder", folder)
+  }
 
   const response = await withTimeout(
     fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
@@ -152,7 +175,7 @@ export async function uploadFileToCloudinary(file: File): Promise<string> {
     console.error("Cloudinary upload failed:", errorData || response.statusText)
     throw new Error(
       "Image upload failed. Cloudinary returned an error. " +
-      "Check your network connection and try again. If the problem persists, contact support."
+      "Check your network connection and try again."
     )
   }
 

@@ -245,43 +245,58 @@ City of Manila, {{date_issued}}.`,
   const handleSaveAllChanges = async () => {
     if (isSavingChanges) return
     setIsSavingChanges(true)
-    updateConfig(formData)
-    await delay(500)
-    setShowSaveDialog(false)
-    setIsSavingChanges(false)
-    showToastPreset("configSaved")
+    try {
+      await updateConfig(formData)
+      setShowSaveDialog(false)
+      showToastPreset("configSaved")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save configuration changes")
+    } finally {
+      setIsSavingChanges(false)
+    }
   }
 
   const handleAddDocType = async () => {
     if (!newDocName.trim()) return
     setIsAddingDoc(true)
-    const docId = newDocName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")
-    const newDocTypes = [...currentDocumentTypes, newDocName.trim()]
-    const newFees = { ...currentDocumentFees, [newDocName.trim()]: parseFloat(newDocFee) || 0 }
-    const newCustomDocTypes = [
-      ...(systemConfig.customDocumentTypes || []),
-      { id: docId, name: newDocName.trim(), icon: newDocIcon, fee: parseFloat(newDocFee) || 0, header: newDocHeader }
-    ]
-    const newTemplates = { ...(systemConfig.templates || {}), [docId]: newDocTemplate }
-    await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
-    setFormData(prev => ({ ...prev, templates: { ...prev.templates, [docId]: newDocTemplate } }))
-    setShowAddDocModal(false)
-    setNewDocName("")
-    setNewDocIcon("📄")
-    setNewDocFee("0")
-    setNewDocHeader("C E R T I F I C A T I O N")
-    setNewDocTemplate("This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}.")
-    setIsAddingDoc(false)
+    try {
+      const docId = newDocName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")
+      const newDocTypes = [...currentDocumentTypes, newDocName.trim()]
+      const newFees = { ...currentDocumentFees, [newDocName.trim()]: parseFloat(newDocFee) || 0 }
+      const newCustomDocTypes = [
+        ...(systemConfig.customDocumentTypes || []),
+        { id: docId, name: newDocName.trim(), icon: newDocIcon, fee: parseFloat(newDocFee) || 0, header: newDocHeader }
+      ]
+      const newTemplates = { ...(systemConfig.templates || {}), [docId]: newDocTemplate }
+      await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
+      setFormData(prev => ({ ...prev, templates: { ...prev.templates, [docId]: newDocTemplate } }))
+      setShowAddDocModal(false)
+      setNewDocName("")
+      setNewDocIcon("📄")
+      setNewDocFee("0")
+      setNewDocHeader("C E R T I F I C A T I O N")
+      setNewDocTemplate("This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}.")
+      toast.success("Document type added successfully")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to add document type")
+    } finally {
+      setIsAddingDoc(false)
+    }
   }
 
   const handleDeleteDocType = async (docName: string, docId: string) => {
-    const newDocTypes = currentDocumentTypes.filter(t => t !== docName)
-    const newFees = { ...currentDocumentFees }
-    delete newFees[docName]
-    const newCustomDocTypes = (systemConfig.customDocumentTypes || []).filter((d: any) => d.name !== docName)
-    const newTemplates = { ...(systemConfig.templates || {}) }
-    delete newTemplates[docId]
-    await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
+    try {
+      const newDocTypes = currentDocumentTypes.filter(t => t !== docName)
+      const newFees = { ...currentDocumentFees }
+      delete newFees[docName]
+      const newCustomDocTypes = (systemConfig.customDocumentTypes || []).filter((d: any) => d.name !== docName)
+      const newTemplates = { ...(systemConfig.templates || {}) }
+      delete newTemplates[docId]
+      await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
+      toast.success("Document type deleted")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to delete document type")
+    }
   }
 
   return (
@@ -619,9 +634,26 @@ City of Manila, {{date_issued}}.`,
                     try {
                       const token = await auth.currentUser?.getIdToken();
                       if (!token) throw new Error("Not authenticated");
-                      window.open(`/api/backup/download?type=json&token=${token}`, '_blank');
-                    } catch (error) {
-                      toast.error("Failed to authenticate download request.");
+                      
+                      const response = await fetch('/api/backup/download?type=json', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      });
+                      if (!response.ok) {
+                        const err = await response.json().catch(() => ({}));
+                        throw new Error(err.error || "Download failed");
+                      }
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `backup-${Date.now()}.json`;
+                      document.body.appendChild(a);
+                      a.click();
+                      window.URL.revokeObjectURL(url);
+                      document.body.removeChild(a);
+                      toast.success("JSON backup downloaded securely.");
+                    } catch (error: any) {
+                      toast.error(error.message || "Failed to authenticate download request.");
                     }
                   }}
                   className="w-full flex items-center justify-center gap-2 rounded-lg text-sm font-semibold border-2 border-slate-200 bg-white hover:bg-slate-50 hover:text-slate-900 py-3 px-4 transition-all text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -643,9 +675,26 @@ City of Manila, {{date_issued}}.`,
                     try {
                       const token = await auth.currentUser?.getIdToken();
                       if (!token) throw new Error("Not authenticated");
-                      window.open(`/api/backup/download?type=excel&token=${token}`, '_blank');
-                    } catch (error) {
-                      toast.error("Failed to authenticate download request.");
+                      
+                      const response = await fetch('/api/backup/download?type=excel', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      });
+                      if (!response.ok) {
+                        const err = await response.json().catch(() => ({}));
+                        throw new Error(err.error || "Download failed");
+                      }
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `backup-${Date.now()}.xlsx`;
+                      document.body.appendChild(a);
+                      a.click();
+                      window.URL.revokeObjectURL(url);
+                      document.body.removeChild(a);
+                      toast.success("Excel backup downloaded securely.");
+                    } catch (error: any) {
+                      toast.error(error.message || "Failed to authenticate download request.");
                     }
                   }}
                   className="w-full flex items-center justify-center gap-2 rounded-lg text-sm font-semibold border-2 border-[#0C2340] bg-[#0C2340] text-white hover:bg-[#1a3a5c] py-3 px-4 transition-all dark:bg-blue-600 dark:border-blue-600 dark:hover:bg-blue-700 shadow-md hover:shadow-lg"

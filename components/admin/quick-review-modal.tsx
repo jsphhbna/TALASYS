@@ -5,6 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
 import { useAdminData } from "@/hooks/admin"
+import { toast } from "sonner"
+import { Loader2 } from "lucide-react"
 
 interface QuickReviewModalProps {
   item: any | null
@@ -25,27 +27,39 @@ export function QuickReviewModal({ item, itemType, isOpen, onClose }: QuickRevie
 
   const handleApprove = async () => {
     setIsProcessing(true)
-    if (itemType === "verification") {
-      await approveVerification(item.id, user?.name || "Admin", user?.email || "admin@system.com")
-    } else if (itemType === "request") {
-      await updateRequestStatus(item.id, "Approved", undefined, user?.name || "Admin", user?.email || "admin@system.com")
+    try {
+      if (itemType === "verification") {
+        await approveVerification(item.id, user?.name || "Admin", user?.email || "admin@system.com")
+      } else if (itemType === "request") {
+        await updateRequestStatus(item.id, "Approved", undefined, user?.name || "Admin", user?.email || "admin@system.com")
+      }
+      toast.success("Approved successfully")
+      onClose()
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to approve item")
+    } finally {
+      setIsProcessing(false)
     }
-    setIsProcessing(false)
-    onClose()
   }
 
   const handleReject = async () => {
     if (rejectReason.length < 10) return
     setIsProcessing(true)
-    if (itemType === "verification") {
-      await rejectVerification(item.id, rejectReason, user?.name || "Admin", user?.email || "admin@system.com")
-    } else if (itemType === "request") {
-      await updateRequestStatus(item.id, "Rejected", rejectReason, user?.name || "Admin", user?.email || "admin@system.com")
+    try {
+      if (itemType === "verification") {
+        await rejectVerification(item.id, rejectReason, user?.name || "Admin", user?.email || "admin@system.com")
+      } else if (itemType === "request") {
+        await updateRequestStatus(item.id, "Rejected", rejectReason, user?.name || "Admin", user?.email || "admin@system.com")
+      }
+      toast.success("Rejected successfully")
+      setShowRejectConfirm(false)
+      setRejectReason("")
+      onClose()
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to reject item")
+    } finally {
+      setIsProcessing(false)
     }
-    setIsProcessing(false)
-    setShowRejectConfirm(false)
-    setRejectReason("")
-    onClose()
   }
 
   return (

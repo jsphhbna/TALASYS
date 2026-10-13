@@ -33,6 +33,8 @@ export default function ResidentManagement() {
   const [showActivateDialog, setShowActivateDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [selectedResident, setSelectedResident] = useState<ResidentRecord | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
   const filteredResidents = allResidents.filter((r) => {
     const matchesCategory = selectedCategory === "all" || r.categories.some(c => c.toLowerCase().includes(selectedCategory.toLowerCase()))
@@ -44,6 +46,12 @@ export default function ResidentManagement() {
       (r.contactNumber || "").toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch && matchesStatus && matchesCategory && matchesGender
   })
+
+  const totalPages = Math.max(1, Math.ceil(filteredResidents.length / pageSize))
+  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+  const startIndex = (safePage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, filteredResidents.length)
+  const paginatedResidents = filteredResidents.slice(startIndex, endIndex)
 
   const getCategoryDisplay = (categories: string[]) => {
     const cat = categories[0] || "Resident"
@@ -74,7 +82,10 @@ export default function ResidentManagement() {
               type="text"
               placeholder="Search by resident name or contact number..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCurrentPage(1)
+              }}
               className="w-full pl-11 pr-4 py-3 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-[#0C2340] dark:focus:border-blue-400 bg-white dark:bg-slate-900 transition-colors"
             />
           </div>
@@ -82,7 +93,13 @@ export default function ResidentManagement() {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Category</label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select
+              value={selectedCategory}
+              onValueChange={(val) => {
+                setSelectedCategory(val)
+                setCurrentPage(1)
+              }}
+            >
               <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
@@ -95,7 +112,13 @@ export default function ResidentManagement() {
           </div>
           <div>
             <label className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Status</label>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <Select
+              value={selectedStatus}
+              onValueChange={(val) => {
+                setSelectedStatus(val)
+                setCurrentPage(1)
+              }}
+            >
               <SelectTrigger className="w-full"><SelectValue placeholder="Select status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
@@ -107,7 +130,13 @@ export default function ResidentManagement() {
           </div>
           <div>
             <label className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">Gender</label>
-            <Select value={selectedGender} onValueChange={setSelectedGender}>
+            <Select
+              value={selectedGender}
+              onValueChange={(val) => {
+                setSelectedGender(val)
+                setCurrentPage(1)
+              }}
+            >
               <SelectTrigger className="w-full"><SelectValue placeholder="Select gender" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Genders</SelectItem>
@@ -148,7 +177,7 @@ export default function ResidentManagement() {
                 </div>
               </td>
             </tr>
-          ) : filteredResidents.map((resident) => {
+          ) : paginatedResidents.map((resident) => {
             const categoryDisplay = getCategoryDisplay(resident.categories)
             return (
               <tr key={resident.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
@@ -230,13 +259,43 @@ export default function ResidentManagement() {
           </table>
         </div>
         <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
-          <p className="text-2xs text-slate-500 dark:text-slate-400">Showing 1-{Math.min(10, filteredResidents.length)} of {filteredResidents.length} residents</p>
+          <p className="text-2xs text-slate-500 dark:text-slate-400">
+            Showing {filteredResidents.length === 0 ? 0 : startIndex + 1}-{endIndex} of {filteredResidents.length} residents
+          </p>
           <div className="flex items-center gap-1.5">
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">‹</span></button>
-            <button className="w-7 h-7 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 text-white text-2xs rounded">1</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-2xs text-slate-500 dark:text-slate-400">2</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-2xs text-slate-500 dark:text-slate-400">3</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">›</span></button>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Previous page"
+            >
+              <span className="text-slate-500 dark:text-slate-400 text-xs">‹</span>
+            </button>
+            {Array.from({ length: totalPages }).slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2)).map((_, i) => {
+              const pageNum = Math.max(0, safePage - 3) + i + 1
+              const isActive = pageNum === safePage
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-7 h-7 flex items-center justify-center text-2xs rounded font-medium ${
+                    isActive
+                      ? "bg-[#0C2340] dark:bg-slate-800 text-white"
+                      : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Next page"
+            >
+              <span className="text-slate-500 dark:text-slate-400 text-xs">›</span>
+            </button>
           </div>
         </div>
       </Card>

@@ -44,8 +44,9 @@ const statusSteps = [
 export function RequestStatusTrackerModal({ request, isOpen, onClose }: RequestStatusTrackerModalProps) {
   if (!request) return null
 
-  // Determine current active step index
+  // Determine current active step index (Finding #45: add explicit Cancelled and unknown handling)
   const isRejected = request.status === "Rejected"
+  const isCancelled = request.status === "Cancelled"
   let activeStepIndex = statusSteps.findIndex(s => s.id === request.status)
   
   // Map "Approved" legacy status to "On Process"
@@ -53,10 +54,8 @@ export function RequestStatusTrackerModal({ request, isOpen, onClose }: RequestS
     activeStepIndex = 1
   }
 
-  // If status is not found, fallback to pending
-  if (activeStepIndex === -1 && !isRejected) {
-    activeStepIndex = 0
-  }
+  // If status is not found and not special terminal state, fallback to 0 only for known initial state
+  const isUnknownStatus = activeStepIndex === -1 && !isRejected && !isCancelled
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -80,7 +79,7 @@ export function RequestStatusTrackerModal({ request, isOpen, onClose }: RequestS
 
             {/* Timeline Steps */}
             <div className="space-y-8 relative">
-              {statusSteps.map((step, index) => {
+              {!isCancelled && !isUnknownStatus && statusSteps.map((step, index) => {
                 const isCompleted = isRejected ? false : index <= activeStepIndex
                 const isActive = isRejected ? false : index === activeStepIndex
                 const Icon = step.icon
@@ -136,6 +135,45 @@ export function RequestStatusTrackerModal({ request, isOpen, onClose }: RequestS
                   </div>
                 )
               })}
+
+              {/* Special Cancelled State (Finding #45) */}
+              {isCancelled && (
+                <div className="relative flex items-start gap-4">
+                  <div className="relative z-10 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center -ml-[33px] border-2 bg-slate-100 dark:bg-slate-800 border-slate-500 text-slate-600 dark:text-slate-300">
+                      <XCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Request Cancelled</p>
+                    <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                      This request was cancelled by the resident. No further processing will take place.
+                    </p>
+                    {request.statusTimestamps?.Cancelled && (
+                      <p className="text-xs-plus font-medium text-slate-400 flex items-center gap-1.5 mt-1">
+                        <Clock className="w-3 h-3" /> {new Date(request.statusTimestamps.Cancelled).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Special Unknown Status State */}
+              {isUnknownStatus && (
+                <div className="relative flex items-start gap-4">
+                  <div className="relative z-10 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center -ml-[33px] border-2 bg-amber-50 dark:bg-amber-950/30 border-amber-500 text-amber-500">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-1">Status: {request.status}</p>
+                    <p className="text-xs leading-relaxed text-amber-600 dark:text-amber-300">
+                      This request has a custom or unmapped status. Please contact the barangay hall for details.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Special Rejected State */}
               {isRejected && (

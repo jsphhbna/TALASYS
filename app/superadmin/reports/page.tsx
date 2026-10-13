@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 
 export default function SystemReports() {
-  const { stats: adminStats, documentRequests } = useAdminData()
+  const { stats: adminStats, documentRequests, residents } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   
   const barangayName = systemConfig?.barangayName || "Barangay Sample"
@@ -37,6 +37,12 @@ export default function SystemReports() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [selectedYear, setSelectedYear] = useState<string>("All")
   const [selectedMonth, setSelectedMonth] = useState<string>("All")
+  const [reportType, setReportType] = useState<string>("Full Population")
+  const [reportFormat, setReportFormat] = useState<string>("PDF")
+  const [showDateRangeModal, setShowDateRangeModal] = useState<boolean>(false)
+  const [dateRangeStart, setDateRangeStart] = useState<string>("")
+  const [dateRangeEnd, setDateRangeEnd] = useState<string>("")
+  const [dateRangeError, setDateRangeError] = useState<string>("")
   const [lastExport, setLastExport] = useState(0)
 
   const currentYear = new Date().getFullYear()
@@ -85,6 +91,67 @@ export default function SystemReports() {
     ? [...reportTypeBreakdown].sort((a,b) => b.value - a.value)[0]
     : null
 
+  const handleGenerateDateRangeReport = async () => {
+    if (!dateRangeStart || !dateRangeEnd) {
+      setDateRangeError("Please select both start and end dates.")
+      return
+    }
+    const startMs = new Date(`${dateRangeStart}T00:00:00+08:00`).getTime()
+    const endMs = new Date(`${dateRangeEnd}T23:59:59.999+08:00`).getTime()
+    if (startMs > endMs) {
+      setDateRangeError("Start date cannot be after end date.")
+      return
+    }
+    setDateRangeError("")
+    setIsGeneratingReport(true)
+    try {
+      const rangedDocs = documentRequests.filter(r => {
+        const ts = r.createdAt || 0
+        return ts >= startMs && ts <= endMs
+      })
+
+      const doc = new jsPDF()
+      const pageWidth = doc.internal.pageSize.getWidth()
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
+      doc.text(municipality, pageWidth / 2, 25, { align: "center" })
+      doc.text(barangayName, pageWidth / 2, 30, { align: "center" })
+
+      doc.setFontSize(14)
+      doc.setTextColor(12, 35, 64)
+      doc.setFont("helvetica", "bold")
+      doc.text("DOCUMENTS ISSUED BY DATE RANGE", pageWidth / 2, 45, { align: "center" })
+
+      doc.setFontSize(9)
+      doc.setTextColor(100, 100, 100)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Period: ${dateRangeStart} to ${dateRangeEnd} (Asia/Manila)`, pageWidth / 2, 52, { align: "center" })
+
+      autoTable(doc, {
+        startY: 60,
+        head: [['Request ID', 'Resident', 'Document Type', 'Status', 'Date Submitted']],
+        body: rangedDocs.map(r => [
+          r.id.slice(0, 8),
+          r.residentName || 'N/A',
+          r.documentType,
+          r.status,
+          r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [12, 35, 64] },
+      })
+
+      doc.save(`Documents_${dateRangeStart}_to_${dateRangeEnd}.pdf`)
+      showToastPreset("reportGenerated")
+      setShowDateRangeModal(false)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsGeneratingReport(false)
+    }
+  }
+
   const handleGenerateReport = async () => {
     if (isGeneratingReport) return
     const now = Date.now()
@@ -93,62 +160,150 @@ export default function SystemReports() {
       return
     }
     setLastExport(now)
-
     setIsGeneratingReport(true)
-    
-    try {
-      const doc = new jsPDF()
-      const pageWidth = doc.internal.pageSize.getWidth()
-      
-      // Header
-      doc.setFontSize(10)
-      doc.setTextColor(100, 100, 100)
-      doc.text("Republic of the Philippines", pageWidth / 2, 20, { align: "center" })
-      doc.text(municipality, pageWidth / 2, 25, { align: "center" })
-      doc.text(barangayName, pageWidth / 2, 30, { align: "center" })
-      
-      // Title
-      doc.setFontSize(14)
-      doc.setTextColor(12, 35, 64) // #0C2340
-      doc.setFont("helvetica", "bold")
-      doc.text("SYSTEM REPORT", pageWidth / 2, 45, { align: "center" })
-      
-      doc.setFontSize(10)
-      doc.setTextColor(100, 100, 100)
-      doc.setFont("helvetica", "normal")
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 52, { align: "center" })
 
-      // KPIs
-      autoTable(doc, {
-        startY: 65,
-        head: [['Metric', 'Value']],
-        body: [
-          ['Total Population', adminStats.totalResidents.toString()],
-          ['Registered Voters', adminStats.voterCount.toString()],
-          ['Senior Citizens', adminStats.seniorCount.toString()],
-          ['Adults', adminStats.adultCount.toString()],
-          ['Minors', adminStats.minorCount.toString()],
-          ['Total Documents Generated', trueTotal.toString()],
-        ],
-        theme: 'striped',
-        headStyles: { fillColor: [12, 35, 64] },
-        margin: { bottom: 30 },
-        didDrawPage: function (data) {
-          const pageHeight = doc.internal.pageSize.getHeight()
-          doc.setFontSize(8)
-          doc.setTextColor(150, 150, 150)
-          doc.text(`Contact Us: ${contactNumber} | Email: ${email}`, pageWidth / 2, pageHeight - 15, { align: "center" })
+    try {
+      const filterByDate = (createdAt?: any) => {
+        if (!createdAt) return true
+        const d = new Date(createdAt)
+        if (selectedYear !== "All" && d.getFullYear().toString() !== selectedYear) return false
+        if (selectedMonth !== "All" && d.getMonth().toString() !== selectedMonth) return false
+        return true
+      }
+
+      const periodLabel = selectedMonth === "All" && selectedYear === "All"
+        ? "All Time"
+        : `${selectedMonth !== "All" ? monthNames[parseInt(selectedMonth)] : ""} ${selectedYear !== "All" ? selectedYear : ""}`.trim()
+
+      if (reportType === "Rejected Requests") {
+        const data = documentRequests.filter(r => r.status === "Rejected" && filterByDate(r.createdAt))
+        if (reportFormat === "CSV" || reportFormat === "Excel") {
+          const headers = ["Request ID", "Resident", "Document Type", "Reason", "Date"]
+          const rows = data.map(r => [
+            `"${r.id.slice(0, 8)}"`,
+            `"${(r.residentName || 'N/A').replace(/"/g, '""')}"`,
+            `"${(r.documentType || '').replace(/"/g, '""')}"`,
+            `"${(r.rejectionReason || 'Not specified').replace(/"/g, '""')}"`,
+            `"${r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'N/A'}"`
+          ].join(","))
+          const csv = [headers.join(","), ...rows].join("\n")
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement("a")
+          link.href = url
+          link.download = `Rejected_Requests_${periodLabel.replace(/\s+/g, "_")}.csv`
+          link.click()
+        } else {
+          const doc = new jsPDF()
+          const pageWidth = doc.internal.pageSize.getWidth()
+          doc.setFontSize(14)
+          doc.text("REJECTED REQUESTS REPORT", pageWidth / 2, 25, { align: "center" })
+          doc.setFontSize(9)
+          doc.text(`Period: ${periodLabel}`, pageWidth / 2, 32, { align: "center" })
+          autoTable(doc, {
+            startY: 40,
+            head: [['Request ID', 'Resident', 'Document Type', 'Rejection Reason', 'Date']],
+            body: data.map(r => [
+              r.id.slice(0, 8),
+              r.residentName || 'N/A',
+              r.documentType,
+              r.rejectionReason || 'Not specified',
+              r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'N/A'
+            ]),
+            theme: 'striped',
+            headStyles: { fillColor: [12, 35, 64] },
+          })
+          doc.save(`Rejected_Requests_${periodLabel.replace(/\s+/g, "_")}.pdf`)
         }
-      })
-      
-      doc.save("TALASYS_System_Report.pdf")
+      } else if (reportType === "Full Analytics") {
+        const doc = new jsPDF()
+        const pageWidth = doc.internal.pageSize.getWidth()
+        doc.setFontSize(14)
+        doc.text("SYSTEM ANALYTICS REPORT", pageWidth / 2, 25, { align: "center" })
+        doc.setFontSize(9)
+        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 32, { align: "center" })
+        autoTable(doc, {
+          startY: 40,
+          head: [['Metric', 'Value']],
+          body: [
+            ['Total Residents', adminStats.totalResidents.toString()],
+            ['Registered Voters', adminStats.voterCount.toString()],
+            ['Senior Citizens', adminStats.seniorCount.toString()],
+            ['Adults', adminStats.adultCount.toString()],
+            ['Minors', adminStats.minorCount.toString()],
+            ['Documents Generated', generatedCount.toString()],
+            ['Rejected Requests', rejectedCount.toString()],
+            ['Pending Verifications', adminStats.pendingVerifications.toString()],
+          ],
+          theme: 'striped',
+          headStyles: { fillColor: [12, 35, 64] },
+        })
+        doc.save("TALASYS_Analytics_Report.pdf")
+      } else {
+        // Resident Demographic Reports
+        let filteredRes = residents.filter(r => filterByDate((r as any).createdAt))
+        if (reportType === "Seniors Summary") {
+          filteredRes = filteredRes.filter(r => (r.age || 0) >= 60 || r.categories.includes("Senior Citizen"))
+        } else if (reportType === "Adults Summary") {
+          filteredRes = filteredRes.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60)
+        } else if (reportType === "Minors Summary") {
+          filteredRes = filteredRes.filter(r => (r.age || 0) < 18)
+        } else if (reportType === "Voters List") {
+          filteredRes = filteredRes.filter(r => r.isVoter)
+        } else if (reportType === "Expired Accounts") {
+          filteredRes = filteredRes.filter(r => r.status === "Expired")
+        }
+
+        if (reportFormat === "CSV" || reportFormat === "Excel") {
+          const headers = ["Full Name", "Age", "Gender", "Address", "Contact", "Status", "Is Voter"]
+          const rows = filteredRes.map(r => [
+            `"${(r.name || '').replace(/"/g, '""')}"`,
+            r.age?.toString() || "N/A",
+            `"${r.gender || 'N/A'}"`,
+            `"${(r.address || '').replace(/"/g, '""')}"`,
+            `"${r.contactNumber || 'N/A'}"`,
+            `"${r.status || 'N/A'}"`,
+            r.isVoter ? "Yes" : "No"
+          ].join(","))
+          const csv = [headers.join(","), ...rows].join("\n")
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement("a")
+          link.href = url
+          link.download = `${reportType.replace(/\s+/g, "_")}_${periodLabel.replace(/\s+/g, "_")}.csv`
+          link.click()
+        } else {
+          const doc = new jsPDF()
+          const pageWidth = doc.internal.pageSize.getWidth()
+          doc.setFontSize(14)
+          doc.text(reportType.toUpperCase(), pageWidth / 2, 25, { align: "center" })
+          doc.setFontSize(9)
+          doc.text(`Period: ${periodLabel}`, pageWidth / 2, 32, { align: "center" })
+          autoTable(doc, {
+            startY: 40,
+            head: [['Full Name', 'Age', 'Gender', 'Address', 'Status', 'Voter']],
+            body: filteredRes.map(r => [
+              r.name,
+              r.age?.toString() || "N/A",
+              r.gender || "N/A",
+              r.address || "N/A",
+              r.status,
+              r.isVoter ? "Yes" : "No"
+            ]),
+            theme: 'striped',
+            headStyles: { fillColor: [12, 35, 64] },
+          })
+          doc.save(`${reportType.replace(/\s+/g, "_")}_${periodLabel.replace(/\s+/g, "_")}.pdf`)
+        }
+      }
+
       showToastPreset("reportGenerated")
       setShowGenerateDialog(false)
     } catch (e) {
-      console.error(e)
+      console.error("Report generation failed:", e)
+    } finally {
+      setIsGeneratingReport(false)
     }
-
-    setIsGeneratingReport(false)
   }
 
   const nonVoterCount = adminStats.totalResidents - adminStats.voterCount
@@ -164,6 +319,11 @@ export default function SystemReports() {
   ]
 
   const rejectedCount = documentRequests.filter(r => r.status === "Rejected").length
+  const generatedDocuments = documentRequests.filter(r => r.status === 'Approved' || r.status === 'Completed' || (r as any).hasGenerated)
+  const generatedCount = generatedDocuments.length
+
+  const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
+  const thisMonthGenerated = generatedDocuments.filter(r => r.createdAt && r.createdAt >= currentMonthStart).length
 
   const documentReports = [
     { title: "Documents by Date Range", description: "All generated documents", icon: FileText, color: "#0C2340", hasDatePicker: true },
@@ -185,10 +345,10 @@ export default function SystemReports() {
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <FileText className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
-          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Reports Generated</p>
-          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{trueTotal}</span>
+          <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Documents Generated</p>
+          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{generatedCount}</span>
           <div className="flex items-center gap-1 mt-1">
-            <span className="text-2xs font-medium text-slate-400">-</span>
+            <span className="text-2xs font-medium text-slate-400">{trueTotal} total requests</span>
           </div>
         </Card>
         <Card className="p-4 shadow-sm">
@@ -197,23 +357,23 @@ export default function SystemReports() {
           </div>
           <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Most Requested</p>
           <span className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{mostRequested ? mostRequested.name : "N/A"}</span>
-          <p className="text-2xs text-slate-400 mt-1">{mostRequested ? `${mostRequested.value} of ${trueTotal} total` : "No data available"}</p>
+          <p className="text-2xs text-slate-400 mt-1">{mostRequested ? `${mostRequested.value} of ${trueTotal} requests` : "No data available"}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <Clock className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
           <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Avg Generation</p>
-          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">0s</span>
-          <p className="text-2xs text-slate-400 mt-1">Processing time</p>
+          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">Instant</span>
+          <p className="text-2xs text-slate-400 mt-1">Direct PDF export</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
             <BarChart3 className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
           </div>
           <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">This Month</p>
-          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">0</span>
-          <p className="text-2xs text-slate-400 mt-1">Reports this month</p>
+          <span className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{thisMonthGenerated}</span>
+          <p className="text-2xs text-slate-400 mt-1">Documents this month</p>
         </Card>
       </div>
 
@@ -287,7 +447,14 @@ export default function SystemReports() {
         <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Population Reports</h3>
         <div className="grid grid-cols-4 gap-4">
           {reports.map((report) => (
-            <Card key={report.title} className="p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <Card
+              key={report.title}
+              onClick={() => {
+                setReportType(report.title)
+                setShowGenerateDialog(true)
+              }}
+              className="p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-[#0C2340]/40"
+            >
               <div className="flex items-start justify-between mb-3">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${report.color}10` }}>
                   <report.icon className="w-4 h-4" style={{ color: report.color }} />
@@ -307,14 +474,36 @@ export default function SystemReports() {
         <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Document Reports</h3>
         <div className="grid grid-cols-3 gap-4">
           {documentReports.map((report) => (
-            <Card key={report.title} className="p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <Card
+              key={report.title}
+              onClick={() => {
+                if (report.hasDatePicker) {
+                  setShowDateRangeModal(true)
+                } else if (report.title === "Rejected Requests") {
+                  setReportType("Rejected Requests")
+                  setShowGenerateDialog(true)
+                } else {
+                  setReportType("Full Analytics")
+                  setShowGenerateDialog(true)
+                }
+              }}
+              className="p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-[#0C2340]/40"
+            >
               <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${report.color}10` }}>
                 <report.icon className="w-4 h-4" style={{ color: report.color }} />
               </div>
               <h4 className="text-xs font-semibold text-[#0C2340] dark:text-blue-50 mb-0.5">{report.title}</h4>
               <p className="text-2xs text-slate-500 dark:text-slate-400 mb-1">{report.description}</p>
               {report.hasDatePicker && (
-                <button className="mt-1 px-3 py-1 text-2xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800 transition-colors">Select dates</button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowDateRangeModal(true)
+                  }}
+                  className="mt-1 px-3 py-1 text-2xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Select dates
+                </button>
               )}
               {report.count && <p className="text-2xs font-medium text-slate-600 dark:text-slate-400">{report.count}</p>}
               {report.details && <p className="text-2xs text-slate-500 dark:text-slate-400">{report.details}</p>}
@@ -329,11 +518,19 @@ export default function SystemReports() {
         <div className="grid grid-cols-4 gap-4 items-end">
           <div>
             <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Report Type</label>
-            <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
-              <option>Full Population</option>
-              <option>Seniors Summary</option>
-              <option>Adults Summary</option>
-              <option>Voters List</option>
+            <select
+              value={reportType}
+              onChange={(e) => setReportType(e.target.value)}
+              className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
+            >
+              <option value="Full Population">Full Population</option>
+              <option value="Seniors Summary">Seniors Summary</option>
+              <option value="Adults Summary">Adults Summary</option>
+              <option value="Minors Summary">Minors Summary</option>
+              <option value="Voters List">Voters List</option>
+              <option value="Expired Accounts">Expired Accounts</option>
+              <option value="Rejected Requests">Rejected Requests</option>
+              <option value="Full Analytics">Full Analytics</option>
             </select>
           </div>
           <div>
@@ -360,10 +557,14 @@ export default function SystemReports() {
           </div>
           <div>
             <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Format</label>
-            <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm">
-              <option>PDF</option>
-              <option>CSV</option>
-              <option>Excel</option>
+            <select
+              value={reportFormat}
+              onChange={(e) => setReportFormat(e.target.value)}
+              className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
+            >
+              <option value="PDF">PDF</option>
+              <option value="CSV">CSV</option>
+              <option value="Excel">Excel</option>
             </select>
           </div>
           <Button onClick={() => setShowGenerateDialog(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Generate Report</Button>
@@ -374,11 +575,56 @@ export default function SystemReports() {
       <ModalOverlay isOpen={showGenerateDialog} onClose={() => setShowGenerateDialog(false)}>
         <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-2xl">
           <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-3">Generate Report?</h3>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">This will generate a Full Population report in PDF format for {selectedMonth === "All" && selectedYear === "All" ? "all time" : `${selectedMonth !== "All" ? monthNames[parseInt(selectedMonth)] : ""} ${selectedYear !== "All" ? selectedYear : ""}`}.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+            This will generate a {reportType} report in {reportFormat} format for {selectedMonth === "All" && selectedYear === "All" ? "all time" : `${selectedMonth !== "All" ? monthNames[parseInt(selectedMonth)] : ""} ${selectedYear !== "All" ? selectedYear : ""}`.trim()}.
+          </p>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setShowGenerateDialog(false)} disabled={isGeneratingReport}>Cancel</Button>
             <Button onClick={handleGenerateReport} className="min-w-[140px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]" disabled={isGeneratingReport}>
               {isGeneratingReport ? "Generating..." : "Confirm"}
+            </Button>
+          </div>
+        </div>
+      </ModalOverlay>
+
+      {/* Date Range Modal (#2) */}
+      <ModalOverlay isOpen={showDateRangeModal} onClose={() => setShowDateRangeModal(false)}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-2xl">
+          <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50 mb-2">Documents by Date Range</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+            Select a start and end date (Asia/Manila time) to generate the document issuance report.
+          </p>
+          <div className="space-y-4 mb-4">
+            <div>
+              <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Start Date</label>
+              <input
+                type="date"
+                value={dateRangeStart}
+                onChange={(e) => { setDateRangeStart(e.target.value); setDateRangeError("") }}
+                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">End Date</label>
+              <input
+                type="date"
+                value={dateRangeEnd}
+                onChange={(e) => { setDateRangeEnd(e.target.value); setDateRangeError("") }}
+                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+              />
+            </div>
+            {dateRangeError && (
+              <p className="text-xs text-red-600 font-medium">{dateRangeError}</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowDateRangeModal(false)} disabled={isGeneratingReport}>Cancel</Button>
+            <Button
+              onClick={handleGenerateDateRangeReport}
+              className="min-w-[140px] bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
+              disabled={isGeneratingReport}
+            >
+              {isGeneratingReport ? "Generating..." : "Generate PDF"}
             </Button>
           </div>
         </div>

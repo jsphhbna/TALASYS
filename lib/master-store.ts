@@ -88,7 +88,7 @@ export interface MasterDocumentRequest {
   documentType: string
   purpose: string
   dateRequested: string
-  status: "Pending" | "Awaiting Payment" | "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected"
+  status: "Pending" | "Awaiting Payment" | "Approved" | "On Process" | "Ready for Pick Up" | "Completed" | "Rejected" | "Cancelled"
   refNumber?: string
   downloadUrl?: string
   createdAt: number
@@ -98,6 +98,7 @@ export interface MasterDocumentRequest {
   relationship?: string
   authorizationLetter?: string
   statusTimestamps?: Record<string, number>
+  rejectionReason?: string
   
   // Payment fields
   documentFee?: number

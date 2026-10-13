@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,15 +23,28 @@ interface PaymentModalProps {
 
 export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
   const { submitPayment } = useResidentData()
-  const [activeTab, setActiveTab] = useState<"gcash" | "cash">(
-    (request?.paymentMethod as "gcash" | "cash") || "cash"
-  )
+  const [activeTab, setActiveTab] = useState<"gcash" | "cash">("cash")
   const [gcashRef, setGcashRef] = useState("")
   const [gcashFile, setGcashFile] = useState<File | null>(null)
   const [gcashPreview, setGcashPreview] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Finding #38: Reset all state whenever modal opens or active request ID changes
+  useEffect(() => {
+    if (isOpen && request) {
+      setActiveTab((request.paymentMethod as "gcash" | "cash") || "cash")
+      setGcashRef("")
+      setGcashFile(null)
+      setGcashPreview(null)
+      setCopied(false)
+      setIsSubmitting(false)
+      if (fileRef.current) {
+        fileRef.current.value = ""
+      }
+    }
+  }, [isOpen, request?.id])
 
   if (!request) return null
 

@@ -67,13 +67,12 @@ const docSubItems = [
   { name: "History", href: "/admin/requests/history", icon: History },
 ]
 
-export function AdminSidebar() {
+export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = {}) {
   const pathname = usePathname()
   const router = useRouter()
-  const { logout, user } = useAuth()
+  const { user } = useAuth()
   const { beginNavigation, pendingPath } = useNavigationLoading()
   const activePath = pendingPath ?? pathname
-  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const isVerifPath = activePath.startsWith("/admin/verifications")
   const [isVerifOpen, setIsVerifOpen] = useState(true)
   const isResidentsPath = activePath.startsWith("/admin/residents")
@@ -113,29 +112,22 @@ export function AdminSidebar() {
         : undefined,
   }))
 
-  const handleLogout = () => {
-    setShowLogoutDialog(false)
-    logout()
-  }
-
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     const isModifiedClick = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0
-    // Allow clicking even if same page but different query params (tab switching)
-    const hrefBase = href.split('?')[0]
-    const isSameExact = pathname === href // exact same including query
+    const isSameExact = pathname === href
     if (isModifiedClick || isSameExact) {
+      if (onItemClick) onItemClick()
       return
     }
 
     e.preventDefault()
     beginNavigation(href)
     router.push(href)
+    if (onItemClick) onItemClick()
   }
 
   return (
-    <>
-      <aside className="w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex flex-col" role="navigation">
-        <nav className="py-3 flex-1 overflow-y-auto">
+    <nav className="py-3 flex-1 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = activePath === item.href
             const isVerifItem = item.href === "/admin/verifications"
@@ -330,7 +322,23 @@ export function AdminSidebar() {
               </Link>
             )
           })}
-        </nav>
+    </nav>
+  )
+}
+
+export function AdminSidebar() {
+  const { logout } = useAuth()
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+
+  const handleLogout = () => {
+    setShowLogoutDialog(false)
+    logout()
+  }
+
+  return (
+    <>
+      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
+        <AdminSidebarNav />
         <div className="p-3 border-t border-white/10">
           <button
             onClick={() => setShowLogoutDialog(true)}

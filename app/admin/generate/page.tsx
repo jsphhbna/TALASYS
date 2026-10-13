@@ -12,6 +12,7 @@ import jsPDF from "jspdf"
 import { useAuth } from "@/lib/auth"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { escapeHtml } from "@/lib/security/sanitize"
 
 function GenerateDocumentsContent() {
   const searchParams = useSearchParams()
@@ -117,15 +118,29 @@ function GenerateDocumentsContent() {
     const dateOrdinalIssued = `${ordinalDay} day of ${monthYear}`
     const dateDayIssued = `${ordinalDay} of ${monthYear}`
 
+    const safeName = `<strong>${escapeHtml(selectedResident.name.toUpperCase())}</strong>`
+    const safeAddress = `<strong>${escapeHtml(selectedResident.address || "__________________")}</strong>`
+    const safeAge = escapeHtml(age)
+    const safePurpose = `<strong>${escapeHtml(purpose.toUpperCase())}</strong>`
+    const safeDateIssued = `<strong>${escapeHtml(dateIssued)}</strong>`
+    const safeDateOrdinalIssued = `<strong>${escapeHtml(dateOrdinalIssued)}</strong>`
+    const safeDateDayIssued = `<strong>${escapeHtml(dateDayIssued)}</strong>`
+    const safeBarangayName = escapeHtml(systemConfig?.barangayName || "__________________")
+
     let resolved = template
-      .replace(/{{name}}/g, `<strong>${selectedResident.name.toUpperCase()}</strong>`)
-      .replace(/{{address}}/g, `<strong>${selectedResident.address || "__________________"}</strong>`)
-      .replace(/{{age}}/g, age)
-      .replace(/{{purpose}}/g, `<strong>${purpose.toUpperCase()}</strong>`)
-      .replace(/{{date_issued}}/g, `<strong>${dateIssued}</strong>`)
-      .replace(/{{date_ordinal_issued}}/g, `<strong>${dateOrdinalIssued}</strong>`)
-      .replace(/{{date_day_issued}}/g, `<strong>${dateDayIssued}</strong>`)
-      .replace(/{{barangay_name}}/g, systemConfig?.barangayName || "__________________")
+      .replace(/{{name}}/g, safeName)
+      .replace(/{{address}}/g, safeAddress)
+      .replace(/{{age}}/g, safeAge)
+      .replace(/{{purpose}}/g, safePurpose)
+      .replace(/{{date_issued}}/g, safeDateIssued)
+      .replace(/{{date_ordinal_issued}}/g, safeDateOrdinalIssued)
+      .replace(/{{date_day_issued}}/g, safeDateDayIssued)
+      .replace(/{{barangay_name}}/g, safeBarangayName)
+
+    // Defense-in-depth: strip any malicious script tags or inline handlers
+    resolved = resolved.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    resolved = resolved.replace(/\bon\w+\s*=/gi, "data-blocked-handler=")
+    resolved = resolved.replace(/javascript:/gi, "blocked-scheme:")
     
     return resolved
   }

@@ -7,6 +7,7 @@ import { NavigationLoadingProvider } from "@/components/providers/navigation-loa
 import { Footer } from "@/components/layout/footer"
 import { ResidentMobileNavGate } from "@/components/resident/layout/resident-mobile-nav-gate"
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as SonnerToaster } from "sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
 
@@ -51,6 +52,7 @@ export default function RootLayout({
               <ResidentMobileNavGate />
               <Footer />
               <Toaster />
+              <SonnerToaster richColors position="top-right" />
             </NavigationLoadingProvider>
           </AuthProvider>
         </ThemeProvider>

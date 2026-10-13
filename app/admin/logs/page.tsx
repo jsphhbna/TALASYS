@@ -9,6 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
 import { Activity, CheckCircle2, XCircle, FileText, Shield, Search } from "lucide-react"
+import { isTimestampToday } from "@/lib/security/audit-utils"
 
 export default function ActivityLogs() {
   const { activityLogs, addActivityLog } = useAdminData()
@@ -16,7 +17,8 @@ export default function ActivityLogs() {
   const [searchQuery, setSearchQuery] = useState("")
 
   const groupedLogs = activityLogs.reduce((acc, log) => {
-    const action = log.action.split(' ')[0] || "Other"
+    const rawAction = log.action || log.actionType || "Other"
+    const action = rawAction.split(' ')[0] || "Other"
     acc[action] = (acc[action] || 0) + 1
     return acc
   }, {} as Record<string, number>)
@@ -66,6 +68,10 @@ export default function ActivityLogs() {
     )
   }
 
+  const todayCount = activityLogs.filter(l =>
+    isTimestampToday(typeof l.timestamp === "number" ? l.timestamp : Number(l.timestamp) || new Date(l.date || "").getTime())
+  ).length
+
   return (
     <AdminPageShell>
       <div className="mb-6">
@@ -81,7 +87,7 @@ export default function ActivityLogs() {
               <Activity className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
             </div>
             <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions Today</p>
-            <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{activityLogs.length}</p>
+            <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">{todayCount}</p>
           </Card>
           <Card className="p-4 shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">

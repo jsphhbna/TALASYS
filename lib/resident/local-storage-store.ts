@@ -149,79 +149,103 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
 
   const newUserId = userCredential.user.uid
   
-  const residentUser: AuthUser = {
-    id: newUserId,
-    name: input.name.trim(),
-    email: normalizedEmail,
-    initials: getInitials(input.name),
-    role: "resident",
-    status: resolvePrimaryStatus(input.statuses),
-    statuses: input.statuses,
-    gender: input.gender,
-    dateOfBirth: input.dateOfBirth,
-    contactNumber: input.contactNumber,
-    address: input.address,
-    accountExpiry: formatDateDisplay(addDaysToDate(new Date(), ACCOUNT_EXPIRY_DAYS)),
-    isVerified: false,
-    profilePicture: input.profilePicture || "",
-    createdAt: Date.now(),
-    firstName: input.firstName,
-    lastName: input.lastName,
-    middleInitial: input.middleInitial,
-    street: input.street,
-    barangay: input.barangay,
-    city: input.city,
+  try {
+    const { writeBatch } = await import("firebase/firestore")
+    const batch = writeBatch(db)
+
+    const residentUser: AuthUser = {
+      id: newUserId,
+      name: input.name.trim(),
+      email: normalizedEmail,
+      initials: getInitials(input.name),
+      role: "resident",
+      status: resolvePrimaryStatus(input.statuses),
+      statuses: input.statuses,
+      gender: input.gender,
+      dateOfBirth: input.dateOfBirth,
+      contactNumber: input.contactNumber,
+      address: input.address,
+      accountExpiry: formatDateDisplay(addDaysToDate(new Date(), ACCOUNT_EXPIRY_DAYS)),
+      isVerified: false,
+      profilePicture: input.profilePicture || "",
+      createdAt: Date.now(),
+      firstName: input.firstName,
+      lastName: input.lastName,
+      middleInitial: input.middleInitial,
+      street: input.street,
+      barangay: input.barangay,
+      city: input.city,
+    }
+
+    const userDocRef = doc(db, "users", newUserId)
+    batch.set(userDocRef, residentUser)
+
+    // Cross-module sync: push verification record to admin queue atomically (#61)
+    batch.set(doc(db, "verifications", newUserId), {
+      residentId: newUserId,
+      name: input.name.trim(),
+      initials: getInitials(input.name),
+      type: "registration",
+      submittedDate: formatDateDisplay(new Date()),
+      categories: input.statuses,
+      gender: input.gender,
+      age: input.dateOfBirth ? Math.floor((new Date().getTime() - new Date(input.dateOfBirth).getTime()) / 31557600000) : 0,
+      address: input.address,
+      contactNumber: input.contactNumber,
+      email: normalizedEmail,
+      dateOfBirth: input.dateOfBirth,
+      documents: input.proofs.map(proof => ({ name: proof.name, status: "pending", uploadDate: proof.uploadDate, url: proof.url || "" })),
+      status: "pending",
+      createdAt: Date.now()
+    })
+
+    const userNotifRef = doc(collection(db, "notifications"))
+    batch.set(userNotifRef, {
+      targetId: newUserId,
+      type: "success",
+      title: "Welcome to TALASYS",
+      message: "Your account has been created successfully. Your verification has been submitted to the admin team.",
+      timestamp: "Just now",
+      isRead: false,
+      createdAt: Date.now(),
+    })
+
+    const adminNotifRef = doc(collection(db, "notifications"))
+    batch.set(adminNotifRef, {
+      targetId: "admin",
+      type: "info",
+      title: "New Resident Registration",
+      message: `${input.name.trim()} has registered and requires verification.`,
+      timestamp: "Just now",
+      isRead: false,
+      createdAt: Date.now(),
+      residentName: input.name.trim(),
+      actionUrl: "/admin/verifications"
+    })
+
+    // Commit all records atomically (#61)
+    await batch.commit()
+
+    const { sendEmailVerification, signOut } = await import("firebase/auth")
+    try {
+      await sendEmailVerification(userCredential.user)
+    } catch (verificationEmailError) {
+      console.error("Failed to send verification email during registration (uid:", userCredential.user.uid, "):", verificationEmailError)
+    }
+
+    // Sign out after all writes complete
+    await signOut(auth)
+
+    return residentUser
+  } catch (firestoreError) {
+    console.error("Firestore batch commit failed during resident registration; executing compensating Auth deletion:", firestoreError)
+    try {
+      await userCredential.user.delete()
+    } catch (deleteError) {
+      console.error("Failed to rollback created Firebase Auth user:", deleteError)
+    }
+    throw firestoreError
   }
-
-  const userDocRef = doc(db, "users", newUserId)
-  await setDoc(userDocRef, residentUser)
-
-  // Cross-module sync: push a verification record to the admin queue so they
-  // can review the registration documents before granting the resident full access.
-  await setDoc(doc(db, "verifications", newUserId), {
-    residentId: newUserId,
-    name: input.name.trim(),
-    initials: getInitials(input.name),
-    type: "registration",
-    submittedDate: formatDateDisplay(new Date()),
-    categories: input.statuses,
-    gender: input.gender,
-    age: input.dateOfBirth ? Math.floor((new Date().getTime() - new Date(input.dateOfBirth).getTime()) / 31557600000) : 0,
-    address: input.address,
-    contactNumber: input.contactNumber,
-    email: normalizedEmail,
-    dateOfBirth: input.dateOfBirth,
-    documents: input.proofs.map(proof => ({ name: proof.name, status: "pending", uploadDate: proof.uploadDate, url: proof.url || "" })),
-    status: "pending"
-  })
-
-  await addDoc(collection(db, "notifications"), {
-    targetId: newUserId,
-    type: "success",
-    title: "Welcome to TALASYS",
-    message: "Your account has been created successfully. Your verification has been submitted to the admin team.",
-    timestamp: "Just now",
-    isRead: false,
-    createdAt: Date.now(),
-  })
-
-  await addDoc(collection(db, "notifications"), {
-    targetId: "admin",
-    type: "registration",
-    title: "New Resident Registration",
-    message: `${input.name.trim()} has registered and requires verification.`,
-    timestamp: "Just now",
-    isRead: false,
-    createdAt: Date.now(),
-    residentName: input.name.trim(),
-    actionUrl: "/admin/verifications"
-  })
-
-  // Sign out after all writes complete — see JSDoc above for the full rationale.
-  const { signOut } = await import("firebase/auth")
-  await signOut(auth)
-
-  return residentUser
 }
 
 export const cancelResidentRequest = (requestId: string) => {

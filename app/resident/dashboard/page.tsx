@@ -51,9 +51,16 @@ export default function DashboardPage() {
             {user.status === "Expired" ? "Deactivated" : user.isVerified === false ? "Under Review" : "Verified"}
           </p>
           {user.status === "Expired" ? (
-             <p className="text-xs-plus text-red-500 font-medium leading-snug">
-               Your account is currently inactive. You must request reactivation from your profile.
-             </p>
+             <div className="space-y-2">
+               <p className="text-xs-plus text-red-500 font-medium leading-snug">
+                 Your account is currently inactive. You must request reactivation from your profile.
+               </p>
+               <Link href="/resident/profile?action=reactivate">
+                 <button className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold mt-1">
+                   Request Reactivation →
+                 </button>
+               </Link>
+             </div>
           ) : user.isVerified === false ? (
              <p className="text-xs-plus text-amber-600 font-medium leading-snug">
                Your registration is pending admin verification.
@@ -102,7 +109,7 @@ export default function DashboardPage() {
           <Link href="/resident/request?type=residency">
             <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer h-full border-t-2 border-t-[#0C2340]/10 hover:border-t-[#0C2340]/40 flex flex-col items-center sm:items-start text-center sm:text-left justify-center sm:justify-start">
               <div className="text-2xl sm:text-xl mb-2 sm:mb-3">🏠</div>
-              <p className="text-sm-minus sm:text-sm leading-tight font-semibold text-[#0C2340] dark:text-blue-50">Certificate of Residency</p>
+              <p className="text-sm-minus sm:text-sm leading-tight font-semibold text-[#0C2340] dark:text-blue-50">Proof of Residency</p>
             </Card>
           </Link>
           <Link href="/resident/request">

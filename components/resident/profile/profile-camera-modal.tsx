@@ -16,6 +16,9 @@ type StepPhase = "idle" | "ready" | "capturing" | "done" | "error"
 export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isCancelledRef = useRef<boolean>(false)
   
   const [phase, setPhase] = useState<StepPhase>("idle")
   const [stream, setStream] = useState<MediaStream | null>(null)
@@ -23,8 +26,25 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
   const [isSaving, setIsSaving] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
 
+  const stopCamera = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    setCountdown(null)
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setStream(null)
+  }
+
   const startCamera = async () => {
     try {
+      stopCamera()
       setPhase("idle")
       setCapturedImage(null)
       setCountdown(null)
@@ -33,16 +53,26 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
         video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } } 
       })
       
+      if (isCancelledRef.current) {
+        mediaStream.getTracks().forEach(t => t.stop())
+        return
+      }
+
+      streamRef.current = mediaStream
       setStream(mediaStream)
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream
         videoRef.current.addEventListener("loadeddata", () => {
-          setPhase("ready")
+          if (!isCancelledRef.current) {
+            setPhase("ready")
+          }
         })
       }
     } catch (err) {
       console.error("Camera access denied or failed", err)
-      setPhase("error")
+      if (!isCancelledRef.current) {
+        setPhase("error")
+      }
     }
   }
 
@@ -65,35 +95,40 @@ export function ProfileCameraModal({ isOpen, onClose, onSave }: ProfileCameraMod
   }
 
   const handleManualCapture = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
     setPhase("capturing")
     setCountdown(3)
     let counter = 3
     
-    const timer = setInterval(() => {
+    timerRef.current = setInterval(() => {
       counter -= 1
       setCountdown(counter)
       
       if (counter <= 0) {
-        clearInterval(timer)
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+        }
         capturePhoto()
       }
     }, 1000)
   }
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
-    }
-  }
-
   useEffect(() => {
     if (isOpen) {
+      isCancelledRef.current = false
       startCamera()
     } else {
+      isCancelledRef.current = true
       stopCamera()
     }
-    return () => stopCamera()
+    return () => {
+      isCancelledRef.current = true
+      stopCamera()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 

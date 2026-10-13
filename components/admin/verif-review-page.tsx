@@ -6,9 +6,10 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/admin"
 import { useMounted } from "@/hooks/use-mounted"
-import { ClipboardCheck, CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
+import { ClipboardCheck, CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { toast } from "sonner"
 
 interface VerifReviewPageProps {
   type: "registration" | "profile-edit" | "reactivation"
@@ -31,23 +32,32 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
   const [rejectReason, setRejectReason] = useState("")
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [selectedUserDetails, setSelectedUserDetails] = useState<any>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
   const mounted = useMounted()
 
+  // #39: Cancel stale user-details fetch and clear previous resident's details on change
   useEffect(() => {
+    let isCurrent = true
     if (selectedItem?.residentId && !selectedItem.contactNumber) {
+      setSelectedUserDetails(null)
       import("firebase/firestore").then(({ doc, getDoc }) => {
         import("@/lib/firebase").then(({ db }) => {
           getDoc(doc(db, "users", selectedItem.residentId)).then((docSnap) => {
-            if (docSnap.exists()) {
+            if (isCurrent && docSnap.exists()) {
               setSelectedUserDetails(docSnap.data())
             }
+          }).catch(err => {
+            console.error("Error fetching resident details:", err)
           })
         })
       })
     } else {
       setSelectedUserDetails(null)
     }
-  }, [selectedItem])
+    return () => {
+      isCurrent = false
+    }
+  }, [selectedItem?.residentId, selectedItem?.contactNumber])
 
   if (!mounted) {
     return <AdminPageShell><div className="flex h-full items-center justify-center p-8">Loading...</div></AdminPageShell>
@@ -65,9 +75,17 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
   const filteredItems = pendingVerifications.filter(v => v.type === type)
   const c = colorMap[accentColor]
 
-  const isOlderThan3Days = (dateStr: string) => {
-    const day = parseInt(dateStr.replace("Nov ", ""))
-    return day <= 25
+  // #37: Canonical submission timestamp and elapsed-day boundary
+  const isOlderThan3Days = (dateStr: string, createdAt?: number) => {
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000
+    if (typeof createdAt === "number" && !isNaN(createdAt)) {
+      return Date.now() - createdAt >= THREE_DAYS_MS
+    }
+    const parsed = Date.parse(dateStr)
+    if (!isNaN(parsed)) {
+      return Date.now() - parsed >= THREE_DAYS_MS
+    }
+    return false
   }
 
   return (
@@ -102,13 +120,21 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto max-h-[58vh]">
             {filteredItems.map((item) => {
-              const isOverdue = isOlderThan3Days(item.submittedDate)
+              const isOverdue = isOlderThan3Days(item.submittedDate, (item as any).createdAt)
               const isSelected = selectedItem?.id === item.id
               return (
-                <button
+                <div
                   key={item.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedItem(item)}
-                  className={`w-full p-4 text-left transition-colors ${isSelected ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      setSelectedItem(item)
+                    }
+                  }}
+                  className={`w-full p-4 text-left cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isSelected ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-start gap-4">
@@ -128,9 +154,11 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
                         <p className="text-xs mt-1 text-slate-500">Submitted {item.submittedDate}</p>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="h-8 text-xs shrink-0">Review Details</Button>
+                    <span className="inline-flex items-center justify-center rounded-md text-xs font-medium border border-input bg-background hover:bg-accent h-8 px-3 shrink-0 pointer-events-none">
+                      Review Details
+                    </span>
                   </div>
-                </button>
+                </div>
               )
             })}
             {filteredItems.length === 0 && (
@@ -244,8 +272,32 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
 
                 {user?.role !== "View Only" && (
                   <div className="flex gap-4 pt-4 mt-6 border-t border-slate-100 dark:border-slate-800">
-                    <Button onClick={() => { approveVerification(selectedItem.id, user?.name || "Admin", user?.email || "admin@system.com"); setSelectedItem(null) }} className="flex-1 h-12 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700">Approve Request</Button>
-                    <Button onClick={() => setShowRejectConfirm(true)} className="flex-1 h-12 text-sm font-semibold bg-red-600 hover:bg-red-700">Reject Request</Button>
+                    <Button
+                      disabled={isProcessing}
+                      onClick={async () => {
+                        setIsProcessing(true)
+                        try {
+                          await approveVerification(selectedItem.id, user?.name || "Admin", user?.email || "admin@system.com")
+                          toast.success("Request approved successfully")
+                          setSelectedItem(null)
+                        } catch (err: any) {
+                          toast.error(err?.message || "Failed to approve request")
+                        } finally {
+                          setIsProcessing(false)
+                        }
+                      }}
+                      className="flex-1 h-12 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700"
+                    >
+                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Approve Request
+                    </Button>
+                    <Button
+                      disabled={isProcessing}
+                      onClick={() => setShowRejectConfirm(true)}
+                      className="flex-1 h-12 text-sm font-semibold bg-red-600 hover:bg-red-700"
+                    >
+                      Reject Request
+                    </Button>
                   </div>
                 )}
 
@@ -262,8 +314,36 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
                     />
                     <p className={`text-xs mb-4 font-medium ${rejectReason.trim().length >= 10 ? "text-green-600" : "text-red-500"}`}>{rejectReason.trim().length}/10 characters minimum</p>
                     <div className="flex gap-3">
-                      <Button onClick={() => { if (rejectReason.trim().length < 10) return; rejectVerification(selectedItem.id, rejectReason, user?.name || "Admin", user?.email || "admin@system.com"); setSelectedItem(null); setShowRejectConfirm(false); setRejectReason("") }} disabled={rejectReason.trim().length < 10} className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-sm font-semibold disabled:opacity-50">Confirm Reject</Button>
-                      <Button variant="outline" onClick={() => { setShowRejectConfirm(false); setRejectReason("") }} className="flex-1 h-11 bg-transparent text-sm font-semibold text-slate-700">Cancel</Button>
+                      <Button
+                        disabled={rejectReason.trim().length < 10 || isProcessing}
+                        onClick={async () => {
+                          if (rejectReason.trim().length < 10) return
+                          setIsProcessing(true)
+                          try {
+                            await rejectVerification(selectedItem.id, rejectReason, user?.name || "Admin", user?.email || "admin@system.com")
+                            toast.success("Request rejected")
+                            setSelectedItem(null)
+                            setShowRejectConfirm(false)
+                            setRejectReason("")
+                          } catch (err: any) {
+                            toast.error(err?.message || "Failed to reject request")
+                          } finally {
+                            setIsProcessing(false)
+                          }
+                        }}
+                        className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-sm font-semibold disabled:opacity-50"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        Confirm Reject
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={isProcessing}
+                        onClick={() => { setShowRejectConfirm(false); setRejectReason("") }}
+                        className="flex-1 h-11 bg-transparent text-sm font-semibold text-slate-700"
+                      >
+                        Cancel
+                      </Button>
                     </div>
                   </div>
                 )}

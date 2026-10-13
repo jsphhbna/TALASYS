@@ -8,6 +8,7 @@ import { useAdminData } from "@/hooks/admin"
 import { useMounted } from "@/hooks/use-mounted"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts"
 import { CheckCircle2, XCircle, Activity, ChevronDown } from "lucide-react"
+import { extractValidYear } from "@/lib/security/audit-utils"
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -16,13 +17,13 @@ export default function VerificationHistoryPage() {
   const mounted = useMounted()
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
 
-  // Parse year from log.date format e.g. "Sep 4, 2026"
+  // Parse valid year from log date or timestamp (#3, #18)
   const allYears = useMemo(() => {
     const years = new Set<string>()
     activityLogs.forEach(log => {
       if (log.actionType === "approved" || log.actionType === "rejected") {
-        const match = log.date?.match(/\d{4}/)
-        if (match) years.add(match[0])
+        const y = extractValidYear(log.timestamp || log.date)
+        if (y) years.add(y)
       }
     })
     if (years.size === 0) years.add(new Date().getFullYear().toString())
@@ -32,11 +33,19 @@ export default function VerificationHistoryPage() {
   const [selectedYear, setSelectedYear] = useState(allYears[0] || new Date().getFullYear().toString())
 
   const verifLogs = useMemo(() =>
-    activityLogs.filter(log =>
-      (log.actionType === "approved" || log.actionType === "rejected") &&
-      log.action?.includes("Verification") &&
-      log.date?.includes(selectedYear)
-    ),
+    activityLogs.filter(log => {
+      const isApprovedOrRejected = log.actionType === "approved" || log.actionType === "rejected"
+      if (!isApprovedOrRejected) return false
+
+      const actionText = (log.action || log.actionType || "").toLowerCase()
+      const isVerificationDomain =
+        log.targetCollection === "verifications" ||
+        actionText.includes("verification") ||
+        actionText.includes("profile edit") ||
+        actionText.includes("reactivation")
+
+      return isVerificationDomain && (!selectedYear || log.date?.includes(selectedYear))
+    }),
     [activityLogs, selectedYear]
   )
 

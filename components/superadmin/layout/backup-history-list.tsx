@@ -8,8 +8,12 @@ import { Clock, Download, Loader2 } from "lucide-react"
 export function BackupHistoryList() {
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [retryTrigger, setRetryTrigger] = useState(0)
 
   useEffect(() => {
+    setLoading(true)
+    setError(null)
     const q = query(
       collection(db, "backupLogs"),
       orderBy("timestamp", "desc"),
@@ -22,20 +26,36 @@ export function BackupHistoryList() {
         ...doc.data()
       }))
       setLogs(fetchedLogs)
+      setError(null)
       setLoading(false)
-    }, (error) => {
-      console.error("Error fetching backup logs:", error)
+    }, (err) => {
+      console.error("Error fetching backup logs:", err)
+      setError(err?.message || "Failed to load backup logs")
       setLoading(false)
     })
 
     return () => unsubscribe()
-  }, [])
+  }, [retryTrigger])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8 text-slate-400">
         <Loader2 className="w-5 h-5 animate-spin mr-2" />
         <span className="text-sm">Loading history...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center text-sm text-red-600 dark:text-red-400">
+        <p className="font-medium">Failed to load backup history: {error}</p>
+        <button
+          onClick={() => { setError(null); setLoading(true); setRetryTrigger(c => c + 1) }}
+          className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700 underline inline-block cursor-pointer"
+        >
+          Retry
+        </button>
       </div>
     )
   }

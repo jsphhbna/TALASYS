@@ -10,6 +10,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, PieChart, Pie, Cell,
 } from "recharts"
 import { Users, UserCheck, Clock, AlertTriangle, ChevronDown, TrendingUp } from "lucide-react"
+import { extractValidYear } from "@/lib/security/audit-utils"
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -18,17 +19,18 @@ export default function ResidentStatisticsPage() {
   const mounted = useMounted()
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
 
-  // Derive available years from resident join dates or activityLogs
+  // Derive available years from resident join dates or activityLogs (#3)
   const allYears = useMemo(() => {
     const years = new Set<string>()
     allResidents.forEach(r => {
-      const match = (r as any).createdAt?.toString().match(/\d{4}/) ||
-                    (r as any).joinDate?.match(/\d{4}/)
-      if (match) years.add(match[0])
+      const y1 = extractValidYear((r as any).createdAt)
+      if (y1) years.add(y1)
+      const y2 = extractValidYear((r as any).joinDate)
+      if (y2) years.add(y2)
     })
     activityLogs.forEach(log => {
-      const match = log.date?.match(/\d{4}/)
-      if (match) years.add(match[0])
+      const y = extractValidYear(log.timestamp || log.date)
+      if (y) years.add(y)
     })
     if (years.size === 0) years.add(new Date().getFullYear().toString())
     return Array.from(years).sort((a, b) => Number(b) - Number(a))

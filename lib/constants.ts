@@ -9,17 +9,12 @@ export const COLLECTION_SYSTEM_ALERTS = "systemAlerts"
 export const COLLECTION_SYSTEM_CONFIG = "systemConfig"
 export const SYSTEM_CONFIG_DOCUMENT_ID = "global"
 
-// ─── Bootstrap Superadmin ───
-// A single hardcoded account ensures the system can never be fully locked out.
-// The password here is the initial bootstrap value; it should be changed after first login.
+// ─── Default Institutional Identifiers ───
 export const SUPERADMIN_EMAIL = "superadmin@barangay.gov.ph"
-export const SUPERADMIN_BOOTSTRAP_PASSWORD = "superadmin123"
-export const SUPERADMIN_FIRESTORE_ID = "superadmin-bootstrap"
 export const SUPERADMIN_DISPLAY_NAME = "Super Admin"
 export const SUPERADMIN_INITIALS = "SA"
 
-// ─── Local / Session Storage Keys ───
-export const SUPERADMIN_LOCAL_STORAGE_KEY = "talasys.superadmin"
+// ─── Session Storage Keys ───
 export const RESIDENT_SESSION_STORAGE_KEY = "talasys.session.user.v2"
 
 // ─── Master Storage Event ───

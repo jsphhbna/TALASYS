@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth"
+import { isAnyAdminRole } from "@/lib/auth/auth-types"
 import { ADMIN_INACTIVITY_TIMEOUT_MS } from "@/lib/constants"
 
 export function useInactivityTimeout() {
@@ -9,9 +10,8 @@ export function useInactivityTimeout() {
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    // Residents are not force-logged out for inactivity; only admin-role users
-    // have a security timeout requirement per the system's access control policy.
-    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+    // Apply inactivity timeout to ALL administrative roles (#59)
+    if (!user || !isAnyAdminRole(user.role)) {
       return
     }
 

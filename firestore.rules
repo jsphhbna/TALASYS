@@ -3,150 +3,271 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // ==============================================================
-    // CORE ROLE-BASED ACCESS CONTROL (RBAC) FUNCTIONS
+    // CORE AUTHENTICATION & RBAC HELPER FUNCTIONS
     // ==============================================================
     function isAuthenticated() {
       return request.auth != null && request.auth.uid != null;
     }
 
-    function getUserRole() {
+    function getUserData() {
       let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      return exists(userPath) ? get(userPath).data.get('role', 'none') : 'none';
+      return exists(userPath) ? get(userPath).data : {};
     }
 
-    function isAdmin() {
-      let role = getUserRole();
-      return isAuthenticated() && (
-        role == "admin" || 
-        role == "Admin" ||
-        role == "superadmin" || 
-        role == "SuperAdmin" ||
-        role == "Super Admin" ||
-        role == "Full Access" ||
-        role == "Verification Only" ||
-        role == "Documents Only" ||
-        role == "View Only"
-      );
+    function getUserRole() {
+      return getUserData().get('role', 'none');
     }
 
+    function getUserStatus() {
+      return getUserData().get('status', 'Active');
+    }
+
+    // Account is valid and active (not locked, not deleted)
+    function isActiveAccount() {
+      let status = getUserStatus();
+      return status != 'Locked' && status != 'Deleted' && status != 'Deleted by Resident';
+    }
+
+    // Super Admin: highest authority
     function isSuperAdmin() {
       let role = getUserRole();
-      return isAuthenticated() && (
-        role == "superadmin" || 
-        role == "SuperAdmin" || 
-        role == "Super Admin"
+      return isAuthenticated() && isActiveAccount() && (
+        role == 'superadmin' || 
+        role == 'SuperAdmin' || 
+        role == 'Super Admin'
       );
+    }
+
+    // Full Admin: operational administration
+    function isFullAdmin() {
+      let role = getUserRole();
+      return isAuthenticated() && isActiveAccount() && (
+        isSuperAdmin() || 
+        role == 'admin' || 
+        role == 'Admin' || 
+        role == 'Full Access'
+      );
+    }
+
+    // Any Admin (including specialized roles & view only)
+    function isAnyAdmin() {
+      let role = getUserRole();
+      return isAuthenticated() && isActiveAccount() && (
+        isFullAdmin() ||
+        role == 'Resident Management' ||
+        role == 'Verifications' || 
+        role == 'Verification Only' ||
+        role == 'Document Processing' || 
+        role == 'Documents Only' ||
+        role == 'View Only'
+      );
+    }
+
+    // Role-specific mutation permissions
+    function canManageResidents() {
+      let role = getUserRole();
+      return isFullAdmin() || (isAuthenticated() && isActiveAccount() && role == 'Resident Management');
+    }
+
+    function canManageVerifications() {
+      let role = getUserRole();
+      return isFullAdmin() || (isAuthenticated() && isActiveAccount() && (role == 'Verifications' || role == 'Verification Only'));
+    }
+
+    function canManageRequests() {
+      let role = getUserRole();
+      return isFullAdmin() || (isAuthenticated() && isActiveAccount() && (role == 'Document Processing' || role == 'Documents Only'));
     }
 
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return isAuthenticated() && isActiveAccount() && request.auth.uid == userId;
     }
 
     // ==============================================================
     // USERS COLLECTION
     // ==============================================================
     match /users/{userId} {
-      // Admins can read all. Residents can read their own profiles.
-      allow read: if isAdmin() || isOwner(userId);
+      // Any admin or the account owner can read the profile
+      allow read: if isAnyAdmin() || isOwner(userId);
       
-      // Creating an account is allowed during registration if the UID matches.
-      allow create: if isOwner(userId) || isAdmin();
-      
-      // Updates: Admins can update anything. 
-      // Residents can update their profile but CANNOT escalate privileges.
-      allow update: if isAdmin() || (
-        isOwner(userId) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isVerified', 'status'])
+      // Account Creation:
+      // - Super Admin can provision accounts.
+      // - Residents can only self-register with role='resident', isVerified=false, status='Pending' (#29).
+      allow create: if isSuperAdmin() || (
+        isAuthenticated() && 
+        request.auth.uid == userId &&
+        request.resource.data.role == 'resident' &&
+        request.resource.data.isVerified == false &&
+        (request.resource.data.status == 'Pending' || request.resource.data.status == 'Active') &&
+        (!('accountExpiry' in request.resource.data) || request.resource.data.accountExpiry == '')
       );
       
-      // Owners can delete their own account. Admins/SuperAdmins can delete any user.
-      allow delete: if isOwner(userId) || isAdmin();
+      // Updates:
+      // - Super Admin can update any user/role.
+      // - Resident Management / Full Admin can update resident data, but CANNOT modify Super Admin/Admins, and CANNOT escalate roles.
+      // - Verifications Admin can update verification status / expiry on residents.
+      // - Residents can only update allowlisted self-editable fields (e.g. contactNumber, profilePicture) OR self-deactivate (#26, #55).
+      allow update: if isSuperAdmin() || (
+        canManageResidents() &&
+        resource.data.role == 'resident' &&
+        request.resource.data.role == 'resident'
+      ) || (
+        canManageVerifications() &&
+        resource.data.role == 'resident' &&
+        request.resource.data.role == 'resident'
+      ) || (
+        isOwner(userId) && (
+          // Self-profile edits: restricted to non-sensitive contact/photo fields
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'contactNumber', 'profilePicture', 'updatedAt'
+          ]) ||
+          // Self-deactivation flow (#26)
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+            request.resource.data.status == 'Deleted by Resident' &&
+            resource.data.status != 'Deleted'
+          )
+        )
+      );
+      
+      // Deletions: Only Super Admin can hard-delete user documents.
+      allow delete: if isSuperAdmin();
     }
 
     // ==============================================================
     // DOCUMENT REQUESTS COLLECTION
     // ==============================================================
     match /documentRequests/{requestId} {
-      // Admins can see all. Residents can only see their own.
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
+      // Admins can see all. Residents see their own.
+      allow read: if isAnyAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
       
-      // Residents can create requests for themselves. Admins can create for anyone.
-      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.residentId == request.auth.uid);
+      // Creation:
+      // - Document Processing / Full Admin can create.
+      // - Active Residents can create for themselves with status='Pending' and valid fee/paymentStatus (#56).
+      allow create: if canManageRequests() || (
+        isAuthenticated() &&
+        isActiveAccount() &&
+        request.resource.data.residentId == request.auth.uid &&
+        request.resource.data.status == 'Pending' &&
+        request.resource.data.paymentStatus in ['unpaid', 'pending_verification', 'waived'] &&
+        request.resource.data.documentFee is number &&
+        request.resource.data.documentFee >= 0
+      );
       
-      // Updates: Admins can update anything.
-      // Residents can only update if they aren't manipulating payment or approval status.
-      allow update: if isAdmin() || (
-        isAuthenticated() && 
+      // Updates:
+      // - Document Processing / Full Admin can update everything.
+      // - Residents can only perform validated transitions (#26, #56):
+      //   1. Cancel a Pending request: status -> 'Cancelled'
+      //   2. Submit Payment: paymentStatus -> 'pending_verification'
+      allow update: if canManageRequests() || (
+        isAuthenticated() &&
+        isActiveAccount() &&
         resource.data.residentId == request.auth.uid &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'documentFee', 'paymentStatus'])
+        request.resource.data.residentId == resource.data.residentId &&
+        (
+          // Case 1: Cancellation transition
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'statusTimestamps']) &&
+            resource.data.status == 'Pending' &&
+            request.resource.data.status == 'Cancelled'
+          ) ||
+          // Case 2: Payment submission transition
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'paymentStatus', 'paymentMethod', 'gcashRefNumber', 'gcashScreenshotUrl', 'paymentSubmittedAt'
+            ]) &&
+            request.resource.data.paymentStatus == 'pending_verification' &&
+            resource.data.status in ['Pending', 'Approved', 'Processing']
+          )
+        )
       );
 
-      // Deletions allowed by Admins, or residents managing their own requests.
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
+      // Deletions:
+      // - Super Admin can delete.
+      // - Residents can ONLY delete requests if still Pending or Cancelled (cannot delete processed/receipted requests) (#56).
+      allow delete: if isSuperAdmin() || (
+        isAuthenticated() &&
+        resource.data.residentId == request.auth.uid &&
+        resource.data.status in ['Pending', 'Cancelled']
+      );
     }
 
     // ==============================================================
     // VERIFICATIONS COLLECTION
     // ==============================================================
     match /verifications/{verificationId} {
-      // Admins can see all. Residents can only see their own.
-      allow read: if isAdmin() || (isAuthenticated() && (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid));
+      allow read: if isAnyAdmin() || (
+        isAuthenticated() && 
+        (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid)
+      );
       
-      // Residents can create verifications for themselves.
-      allow create: if isAdmin() || (isAuthenticated() && (request.resource.data.residentId == request.auth.uid || request.resource.data.userId == request.auth.uid));
+      // Creation:
+      // - Verifications Admin / Full Admin can create.
+      // - Residents can create verification for themselves, BUT status MUST be 'pending' (#57).
+      allow create: if canManageVerifications() || (
+        isAuthenticated() &&
+        isActiveAccount() &&
+        (request.resource.data.residentId == request.auth.uid || request.resource.data.userId == request.auth.uid) &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.type in ['registration', 'profile-edit', 'reactivation']
+      );
       
-      // Admins can update or delete any verification. Residents can delete their own (e.g. when deleting their account).
-      allow update: if isAdmin();
-      allow delete: if isAdmin() || (isAuthenticated() && (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid));
+      // Updates: Only Verifications Admin / Full Admin can review / update verifications (#57)
+      allow update: if canManageVerifications();
+
+      // Deletions:
+      // - Super Admin can delete.
+      // - Residents can ONLY withdraw unreviewed 'pending' verifications (#57).
+      allow delete: if isSuperAdmin() || (
+        isAuthenticated() &&
+        (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid) &&
+        resource.data.status == 'pending'
+      );
     }
 
     // ==============================================================
     // NOTIFICATIONS COLLECTION
     // ==============================================================
     match /notifications/{notificationId} {
-      // Users can read notifications directed to them. Admins can read notifications directed to "admin".
-      allow read: if isAuthenticated() && (resource.data.targetId == request.auth.uid || (resource.data.targetId == "admin" && isAdmin()));
+      allow read: if isAuthenticated() && (
+        resource.data.targetId == request.auth.uid || 
+        (resource.data.targetId == 'admin' && isAnyAdmin())
+      );
       
-      // Anyone can create a notification (e.g. system generating them, resident pinging admin).
-      allow create: if isAuthenticated();
+      // Creation:
+      // - Admins can notify anyone.
+      // - Residents can ONLY create notification with targetId == 'admin' (#58 impersonation defense).
+      allow create: if isAnyAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.targetId == 'admin' &&
+        request.resource.data.type in ['info', 'alert']
+      );
       
-      // Only the target user (or admins for "admin" notifications) can mark as read/delete.
-      allow update, delete: if isAuthenticated() && (resource.data.targetId == request.auth.uid || (resource.data.targetId == "admin" && isAdmin()));
+      allow update, delete: if isAuthenticated() && (
+        resource.data.targetId == request.auth.uid || 
+        (resource.data.targetId == 'admin' && isAnyAdmin())
+      );
     }
 
     // ==============================================================
     // ACTIVITY LOGS COLLECTION
     // ==============================================================
     match /activityLogs/{logId} {
-      // Only Admins and SuperAdmins can read logs.
-      allow read: if isAdmin();
-      
-      // System and Admins can create logs.
-      allow create: if isAdmin();
-      
-      // Only SuperAdmins can clear/delete logs.
+      allow read: if isAnyAdmin();
+      allow create: if isAnyAdmin();
       allow update, delete: if isSuperAdmin();
     }
 
     // ==============================================================
-    // SYSTEM ALERTS COLLECTION
+    // SYSTEM ALERTS & SYSTEM CONFIG
     // ==============================================================
     match /systemAlerts/{alertId} {
-      // Anyone authenticated can read system-wide alerts.
       allow read: if isAuthenticated();
-      
-      // Only SuperAdmins can create, update, or delete system alerts.
       allow create, update, delete: if isSuperAdmin();
     }
 
-    // ==============================================================
-    // SYSTEM CONFIGURATION COLLECTION
-    // ==============================================================
     match /systemConfig/{configId} {
-      // Anyone authenticated can read configuration (document fees, etc).
       allow read: if isAuthenticated();
-      
-      // Only SuperAdmins can modify configuration.
       allow create, update, delete: if isSuperAdmin();
     }
 
@@ -154,9 +275,7 @@ service cloud.firestore {
     // BACKUP LOGS COLLECTION
     // ==============================================================
     match /backupLogs/{logId} {
-      // Only SuperAdmins can read backup logs.
       allow read: if isSuperAdmin();
-      // Backups are logged securely via the Admin SDK API Route, no client writes allowed.
       allow create, update, delete: if false; 
     }
 

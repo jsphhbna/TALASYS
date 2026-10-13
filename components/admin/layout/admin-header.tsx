@@ -21,11 +21,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { LogOut } from "lucide-react"
+import { LogOut, Menu } from "lucide-react"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
+import { AdminSidebarNav } from "./admin-sidebar"
 
 export function AdminHeader() {
   const { user, logout } = useAuth()
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const handleLogout = () => {
     setShowLogoutDialog(false)
@@ -38,7 +41,25 @@ export function AdminHeader() {
         className="h-16 bg-gradient-to-r from-[#0C2340] to-[#1a3a5c] flex items-center justify-between px-4 sm:px-6 shadow-md border-b border-[#1a3a5c]/50"
         role="banner"
       >
-        <BrandMark subtitle="Admin Panel" />
+        <div className="flex items-center gap-2">
+          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden text-white hover:bg-white/10" aria-label="Open Navigation Menu">
+                <Menu className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-[260px] bg-[#0C2340] border-r border-[#1a3a5c] text-white flex flex-col">
+              <SheetTitle className="sr-only">Admin Navigation Menu</SheetTitle>
+              <div className="p-4 border-b border-white/10">
+                <BrandMark subtitle="Admin Panel" />
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <AdminSidebarNav onItemClick={() => setIsMobileMenuOpen(false)} />
+              </div>
+            </SheetContent>
+          </Sheet>
+          <BrandMark subtitle="Admin Panel" />
+        </div>
 
         <div className="flex items-center gap-4">
           <ThemeToggle />

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, where, setDoc, limit } from "firebase/firestore"
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, where, setDoc, limit, getDocs } from "firebase/firestore"
+import { isAnyAdminRole, isSuperAdminRole } from "@/lib/auth/auth-types"
 import type {
     AdminAccount,
     AuditLog,
@@ -27,6 +28,7 @@ import {
     SUPERADMIN_DISPLAY_NAME,
     SUPERADMIN_INITIALS,
 } from "@/lib/constants"
+import { parseAuditTimestamp } from "@/lib/security/audit-utils"
 
 export function useSuperAdminData() {
     const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([])
@@ -45,6 +47,7 @@ export function useSuperAdminData() {
     })
     
     const [isLoaded, setIsLoaded] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const [stats, setStats] = useState({
         totalResidents: 0,
         activeRequests: 0,
@@ -58,11 +61,7 @@ export function useSuperAdminData() {
 
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_USERS), (snapshot) => {
             const allUserDocuments = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as any))
-            const adminUsers = allUserDocuments.filter(userData => 
-                userData.role === "admin" || userData.role === "SuperAdmin" || userData.role === "superadmin" ||
-                userData.role === "Full Access" || userData.role === "Verification Only" || 
-                userData.role === "Documents Only" || userData.role === "View Only"
-            ).map(adminUser => ({
+            const adminUsers = allUserDocuments.filter(userData => isAnyAdminRole(userData.role)).map(adminUser => ({
                 id: adminUser.id,
                 name: adminUser.name || "Admin",
                 email: adminUser.email || "",
@@ -71,24 +70,68 @@ export function useSuperAdminData() {
                 status: adminUser.status || "Active",
                 initials: adminUser.initials || "A",
                 isOnline: false,
-                lastActive: "Never",
+                lastActive: adminUser.lastActive || "Not recorded",
                 createdDate: adminUser.createdDate || "Unknown",
                 isVerified: adminUser.isVerified || false,
             }))
-            setAdminAccounts(adminUsers.filter(adminUser => adminUser.role !== "SuperAdmin" && adminUser.role !== "superadmin"))
+            setAdminAccounts(adminUsers.filter(adminUser => !isSuperAdminRole(adminUser.role)))
             setStats(prev => ({ ...prev, adminCount: adminUsers.length }))
+
+            // Check for locked admins signal (#1)
+            const lockedAdmins = adminUsers.filter(a => a.status === "Locked")
+            if (lockedAdmins.length > 0) {
+                setSystemAlerts(prev => {
+                    const withoutLocked = prev.filter(a => !a.id.startsWith("signal-locked-admin"))
+                    return [
+                        ...withoutLocked,
+                        {
+                            id: "signal-locked-admin",
+                            severity: "warning",
+                            title: "Locked Administrator Account",
+                            description: `${lockedAdmins.length} administrator account(s) are currently locked and cannot access the system.`,
+                            metric: `${lockedAdmins.length} Locked`,
+                            timestamp: "Active",
+                        }
+                    ]
+                })
+            }
+        }, (err) => {
+            console.error("users snapshot error in superadmin hook:", err)
+            setError(err.message || "Failed to load users")
         }))
 
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(500)), (snapshot) => {
-            setAuditLogs(snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as AuditLog)))
+            setAuditLogs(snapshot.docs.map(snapshotDoc => {
+                const data = snapshotDoc.data()
+                return {
+                    id: snapshotDoc.id,
+                    ...data,
+                    timestamp: parseAuditTimestamp(data.timestamp) || 0,
+                    action: data.action || data.actionType || "Action",
+                    actionType: data.actionType || data.action || "Action",
+                } as unknown as AuditLog
+            }))
+        }, (err) => {
+            console.error("activityLogs snapshot error in superadmin hook:", err)
+            setError(err.message || "Failed to load audit logs")
         }))
 
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_SYSTEM_ALERTS), (snapshot) => {
-            setSystemAlerts(snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as SystemAlert)))
+            const persisted = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as SystemAlert))
+            setSystemAlerts(prev => {
+                const dynamic = prev.filter(a => a.id.startsWith("signal-"))
+                return [...persisted, ...dynamic]
+            })
+        }, (err) => {
+            console.error("alerts snapshot error in superadmin hook:", err)
+            setError(err.message || "Failed to load system alerts")
         }))
 
         unsubscribeFunctions.push(onSnapshot(doc(db, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID), (snapshot) => {
             if (snapshot.exists()) setSystemConfig(snapshot.data() as SystemConfig)
+        }, (err) => {
+            console.error("config snapshot error in superadmin hook:", err)
+            setError(err.message || "Failed to load system config")
         }))
 
         // Aggregate counts are fetched separately because Firestore onSnapshot does not
@@ -100,12 +143,44 @@ export function useSuperAdminData() {
                     getCountFromServer(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), where("status", "==", "Pending"))),
                     getCountFromServer(query(collection(db, COLLECTION_VERIFICATIONS), where("status", "==", "pending"))),
                 ])
+                const pendingVerifsCount = pendingVerificationsSnap.data().count
+                const activeReqsCount = activeRequestsSnap.data().count
+
                 setStats(prev => ({
                     ...prev,
                     totalResidents: totalResidentsSnap.data().count,
-                    activeRequests: activeRequestsSnap.data().count,
-                    pendingVerifications: pendingVerificationsSnap.data().count,
+                    activeRequests: activeReqsCount,
+                    pendingVerifications: pendingVerifsCount,
                 }))
+
+                const queueSignals: SystemAlert[] = []
+                if (pendingVerifsCount >= 5) {
+                    queueSignals.push({
+                        id: "signal-pending-verifications",
+                        severity: "warning",
+                        title: "Verification Queue Backlog",
+                        description: `${pendingVerifsCount} resident verification submissions are pending review.`,
+                        metric: `${pendingVerifsCount} Pending`,
+                        timestamp: "Active",
+                    })
+                }
+                if (activeReqsCount >= 10) {
+                    queueSignals.push({
+                        id: "signal-pending-requests",
+                        severity: "info",
+                        title: "Document Processing Queue",
+                        description: `${activeReqsCount} document requests are awaiting processing.`,
+                        metric: `${activeReqsCount} Queued`,
+                        timestamp: "Active",
+                    })
+                }
+
+                if (queueSignals.length > 0) {
+                    setSystemAlerts(prev => {
+                        const withoutQueues = prev.filter(a => !a.id.startsWith("signal-pending-"))
+                        return [...withoutQueues, ...queueSignals]
+                    })
+                }
             } catch (statsError) {
                 console.error("Failed to fetch SuperAdmin aggregate stats:", statsError)
             }
@@ -125,6 +200,9 @@ export function useSuperAdminData() {
         auditLogs,
         systemAlerts,
         systemConfig,
+        isLoaded,
+        error,
+        hasError: !!error,
         stats: {
             ...stats,
             roleDistribution: [
@@ -141,7 +219,6 @@ export function useSuperAdminData() {
             })(),
             totalAuditLogs: auditLogs.length,
         },
-        isLoaded,
         refresh,
 
         // Admin Accounts
@@ -184,9 +261,9 @@ export function useSuperAdminData() {
                     admin: { name: SUPERADMIN_DISPLAY_NAME, initials: SUPERADMIN_INITIALS, color: COLOR_SUPERADMIN_GOLD },
                     role: "SuperAdmin",
                     action: "Created Admin",
-                    actionType: "Created Admin",
+                    actionType: "Admin Management",
                     details: `Created admin account for ${input.name}`,
-                    ipAddress: "localhost"
+                    ipAddress: "Not captured"
                 })
             } catch (createAdminError: any) {
                 console.error(`Error creating admin auth account (email: ${input.email}):`, createAdminError)
@@ -195,12 +272,62 @@ export function useSuperAdminData() {
         }, []),
         updateAdmin: useCallback(async (id: string, updates: Partial<AdminAccount>) => {
             await updateDoc(doc(db, COLLECTION_USERS, id), updates)
-        }, []),
+            const targetAdmin = adminAccounts.find(a => a.id === id)
+            const targetName = targetAdmin?.name || id
+            const actionName = updates.status === "Locked" ? "Locked Admin" : (updates.status === "Active" ? "Unlocked Admin" : (updates.role ? "Updated Admin Role" : "Updated Admin"))
+            const details = updates.role ? `Changed role of ${targetName} to ${updates.role}` : (updates.status ? `${updates.status} account of ${targetName}` : `Updated settings for ${targetName}`)
+            await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
+                date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                timestamp: Date.now(),
+                admin: { name: SUPERADMIN_DISPLAY_NAME, initials: SUPERADMIN_INITIALS, color: COLOR_SUPERADMIN_GOLD },
+                role: "SuperAdmin",
+                action: actionName,
+                actionType: "Admin Management",
+                details,
+                targetId: id,
+                targetCollection: "users",
+                ipAddress: "Not captured"
+            })
+        }, [adminAccounts]),
         deleteAdmin: useCallback(async (id: string) => {
+            const targetAdmin = adminAccounts.find(a => a.id === id)
+            const targetName = targetAdmin?.name || id
             await deleteDoc(doc(db, COLLECTION_USERS, id))
-        }, []),
+            await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
+                date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                timestamp: Date.now(),
+                admin: { name: SUPERADMIN_DISPLAY_NAME, initials: SUPERADMIN_INITIALS, color: COLOR_SUPERADMIN_GOLD },
+                role: "SuperAdmin",
+                action: "Deleted Admin",
+                actionType: "Admin Management",
+                details: `Deleted admin account for ${targetName}`,
+                targetId: id,
+                targetCollection: "users",
+                ipAddress: "Not captured"
+            })
+        }, [adminAccounts]),
 
         // Audit Logs
+        fetchAllAuditLogs: useCallback(async () => {
+            try {
+                const snap = await getDocs(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc")))
+                return snap.docs.map(snapshotDoc => {
+                    const data = snapshotDoc.data()
+                    return {
+                        id: snapshotDoc.id,
+                        ...data,
+                        timestamp: parseAuditTimestamp(data.timestamp) || 0,
+                        action: data.action || data.actionType || "Action",
+                        actionType: data.actionType || data.action || "Action",
+                    } as unknown as AuditLog
+                })
+            } catch (e) {
+                console.error("fetchAllAuditLogs failed:", e)
+                return []
+            }
+        }, []),
         addAuditLog: useCallback(async (input: Omit<AuditLog, "id" | "time" | "date" | "timestamp">) => {
             await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
                 ...input,
@@ -225,6 +352,18 @@ export function useSuperAdminData() {
         // System Config
         updateConfig: useCallback(async (updates: Partial<SystemConfig>) => {
             await setDoc(doc(db, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID), updates, { merge: true })
+            await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
+                date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
+                timestamp: Date.now(),
+                admin: { name: SUPERADMIN_DISPLAY_NAME, initials: SUPERADMIN_INITIALS, color: COLOR_SUPERADMIN_GOLD },
+                role: "SuperAdmin",
+                action: "Config Edit",
+                actionType: "Config Edit",
+                details: `Updated system configuration (${Object.keys(updates).join(", ")})`,
+                targetCollection: "system_config",
+                ipAddress: "Not captured"
+            })
         }, []),
     }
 }

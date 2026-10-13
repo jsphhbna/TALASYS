@@ -13,7 +13,7 @@ interface ShellProps {
   mainClassName?: string
 }
 
-export function ResidentPageShell({ children, mainClassName = "flex-1 p-10" }: ShellProps) {
+export function ResidentPageShell({ children, mainClassName = "flex-1 p-4 sm:p-6 lg:p-10" }: ShellProps) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <div className="sticky top-0 z-50">
@@ -27,7 +27,7 @@ export function ResidentPageShell({ children, mainClassName = "flex-1 p-10" }: S
   )
 }
 
-export function AdminPageShell({ children, mainClassName = "flex-1 p-8" }: ShellProps) {
+export function AdminPageShell({ children, mainClassName = "flex-1 p-4 sm:p-6 lg:p-8" }: ShellProps) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <div className="sticky top-0 z-50">

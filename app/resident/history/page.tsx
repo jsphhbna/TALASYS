@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuthGuard } from "@/hooks/auth"
 import { useMounted } from "@/hooks/use-mounted"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
@@ -16,6 +17,7 @@ import { RequestStatusTrackerModal } from "@/components/resident/history/request
 import { PaymentModal } from "@/components/resident/history/payment-modal"
 
 export default function RequestHistoryPage() {
+  const router = useRouter()
   const { isAuthorized } = useAuthGuard()
   const { requests, cancelRequest } = useResidentData()
   const [searchQuery, setSearchQuery] = useState("")
@@ -24,8 +26,9 @@ export default function RequestHistoryPage() {
   const [trackingRequestId, setTrackingRequestId] = useState<string | null>(null)
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<ResidentRequest | null>(null)
+  const [rejectionModalRequest, setRejectionModalRequest] = useState<ResidentRequest | null>(null)
   const [paymentRequest, setPaymentRequest] = useState<ResidentRequest | null>(null)
-  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
+  const [selectedYear, setSelectedYear] = useState<string>("All Years")
   const [selectedMonth, setSelectedMonth] = useState<string>("All Months")
   const itemsPerPage = 5
   const mounted = useMounted()
@@ -39,16 +42,16 @@ export default function RequestHistoryPage() {
     let displayDeclined = 0
 
     requests.forEach(req => {
-      if (!req.dateRequested) return
+      if (!req.dateRequested && !req.createdAt) return
       
-      const date = new Date(req.dateRequested)
+      const date = req.dateRequested ? new Date(req.dateRequested) : new Date(req.createdAt)
       if (isNaN(date.getTime())) return
       
       const year = date.getFullYear().toString()
       const month = date.toLocaleString('default', { month: 'long' })
       years.add(year)
 
-      if (year === selectedYear) {
+      if (selectedYear === "All Years" || selectedYear === "All" || year === selectedYear) {
         availableMonthsForYear.add(month)
         
         if (selectedMonth === "All Months" || month === selectedMonth) {
@@ -71,7 +74,7 @@ export default function RequestHistoryPage() {
     const sortedMonths = Array.from(availableMonthsForYear).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b))
 
     return {
-      availableYears: Array.from(years).sort().reverse(),
+      availableYears: ["All Years", ...Array.from(years).sort().reverse()],
       availableMonths: sortedMonths,
       displayTotal,
       displayApproved,
@@ -79,22 +82,49 @@ export default function RequestHistoryPage() {
     }
   }, [requests, selectedYear, selectedMonth])
 
-  if (!isAuthorized || !mounted) {
-    return null
-  }
+  // Reset currentPage to 1 whenever any filter changes (Finding #21)
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter, selectedYear, selectedMonth])
 
-  // Filter requests
+  // Filter requests (Finding #20: wire date controls to the table and pagination)
   const filteredRequests = requests.filter((request) => {
     const matchesSearch = searchQuery === "" ||
       (request.documentType || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (request.refNumber || "").toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "all" || (request.status || "").toLowerCase() === statusFilter.toLowerCase()
-    return matchesSearch && matchesStatus
+    
+    let matchesDate = true
+    if (request.dateRequested || request.createdAt) {
+      const date = request.dateRequested ? new Date(request.dateRequested) : new Date(request.createdAt)
+      if (!isNaN(date.getTime())) {
+        const year = date.getFullYear().toString()
+        const month = date.toLocaleString('default', { month: 'long' })
+        if (selectedYear !== "All" && selectedYear !== "All Years" && year !== selectedYear) {
+          matchesDate = false
+        }
+        if (selectedMonth !== "All Months" && month !== selectedMonth) {
+          matchesDate = false
+        }
+      }
+    } else if (selectedYear !== "All" && selectedYear !== "All Years") {
+      matchesDate = false
+    }
+
+    return matchesSearch && matchesStatus && matchesDate
   })
 
-  // Pagination
+  // Pagination clamping (Finding #21: never render empty rows on a stale page index)
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages)
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage
   const paginatedRequests = filteredRequests.slice(startIndex, startIndex + itemsPerPage)
   const showingFrom = filteredRequests.length === 0 ? 0 : startIndex + 1
   const showingTo = filteredRequests.length === 0 ? 0 : Math.min(startIndex + itemsPerPage, filteredRequests.length)
@@ -103,6 +133,10 @@ export default function RequestHistoryPage() {
     if (confirm("Are you sure you want to cancel this request?")) {
       cancelRequest(id)
     }
+  }
+
+  if (!isAuthorized || !mounted) {
+    return null
   }
 
 
@@ -242,6 +276,12 @@ export default function RequestHistoryPage() {
                   {request.status === "Pending" && (
                     <Button size="sm" variant="outline" onClick={() => handleCancelRequest(request.id)} className="flex-1 text-xs-plus h-8 text-red-600 border-red-200">Cancel</Button>
                   )}
+                  {request.status === "Rejected" && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setRejectionModalRequest(request)} className="flex-1 text-xs-plus h-8 border-red-200 text-red-600">Details</Button>
+                      <Button size="sm" onClick={() => router.push(`/resident/request?type=${encodeURIComponent(request.documentType)}&retry=${request.id}`)} className="flex-1 text-xs-plus h-8 bg-[#0C2340] text-white">Retry</Button>
+                    </>
+                  )}
                   {((request as any).paymentStatus === "unpaid" || (request as any).paymentStatus === "pending_verification") && (request as any).documentFee > 0 && (
                     <Button size="sm" onClick={() => setPaymentRequest(request)} className={`flex-1 text-xs-plus h-8 font-bold ${(request as any).paymentStatus === "unpaid" ? "bg-orange-500 text-white" : "bg-amber-500 text-white"}`}>
                       {(request as any).paymentStatus === "unpaid" ? "💳 Pay Now" : "Resubmit"}
@@ -343,14 +383,15 @@ export default function RequestHistoryPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-2xs h-7 px-3 bg-transparent"
+                              onClick={() => setRejectionModalRequest(request)}
+                              className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 text-2xs h-7 px-3 bg-transparent"
                             >
                               Details
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-2xs h-7 px-3 bg-transparent"
+                              onClick={() => router.push(`/resident/request?type=${encodeURIComponent(request.documentType)}&retry=${request.id}`)}
+                              className="bg-[#0C2340] hover:bg-[#0a1c33] dark:bg-slate-800 text-white text-2xs h-7 px-3"
                             >
                               Retry
                             </Button>
@@ -439,21 +480,94 @@ export default function RequestHistoryPage() {
             <div className="p-6">
               <div className="space-y-3 mb-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Requested For</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByName}</p></div>
-                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Relationship</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.relationship}</p></div>
-                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByContact}</p></div>
-                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">File Uploaded</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.authorizationLetter}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Requested For</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByName || "N/A"}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Relationship</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.relationship || "N/A"}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact</p><p className="text-sm text-[#0C2340] dark:text-blue-50">{selectedRequest.requestedByContact || "N/A"}</p></div>
+                  <div><p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">File Uploaded</p><p className="text-sm text-[#0C2340] dark:text-blue-50 truncate">{selectedRequest.authorizationLetter || "None"}</p></div>
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center border border-slate-200 dark:border-slate-700">
-                    <p className="text-sm text-slate-400">Document Viewer Placeholder</p>
-                  </div>
+                  {selectedRequest.authorizationLetter?.startsWith("http") || selectedRequest.authorizationLetter?.startsWith("/") || selectedRequest.authorizationLetter?.startsWith("data:") ? (
+                    selectedRequest.authorizationLetter.match(/\.(jpeg|jpg|gif|png|webp)($|\?)/i) ? (
+                      <div className="max-h-64 overflow-hidden rounded border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+                        <img src={selectedRequest.authorizationLetter} alt="Authorization Letter" className="max-h-64 object-contain" />
+                      </div>
+                    ) : (
+                      <iframe src={selectedRequest.authorizationLetter} className="w-full h-64 rounded border border-slate-200 dark:border-slate-700" title="Authorization Letter" />
+                    )
+                  ) : (
+                    <div className="aspect-video bg-slate-50 dark:bg-slate-800 rounded flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700 p-4 text-center">
+                      <p className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">{selectedRequest.authorizationLetter || "Physical Document Reference"}</p>
+                      <p className="text-xs text-slate-400">Official authorization letter on file at the Barangay Hall.</p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3">
-                <Button className="flex-1 h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Download File</Button>
+                <Button 
+                  onClick={() => {
+                    const letterUrl = selectedRequest.authorizationLetter
+                    if (letterUrl && (letterUrl.startsWith("http") || letterUrl.startsWith("/"))) {
+                      const link = document.createElement("a")
+                      link.href = letterUrl
+                      link.download = `Authorization_Letter_${selectedRequest.refNumber || selectedRequest.id}`
+                      link.target = "_blank"
+                      document.body.appendChild(link)
+                      link.click()
+                      document.body.removeChild(link)
+                    } else {
+                      window.print()
+                    }
+                  }}
+                  className="flex-1 h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
+                >
+                  Download / View File
+                </Button>
                 <Button variant="outline" onClick={() => setShowAuthDialog(false)} className="flex-1 h-10 border-slate-200 dark:border-slate-700">Close</Button>
               </div>
+            </div>
+          </Card>
+        </ModalOverlay>
+      )}
+
+      {/* Rejection Details Modal (Finding #22) */}
+      {rejectionModalRequest && (
+        <ModalOverlay isOpen={true} onClose={() => setRejectionModalRequest(null)}>
+          <Card className="w-full max-w-md p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-red-600 dark:text-red-400">Request Rejected</h3>
+              <button onClick={() => setRejectionModalRequest(null)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
+            </div>
+            <div className="py-4 space-y-3">
+              <div>
+                <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Document</p>
+                <p className="text-sm font-bold text-[#0C2340] dark:text-blue-50">{rejectionModalRequest.documentType} ({rejectionModalRequest.refNumber})</p>
+              </div>
+              <div>
+                <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Reason for Rejection</p>
+                <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md text-xs text-red-800 dark:text-red-300 mt-1">
+                  {rejectionModalRequest.rejectionReason || "Incomplete requirements or clarification needed. Please verify your submitted information and attachments."}
+                </div>
+              </div>
+              <div>
+                <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Date Requested</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">{rejectionModalRequest.dateRequested}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+              <Button 
+                onClick={() => {
+                  const docType = rejectionModalRequest.documentType
+                  const reqId = rejectionModalRequest.id
+                  setRejectionModalRequest(null)
+                  router.push(`/resident/request?type=${encodeURIComponent(docType)}&retry=${reqId}`)
+                }}
+                className="flex-1 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33] text-white"
+              >
+                Retry Application
+              </Button>
+              <Button variant="outline" onClick={() => setRejectionModalRequest(null)} className="flex-1">
+                Close
+              </Button>
             </div>
           </Card>
         </ModalOverlay>

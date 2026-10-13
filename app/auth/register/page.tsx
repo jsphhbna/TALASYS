@@ -249,28 +249,26 @@ export default function RegisterPage() {
     setIsCompleting(true)
     await delay(800)
 
-    // Upload documents to Cloudinary — each file tried individually so a single failure doesn't block registration
-    const finalProofs: ResidentProofDocument[] = await Promise.all(
-      Object.entries(uploadedFiles)
-        .filter(([, file]) => Boolean(file))
-        .map(async ([field, file], index) => {
-          const documentName =
-            field === "validId"
-              ? "Valid Government ID"
-              : field === "parentId"
-                ? "School ID or Parent's Valid ID"
-                : field === "seniorId"
-                  ? "Senior Citizen ID"
-                  : "Voter's ID / Certificate"
+    // #47: Upload documents to Cloudinary — required proofs must have durable URLs
+    const finalProofs: ResidentProofDocument[] = []
+    const failedUploads: string[] = []
 
-          let url = ""
-          try {
-            url = await uploadFileToCloudinary(file as File)
-          } catch (err) {
-            console.warn(`Upload failed for ${documentName}, continuing without URL:`, err)
-          }
+    for (const [index, [field, file]] of Object.entries(uploadedFiles).filter(([, file]) => Boolean(file)).entries()) {
+      const documentName =
+        field === "validId"
+          ? "Valid Government ID"
+          : field === "parentId"
+            ? "School ID or Parent's Valid ID"
+            : field === "seniorId"
+              ? "Senior Citizen ID"
+              : "Voter's ID / Certificate"
 
-          return {
+      try {
+        const url = await uploadFileToCloudinary(file as File)
+        if (!url) {
+          failedUploads.push(documentName)
+        } else {
+          finalProofs.push({
             id: `${Date.now()}-${index}`,
             name: documentName,
             filename: (file as File).name,
@@ -281,9 +279,19 @@ export default function RegisterPage() {
               year: "numeric",
             }),
             status: "Valid",
-          } as ResidentProofDocument
-        })
-    )
+          })
+        }
+      } catch (err) {
+        console.error(`Upload failed for ${documentName}:`, err)
+        failedUploads.push(documentName)
+      }
+    }
+
+    if (failedUploads.length > 0) {
+      setIsCompleting(false)
+      alert(`Failed to upload required document(s): ${failedUploads.join(", ")}. Please check your file size and connection, then try again.`)
+      return
+    }
 
     try {
       await registerResidentAccount({

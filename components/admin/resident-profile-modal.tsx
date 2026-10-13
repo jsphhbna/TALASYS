@@ -28,10 +28,13 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
   const [isFullImageOpen, setIsFullImageOpen] = useState(false)
   const [isPhotoLightboxOpen, setIsPhotoLightboxOpen] = useState(false)
 
-  // Reset state when opened/closed
+  // Reset state when opened/closed and guard async race (#39)
   useEffect(() => {
+    let isCurrent = true
     if (isOpen && resident) {
       setIsEditMode(false)
+      setDocuments([])
+      setValidIdUrl(null)
       setFormData({
         name: resident.name,
         contactNumber: resident.contactNumber,
@@ -51,6 +54,8 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
             where("residentId", "==", resident.id)
           )
           const snapshot = await getDocs(q)
+          if (!isCurrent) return
+
           if (!snapshot.empty) {
             const allVerifs = snapshot.docs.map(d => d.data())
             allVerifs.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
@@ -67,18 +72,25 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
             }
             
             const validDocs = Array.from(aggregatedDocs.values()).filter(d => d.status === "Valid" || d.status === "Pending")
-            setDocuments(validDocs)
+            if (isCurrent) setDocuments(validDocs)
           } else {
-            setDocuments([])
+            if (isCurrent) setDocuments([])
           }
         } catch (error) {
           console.error("Error fetching resident documents:", error)
-          setDocuments([])
+          if (isCurrent) setDocuments([])
         } finally {
-          setIsLoadingDocuments(false)
+          if (isCurrent) setIsLoadingDocuments(false)
         }
       }
       fetchDocs()
+    } else {
+      setDocuments([])
+      setValidIdUrl(null)
+    }
+
+    return () => {
+      isCurrent = false
     }
   }, [isOpen, resident])
 

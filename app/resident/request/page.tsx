@@ -15,7 +15,7 @@ import { showToastPreset } from "@/lib/app-toast"
 import { useResidentData } from "@/hooks/resident"
 import { uploadFileToCloudinary } from "@/lib/resident/cloudinary"
 
-type DocumentType = "funeral" | "pwd_adult" | "pwd_minor" | "indigency" | "residency" | "business" | "business_homeowner" | "business_contractor" | "osca"
+type DocumentType = "clearance" | "funeral" | "pwd_adult" | "pwd_minor" | "indigency" | "residency" | "business" | "business_homeowner" | "business_contractor" | "osca"
 type RequestFor = "myself" | "other"
 
 interface DocumentOption {
@@ -27,6 +27,7 @@ interface DocumentOption {
 }
 
 const documentTypes: DocumentOption[] = [
+  { id: "clearance", icon: "📄", title: "Barangay Clearance", description: "General clearance for employment, identification, and transactions", fee: 50 },
   { id: "funeral", icon: "🕊️", title: "Funeral Certification", description: "Certification for funeral assistance", fee: 0 },
   { id: "pwd_adult", icon: "♿", title: "PWD Certification (Adult)", description: "For PWD application purposes (Adult)", fee: 0 },
   { id: "pwd_minor", icon: "🚸", title: "PWD Certification (Minor)", description: "For PWD application purposes (Minor)", fee: 0 },
@@ -39,6 +40,7 @@ const documentTypes: DocumentOption[] = [
 ]
 
 const purposeOptions: Record<DocumentType, string[]> = {
+  clearance: ["Employment", "Postal ID", "Police Clearance", "Bank Account", "Other"],
   funeral: ["Funeral Assistance", "Other"],
   pwd_adult: ["PWD Application", "Other"],
   pwd_minor: ["PWD Application", "Other"],
@@ -54,9 +56,13 @@ function RequestDocumentContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { addRequest, systemConfig, requests } = useResidentData()
-  const typeParam = searchParams.get("type") as DocumentType | null
+  const rawTypeParam = searchParams.get("type")
+  const normalizedTypeParam: DocumentType | null = 
+    rawTypeParam === "clearance" || rawTypeParam === "barangay-clearance" ? "clearance" :
+    rawTypeParam === "residency" || rawTypeParam === "certificate-of-residency" ? "residency" :
+    (rawTypeParam as DocumentType | null)
 
-  const [selectedType, setSelectedType] = useState<DocumentType | null>(typeParam || null)
+  const [selectedType, setSelectedType] = useState<DocumentType | null>(normalizedTypeParam || null)
   const [requestFor, setRequestFor] = useState<RequestFor>("myself")
   const [purpose, setPurpose] = useState("")
   const [customPurpose, setCustomPurpose] = useState("")
@@ -123,27 +129,45 @@ function RequestDocumentContent() {
 
   const processSubmit = async (finalPurpose: string, extraData?: { gcashRefNumber?: string; gcashScreenshotUrl?: string }) => {
     setIsSubmittingRequest(true)
-    await delay(1000)
+    try {
+      let authLetterUrl: string | undefined = undefined
+      if (requestFor === "other" && authorizationLetter) {
+        setIsUploadingAuthorization(true)
+        const uploadRes = await uploadFileToCloudinary(authorizationLetter)
+        setIsUploadingAuthorization(false)
+        if (!uploadRes) {
+          setErrors(prev => ({ ...prev, authorizationLetter: "Failed to upload authorization letter. Please try again." }))
+          return
+        }
+        authLetterUrl = uploadRes
+      }
 
-    if (selectedDoc) {
-      addRequest({
-        documentType: selectedDoc.title,
-        purpose: finalPurpose,
-        requestFor,
-        paymentMethod: paymentMethod as "gcash" | "cash",
-        documentFee: selectedDoc.fee,
-        ...(extraData || {}),
-        ...(requestFor === "other" && {
-          requestedByName: otherPersonName,
-          requestedByContact: otherPersonContact,
-          relationship,
-          authorizationLetter: authorizationLetter?.name,
-        }),
-      })
+      if (selectedDoc) {
+        await addRequest({
+          documentType: selectedDoc.title,
+          purpose: finalPurpose,
+          requestFor,
+          paymentMethod: paymentMethod as "gcash" | "cash",
+          documentFee: selectedDoc.fee,
+          ...(extraData || {}),
+          ...(requestFor === "other" && {
+            requestedByName: otherPersonName,
+            requestedByContact: otherPersonContact,
+            relationship,
+            authorizationLetter: authLetterUrl || authorizationLetter?.name,
+          }),
+        })
+      }
+
+      showToastPreset("documentRequestSubmitted")
+      router.push("/resident/history")
+    } catch (err: any) {
+      console.error("Failed to submit request:", err)
+      setErrors(prev => ({ ...prev, submitError: err?.message || "Failed to submit request. Please try again." }))
+    } finally {
+      setIsSubmittingRequest(false)
+      setIsUploadingAuthorization(false)
     }
-
-    showToastPreset("documentRequestSubmitted")
-    router.push("/resident/history")
   }
 
   // Inject dynamic fees from SystemConfig and filter by enabled types

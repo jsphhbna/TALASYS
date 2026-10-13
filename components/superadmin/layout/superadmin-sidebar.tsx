@@ -36,34 +36,27 @@ const navigation = [
   { name: "Audit Logs", href: "/superadmin/audit", icon: ScrollText },
 ]
 
-export function SuperAdminSidebar() {
+export function SuperAdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = {}) {
   const pathname = usePathname()
   const router = useRouter()
-  const { logout } = useAuth()
   const { beginNavigation, pendingPath } = useNavigationLoading()
   const activePath = pendingPath ?? pathname
-  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
-
-  const handleLogout = () => {
-    setShowLogoutDialog(false)
-    logout()
-  }
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     const isModifiedClick = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0
     if (isModifiedClick || pathname === href) {
+      if (onItemClick) onItemClick()
       return
     }
 
     e.preventDefault()
     beginNavigation(href)
     router.push(href)
+    if (onItemClick) onItemClick()
   }
 
   return (
-    <>
-      <aside className="w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex flex-col" role="navigation">
-        <nav className="py-3 flex-1 overflow-y-auto">
+    <nav className="py-3 flex-1 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = activePath === item.href
             const Icon = item.icon
@@ -85,7 +78,23 @@ export function SuperAdminSidebar() {
               </Link>
             )
           })}
-        </nav>
+    </nav>
+  )
+}
+
+export function SuperAdminSidebar() {
+  const { logout } = useAuth()
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+
+  const handleLogout = () => {
+    setShowLogoutDialog(false)
+    logout()
+  }
+
+  return (
+    <>
+      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
+        <SuperAdminSidebarNav />
         <div className="p-3 border-t border-white/10">
           <button
             onClick={() => setShowLogoutDialog(true)}

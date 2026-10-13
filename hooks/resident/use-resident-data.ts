@@ -30,6 +30,7 @@ export function useResidentData() {
   const [verification, setVerification] = useState<any | null>(null)
   const [systemConfig, setSystemConfig] = useState<any | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!residentId) {
@@ -45,6 +46,9 @@ export function useResidentData() {
       const documentRequests = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as ResidentRequest))
       documentRequests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
       setRequests(documentRequests)
+    }, (err) => {
+      console.error("documentRequests snapshot error in resident hook:", err)
+      setError(err.message || "Failed to load requests")
     })
 
     const notificationsQuery = query(collection(db, COLLECTION_NOTIFICATIONS), where("targetId", "==", residentId))
@@ -56,6 +60,9 @@ export function useResidentData() {
         return timestampB - timestampA
       })
       setNotifications(residentNotifications)
+    }, (err) => {
+      console.error("notifications snapshot error in resident hook:", err)
+      setError(err.message || "Failed to load notifications")
     })
 
     const verificationsQuery = query(collection(db, COLLECTION_VERIFICATIONS), where("residentId", "==", residentId))
@@ -92,10 +99,16 @@ export function useResidentData() {
         
         setProofs(mergedProofs)
       }
+    }, (err) => {
+      console.error("verifications snapshot error in resident hook:", err)
+      setError(err.message || "Failed to load verifications")
     })
 
     const unsubscribeConfig = onSnapshot(doc(db, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID), (snapshot) => {
       if (snapshot.exists()) setSystemConfig(snapshot.data())
+    }, (err) => {
+      console.error("config snapshot error in resident hook:", err)
+      setError(err.message || "Failed to load system config")
     })
 
     // A brief delay ensures all listeners are initialized before the UI renders data.
@@ -211,24 +224,29 @@ export function useResidentData() {
   )
 
   const requestProfileEdit = useCallback(
-    async (changes: { field: string; oldValue: string; newValue: string }[], reason: string, uploadedFiles: any, newProfilePicture?: string) => {
+    async (
+      changes: { field: string; oldValue: string; newValue: string }[], 
+      reason: string, 
+      uploadedFiles: any, 
+      newProfilePicture?: string,
+      verificationType: "profile-edit" | "registration" = "profile-edit"
+    ) => {
       if (!residentId || !user) return null
 
       const uploadedDocuments: any[] = []
       
       const uploadAndCollectDocument = async (file: File | null, documentName: string) => {
         if (!file) return
-        try {
-          const uploadedUrl = await uploadFileToCloudinary(file)
-          uploadedDocuments.push({ 
-            name: documentName, 
-            url: uploadedUrl,
-            status: "pending", 
-            uploadDate: new Date().toLocaleDateString('en-US') 
-          })
-        } catch (uploadError) {
-          console.error(`Failed to upload ${documentName} (residentId: ${residentId}):`, uploadError)
+        const uploadedUrl = await uploadFileToCloudinary(file)
+        if (!uploadedUrl) {
+          throw new Error(`Failed to upload ${documentName}`)
         }
+        uploadedDocuments.push({ 
+          name: documentName, 
+          url: uploadedUrl,
+          status: "pending", 
+          uploadDate: new Date().toLocaleDateString('en-US') 
+        })
       }
 
       await Promise.all([
@@ -247,11 +265,14 @@ export function useResidentData() {
         })
       }
 
+      // Finding #48: If resident was never verified or explicit registration type, use "registration"
+      const effectiveType = (!user.isVerified || verificationType === "registration") ? "registration" : "profile-edit"
+
       const verificationPayload = {
         residentId,
         name: user.name,
         initials: user.initials,
-        type: "profile-edit",
+        type: effectiveType,
         submittedDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
         status: "pending",
         categories: user.statuses || ["Resident"],
@@ -265,9 +286,9 @@ export function useResidentData() {
 
       await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
         targetId: "admin",
-        type: "info",
-        title: "Profile Edit Request",
-        message: `${user.name} submitted a profile edit request.`,
+        type: effectiveType === "registration" ? "registration" : "info",
+        title: effectiveType === "registration" ? "Registration Verification Resubmission" : "Profile Edit Request",
+        message: `${user.name} submitted a ${effectiveType === "registration" ? "registration verification" : "profile edit"} request.`,
         timestamp: "Just now",
         isRead: false,
         createdAt: Date.now(),
@@ -276,6 +297,65 @@ export function useResidentData() {
       })
 
       return verificationDocRef.id
+    },
+    [residentId, user]
+  )
+
+  // Finding #49: Validated reactivation request with required evidence and admin notification
+  const requestReactivation = useCallback(
+    async (reason: string, uploadedFiles: any) => {
+      if (!residentId || !user) return null
+
+      const uploadedDocuments: any[] = []
+      const uploadAndCollectDocument = async (file: File | null, documentName: string) => {
+        if (!file) return
+        const uploadedUrl = await uploadFileToCloudinary(file)
+        if (!uploadedUrl) {
+          throw new Error(`Failed to upload ${documentName}`)
+        }
+        uploadedDocuments.push({ 
+          name: documentName, 
+          url: uploadedUrl,
+          status: "pending", 
+          uploadDate: new Date().toLocaleDateString('en-US') 
+        })
+      }
+
+      await Promise.all([
+        uploadAndCollectDocument(uploadedFiles.validId, "Valid ID"),
+        uploadAndCollectDocument(uploadedFiles.seniorId, "Senior Citizen ID"),
+        uploadAndCollectDocument(uploadedFiles.votersId, "Voter's ID"),
+      ])
+
+      const verificationPayload = {
+        residentId,
+        name: user.name,
+        initials: user.initials,
+        type: "reactivation",
+        submittedDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
+        status: "pending",
+        categories: user.statuses || ["Resident"],
+        changes: [{ field: "Account Status", oldValue: "Expired", newValue: "Active" }],
+        reason: reason || "Account reactivation request with updated proof documents",
+        documents: uploadedDocuments,
+        createdAt: Date.now()
+      }
+
+      const docRef = await addDoc(collection(db, COLLECTION_VERIFICATIONS), verificationPayload)
+
+      await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
+        targetId: "admin",
+        type: "reactivation",
+        title: "Account Reactivation Request",
+        message: `${user.name} submitted an account reactivation request.`,
+        timestamp: "Just now",
+        isRead: false,
+        createdAt: Date.now(),
+        residentName: user.name,
+        actionUrl: "/admin/verifications"
+      })
+
+      return docRef.id
     },
     [residentId, user]
   )
@@ -338,9 +418,12 @@ export function useResidentData() {
     systemConfig,
     unreadCount,
     isLoaded,
+    error,
+    hasError: !!error,
     addRequest,
     submitPayment,
     requestProfileEdit,
+    requestReactivation,
     markAllNotificationsRead,
     saveProfilePicture,
     refresh,

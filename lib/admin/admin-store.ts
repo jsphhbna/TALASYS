@@ -32,6 +32,7 @@ export interface AdminResident {
     categories: string[]
     status: "Active" | "Inactive" | "Verified" | "Expired" | "Expiring" | string
     isVoter: boolean
+    isVerified?: boolean
     expiryDate: string
     dateOfBirth: string
     contactNumber: string

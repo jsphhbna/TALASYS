@@ -323,7 +323,9 @@ export default function SuperAdminDashboard() {
           </div>
           <div className="space-y-3">
             {systemAlerts.length === 0 ? (
-              <div className="p-4 text-center text-slate-500 dark:text-slate-400 text-xs bg-slate-50 dark:bg-slate-950 rounded-lg">No alerts at this time</div>
+              <div className="p-4 text-center text-slate-500 dark:text-slate-400 text-xs bg-slate-50 dark:bg-slate-950 rounded-lg">
+                All monitored operational systems normal. Active checks include verification backlogs, administrative lockouts, and document processing queues.
+              </div>
             ) : systemAlerts.map((alert) => {
               const config = alertConfig[alert.severity] || alertConfig.info
               const AlertIcon = config.icon
