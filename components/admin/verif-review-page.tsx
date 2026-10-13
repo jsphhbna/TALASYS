@@ -10,6 +10,7 @@ import { ClipboardCheck, CheckCircle2, XCircle, AlertTriangle, Loader2 } from "l
 import { useAuth } from "@/lib/auth"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { toast } from "sonner"
+import { SecureMediaViewer } from "@/components/media/secure-image"
 
 interface VerifReviewPageProps {
   type: "registration" | "profile-edit" | "reactivation"
@@ -259,9 +260,15 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
                           <span className={`px-2.5 py-1 rounded text-xs font-semibold ${doc.status?.toLowerCase() === "verified" || doc.status?.toLowerCase() === "valid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{doc.status}</span>
                         </div>
                         {doc.url ? (
-                          <button onClick={() => setSelectedImage(doc.url)} className="block w-full mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 hover:opacity-90 transition-opacity shadow-sm">
-                            <img src={doc.url} alt={doc.name} className="w-full max-h-64 object-cover cursor-zoom-in" />
-                          </button>
+                          <div className="w-full mt-2">
+                            <SecureMediaViewer
+                              url={doc.url}
+                              alt={doc.name}
+                              recordId={selectedItem.id}
+                              recordType="verification"
+                              onZoom={(zoomUrl) => setSelectedImage(zoomUrl)}
+                            />
+                          </div>
                         ) : (
                           <div className="text-xs text-slate-400 italic mt-2">No image available</div>
                         )}

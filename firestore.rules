@@ -142,17 +142,11 @@ service cloud.firestore {
       allow read: if isAnyAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
       
       // Creation:
-      // - Document Processing / Full Admin can create.
-      // - Active Residents can create for themselves with status='Pending' and valid fee/paymentStatus (#56).
-      allow create: if canManageRequests() || (
-        isAuthenticated() &&
-        isActiveAccount() &&
-        request.resource.data.residentId == request.auth.uid &&
-        request.resource.data.status == 'Pending' &&
-        request.resource.data.paymentStatus in ['unpaid', 'pending_verification', 'waived'] &&
-        request.resource.data.documentFee is number &&
-        request.resource.data.documentFee >= 0
-      );
+      // Creation:
+      // Direct client creation by residents is blocked to prevent fee tampering and forged waivers (#56).
+      // Residents must create requests via the protected server route /api/resident/requests/create.
+      // Administrators with request management privileges may create directly.
+      allow create: if canManageRequests();
       
       // Updates:
       // - Document Processing / Full Admin can update everything.

@@ -18,6 +18,7 @@ const AdminPaymentProcessModal = dynamic(
   () => import('@/components/admin/admin-payment-process-modal').then(mod => mod.AdminPaymentProcessModal),
   { ssr: false }
 )
+import { SecureMediaViewer } from "@/components/media/secure-image"
 
 function DocumentRequestsContent() {
   const router = useRouter()
@@ -379,7 +380,13 @@ function DocumentRequestsContent() {
                     {selectedRequest.paymentMethod === "gcash" && selectedRequest.gcashScreenshotUrl && (
                       <div className="col-span-2">
                         <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-2">GCash Screenshot</p>
-                        <img src={selectedRequest.gcashScreenshotUrl} alt="GCash proof" className="w-full max-h-64 object-contain rounded-lg border border-slate-200" />
+                        <SecureMediaViewer
+                          url={selectedRequest.gcashScreenshotUrl}
+                          alt="GCash proof"
+                          recordId={selectedRequest.id}
+                          recordType="request"
+                          className="w-full max-h-64 object-contain rounded-lg border border-slate-200"
+                        />
                       </div>
                     )}
                   </>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth"
-import { db } from "@/lib/firebase"
+import { db, auth } from "@/lib/firebase"
 import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, limit } from "firebase/firestore"
 import {
   type CreateResidentRequestInput,
@@ -143,55 +143,38 @@ export function useResidentData() {
     async (input: CreateResidentRequestInput) => {
       if (!residentId || !user) return null
 
-      const requestYear = new Date().getFullYear()
-      const refNumber = `REQ-${requestYear}-${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`
-      const paymentRefNumber = `PAY-${requestYear}-${Date.now().toString().slice(-5)}`
+      const token = await auth.currentUser?.getIdToken()
+      if (!token) {
+        throw new Error("You must be signed in to submit a document request.")
+      }
 
-      const documentFee = input.documentFee ?? 0
-      const requiresPayment = documentFee > 0
-
-      const requestPayload = {
-        residentId,
-        residentName: user.name,
-        residentInitials: user.initials,
-        residentCategory: user.status || "Resident",
-        refNumber,
-        documentType: input.documentType,
-        dateRequested: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-        status: "Pending",
-        purpose: input.purpose,
-        createdAt: Date.now(),
-        statusTimestamps: { "Pending": Date.now() },
-        documentFee,
-        paymentStatus: requiresPayment ? (input.gcashRefNumber ? "pending_verification" : "unpaid") : "waived",
-        paymentMethod: requiresPayment ? (input.paymentMethod || "cash") : null,
-        paymentReferenceNumber: requiresPayment ? paymentRefNumber : null,
-        ...(input.gcashRefNumber ? { gcashRefNumber: input.gcashRefNumber } : {}),
-        ...(input.gcashScreenshotUrl ? { gcashScreenshotUrl: input.gcashScreenshotUrl } : {}),
-        ...(input.requestFor === "other" ? {
+      const res = await fetch("/api/resident/requests/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          documentType: input.documentType,
+          purpose: input.purpose,
           requestFor: input.requestFor,
           requestedByName: input.requestedByName,
           requestedByContact: input.requestedByContact,
           relationship: input.relationship,
           authorizationLetter: input.authorizationLetter,
-        } : {}),
-      }
-
-      const docRef = await addDoc(collection(db, COLLECTION_DOCUMENT_REQUESTS), requestPayload)
-      
-      await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
-        targetId: "admin",
-        type: "info",
-        title: "New Document Request",
-        message: `${user.name} requested a ${input.documentType}.`,
-        timestamp: "Just now",
-        isRead: false,
-        createdAt: Date.now(),
-        residentName: user.name,
-        actionUrl: "/admin/requests"
+          paymentMethod: input.paymentMethod,
+          gcashRefNumber: input.gcashRefNumber,
+          gcashScreenshotUrl: input.gcashScreenshotUrl,
+        }),
       })
 
-      return { id: docRef.id, ...requestPayload }
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to create document request.")
+      }
+
+      const data = await res.json()
+      return data.request
     },
     [residentId, user]
   )

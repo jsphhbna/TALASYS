@@ -13,8 +13,22 @@ export const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase only if there are no existing apps
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const isConfigValid = Boolean(
+  firebaseConfig.apiKey && 
+  firebaseConfig.apiKey.startsWith("AIzaSy") &&
+  !firebaseConfig.apiKey.includes("your_")
+);
+
+// Fallback configuration strictly for static prerendering when live environment credentials are unset
+const effectiveConfig = isConfigValid
+  ? firebaseConfig
+  : {
+      apiKey: "AIzaSyB00000000000000000000000000000000",
+      projectId: "talasys-build-placeholder",
+      authDomain: "talasys-build-placeholder.firebaseapp.com",
+    };
+
+const app = getApps().length > 0 ? getApp() : initializeApp(effectiveConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);

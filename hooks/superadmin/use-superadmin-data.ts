@@ -29,6 +29,7 @@ import {
     SUPERADMIN_INITIALS,
 } from "@/lib/constants"
 import { parseAuditTimestamp } from "@/lib/security/audit-utils"
+import { recordServerAudit } from "@/lib/audit/server-audit"
 
 export function useSuperAdminData() {
     const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([])
@@ -77,11 +78,11 @@ export function useSuperAdminData() {
             setAdminAccounts(adminUsers.filter(adminUser => !isSuperAdminRole(adminUser.role)))
             setStats(prev => ({ ...prev, adminCount: adminUsers.length }))
 
-            // Check for locked admins signal (#1)
+            // Check for locked admins signal (#1) - clear signal if no accounts are locked
             const lockedAdmins = adminUsers.filter(a => a.status === "Locked")
-            if (lockedAdmins.length > 0) {
-                setSystemAlerts(prev => {
-                    const withoutLocked = prev.filter(a => !a.id.startsWith("signal-locked-admin"))
+            setSystemAlerts(prev => {
+                const withoutLocked = prev.filter(a => !a.id.startsWith("signal-locked-admin"))
+                if (lockedAdmins.length > 0) {
                     return [
                         ...withoutLocked,
                         {
@@ -93,8 +94,9 @@ export function useSuperAdminData() {
                             timestamp: "Active",
                         }
                     ]
-                })
-            }
+                }
+                return withoutLocked
+            })
         }, (err) => {
             console.error("users snapshot error in superadmin hook:", err)
             setError(err.message || "Failed to load users")
@@ -134,12 +136,11 @@ export function useSuperAdminData() {
             setError(err.message || "Failed to load system config")
         }))
 
-        // Aggregate counts are fetched separately because Firestore onSnapshot does not
-        // natively support server-side COUNT aggregates without a dedicated getCountFromServer call.
+        // Aggregate counts: count residents strictly separately from admins (#8)
         async function fetchAggregateStats() {
             try {
                 const [totalResidentsSnap, activeRequestsSnap, pendingVerificationsSnap] = await Promise.all([
-                    getCountFromServer(collection(db, COLLECTION_USERS)),
+                    getCountFromServer(query(collection(db, COLLECTION_USERS), where("role", "==", "resident"))),
                     getCountFromServer(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), where("status", "==", "Pending"))),
                     getCountFromServer(query(collection(db, COLLECTION_VERIFICATIONS), where("status", "==", "pending"))),
                 ])
@@ -175,17 +176,24 @@ export function useSuperAdminData() {
                     })
                 }
 
-                if (queueSignals.length > 0) {
-                    setSystemAlerts(prev => {
-                        const withoutQueues = prev.filter(a => !a.id.startsWith("signal-pending-"))
-                        return [...withoutQueues, ...queueSignals]
-                    })
-                }
+                // Dynamic alert replacement: clears signals when backlog conditions resolve (#1, #8)
+                setSystemAlerts(prev => {
+                    const withoutQueues = prev.filter(a => !a.id.startsWith("signal-pending-"))
+                    return [...withoutQueues, ...queueSignals]
+                })
             } catch (statsError) {
                 console.error("Failed to fetch SuperAdmin aggregate stats:", statsError)
             }
         }
         fetchAggregateStats()
+
+        // Listen to queue changes dynamically to keep signals and counts current (#8)
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_VERIFICATIONS), where("status", "==", "pending")), () => {
+            fetchAggregateStats()
+        }))
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), where("status", "==", "Pending")), () => {
+            fetchAggregateStats()
+        }))
 
         // A brief delay ensures all listeners are initialized before the UI renders data.
         setTimeout(() => setIsLoaded(true), 500)
@@ -193,7 +201,30 @@ export function useSuperAdminData() {
         return () => unsubscribeFunctions.forEach(unsubscribe => unsubscribe())
     }, [])
 
-    const refresh = useCallback(() => {}, [])
+    const refresh = useCallback(async () => {
+        setIsLoaded(false)
+        try {
+            const [totalResidentsSnap, activeRequestsSnap, pendingVerificationsSnap] = await Promise.all([
+                getCountFromServer(query(collection(db, COLLECTION_USERS), where("role", "==", "resident"))),
+                getCountFromServer(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), where("status", "==", "Pending"))),
+                getCountFromServer(query(collection(db, COLLECTION_VERIFICATIONS), where("status", "==", "pending"))),
+            ])
+            const pendingVerifsCount = pendingVerificationsSnap.data().count
+            const activeReqsCount = activeRequestsSnap.data().count
+
+            setStats(prev => ({
+                ...prev,
+                totalResidents: totalResidentsSnap.data().count,
+                activeRequests: activeReqsCount,
+                pendingVerifications: pendingVerifsCount,
+            }))
+        } catch (err: any) {
+            console.error("Failed to refresh SuperAdmin dashboard:", err)
+            setError(err.message || "Failed to refresh dashboard stats")
+        } finally {
+            setIsLoaded(true)
+        }
+    }, [])
 
     return {
         adminAccounts,
@@ -253,17 +284,14 @@ export function useSuperAdminData() {
                 
                 await deleteApp(secondaryApp)
                 
-                // Record the admin creation action for SuperAdmin accountability.
-                await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                    date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                    timestamp: Date.now(),
-                    admin: { name: SUPERADMIN_DISPLAY_NAME, initials: SUPERADMIN_INITIALS, color: COLOR_SUPERADMIN_GOLD },
-                    role: "SuperAdmin",
+                // Record the admin creation action via server-authored audit endpoint (#6)
+                await recordServerAudit({
                     action: "Created Admin",
                     actionType: "Admin Management",
                     details: `Created admin account for ${input.name}`,
-                    ipAddress: "Not captured"
+                    targetId: newAdminUid,
+                    targetName: input.name,
+                    targetCollection: "users"
                 })
             } catch (createAdminError: any) {
                 console.error(`Error creating admin auth account (email: ${input.email}):`, createAdminError)
@@ -276,36 +304,30 @@ export function useSuperAdminData() {
             const targetName = targetAdmin?.name || id
             const actionName = updates.status === "Locked" ? "Locked Admin" : (updates.status === "Active" ? "Unlocked Admin" : (updates.role ? "Updated Admin Role" : "Updated Admin"))
             const details = updates.role ? `Changed role of ${targetName} to ${updates.role}` : (updates.status ? `${updates.status} account of ${targetName}` : `Updated settings for ${targetName}`)
-            await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                timestamp: Date.now(),
-                admin: { name: SUPERADMIN_DISPLAY_NAME, initials: SUPERADMIN_INITIALS, color: COLOR_SUPERADMIN_GOLD },
-                role: "SuperAdmin",
+            
+            // Record admin update action via server-authored audit endpoint with real IP (#6)
+            await recordServerAudit({
                 action: actionName,
                 actionType: "Admin Management",
                 details,
                 targetId: id,
-                targetCollection: "users",
-                ipAddress: "Not captured"
+                targetName,
+                targetCollection: "users"
             })
         }, [adminAccounts]),
         deleteAdmin: useCallback(async (id: string) => {
             const targetAdmin = adminAccounts.find(a => a.id === id)
             const targetName = targetAdmin?.name || id
             await deleteDoc(doc(db, COLLECTION_USERS, id))
-            await addDoc(collection(db, COLLECTION_ACTIVITY_LOGS), {
-                date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-                time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date()),
-                timestamp: Date.now(),
-                admin: { name: SUPERADMIN_DISPLAY_NAME, initials: SUPERADMIN_INITIALS, color: COLOR_SUPERADMIN_GOLD },
-                role: "SuperAdmin",
+            
+            // Record admin deletion action via server-authored audit endpoint with real IP (#6)
+            await recordServerAudit({
                 action: "Deleted Admin",
                 actionType: "Admin Management",
                 details: `Deleted admin account for ${targetName}`,
                 targetId: id,
-                targetCollection: "users",
-                ipAddress: "Not captured"
+                targetName,
+                targetCollection: "users"
             })
         }, [adminAccounts]),
 

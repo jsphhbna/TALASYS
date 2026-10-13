@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth"
 import { useAdminData } from "@/hooks/admin"
 import { toast } from "sonner"
 import { CreditCard, Banknote, X, CheckCircle2 } from "lucide-react"
+import { SecureMediaViewer } from "@/components/media/secure-image"
 
 interface AdminPaymentProcessModalProps {
   isOpen: boolean
@@ -144,11 +145,13 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
               {request.paymentMethod === "gcash" && request.gcashScreenshotUrl && (
                 <div className="mb-4">
                   <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Resident Uploaded Proof</p>
-                  <img 
-                    src={request.gcashScreenshotUrl} 
-                    alt="GCash proof" 
-                    className="w-full h-32 object-contain bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 cursor-zoom-in hover:opacity-90 transition-opacity" 
-                    onClick={() => setIsLightboxOpen(true)}
+                  <SecureMediaViewer
+                    url={request.gcashScreenshotUrl}
+                    alt="GCash proof"
+                    recordId={request.id}
+                    recordType="request"
+                    className="w-full h-32 object-contain bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700"
+                    onZoom={() => setIsLightboxOpen(true)}
                   />
                 </div>
               )}

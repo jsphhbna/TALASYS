@@ -2,7 +2,13 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth"
+import { 
+  useAuth, 
+  isVerificationOnlyRole, 
+  isDocumentProcessingRole, 
+  isResidentManagementRole, 
+  isReadOnlyAdminRole 
+} from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider"
 import {
@@ -93,12 +99,16 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
   }
 
   let allowedNavNames = baseNavigation.map(n => n.name)
-  if (user?.role === "Resident Management") {
-    allowedNavNames = ["Dashboard", "Resident Management", "Category Reports", "Notifications", "Activity Logs"]
-  } else if (user?.role === "Verifications") {
-    allowedNavNames = ["Dashboard", "Verifications", "Category Reports", "Notifications", "Activity Logs"]
-  } else if (user?.role === "Document Processing") {
-    allowedNavNames = ["Dashboard", "Document Processing", "Category Reports", "Notifications", "Activity Logs"]
+  const userRole = user?.role
+  if (isVerificationOnlyRole(userRole)) {
+    // Verification Only / Verifications role: ONLY Verification Workspace, Verifications queue, and Notifications
+    allowedNavNames = ["Dashboard", "Verifications", "Notifications"]
+  } else if (isDocumentProcessingRole(userRole)) {
+    allowedNavNames = ["Dashboard", "Document Processing", "Notifications"]
+  } else if (isResidentManagementRole(userRole)) {
+    allowedNavNames = ["Dashboard", "Resident Management", "Category Reports", "Notifications"]
+  } else if (isReadOnlyAdminRole(userRole)) {
+    allowedNavNames = ["Dashboard", "Resident Management", "Verifications", "Document Processing", "Category Reports", "Notifications", "Activity Logs"]
   }
 
   const navigation = baseNavigation

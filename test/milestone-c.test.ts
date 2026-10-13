@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { escapeHtml, renderSafeTemplate } from '../lib/security/sanitize.ts';
 import { createRegistrationTicket, verifyRegistrationTicket } from '../lib/security/upload-ticket.ts';
-import { isSensitiveMedia, canAccessMedia, generateSignedDeliveryUrl } from '../lib/security/media-auth.ts';
+import { isSensitiveMedia, canAccessMedia, generateSignedDeliveryUrl, isDeliveryUrlExpired } from '../lib/security/media-auth.ts';
 
 describe('Milestone C — Upload/Media/API/Dependency Security', () => {
 
@@ -33,6 +33,7 @@ describe('Milestone C — Upload/Media/API/Dependency Security', () => {
   });
 
   test('#51: Constrained registration upload tickets reject forged/stale attempts', () => {
+    process.env.REGISTRATION_TICKET_SECRET = 'test-registration-secret-key-1234567890';
     // Generate valid ticket
     const ticket = createRegistrationTicket(300); // 5 min
     assert.ok(ticket, 'Registration ticket should be generated');
@@ -93,10 +94,17 @@ describe('Milestone C — Upload/Media/API/Dependency Security', () => {
     });
     assert.equal(otherResidentAccess.authorized, false);
 
-    // Signed delivery URL generation
-    const signedUrl = generateSignedDeliveryUrl('talasys/proofs/id_123', 'talasys-cloud', 'secret123');
-    assert.ok(signedUrl.includes('res.cloudinary.com'));
-    assert.ok(signedUrl.includes('t_authenticated'));
+    // Signed delivery URL generation using documented Cloudinary Token Authentication
+    const { deliveryUrl, expiresAt } = generateSignedDeliveryUrl('talasys/proofs/id_123', 'talasys-cloud', 'secret123', 900);
+    assert.ok(deliveryUrl.includes('res.cloudinary.com'));
+    assert.ok(deliveryUrl.includes('authenticated'));
+    assert.ok(deliveryUrl.includes('__cld_token__'));
+    assert.ok(expiresAt > Math.floor(Date.now() / 1000));
+
+    // Expiration verification
+    assert.equal(isDeliveryUrlExpired(deliveryUrl), false, 'Fresh URL must not be expired');
+    const expiredUrl = deliveryUrl.replace(/exp=\d+/, 'exp=' + (Math.floor(Date.now() / 1000) - 60));
+    assert.equal(isDeliveryUrlExpired(expiredUrl), true, 'Past timestamp URL must be marked expired');
   });
 
   test('#53: Backup export endpoint rejects URL query tokens and enforces Bearer auth', () => {

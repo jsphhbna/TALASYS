@@ -90,8 +90,20 @@
 
 ### Milestone H — Integrated Regression & Deployment Readiness [COMPLETED & VERIFIED]
 - End-to-end regression validation across all roles: 66/66 automated tests pass across 31 suites.
-- TypeScript compiler verification code 0 (`npx tsc --noEmit --incremental false`).
-- All 61 issues marked `fixed and verified` in `docs/TALASYS-ISSUE-REGISTER.md`.
+- TypeScript compiler verification code 0 (`npx tsc --noEmit`).
+
+### Milestone I — Independent Review Repair Pass [COMPLETED & VERIFIED]
+- **Target Items**:
+  1. Verification Only Workspace & Route Guards: Dedicated `VerificationWorkspace` component rendered on `/admin/dashboard` showing solely verification queues, review actions, and history; completely stripped unrelated cards/tabs/navigation; route guards in `AdminLayout` redirecting forbidden direct URLs; dynamic session role change propagation.
+  2. Reopened #28/#30: `app/api/admin/update-resident-email/route.ts` fails closed on unconfigured Admin SDK (503), checkRevoked token verification, authoritative `users` lookup, rejects Locked/Deleted, explicit permission check (SuperAdmin, FullAdmin, ResidentMgmt; Verification Only strictly with matching pending profile-edit verification; blocks View Only & Document Processing), prevents modification of privileged accounts, server audit with extracted IP.
+  3. Reopened #51: Upload signing security - removed `idToken.length > 20` mock fallback, removed hardcoded secret fallbacks, single-use ticket nonce tracking (`verifyAndConsumeRegistrationTicket`), role-based folder policy (tickets: proofs only; residents: proofs/receipts/letters, forbidden from signatures).
+  4. Reopened #52: Private media delivery - Cloudinary token authentication (`__cld_token__` with `st`, `exp`, `acl`, `hmac` and URL signature), authoritative record-based ownership resolution (`app/api/media/view/route.ts`), removed mock admin auth/secrets, created `SecureMediaViewer` component supporting images and PDFs, migration script `scripts/migrate-cloudinary-access.ts`.
+  5. Reopened #56: Authoritative fees & payment state - protected route `POST /api/resident/requests/create` computing fees from `system_config` and statutory rules (Indigency & First-Time Jobseeker = free, demographic indigent waivers), blocked direct resident writes in `firestore.rules` (`allow create: if canManageRequests()`).
+  6. Reopened #61/#44: Atomic approval & identity consistency - `approveVerification` and `updateResident` synchronize with Firebase Auth FIRST via `/api/admin/update-resident-email` and propagate failures before modifying Firestore; uses `writeBatch` for atomic updates to verifications, users, and notifications; guards against stale/duplicate processing (`status === "pending"`).
+  7. Reopened #6: Actual audit IP capture - `lib/security/request-ip.ts` extracts IP from trusted proxy headers (`cf-connecting-ip`, `x-forwarded-for`, `x-real-ip`) with IPv4/IPv6 validation; server-authored audit endpoint `POST /api/audit/log` records real actor IP.
+  8. Dashboard signals & refresh - `hooks/superadmin/use-superadmin-data.ts`: real-time listener for queue counts, dynamic clearing of locked admin alerts and backlog alerts, real `refresh()` implementation, separates residents from admins.
+  9. Reopened #60: Dependency remediation - upgraded Next.js to `^16.4.0` in `package.json` and committed `package-lock.json`, `npm audit fix` applied, documented reachability analysis for remaining items in `docs/DEPENDENCY_TRIAGE.md`.
+  10. Verification suite: 94 automated unit/integration tests passing (including 28 in `test/reopened-remediation.test.ts`), `npx tsc --noEmit` exit 0, `npm run lint` exit 0, `npm run build` compiled 44/44 routes for production with Next.js 16.4.0.
 
 ---
 
@@ -100,16 +112,19 @@
 1. **Environment Variables**:
    - Ensure `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID` are configured for the production Firebase project.
    - Set `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, and `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`.
-   - Set `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, and `FIREBASE_ADMIN_PRIVATE_KEY` for server-side Next.js route handlers (`/api/backup`, `/api/admin/update-resident-email`).
+   - Set `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, and `FIREBASE_ADMIN_PRIVATE_KEY` for server-side Next.js route handlers (`/api/backup`, `/api/admin/update-resident-email`, `/api/audit/log`, `/api/resident/requests/create`).
+   - Set `REGISTRATION_TICKET_SECRET` for secure registration proof upload ticket signing.
 
 2. **Security Rules Deployment**:
    - Deploy `firestore.rules` using Firebase CLI (`firebase deploy --only firestore:rules`).
-   - The hardened rules enforce strict role immutability, resident registration constraints, owner update allowlists, and locked admin account blocks.
+   - The hardened rules enforce strict role immutability, resident registration constraints, owner update allowlists, request creation server enforcement, and locked admin account blocks.
 
 3. **Database Migration Script**:
-   - For legacy Firestore `activityLogs` and `systemAlerts`, any records created prior to remediation with string timestamps are normalized dynamically by `parseAuditTimestamp()`.
-   - To migrate legacy documents in place: run `npx ts-node scripts/migrate-audit-timestamps.ts` (idempotent; converts numeric strings to numbers, dry-run by default, run with `--commit` to apply).
+   - For legacy Firestore `activityLogs` and `systemAlerts`, run `npx ts-node scripts/migrate-audit-timestamps.ts`.
+   - For legacy Cloudinary public assets, run `scripts/migrate-cloudinary-access.ts` to transition historical assets to authenticated storage.
 
 4. **Production Build & Verification**:
-   - Run `npm test` to verify all 66 regression test cases.
-   - Run `npm run build` to create the production Next.js output bundle.
+   - Run `npm test` to verify all 94 regression test cases (100% PASS).
+   - Run `npm run lint` (ESLint 9 passing with 0 errors).
+   - Run `npx tsc --noEmit` (TypeScript 0 errors).
+   - Run `npm run build` to verify production Next.js 16.4.0 bundle creation (44/44 routes compiled).

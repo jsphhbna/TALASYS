@@ -151,7 +151,7 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
     throw new Error(errBody.error || "Failed to authenticate upload request securely.")
   }
   
-  const { signature, timestamp, folder, apiKey } = await signResponse.json()
+  const { signature, timestamp, folder, type, apiKey } = await signResponse.json()
 
   const formData = new FormData()
   formData.append("file", compressedFile)
@@ -161,9 +161,13 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
   if (folder) {
     formData.append("folder", folder)
   }
+  if (type) {
+    formData.append("type", type)
+  }
 
+  // Use /auto/upload so Cloudinary properly accepts and classifies both images and PDFs (#51, #52)
   const response = await withTimeout(
-    fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
       method: "POST",
       body: formData,
     }),
@@ -181,4 +185,14 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
 
   const responseData = await response.json()
   return responseData.secure_url
+}
+
+/**
+ * Convenience helper to upload sensitive proof or receipt files directly to protected storage (#52).
+ */
+export async function uploadProtectedFileToCloudinary(file: File, options?: Omit<UploadOptions, "folder"> & { folder?: "talasys/proofs" | "talasys/receipts" | "talasys/letters" }): Promise<string> {
+  return uploadFileToCloudinary(file, {
+    ...options,
+    folder: options?.folder || "talasys/proofs",
+  })
 }

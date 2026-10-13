@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth"
 import { useAdminData } from "@/hooks/admin"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
+import { SecureMediaViewer } from "@/components/media/secure-image"
 
 interface QuickReviewModalProps {
   item: any | null
@@ -115,9 +116,9 @@ export function QuickReviewModal({ item, itemType, isOpen, onClose }: QuickRevie
                         <div key={i} className="flex flex-col gap-2 bg-slate-50 dark:bg-slate-900 p-3 rounded border border-slate-100 dark:border-slate-800">
                           <span className="text-xs-plus font-medium text-[#0C2340] dark:text-blue-50">{doc.name}</span>
                           {doc.url && (
-                            <button onClick={() => setSelectedImage(doc.url)} className="block w-full mt-2 overflow-hidden rounded border border-slate-200 dark:border-slate-700 hover:opacity-90 transition-opacity focus:outline-none">
-                              <img src={doc.url} alt={doc.name} className="w-full max-h-32 object-cover cursor-zoom-in" />
-                            </button>
+                            <div className="w-full mt-2 overflow-hidden rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 flex items-center justify-center">
+                              <SecureMediaViewer src={doc.url} alt={doc.name} className="w-full max-h-48 object-contain rounded" />
+                            </div>
                           )}
                         </div>
                       ))}

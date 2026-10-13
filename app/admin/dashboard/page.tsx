@@ -18,10 +18,22 @@ import {
 import {
   ClipboardList, ShieldCheck, FileText, Clock, Users, TrendingUp, Inbox,
 } from "lucide-react"
+import { useAuth, isVerificationOnlyRole } from "@/lib/auth"
+import { VerificationWorkspace } from "@/components/admin/verification-workspace"
 
 export default function AdminDashboard() {
+  const { user } = useAuth()
   const { stats, verifications, documentRequests, activityLogs, notifications } = useAdminData()
   const [reviewItem, setReviewItem] = useState<{ data: any; type: "verification" | "request" } | null>(null)
+
+  // Dedicated Workspace for Verification Only / Verifications Role
+  if (isVerificationOnlyRole(user?.role)) {
+    return (
+      <AdminPageShell>
+        <VerificationWorkspace />
+      </AdminPageShell>
+    )
+  }
 
   const kpis = [
     { label: "Total Requests", value: String(stats.totalRequests), sub: `${stats.pendingRequests} pending`, icon: ClipboardList, color: "#0C2340" },
