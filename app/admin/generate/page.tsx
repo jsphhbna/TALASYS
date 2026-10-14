@@ -13,6 +13,8 @@ import { useAuth } from "@/lib/auth"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { escapeHtml } from "@/lib/security/sanitize"
+import { canManageRequestsRole } from "@/lib/auth/auth-types"
+import { useSecureMediaUrl } from "@/components/media/secure-image"
 
 function GenerateDocumentsContent() {
   const searchParams = useSearchParams()
@@ -20,6 +22,9 @@ function GenerateDocumentsContent() {
   const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus, updateRequestGenerated } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const { user } = useAuth()
+  const isAuthorized = canManageRequestsRole(user?.role)
+  const { url: captainSignatureUrl } = useSecureMediaUrl(systemConfig?.captainSignatureUrl)
+  const { url: secretarySignatureUrl } = useSecureMediaUrl(systemConfig?.secretarySignatureUrl)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedResident, setSelectedResident] = useState<any>(null)
@@ -145,8 +150,14 @@ function GenerateDocumentsContent() {
     return resolved
   }
 
+  const isInactiveResident = (status?: string | null) => {
+    if (!status) return false
+    const s = status.trim().toLowerCase()
+    return s === "locked" || s === "deleted" || s === "deleted by resident"
+  }
+
   const searchResults = searchQuery.length > 1 
-    ? allResidents.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5)
+    ? allResidents.filter(r => !isInactiveResident(r.status) && !isInactiveResident((r as any).accountStatus) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5)
     : []
 
   const builtInDocTypes = [
@@ -211,7 +222,16 @@ function GenerateDocumentsContent() {
         )}
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
+      {!isAuthorized ? (
+        <Card className="p-8 text-center max-w-xl mx-auto my-12 border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50">
+          <FileText className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Unauthorized Document Generation</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Your role (<span className="font-semibold">{user?.role || "Unknown"}</span>) does not have permission to generate official documents. This operational capability is restricted to Super Admin, Full Access, and Document Processing administrators.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-12 gap-6">
         {/* Search + Doc Type Selection */}
         <div className="col-span-5 space-y-4">
           <Card className="p-5 shadow-sm">
@@ -336,8 +356,8 @@ function GenerateDocumentsContent() {
                               {systemConfig?.secretaryName?.trim() && (
                                 <>
                                   <div className="h-16 flex items-end justify-center mb-1 relative">
-                                    {systemConfig?.secretarySignatureUrl && (
-                                      <img src={systemConfig.secretarySignatureUrl} alt="Secretary Signature" className="absolute bottom-0 max-h-20 max-w-full mix-blend-multiply" />
+                                    {secretarySignatureUrl && (
+                                      <img src={secretarySignatureUrl} alt="Secretary Signature" crossOrigin="anonymous" className="absolute bottom-0 max-h-20 max-w-full mix-blend-multiply" />
                                     )}
                                   </div>
                                   <div className="border-b border-black mb-1 px-4 py-0.5">
@@ -351,8 +371,8 @@ function GenerateDocumentsContent() {
                               {systemConfig?.barangayCaptainName?.trim() && (
                                 <>
                                   <div className="h-16 flex items-end justify-center mb-1 relative">
-                                    {systemConfig?.captainSignatureUrl && (
-                                      <img src={systemConfig.captainSignatureUrl} alt="Captain Signature" className="absolute bottom-0 max-h-20 max-w-full mix-blend-multiply" />
+                                    {captainSignatureUrl && (
+                                      <img src={captainSignatureUrl} alt="Captain Signature" crossOrigin="anonymous" className="absolute bottom-0 max-h-20 max-w-full mix-blend-multiply" />
                                     )}
                                   </div>
                                   <div className="border-b border-black mb-1 px-4 py-0.5">
@@ -517,6 +537,7 @@ function GenerateDocumentsContent() {
           </div>
         </Card>
       </div>
+      )}
     </AdminPageShell>
   )
 }

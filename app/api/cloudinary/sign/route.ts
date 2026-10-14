@@ -20,7 +20,8 @@ const SENSITIVE_FOLDERS = new Set<AllowedFolder>([
   "talasys/proofs",
   "talasys/receipts",
   "talasys/signatures",
-  "talasys/letters"
+  "talasys/letters",
+  "talasys/residents"
 ])
 
 export async function POST(req: Request) {
@@ -171,6 +172,25 @@ export async function POST(req: Request) {
     }
 
     const signature = crypto.createHash("sha1").update(signatureString).digest("hex")
+    const claimToken = callerType === "registration-applicant" ? crypto.randomBytes(32).toString("hex") : undefined
+
+    // 8. Server-controlled asset registry: record ownership or pre-registration claim requirement (A02)
+    if (adminDb) {
+      try {
+        const fullPublicId = `${targetFolder}/${publicId}`
+        const assetRegistryKey = crypto.createHash("sha256").update(fullPublicId).digest("hex")
+        await adminDb.collection("mediaRegistry").doc(assetRegistryKey).set({
+          publicId: fullPublicId,
+          folder: targetFolder,
+          ownerUid: callerUid || null,
+          status: callerUid ? "claimed" : "unclaimed",
+          claimToken: claimToken || null,
+          createdAt: Date.now(),
+        })
+      } catch (regError) {
+        console.warn("Could not register asset in mediaRegistry:", regError)
+      }
+    }
 
     return NextResponse.json({
       signature,
@@ -178,7 +198,8 @@ export async function POST(req: Request) {
       folder: targetFolder,
       publicId,
       type,
-      apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY
+      apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+      ...(claimToken ? { claimToken } : {})
     })
   } catch (error: any) {
     console.error("Cloudinary sign error:", error)

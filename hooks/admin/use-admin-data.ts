@@ -34,6 +34,7 @@ export function useAdminData() {
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
     const [isLoaded, setIsLoaded] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [refreshCounter, setRefreshCounter] = useState(0)
 
     const [stats, setStats] = useState({
         totalResidents: 0,
@@ -58,6 +59,13 @@ export function useAdminData() {
 
     useEffect(() => {
         const unsubscribeFunctions: (() => void)[] = []
+        const sourcesLoaded = new Set<string>()
+        const checkReady = (sourceKey: string) => {
+            sourcesLoaded.add(sourceKey)
+            if (sourcesLoaded.size >= 5) {
+                setIsLoaded(true)
+            }
+        }
 
         // Note: Missing orderBy, so a limit() here would fetch the oldest records. Pagination requires a composite index.
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_USERS), (snapshot) => {
@@ -66,8 +74,10 @@ export function useAdminData() {
             const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
 
             const residentList = allUserDocuments.filter(userData => userData.role === "resident" && userData.isVerified !== false).map(userData => {
-                let lifecycleStatus: "Verified" | "Expired" | "Expiring" = "Verified"
-                if (userData.status === "Expired") {
+                let lifecycleStatus: "Verified" | "Expired" | "Expiring" | "Locked" | "Deleted" | "Deleted by Resident" = "Verified"
+                if (userData.status === "Locked" || userData.status === "Deleted" || userData.status === "Deleted by Resident") {
+                    lifecycleStatus = userData.status
+                } else if (userData.status === "Expired") {
                     lifecycleStatus = "Expired"
                 } else if (userData.accountExpiry) {
                     const expiryTime = new Date(userData.accountExpiry).getTime()
@@ -114,9 +124,11 @@ export function useAdminData() {
                 adultCount: residentList.filter(resident => resident.categories.includes("Adult") || resident.categories.includes("Resident")).length,
                 voterCount: residentList.filter(resident => resident.isVoter).length
             }))
+            checkReady("users")
         }, (err) => {
             console.error("users snapshot error:", err)
             setError(err.message || "Failed to load residents")
+            setIsLoaded(true)
         }))
 
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_VERIFICATIONS), (snapshot) => {
@@ -126,9 +138,11 @@ export function useAdminData() {
             setVerifications(pendingVerifications)
             setRejectedVerifications(rejectedVerificationsList)
             setStats(prev => ({ ...prev, pendingVerifications: pendingVerifications.length }))
+            checkReady("verifications")
         }, (err) => {
             console.error("verifications snapshot error:", err)
             setError(err.message || "Failed to load verifications")
+            setIsLoaded(true)
         }))
 
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), orderBy("createdAt", "desc"), limit(200)), (snapshot) => {
@@ -138,6 +152,7 @@ export function useAdminData() {
             const pendingRequests = allRequests.filter(request => request.status === "Pending")
             const approvedRequests = allRequests.filter(request => request.status === "Approved" || request.status === "On Process" || request.status === "Ready for Pick Up" || request.status === "Completed")
             const rejectedRequests = allRequests.filter(request => request.status === "Rejected")
+            const actuallyGenerated = allRequests.filter(request => (request as any).hasGenerated === true)
             
             setStats(prev => ({
                 ...prev,
@@ -145,11 +160,13 @@ export function useAdminData() {
                 approvedRequests: approvedRequests.length,
                 rejectedRequests: rejectedRequests.length,
                 totalRequests: allRequests.length,
-                totalDocumentsGenerated: approvedRequests.length
+                totalDocumentsGenerated: actuallyGenerated.length
             }))
+            checkReady("requests")
         }, (err) => {
             console.error("documentRequests snapshot error:", err)
             setError(err.message || "Failed to load document requests")
+            setIsLoaded(true)
         }))
 
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_NOTIFICATIONS), where("targetId", "==", "admin")), (snapshot) => {
@@ -166,9 +183,11 @@ export function useAdminData() {
             adminNotifications.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
             setNotifications(adminNotifications)
             setStats(prev => ({ ...prev, unreadNotifications: adminNotifications.filter(notification => !notification.isRead).length }))
+            checkReady("notifications")
         }, (err) => {
             console.error("notifications snapshot error:", err)
             setError(err.message || "Failed to load notifications")
+            setIsLoaded(true)
         }))
 
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(250)), (snapshot) => {
@@ -182,18 +201,21 @@ export function useAdminData() {
                     actionType: data.actionType || data.action || "Action",
                 } as unknown as ActivityLog
             }))
+            checkReady("activityLogs")
         }, (err) => {
             console.error("activityLogs snapshot error:", err)
             setError(err.message || "Failed to load activity logs")
+            setIsLoaded(true)
         }))
 
-        // A brief delay ensures all listeners are initialized before the UI renders data.
-        setTimeout(() => setIsLoaded(true), 500)
-
         return () => unsubscribeFunctions.forEach(unsubscribe => unsubscribe())
-    }, [userCreatedAt])
+    }, [userCreatedAt, refreshCounter])
 
-    const refresh = useCallback(() => {}, [])
+    const refresh = useCallback(() => {
+        setError(null)
+        setIsLoaded(false)
+        setRefreshCounter(prev => prev + 1)
+    }, [])
 
     return {
         residents,

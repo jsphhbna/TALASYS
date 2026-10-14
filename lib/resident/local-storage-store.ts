@@ -159,13 +159,13 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
       email: normalizedEmail,
       initials: getInitials(input.name),
       role: "resident",
-      status: resolvePrimaryStatus(input.statuses),
+      status: "Pending",
       statuses: input.statuses,
       gender: input.gender,
       dateOfBirth: input.dateOfBirth,
       contactNumber: input.contactNumber,
       address: input.address,
-      accountExpiry: formatDateDisplay(addDaysToDate(new Date(), ACCOUNT_EXPIRY_DAYS)),
+      accountExpiry: "",
       isVerified: false,
       profilePicture: input.profilePicture || "",
       createdAt: Date.now(),
@@ -180,9 +180,10 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     const userDocRef = doc(db, "users", newUserId)
     batch.set(userDocRef, residentUser)
 
-    // Cross-module sync: push verification record to admin queue atomically (#61)
+    // Cross-module sync: push verification record to admin queue atomically (#61, A01, A04)
     batch.set(doc(db, "verifications", newUserId), {
       residentId: newUserId,
+      userId: newUserId,
       name: input.name.trim(),
       initials: getInitials(input.name),
       type: "registration",
@@ -199,21 +200,10 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
       createdAt: Date.now()
     })
 
-    const userNotifRef = doc(collection(db, "notifications"))
-    batch.set(userNotifRef, {
-      targetId: newUserId,
-      type: "success",
-      title: "Welcome to TALASYS",
-      message: "Your account has been created successfully. Your verification has been submitted to the admin team.",
-      timestamp: "Just now",
-      isRead: false,
-      createdAt: Date.now(),
-    })
-
-    const adminNotifRef = doc(collection(db, "notifications"))
+    const adminNotifRef = doc(db, "notifications", `reg-${newUserId}`)
     batch.set(adminNotifRef, {
       targetId: "admin",
-      type: "info",
+      type: "registration",
       title: "New Resident Registration",
       message: `${input.name.trim()} has registered and requires verification.`,
       timestamp: "Just now",
@@ -231,6 +221,28 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
       await sendEmailVerification(userCredential.user)
     } catch (verificationEmailError) {
       console.error("Failed to send verification email during registration (uid:", userCredential.user.uid, "):", verificationEmailError)
+    }
+
+    // Claim pre-registration media assets securely (A02)
+    try {
+      const idToken = await userCredential.user.getIdToken()
+      const { preRegistrationClaimTokens } = await import("./cloudinary")
+      const claims = input.proofs.map(proof => ({
+        mediaUrl: proof.url,
+        claimToken: proof.url ? preRegistrationClaimTokens.get(proof.url) : undefined
+      }))
+      if (claims.length > 0) {
+        await fetch("/api/media/claim", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ claims })
+        })
+      }
+    } catch (claimErr) {
+      console.warn("Failed to claim pre-registration media assets:", claimErr)
     }
 
     // Sign out after all writes complete

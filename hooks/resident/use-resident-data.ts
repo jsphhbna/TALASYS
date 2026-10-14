@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth"
 import { db, auth } from "@/lib/firebase"
-import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, limit } from "firebase/firestore"
+import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, limit, writeBatch } from "firebase/firestore"
 import {
   type CreateResidentRequestInput,
   type ResidentNotification,
@@ -31,6 +31,7 @@ export function useResidentData() {
   const [systemConfig, setSystemConfig] = useState<any | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [refreshCounter, setRefreshCounter] = useState(0)
 
   useEffect(() => {
     if (!residentId) {
@@ -41,14 +42,24 @@ export function useResidentData() {
       return
     }
 
+    const sourcesLoaded = new Set<string>()
+    const checkReady = (key: string) => {
+      sourcesLoaded.add(key)
+      if (sourcesLoaded.size >= 4) {
+        setIsLoaded(true)
+      }
+    }
+
     const documentRequestsQuery = query(collection(db, COLLECTION_DOCUMENT_REQUESTS), where("residentId", "==", residentId))
     const unsubscribeRequests = onSnapshot(documentRequestsQuery, (snapshot) => {
       const documentRequests = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as ResidentRequest))
       documentRequests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
       setRequests(documentRequests)
+      checkReady("requests")
     }, (err) => {
       console.error("documentRequests snapshot error in resident hook:", err)
       setError(err.message || "Failed to load requests")
+      setIsLoaded(true)
     })
 
     const notificationsQuery = query(collection(db, COLLECTION_NOTIFICATIONS), where("targetId", "==", residentId))
@@ -60,9 +71,11 @@ export function useResidentData() {
         return timestampB - timestampA
       })
       setNotifications(residentNotifications)
+      checkReady("notifications")
     }, (err) => {
       console.error("notifications snapshot error in resident hook:", err)
       setError(err.message || "Failed to load notifications")
+      setIsLoaded(true)
     })
 
     const verificationsQuery = query(collection(db, COLLECTION_VERIFICATIONS), where("residentId", "==", residentId))
@@ -98,21 +111,25 @@ export function useResidentData() {
         }))
         
         setProofs(mergedProofs)
+      } else {
+        setVerification(null)
+        setProofs([])
       }
+      checkReady("verifications")
     }, (err) => {
       console.error("verifications snapshot error in resident hook:", err)
       setError(err.message || "Failed to load verifications")
+      setIsLoaded(true)
     })
 
     const unsubscribeConfig = onSnapshot(doc(db, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID), (snapshot) => {
       if (snapshot.exists()) setSystemConfig(snapshot.data())
+      checkReady("config")
     }, (err) => {
       console.error("config snapshot error in resident hook:", err)
       setError(err.message || "Failed to load system config")
+      setIsLoaded(true)
     })
-
-    // A brief delay ensures all listeners are initialized before the UI renders data.
-    setTimeout(() => setIsLoaded(true), 500)
 
     return () => {
       unsubscribeRequests()
@@ -120,10 +137,13 @@ export function useResidentData() {
       unsubscribeVerifications()
       unsubscribeConfig()
     }
-  }, [residentId])
+  }, [residentId, refreshCounter])
 
-  // No-op: Firestore onSnapshot listeners handle reactivity automatically.
-  const refresh = useCallback(() => {}, [])
+  const refresh = useCallback(() => {
+    setError(null)
+    setIsLoaded(false)
+    setRefreshCounter(c => c + 1)
+  }, [])
 
   const cancelRequest = useCallback(
     async (requestId: string) => {
@@ -229,7 +249,7 @@ export function useResidentData() {
       
       const uploadAndCollectDocument = async (file: File | null, documentName: string) => {
         if (!file) return
-        const uploadedUrl = await uploadFileToCloudinary(file)
+        const uploadedUrl = await uploadFileToCloudinary(file, { folder: "talasys/proofs" })
         if (!uploadedUrl) {
           throw new Error(`Failed to upload ${documentName}`)
         }
@@ -257,11 +277,16 @@ export function useResidentData() {
         })
       }
 
+      if (verification && verification.status === "pending") {
+        return verification.id
+      }
+
       // Finding #48: If resident was never verified or explicit registration type, use "registration"
       const effectiveType = (!user.isVerified || verificationType === "registration") ? "registration" : "profile-edit"
 
       const verificationPayload = {
         residentId,
+        userId: residentId,
         name: user.name,
         initials: user.initials,
         type: effectiveType,
@@ -274,9 +299,12 @@ export function useResidentData() {
         createdAt: Date.now()
       }
 
-      const verificationDocRef = await addDoc(collection(db, COLLECTION_VERIFICATIONS), verificationPayload)
+      const batch = writeBatch(db)
+      const verifDocRef = doc(collection(db, COLLECTION_VERIFICATIONS))
+      const notifDocRef = doc(collection(db, COLLECTION_NOTIFICATIONS))
 
-      await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
+      batch.set(verifDocRef, verificationPayload)
+      batch.set(notifDocRef, {
         targetId: "admin",
         type: effectiveType === "registration" ? "registration" : "info",
         title: effectiveType === "registration" ? "Registration Verification Resubmission" : "Profile Edit Request",
@@ -288,9 +316,10 @@ export function useResidentData() {
         actionUrl: "/admin/verifications"
       })
 
-      return verificationDocRef.id
+      await batch.commit()
+      return verifDocRef.id
     },
-    [residentId, user]
+    [residentId, user, verification]
   )
 
   // Finding #49: Validated reactivation request with required evidence and admin notification
@@ -301,7 +330,7 @@ export function useResidentData() {
       const uploadedDocuments: any[] = []
       const uploadAndCollectDocument = async (file: File | null, documentName: string) => {
         if (!file) return
-        const uploadedUrl = await uploadFileToCloudinary(file)
+        const uploadedUrl = await uploadFileToCloudinary(file, { folder: "talasys/proofs" })
         if (!uploadedUrl) {
           throw new Error(`Failed to upload ${documentName}`)
         }
@@ -319,8 +348,13 @@ export function useResidentData() {
         uploadAndCollectDocument(uploadedFiles.votersId, "Voter's ID"),
       ])
 
+      if (verification && verification.status === "pending" && verification.type === "reactivation") {
+        return verification.id
+      }
+
       const verificationPayload = {
         residentId,
+        userId: residentId,
         name: user.name,
         initials: user.initials,
         type: "reactivation",
@@ -333,9 +367,12 @@ export function useResidentData() {
         createdAt: Date.now()
       }
 
-      const docRef = await addDoc(collection(db, COLLECTION_VERIFICATIONS), verificationPayload)
+      const batch = writeBatch(db)
+      const verifDocRef = doc(collection(db, COLLECTION_VERIFICATIONS))
+      const notifDocRef = doc(collection(db, COLLECTION_NOTIFICATIONS))
 
-      await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
+      batch.set(verifDocRef, verificationPayload)
+      batch.set(notifDocRef, {
         targetId: "admin",
         type: "reactivation",
         title: "Account Reactivation Request",
@@ -347,9 +384,10 @@ export function useResidentData() {
         actionUrl: "/admin/verifications"
       })
 
-      return docRef.id
+      await batch.commit()
+      return verifDocRef.id
     },
-    [residentId, user]
+    [residentId, user, verification]
   )
 
   const markAllNotificationsRead = useCallback(async () => {

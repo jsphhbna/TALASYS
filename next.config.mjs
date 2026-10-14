@@ -4,6 +4,7 @@ const nextConfig = {
     // Enforce strict type checking during builds
     ignoreBuildErrors: false,
   },
+  serverExternalPackages: ["cloudinary"],
   images: {
     unoptimized: true,
   },

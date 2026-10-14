@@ -271,27 +271,25 @@ export function evaluateRecoveryEligibility(
       }
     }
 
-    // 3. Evidence or condition that external write has stopped, failed, or is safely stale
-    const isStale = Boolean(
-      input.isStale === true ||
-      (typeof input.staleTimeoutMs === "number" &&
-       input.staleTimeoutMs > 0 &&
-       typeof existingLock.updatedAt === "number" &&
-       ((input.now || Date.now()) - existingLock.updatedAt) >= input.staleTimeoutMs)
-    )
-    const hasStoppedEvidence = Boolean(
+    // 3. Verified evidence that external write has stopped or failed (A09)
+    // Caller-selected elapsed time (staleTimeoutMs, isStale) or arbitrary short strings cannot fence in-flight mutations.
+    const hasStoppedStatus = Boolean(
       input.externalWriteStopped === true ||
       input.externalWriteStatus === "stopped" ||
-      input.externalWriteStatus === "failed" ||
-      input.externalWriteStatus === "timed-out" ||
-      (typeof input.quiescenceEvidence === "string" && input.quiescenceEvidence.trim().length > 0) ||
-      isStale
+      input.externalWriteStatus === "failed"
     )
 
-    if (!hasStoppedEvidence) {
+    const hasSubstantiveAttestation = Boolean(
+      typeof input.quiescenceEvidence === "string" &&
+      input.quiescenceEvidence.trim().length >= 15
+    )
+
+    const hasValidEvidence = hasStoppedStatus || hasSubstantiveAttestation
+
+    if (!hasValidEvidence) {
       return {
         eligible: false,
-        reason: `Cannot force-recover lock in in-flight stage '${lockStatus}': evidence that the external write has stopped, failed, or is safely stale is required.`,
+        reason: `Cannot force-recover lock in in-flight stage '${lockStatus}': evidence that the external write has stopped, failed, or is safely stale is required. Caller-selected elapsed time, timeouts, or arbitrary strings cannot fence in-flight mutations.`,
         status: 409,
       }
     }

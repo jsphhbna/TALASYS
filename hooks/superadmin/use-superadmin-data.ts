@@ -35,6 +35,7 @@ export function useSuperAdminData() {
     const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([])
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
     const [systemAlerts, setSystemAlerts] = useState<SystemAlert[]>([])
+    const [refreshCounter, setRefreshCounter] = useState(0)
     
     const [systemConfig, setSystemConfig] = useState<SystemConfig>({
         barangayName: "",
@@ -59,6 +60,13 @@ export function useSuperAdminData() {
 
     useEffect(() => {
         const unsubscribeFunctions: (() => void)[] = []
+        const sourcesLoaded = new Set<string>()
+        const checkReady = (key: string) => {
+            sourcesLoaded.add(key)
+            if (sourcesLoaded.size >= 4) {
+                setIsLoaded(true)
+            }
+        }
 
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_USERS), (snapshot) => {
             const allUserDocuments = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as any))
@@ -97,9 +105,11 @@ export function useSuperAdminData() {
                 }
                 return withoutLocked
             })
+            checkReady("users")
         }, (err) => {
             console.error("users snapshot error in superadmin hook:", err)
             setError(err.message || "Failed to load users")
+            setIsLoaded(true)
         }))
 
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(500)), (snapshot) => {
@@ -113,9 +123,11 @@ export function useSuperAdminData() {
                     actionType: data.actionType || data.action || "Action",
                 } as unknown as AuditLog
             }))
+            checkReady("activityLogs")
         }, (err) => {
             console.error("activityLogs snapshot error in superadmin hook:", err)
             setError(err.message || "Failed to load audit logs")
+            setIsLoaded(true)
         }))
 
         unsubscribeFunctions.push(onSnapshot(collection(db, COLLECTION_SYSTEM_ALERTS), (snapshot) => {
@@ -124,16 +136,20 @@ export function useSuperAdminData() {
                 const dynamic = prev.filter(a => a.id.startsWith("signal-"))
                 return [...persisted, ...dynamic]
             })
+            checkReady("alerts")
         }, (err) => {
             console.error("alerts snapshot error in superadmin hook:", err)
             setError(err.message || "Failed to load system alerts")
+            setIsLoaded(true)
         }))
 
         unsubscribeFunctions.push(onSnapshot(doc(db, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID), (snapshot) => {
             if (snapshot.exists()) setSystemConfig(snapshot.data() as SystemConfig)
+            checkReady("config")
         }, (err) => {
             console.error("config snapshot error in superadmin hook:", err)
             setError(err.message || "Failed to load system config")
+            setIsLoaded(true)
         }))
 
         // Aggregate counts: count residents strictly separately from admins (#8)
@@ -154,29 +170,29 @@ export function useSuperAdminData() {
                     pendingVerifications: pendingVerifsCount,
                 }))
 
+                // Dynamic alert signals for pending items
                 const queueSignals: SystemAlert[] = []
-                if (pendingVerifsCount >= 5) {
+                if (pendingVerifsCount > 0) {
                     queueSignals.push({
                         id: "signal-pending-verifications",
                         severity: "warning",
-                        title: "Verification Queue Backlog",
-                        description: `${pendingVerifsCount} resident verification submissions are pending review.`,
+                        title: "Pending Verifications",
+                        description: `${pendingVerifsCount} resident verification request(s) waiting for review.`,
                         metric: `${pendingVerifsCount} Pending`,
                         timestamp: "Active",
                     })
                 }
-                if (activeReqsCount >= 10) {
+                if (activeReqsCount > 0) {
                     queueSignals.push({
                         id: "signal-pending-requests",
                         severity: "info",
-                        title: "Document Processing Queue",
-                        description: `${activeReqsCount} document requests are awaiting processing.`,
-                        metric: `${activeReqsCount} Queued`,
+                        title: "Pending Document Requests",
+                        description: `${activeReqsCount} document request(s) awaiting processing.`,
+                        metric: `${activeReqsCount} Pending`,
                         timestamp: "Active",
                     })
                 }
 
-                // Dynamic alert replacement: clears signals when backlog conditions resolve (#1, #8)
                 setSystemAlerts(prev => {
                     const withoutQueues = prev.filter(a => !a.id.startsWith("signal-pending-"))
                     return [...withoutQueues, ...queueSignals]
@@ -195,14 +211,13 @@ export function useSuperAdminData() {
             fetchAggregateStats()
         }))
 
-        // A brief delay ensures all listeners are initialized before the UI renders data.
-        setTimeout(() => setIsLoaded(true), 500)
-
         return () => unsubscribeFunctions.forEach(unsubscribe => unsubscribe())
-    }, [])
+    }, [refreshCounter])
 
     const refresh = useCallback(async () => {
         setIsLoaded(false)
+        setError(null)
+        setRefreshCounter(prev => prev + 1)
         try {
             const [totalResidentsSnap, activeRequestsSnap, pendingVerificationsSnap] = await Promise.all([
                 getCountFromServer(query(collection(db, COLLECTION_USERS), where("role", "==", "resident"))),

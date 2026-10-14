@@ -264,7 +264,7 @@ export default function RegisterPage() {
               : "Voter's ID / Certificate"
 
       try {
-        const url = await uploadFileToCloudinary(file as File)
+        const url = await uploadFileToCloudinary(file as File, { folder: "talasys/proofs" })
         if (!url) {
           failedUploads.push(documentName)
         } else {

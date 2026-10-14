@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
+import crypto from "crypto"
 import {
   isSensitiveMedia,
   canAccessMedia,
@@ -88,18 +89,49 @@ export async function POST(req: Request) {
 
     let authoritativeOwnerUid: string | undefined = undefined
 
-    // For sensitive evidence: resolve asset ownership authoritatively from Firestore records.
-    // NEVER trust client-supplied request-body `ownerUid` (#52).
+    // For sensitive evidence: resolve asset ownership authoritatively.
+    // Client-writable references must NEVER establish asset ownership over another user's namespace (A02).
     if (isSensitive) {
       const parsed = parseCloudinaryAsset(target)
+      const cleanPublicId = parsed.publicId.replace(/^\//, "")
 
       // Case A: Official barangay signature in system_config
-      if (parsed.publicId.startsWith("talasys/signatures/")) {
+      if (cleanPublicId.startsWith("talasys/signatures/")) {
         // System asset: authoritative owner is system. Only Super Admin and Full Admin may view.
         authoritativeOwnerUid = "system"
       }
-      // Case B: Explicit record reference provided (e.g. reviewing specific verification or request)
-      else if (recordId && typeof recordId === "string") {
+      // Case B: Validated owner namespace or server-controlled mediaRegistry (A02)
+      else {
+        const namespaceMatch = cleanPublicId.match(/^talasys\/(proofs|receipts|letters|residents)\/([^/]+)\/(.+)$/)
+        if (namespaceMatch) {
+          const [, , namespaceOwner] = namespaceMatch
+          if (namespaceOwner !== "registration") {
+            // Validated owner namespace: authoritatively owned by namespaceOwner
+            authoritativeOwnerUid = namespaceOwner
+          } else {
+            // Pre-registration namespace: resolve from server-controlled mediaRegistry
+            const assetRegistryKey = crypto.createHash("sha256").update(cleanPublicId).digest("hex")
+            const regDoc = await adminDb.collection("mediaRegistry").doc(assetRegistryKey).get()
+            if (regDoc.exists && regDoc.data()?.status === "claimed" && regDoc.data()?.ownerUid) {
+              authoritativeOwnerUid = regDoc.data().ownerUid
+            } else if (callerRole && callerRole !== "resident") {
+              // Administrators with appropriate review role may inspect pending unverified applicant assets
+              authoritativeOwnerUid = "pending-applicant"
+            }
+          }
+        }
+      }
+
+      // Case C: Non-namespaced legacy assets: resolve via mediaRegistry or record reference
+      if (!authoritativeOwnerUid) {
+        const assetRegistryKey = crypto.createHash("sha256").update(cleanPublicId).digest("hex")
+        const regDoc = await adminDb.collection("mediaRegistry").doc(assetRegistryKey).get()
+        if (regDoc.exists && regDoc.data()?.ownerUid) {
+          authoritativeOwnerUid = regDoc.data().ownerUid
+        }
+      }
+
+      if (!authoritativeOwnerUid && recordId && typeof recordId === "string") {
         if (recordType === "user") {
           const userDoc = await adminDb.collection("users").doc(recordId).get()
           if (userDoc.exists) {
@@ -114,9 +146,8 @@ export async function POST(req: Request) {
           const verifDoc = await adminDb.collection("verifications").doc(recordId).get()
           if (verifDoc.exists) {
             const vData = verifDoc.data() || {}
-            // Verify that this verification actually contains the requested media target
             if (verificationContains(vData, target)) {
-              authoritativeOwnerUid = vData.residentId
+              authoritativeOwnerUid = vData.residentId || vData.userId
             }
           }
         }

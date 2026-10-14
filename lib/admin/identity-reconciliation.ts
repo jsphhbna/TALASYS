@@ -287,22 +287,38 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
           }
         } else {
           if (opRef && opSnap?.exists) {
+            const opData = opSnap.data() || {}
+            const hasUnappliedProfileUpdates = Boolean(
+              opData.profileUpdates &&
+              typeof opData.profileUpdates === "object" &&
+              Object.keys(opData.profileUpdates).length > 0
+            )
+            // A08: Email alignment must NOT mark an email-plus-profile operation completed while profileUpdates remain unapplied
+            const finalOpStatus = hasUnappliedProfileUpdates ? "reconciled" : completedStatus
             transaction.update(opRef, {
-              status: completedStatus,
+              status: finalOpStatus,
               reconciledAt: now,
               reconciledBy: input.actorUid,
               reconciliationId,
+              ...(hasUnappliedProfileUpdates ? { unappliedProfileUpdates: opData.profileUpdates } : {}),
               updatedAt: now,
             })
           }
         }
+
+        const hasUnappliedProfile = !isVerificationApproval && opSnap?.exists && Boolean(
+          opSnap.data()?.profileUpdates &&
+          typeof opSnap.data()?.profileUpdates === "object" &&
+          Object.keys(opSnap.data()?.profileUpdates).length > 0
+        )
+        const lockFinalStatus = hasUnappliedProfile ? "reconciled" : completedStatus
 
         // Complete the lock - ALWAYS with reconcile operationId so it never falsely completes the pending approval
         transaction.set(lockRef, {
           residentId,
           operationId: `reconcile-${residentId}-${reconciliationId}`,
           attemptId: reconciliationId,
-          status: completedStatus,
+          status: lockFinalStatus,
           reconciledBy: input.actorUid,
           reconciledAction: input.action,
           reconciledAt: now,
@@ -334,8 +350,9 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
           after: {
             syncedEmail,
             action: input.action,
-            lockStatus: completedStatus,
+            lockStatus: lockFinalStatus,
             authMutated,
+            ...(hasUnappliedProfile ? { hasUnappliedProfileUpdates: true } : {}),
           },
           reconciliationId,
           notes: input.notes || null,

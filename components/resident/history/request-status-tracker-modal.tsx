@@ -185,9 +185,23 @@ export function RequestStatusTrackerModal({ request, isOpen, onClose }: RequestS
                   </div>
                   <div className="flex-1 pt-1">
                     <p className="text-sm font-semibold text-red-600 mb-1">Declined</p>
-                    <p className="text-xs leading-relaxed text-red-500">
-                      Your request was declined. Please check notifications for the specific reason or try submitting again.
-                    </p>
+                    {request.rejectionReason || (request as any).rejectReason ? (
+                      <div className="mt-1 p-2.5 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-900/50">
+                        <p className="text-xs font-semibold text-red-700 dark:text-red-300">Reason for Declining:</p>
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 leading-relaxed">
+                          {request.rejectionReason || (request as any).rejectReason}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs leading-relaxed text-red-500">
+                        Your request was declined. Please check notifications for the specific reason or try submitting again.
+                      </p>
+                    )}
+                    {request.statusTimestamps?.Rejected && (
+                      <p className="text-xs-plus font-medium text-slate-400 flex items-center gap-1.5 mt-2">
+                        <Clock className="w-3 h-3" /> {new Date(request.statusTimestamps.Rejected).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

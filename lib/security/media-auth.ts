@@ -1,32 +1,32 @@
 import { v2 as cloudinary } from "cloudinary"
 
-function isSuperAdminRole(role?: string | null): boolean {
+export function isSuperAdminRole(role?: string | null): boolean {
   if (!role) return false
   const r = role.trim().toLowerCase()
   return r === "superadmin" || r === "super admin"
 }
 
-function isFullAdminRole(role?: string | null): boolean {
+export function isFullAdminRole(role?: string | null): boolean {
   if (!role) return false
   const r = role.trim().toLowerCase()
   return r === "admin" || r === "full access" || isSuperAdminRole(r)
 }
 
-function canManageVerificationsRole(role?: string | null): boolean {
+export function canManageVerificationsRole(role?: string | null): boolean {
   if (!role) return false
   if (isFullAdminRole(role)) return true
   const r = role.trim()
   return r === "Verification Only" || r === "Verifications"
 }
 
-function canManageRequestsRole(role?: string | null): boolean {
+export function canManageRequestsRole(role?: string | null): boolean {
   if (!role) return false
   if (isFullAdminRole(role)) return true
   const r = role.trim()
   return r === "Document Processing" || r === "Documents Only"
 }
 
-function canManageResidentsRole(role?: string | null): boolean {
+export function canManageResidentsRole(role?: string | null): boolean {
   if (!role) return false
   return isFullAdminRole(role) || role.trim() === "Resident Management"
 }
@@ -151,12 +151,12 @@ export function canAccessMedia(params: MediaAccessRequest): { authorized: boolea
   const isReceipt = assetPath.startsWith("talasys/receipts/")
   const isLetter = assetPath.startsWith("talasys/letters/")
 
-  // Signatures: only Super Admin and Full Admin may view official barangay signature assets
+  // Signatures: Super Admin, Full Admin, and Document Processing administrators may access official barangay signature assets for document generation (#52, A14)
   if (isSignature) {
-    if (isSuperAdminRole(callerRole) || isFullAdminRole(callerRole)) {
+    if (isSuperAdminRole(callerRole) || isFullAdminRole(callerRole) || canManageRequestsRole(callerRole)) {
       return { authorized: true }
     }
-    return { authorized: false, reason: "Forbidden: Only Super Admin and Full Access administrators may view official signatures." }
+    return { authorized: false, reason: "Forbidden: Only Super Admin, Full Access, and Document Processing administrators may view official signatures." }
   }
 
   // Super Admin and Full Admin have global administrative inspection rights

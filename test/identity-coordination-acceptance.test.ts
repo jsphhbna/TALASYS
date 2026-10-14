@@ -632,25 +632,26 @@ test("Blocker 1 Unit: Auth-mutating lock with only { forceRecover: true } is rej
   })
   assert.equal(resWithStatus.eligible, true)
 
-  // 8. Correct IDs + quiescenceEvidence is allowed
+  // 8. Correct IDs + verified external write stopped + substantive quiescenceEvidence is allowed
   const resWithEvidence = evaluateRecoveryEligibility(lock, {
     forceRecover: true,
     expectedOperationId: "op-b1",
     expectedAttemptId: "att-b1",
-    quiescenceEvidence: "pod terminated after crash",
+    externalWriteStopped: true,
+    quiescenceEvidence: "pod terminated after verified process crash",
   })
   assert.equal(resWithEvidence.eligible, true)
 
-  // 9. Correct IDs + isStale is allowed
+  // 9. A09: isStale alone without verified stopped status and substantive attestation is rejected
   const resWithStale = evaluateRecoveryEligibility(lock, {
     forceRecover: true,
     expectedOperationId: "op-b1",
     expectedAttemptId: "att-b1",
     isStale: true,
   })
-  assert.equal(resWithStale.eligible, true)
+  assert.equal(resWithStale.eligible, false)
 
-  // 10. Correct IDs + staleTimeoutMs threshold exceeded is allowed
+  // 10. A09: staleTimeoutMs alone without verified stopped status and substantive attestation is rejected
   const resWithTimeout = evaluateRecoveryEligibility(lock, {
     forceRecover: true,
     expectedOperationId: "op-b1",
@@ -658,7 +659,7 @@ test("Blocker 1 Unit: Auth-mutating lock with only { forceRecover: true } is rej
     staleTimeoutMs: 1000,
     now: lock.updatedAt + 5000,
   })
-  assert.equal(resWithTimeout.eligible, true)
+  assert.equal(resWithTimeout.eligible, false)
 })
 
 test("Blocker 1 Unit: Same-attempt simultaneous execution is blocked across all six in-flight stages", () => {

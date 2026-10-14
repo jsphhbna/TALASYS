@@ -98,7 +98,7 @@ service cloud.firestore {
         request.auth.uid == userId &&
         request.resource.data.role == 'resident' &&
         request.resource.data.isVerified == false &&
-        (request.resource.data.status == 'Pending' || request.resource.data.status == 'Active') &&
+        (request.resource.data.status == 'Pending' || request.resource.data.status == 'pending') &&
         (!('accountExpiry' in request.resource.data) || request.resource.data.accountExpiry == '')
       );
       
@@ -158,7 +158,7 @@ service cloud.firestore {
               'paymentStatus', 'paymentMethod', 'gcashRefNumber', 'gcashScreenshotUrl', 'paymentSubmittedAt'
             ]) &&
             request.resource.data.paymentStatus == 'pending_verification' &&
-            resource.data.status in ['Pending', 'Approved', 'Processing']
+            resource.data.status in ['Pending', 'Approved', 'Processing', 'On Process']
           )
         )
       );
@@ -184,12 +184,18 @@ service cloud.firestore {
       
       // Creation:
       // - Residents can create verification for themselves, BUT status MUST be 'pending' (#57).
+      // - Single canonical owner (A01): reject conflicting residentId/userId fields and submissions targeting another resident.
       allow create: if (
         isAuthenticated() &&
         isActiveAccount() &&
-        (request.resource.data.residentId == request.auth.uid || request.resource.data.userId == request.auth.uid) &&
         request.resource.data.status == 'pending' &&
-        request.resource.data.type in ['registration', 'profile-edit', 'reactivation']
+        request.resource.data.type in ['registration', 'profile-edit', 'reactivation'] &&
+        (
+          (!('residentId' in request.resource.data) || request.resource.data.residentId == request.auth.uid) &&
+          (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
+          (('residentId' in request.resource.data) || ('userId' in request.resource.data)) &&
+          (!('residentId' in request.resource.data && 'userId' in request.resource.data) || request.resource.data.residentId == request.resource.data.userId)
+        )
       );
       
       // Review transitions are coupled to audit/notification/identity state by
@@ -218,10 +224,11 @@ service cloud.firestore {
       // Creation:
       // - Admins can notify anyone.
       // - Residents can ONLY create notification with targetId == 'admin' (#58 impersonation defense).
+      // - Allow registration and reactivation notification types to admin (A10).
       allow create: if (
         isAuthenticated() &&
         request.resource.data.targetId == 'admin' &&
-        request.resource.data.type in ['info', 'alert']
+        request.resource.data.type in ['info', 'alert', 'registration', 'reactivation']
       );
       
       allow update, delete: if isAuthenticated() && (
@@ -242,6 +249,10 @@ service cloud.firestore {
     }
 
     match /clientTelemetry/{telemetryId} {
+      allow read, write: if false;
+    }
+
+    match /mediaRegistry/{assetId} {
       allow read, write: if false;
     }
 

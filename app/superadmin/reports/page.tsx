@@ -106,6 +106,7 @@ export default function SystemReports() {
     setIsGeneratingReport(true)
     try {
       const rangedDocs = documentRequests.filter(r => {
+        if (!(r as any).hasGenerated) return false
         const ts = r.createdAt || 0
         return ts >= startMs && ts <= endMs
       })
@@ -319,7 +320,7 @@ export default function SystemReports() {
   ]
 
   const rejectedCount = documentRequests.filter(r => r.status === "Rejected").length
-  const generatedDocuments = documentRequests.filter(r => r.status === 'Approved' || r.status === 'Completed' || (r as any).hasGenerated)
+  const generatedDocuments = documentRequests.filter(r => (r as any).hasGenerated === true)
   const generatedCount = generatedDocuments.length
 
   const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()

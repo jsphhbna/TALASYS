@@ -378,7 +378,7 @@ City of Manila, {{date_issued}}.`,
                           if (!file) return;
                           toast.loading("Uploading captain's signature...");
                           try {
-                            const url = await uploadFileToCloudinary(file);
+                            const url = await uploadFileToCloudinary(file, { folder: "talasys/signatures" });
                             setFormData(prev => ({ ...prev, captainSignatureUrl: url }));
                             toast.dismiss();
                             toast.success("Captain's signature uploaded successfully");
@@ -416,7 +416,7 @@ City of Manila, {{date_issued}}.`,
                           if (!file) return;
                           toast.loading("Uploading secretary's signature...");
                           try {
-                            const url = await uploadFileToCloudinary(file);
+                            const url = await uploadFileToCloudinary(file, { folder: "talasys/signatures" });
                             setFormData(prev => ({ ...prev, secretarySignatureUrl: url }));
                             toast.dismiss();
                             toast.success("Secretary's signature uploaded successfully");

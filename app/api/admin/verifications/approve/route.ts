@@ -31,9 +31,13 @@ function profileUpdates(verification: Record<string, any>, resident: Record<stri
   } else if (type === "reactivation") {
     updates.isVerified = true; updates.status = "Active"; updates.accountExpiry = now + 365 * 24 * 60 * 60 * 1000
   } else {
-    updates.isVerified = true; updates.status = "Active"
+    updates.isVerified = true; updates.status = "Active"; updates.accountExpiry = now + 365 * 24 * 60 * 60 * 1000
   }
-  if (resident.isVerified === false && type === "profile-edit") { updates.isVerified = true; updates.status = "Active" }
+  if (resident.isVerified === false && type === "profile-edit") {
+    updates.isVerified = true
+    updates.status = "Active"
+    updates.accountExpiry = now + 365 * 24 * 60 * 60 * 1000
+  }
   return { type, updates, newEmail: typeof updates.email === "string" ? updates.email : undefined }
 }
 
@@ -56,11 +60,14 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
         const verification = verificationSnapshot.data() || {}
         const existing = operationSnapshot.exists ? operationSnapshot.data() : null
         if (verification.status === "approved") return { outcome: "completed" as const }
-        if (!["pending", "processing"].includes(verification.status || "pending")) throw Object.assign(new Error("Verification is no longer pending"), { status: 409 })
-        if (!verification.residentId) throw Object.assign(new Error("Verification has no resident"), { status: 400 })
+        if (verification.residentId && verification.userId && verification.residentId !== verification.userId) {
+          throw Object.assign(new Error("Conflicting owner identities in verification record"), { status: 400 })
+        }
+        const canonicalResidentId = verification.residentId || verification.userId
+        if (!canonicalResidentId) throw Object.assign(new Error("Verification has no resident"), { status: 400 })
 
-        const residentRef = adminDb.collection(COLLECTION_USERS).doc(verification.residentId)
-        const lockRef = adminDb.collection("identityOperationLocks").doc(verification.residentId)
+        const residentRef = adminDb.collection(COLLECTION_USERS).doc(canonicalResidentId)
+        const lockRef = adminDb.collection("identityOperationLocks").doc(canonicalResidentId)
         const [residentSnapshot, lockSnapshot] = await Promise.all([
           transaction.get(residentRef), transaction.get(lockRef),
         ])
@@ -73,7 +80,7 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
         const claimResult = evaluateIdentityClaim(lock, existing, {
           operationId: approvalOpId,
           attemptId,
-          residentId: verification.residentId,
+          residentId: canonicalResidentId,
         })
 
         if (claimResult.outcome === "completed") {
@@ -92,7 +99,7 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
         const operation: ApprovalOperation = {
           id: verificationId,
           verificationId,
-          residentId: verification.residentId,
+          residentId: canonicalResidentId,
           verificationType: calculated.type,
           actorUid,
           actorName: caller.name || "Administrator",
@@ -110,7 +117,7 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
         const lockPayload: Record<string, any> = {
           operationId: approvalOpId,
           attemptId,
-          residentId: verification.residentId,
+          residentId: canonicalResidentId,
           verificationId,
           operationType: "verification-approval",
           status: "claimed",

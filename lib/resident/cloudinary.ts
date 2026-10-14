@@ -141,7 +141,7 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
     method: "POST",
     headers,
     body: JSON.stringify({
-      folder: options?.folder || "talasys/residents",
+      folder: options?.folder || (ticket || !token ? "talasys/proofs" : "talasys/residents"),
       ticket,
     }),
   })
@@ -151,7 +151,7 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
     throw new Error(errBody.error || "Failed to authenticate upload request securely.")
   }
   
-  const { signature, timestamp, folder, type, publicId, apiKey } = await signResponse.json()
+  const { signature, timestamp, folder, type, publicId, apiKey, claimToken } = await signResponse.json()
 
   const formData = new FormData()
   formData.append("file", compressedFile)
@@ -187,8 +187,14 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
   }
 
   const responseData = await response.json()
-  return responseData.secure_url
+  const secureUrl = responseData.secure_url
+  if (claimToken && secureUrl) {
+    preRegistrationClaimTokens.set(secureUrl, claimToken)
+  }
+  return secureUrl
 }
+
+export const preRegistrationClaimTokens = new Map<string, string>()
 
 /**
  * Convenience helper to upload sensitive proof or receipt files directly to protected storage (#52).

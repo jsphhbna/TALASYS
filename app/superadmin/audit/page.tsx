@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, CartesianGrid,
@@ -20,7 +20,7 @@ import {
   Activity, FileText, Users, Shield, AlertTriangle,
   TrendingUp,
 } from "lucide-react"
-import { formatAuditIp, parseAuditTimestamp, isTimestampThisWeek, isTimestampToday, extractValidYear } from "@/lib/security/audit-utils"
+import { formatAuditIp, parseAuditTimestamp, isTimestampThisWeek, isTimestampToday, extractValidYear, normalizeAuditLog } from "@/lib/security/audit-utils"
 
 // --- Mini Sparkline ---
 function Sparkline({ data, color }: { data: number[]; color: string }) {
@@ -39,6 +39,8 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 export default function AuditLogs() {
   const { auditLogs, stats: { auditActionBreakdown, totalAuditLogs }, systemConfig } = useSuperAdminData()
   
+  const normalizedLogs = useMemo(() => auditLogs.map(normalizeAuditLog), [auditLogs])
+  
   const barangayName = systemConfig?.barangayName || "Barangay Sample"
   const municipality = systemConfig?.address || "City of Sample"
   const contactNumber = systemConfig?.contactNumber || "(02) 8123-4567"
@@ -53,7 +55,7 @@ export default function AuditLogs() {
   const pageSize = 10
 
   const currentYear = new Date().getFullYear().toString()
-  const yearsList = Array.from(new Set(auditLogs.map(l => {
+  const yearsList = Array.from(new Set(normalizedLogs.map(l => {
     return extractValidYear(l.timestamp || l.date)
   }).filter((y): y is string => y !== null))).sort((a, b) => Number(b) - Number(a))
   
@@ -79,15 +81,7 @@ export default function AuditLogs() {
     try {
       const headers = ["Date", "Time", "Admin", "Action", "Details", "IP Address"]
       const rows = filteredLogs.map(l => {
-        const dateStr = l.date || (l as any).date || (() => {
-          const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
-          return (ts && !isNaN(ts)) ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(ts)) : 'Unknown';
-        })();
-        const timeStr = l.time || (() => {
-          const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
-          return (ts && !isNaN(ts)) ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts)) : '';
-        })();
-        return `"${dateStr}","${timeStr}","${l.admin?.name || (l as any).adminName || 'System'}","${l.actionType || l.action || 'Unknown'}","${(l.details || (l as any).residentName || '').replace(/"/g, '""')}","${l.ipAddress || ''}"`
+        return `"${l.date}","${l.time}","${l.admin?.name || 'System'}","${l.action}","${(l.details || '').replace(/"/g, '""')}","${l.ipAddress || ''}"`
       })
       const csvContent = [headers.join(","), ...rows].join("\n")
       
@@ -143,15 +137,7 @@ export default function AuditLogs() {
       autoTable(doc, {
         head: [['Date / Time', 'Admin', 'Action', 'Details']],
         body: filteredLogs.map(l => {
-          const dateStr = l.date || (l as any).date || (() => {
-            const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
-            return (ts && !isNaN(ts)) ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(ts)) : 'Unknown';
-          })();
-          const timeStr = l.time || (() => {
-            const ts = typeof l.timestamp === 'string' ? parseInt(l.timestamp) : l.timestamp;
-            return (ts && !isNaN(ts)) ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ts)) : '';
-          })();
-          return [`${dateStr}\n${timeStr}`, l.admin?.name || (l as any).adminName || 'System', l.actionType || l.action || 'Unknown', l.details || (l as any).residentName || ''];
+          return [`${l.date}\n${l.time}`, l.admin?.name || 'System', l.action, l.details || ''];
         }),
         startY: 55,
         theme: 'grid',
@@ -175,17 +161,23 @@ export default function AuditLogs() {
     setIsExportingPdf(false)
   }
 
-  const filteredLogs = auditLogs.filter((log) => {
-    const details = log.details || (log as any).residentName || ""
-    const actionType = log.actionType || log.action || "Unknown"
-    const adminName = log.admin?.name || (log as any).adminName || "System"
+  const filteredLogs = normalizedLogs.filter((log) => {
+    const details = log.details || ""
+    const actionType = log.actionType || "other"
+    const action = log.action || ""
+    const adminName = log.admin?.name || "System"
+    const residentName = log.residentName || ""
     
-    const matchesSearch = details.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = searchTerm === "" ||
+      details.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      adminName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      residentName.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesAdmin = adminFilter === "all" || adminName === adminFilter
-    const matchesAction = actionFilter === "all" || actionType === actionFilter
+    const matchesAction = actionFilter === "all" || actionType === actionFilter || action === actionFilter
 
-    const ts = parseAuditTimestamp(log.timestamp || log.date)
-    const logDate = ts !== null ? new Date(ts) : null
+    const ts = log.timestamp
+    const logDate = ts > 0 ? new Date(ts) : null
 
     let matchesDate = true
     if (logDate) {
@@ -210,26 +202,21 @@ export default function AuditLogs() {
       case "verified": return "bg-blue-50 text-blue-700 border-blue-200"
       case "rejected": return "bg-red-50 text-red-700 border-red-200"
       case "generated": return "bg-amber-50 text-amber-700 border-amber-200"
-      case "Config Edit": return "bg-[#C5A55A]/10 text-[#8a7430] border-[#C5A55A]/20"
-      case "Login": return "bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+      case "admin": return "bg-indigo-50 text-indigo-700 border-indigo-200"
+      case "resident": return "bg-cyan-50 text-cyan-700 border-cyan-200"
+      case "system": return "bg-[#C5A55A]/10 text-[#8a7430] border-[#C5A55A]/20"
       default: return "bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
     }
   }
 
-  const suspiciousCount = auditLogs.filter(l => {
-    const act = l.actionType || l.action || ""
-    return act === "Deleted Admin" || act === "Config Edit"
+  const suspiciousCount = normalizedLogs.filter(l => {
+    const act = l.action || ""
+    return act.includes("Delete") || act.includes("Deactivate") || act.includes("System Configuration")
   }).length
 
-  const todaysActions = auditLogs.filter(l => {
-    const ts = parseAuditTimestamp(l.timestamp || l.date)
-    return ts !== null && isTimestampToday(ts)
-  }).length
-  const thisWeekCount = auditLogs.filter(l => {
-    const ts = parseAuditTimestamp(l.timestamp || l.date)
-    return ts !== null && isTimestampThisWeek(ts)
-  }).length
-  const activeAdminCount = new Set(auditLogs.map(l => l.admin?.name || (l as any).adminName || (typeof l.admin === "string" ? l.admin : "System"))).size
+  const todaysActions = normalizedLogs.filter(l => isTimestampToday(l.timestamp)).length
+  const thisWeekCount = normalizedLogs.filter(l => isTimestampThisWeek(l.timestamp)).length
+  const activeAdminCount = new Set(normalizedLogs.map(l => l.admin?.name || "System")).size
 
   // Generate dynamic data based on auditLogs
   const now = Date.now()

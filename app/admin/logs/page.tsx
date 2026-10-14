@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,16 +8,18 @@ import { useAdminData } from "@/hooks/admin"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts"
-import { Activity, CheckCircle2, XCircle, FileText, Shield, Search } from "lucide-react"
-import { isTimestampToday } from "@/lib/security/audit-utils"
+import { Activity, CheckCircle2, XCircle, FileText, Shield, Search, UserCheck, Settings } from "lucide-react"
+import { isTimestampToday, normalizeAuditLog } from "@/lib/security/audit-utils"
 
 export default function ActivityLogs() {
   const { activityLogs, addActivityLog } = useAdminData()
   const [activeFilter, setActiveFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
 
-  const groupedLogs = activityLogs.reduce((acc, log) => {
-    const rawAction = log.action || log.actionType || "Other"
+  const normalizedLogs = useMemo(() => activityLogs.map(normalizeAuditLog), [activityLogs])
+
+  const groupedLogs = normalizedLogs.reduce((acc, log) => {
+    const rawAction = log.action || "Other"
     const action = rawAction.split(' ')[0] || "Other"
     acc[action] = (acc[action] || 0) + 1
     return acc
@@ -25,7 +27,9 @@ export default function ActivityLogs() {
   
   const logActionFrequency = Object.entries(groupedLogs).map(([name, count]) => ({
     action: name,
-    count
+    count,
+    hour: name,
+    actions: count
   })).sort((a, b) => b.count - a.count).slice(0, 5)
 
   const filters = [
@@ -34,21 +38,23 @@ export default function ActivityLogs() {
     { id: "rejected", label: "Rejected" },
     { id: "generated", label: "Generated" },
     { id: "verified", label: "Verified" },
-    { id: "sent", label: "Sent" },
+    { id: "admin", label: "Admin Ops" },
+    { id: "resident", label: "Resident Ops" },
   ]
 
-  const filteredLogs = activityLogs.filter(log => {
+  const filteredLogs = normalizedLogs.filter(log => {
     const matchesFilter = activeFilter === "all" || log.actionType === activeFilter
     const matchesSearch = searchQuery === "" ||
       (log.action || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (log.residentName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (log.details || "").toLowerCase().includes(searchQuery.toLowerCase())
+      (log.details || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (log.admin?.name || "").toLowerCase().includes(searchQuery.toLowerCase())
     return matchesFilter && matchesSearch
   })
 
-  const approvedCount = activityLogs.filter(l => l.actionType === "approved").length
-  const rejectedCount = activityLogs.filter(l => l.actionType === "rejected").length
-  const generatedCount = activityLogs.filter(l => l.actionType === "generated").length
+  const approvedCount = normalizedLogs.filter(l => l.actionType === "approved").length
+  const rejectedCount = normalizedLogs.filter(l => l.actionType === "rejected").length
+  const generatedCount = normalizedLogs.filter(l => l.actionType === "generated").length
 
   const getActionBadge = (type: string) => {
     const badges: Record<string, { bg: string; text: string; icon: any }> = {
@@ -57,6 +63,10 @@ export default function ActivityLogs() {
       generated: { bg: "bg-blue-50 text-blue-700", text: "Generated", icon: FileText },
       verified: { bg: "bg-purple-50 text-purple-700", text: "Verified", icon: Shield },
       sent: { bg: "bg-amber-50 text-amber-700", text: "Sent", icon: Activity },
+      admin: { bg: "bg-indigo-50 text-indigo-700", text: "Admin Op", icon: Settings },
+      resident: { bg: "bg-cyan-50 text-cyan-700", text: "Resident Op", icon: UserCheck },
+      system: { bg: "bg-slate-100 text-slate-700", text: "System", icon: Settings },
+      request: { bg: "bg-blue-50 text-blue-700", text: "Request", icon: FileText },
     }
     const badge = badges[type] || { bg: "bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300", text: type, icon: Activity }
     const Icon = badge.icon
@@ -68,9 +78,7 @@ export default function ActivityLogs() {
     )
   }
 
-  const todayCount = activityLogs.filter(l =>
-    isTimestampToday(typeof l.timestamp === "number" ? l.timestamp : Number(l.timestamp) || new Date(l.date || "").getTime())
-  ).length
+  const todayCount = normalizedLogs.filter(l => isTimestampToday(l.timestamp)).length
 
   return (
     <AdminPageShell>
@@ -112,13 +120,13 @@ export default function ActivityLogs() {
           </Card>
         </div>
         <Card className="col-span-5 p-4 shadow-sm">
-          <h3 className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Hourly Frequency</h3>
+          <h3 className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Action Frequency</h3>
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={logActionFrequency} barSize={14}>
-              <XAxis dataKey="hour" tick={{ fontSize: 8 }} stroke="#94a3b8" />
+              <XAxis dataKey="action" tick={{ fontSize: 8 }} stroke="#94a3b8" />
               <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" />
               <Tooltip contentStyle={{ fontSize: 10, borderRadius: 8 }} />
-              <Bar dataKey="actions" fill="#0C2340" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="count" fill="#0C2340" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>

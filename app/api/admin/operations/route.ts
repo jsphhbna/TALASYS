@@ -14,7 +14,7 @@ const ADMIN_UPDATE_FIELDS = new Set(["name", "role", "status"])
 const SYSTEM_CONFIG_FIELDS = new Set(["barangayName", "barangayCaptainName", "secretaryName", "captainSignatureUrl", "secretarySignatureUrl", "officialSignatureUrl", "contactNumber", "emailAddress", "address", "enabledModules", "documentTypes", "documentFees", "templates", "customDocumentTypes"])
 const SYSTEM_ALERT_FIELDS = new Set(["severity", "title", "description", "metric"])
 const ADMIN_ROLES = new Set(["admin", "Full Access", "Verification Only", "Documents Only", "View Only", "Resident Management", "Verifications", "Document Processing"])
-const REQUEST_STATUSES = new Set(["Approved", "On Process", "Awaiting Payment", "Ready for Pick Up", "Completed", "Rejected"])
+const REQUEST_STATUSES = new Set(["Approved", "On Process", "Processing", "Awaiting Payment", "Ready for Pick Up", "Completed", "Rejected", "Cancelled"])
 
 function httpError(message: string, status: number) { return Object.assign(new Error(message), { status }) }
 function safeObject(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {} }
@@ -33,11 +33,12 @@ function authorize(role: string, operation: string) {
   return false
 }
 
-function auditEvent(actor: Actor, operation: string, operationId: string, targetId: string | undefined, ipAddress: string, before: unknown, after: unknown, now: number) {
+function auditEvent(actor: Actor, operation: string, operationId: string, targetId: string | undefined, ipAddress: string, before: unknown, after: unknown, now: number, payloadHash?: string) {
   return {
     actor: { id: actor.uid, name: actor.name, email: actor.email || "unknown", role: actor.role },
     action: operation, actionType: operation.split(".")[0], targetId: targetId || null,
     before, after, operationId, ipAddress, timestamp: now, createdAt: now, authoritative: true,
+    ...(payloadHash ? { payloadHash } : {})
   }
 }
 
@@ -46,6 +47,7 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
   const operationId = body.operationId
   const targetId = typeof body.targetId === "string" ? body.targetId : undefined
   const payload = safeObject(body.payload)
+  const payloadHash = createHash("sha256").update(JSON.stringify(payload || {})).digest("hex")
   return db.runTransaction(async (transaction: any) => {
     const callerRef = db.collection(COLLECTION_USERS).doc(actorUid)
     const auditRef = db.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId(operationId))
@@ -62,7 +64,18 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     if (!callerSnapshot.exists) throw httpError("Caller account not found.", 403)
     const callerData = callerSnapshot.data() || {}
     if (INACTIVE.has(callerData.status) || !authorize(callerData.role, operation)) throw httpError("Caller is not authorized for this operation.", 403)
-    if (auditSnapshot.exists) return { idempotent: true }
+    if (auditSnapshot.exists) {
+      const existingAudit = auditSnapshot.data() || {}
+      if (
+        existingAudit.actor?.id !== actorUid ||
+        existingAudit.action !== operation ||
+        (existingAudit.targetId || undefined) !== (targetId || undefined) ||
+        (existingAudit.payloadHash && existingAudit.payloadHash !== payloadHash)
+      ) {
+        throw httpError("Idempotency conflict: operationId was already executed with different actor, operation, target, or payload.", 409)
+      }
+      return { idempotent: true }
+    }
     if (targetRef && !targetSnapshot?.exists && operation !== "system.config.update") throw httpError("Target record not found.", 404)
     const actor: Actor = { uid: actorUid, name: callerData.name || "Administrator", email: callerData.email, role: callerData.role }
     const before = targetSnapshot?.data() || null
@@ -89,11 +102,15 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       const residentId = before.residentId || before.userId
       if (residentId) notification = { id: `verification-rejected-${operationDocumentId(operationId)}`, value: { targetId: residentId, type: "error", title: "Verification Rejected", message: `Your verification was rejected: ${reason}`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
     } else if (operation === "request.updateStatus") {
-      const status = payload.status
+      if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
+        throw httpError(`Cannot transition request out of terminal state '${before.status}'.`, 409)
+      }
+      let status = payload.status
       if (!REQUEST_STATUSES.has(status)) throw httpError("Unsupported request status.", 400)
+      if (status === "Processing") status = "On Process"
       const reason = typeof payload.reason === "string" ? payload.reason.trim() : ""
       if (status === "Rejected" && reason.length < 10) throw httpError("Rejection requires a reason of at least 10 characters.", 400)
-      after = { status, ...(reason ? { rejectReason: reason } : {}), [`statusTimestamps.${status}`]: now }
+      after = { status, ...(reason ? { rejectionReason: reason, rejectReason: reason } : {}), [`statusTimestamps.${status}`]: now }
       transaction.update(targetRef, after)
       if (before.residentId) notification = { id: `request-status-${operationDocumentId(operationId)}`, value: { targetId: before.residentId, type: status === "Rejected" ? "error" : "info", title: `Document ${status}`, message: `Your request for ${before.documentType || "document"} is now ${status}.${reason ? ` Reason: ${reason}` : ""}`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
     } else if (operation === "request.delete") {
@@ -102,16 +119,31 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     } else if (operation === "request.markGenerated") {
       after = { hasGenerated: true, updatedAt: now }; transaction.update(targetRef, after)
     } else if (operation === "request.confirmPayment") {
+      if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
+        throw httpError("Cannot confirm payment for a cancelled, rejected, or completed request.", 409)
+      }
       if (before.paymentStatus === "paid") throw httpError("Payment is already confirmed.", 409)
+      if (before.paymentStatus === "waived") throw httpError("Payment for this request has been waived and cannot be paid.", 409)
       const method = payload.paymentMethod === "gcash" ? "gcash" : "cash"
       const receiptNumber = `REC-${new Date(now).getFullYear()}-${operationDocumentId(operationId).slice(-8).toUpperCase()}`
       after = { paymentStatus: "paid", paymentConfirmedAt: now, paymentConfirmedBy: actor.name, receiptNumber, paymentMethod: method, ...(payload.paymentReference ? { [method === "gcash" ? "gcashRefNumber" : "paymentReferenceNumber"]: String(payload.paymentReference) } : {}), ...(["Pending", "Awaiting Payment"].includes(before.status) ? { status: "On Process", "statusTimestamps.On Process": now } : {}) }
       transaction.update(targetRef, after)
       if (before.residentId) notification = { id: `payment-confirmed-${operationDocumentId(operationId)}`, value: { targetId: before.residentId, type: "success", title: "Payment Confirmed", message: `Your payment for ${before.documentType || "document"} has been confirmed. Receipt #: ${receiptNumber}`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
     } else if (operation === "request.markPayLater") {
+      if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
+        throw httpError("Cannot update payment option on a terminal request.", 409)
+      }
+      if (before.paymentStatus === "paid" || before.paymentStatus === "waived") {
+        throw httpError("Cannot transition a paid or waived request to unpaid.", 409)
+      }
       after = { paymentStatus: "unpaid", paymentMethod: "cash", updatedAt: now }; transaction.update(targetRef, after)
       if (before.residentId) notification = { id: `payment-later-${operationDocumentId(operationId)}`, value: { targetId: before.residentId, type: "info", title: "Payment Option Updated", message: `Your payment method for ${before.documentType || "document"} was marked as Pay Later by the admin.`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
     } else if (operation === "request.waivePayment") {
+      if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
+        throw httpError("Cannot waive payment for a cancelled, rejected, or completed request.", 409)
+      }
+      if (before.paymentStatus === "paid") throw httpError("Cannot waive an already paid request.", 409)
+      if (before.paymentStatus === "waived") throw httpError("Payment is already waived.", 409)
       after = { status: "On Process", paymentStatus: "waived", paymentConfirmedAt: now, paymentConfirmedBy: actor.name, "statusTimestamps.On Process": now }; transaction.update(targetRef, after)
       if (before.residentId) notification = { id: `payment-waived-${operationDocumentId(operationId)}`, value: { targetId: before.residentId, type: "info", title: "Fee Waived", message: `The document fee for your ${before.documentType || "document"} request has been waived.`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
     } else if (operation === "admin.update") {
@@ -145,31 +177,49 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     }
 
     if (notification) transaction.set(db.collection(COLLECTION_NOTIFICATIONS).doc(notification.id), notification.value)
-    transaction.create(auditRef, auditEvent(actor, operation, operationId, targetId, ipAddress, before, after, now))
+    transaction.create(auditRef, auditEvent(actor, operation, operationId, targetId, ipAddress, before, after, now, payloadHash))
     return { idempotent: false }
   })
 }
 
-async function createAdminAccount(db: any, auth: any, actorUid: string, operationId: string, payload: Record<string, any>, ipAddress: string, now: number) {
+async function createAdminAccount(db: any, auth: any, actorUid: string, operationId: string, payload: Record<string, any>, ipAddress: string, now: number, injectedAttemptId?: string) {
   const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : ""
   const password = typeof payload.password === "string" ? payload.password : ""
   const name = typeof payload.name === "string" ? payload.name.trim() : ""
   const role = typeof payload.role === "string" ? payload.role : "admin"
+  const attemptId = (typeof payload.attemptId === "string" && payload.attemptId) || injectedAttemptId || randomUUID()
   if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || !ADMIN_ROLES.has(role)) throw httpError("Valid admin name, email, password, and role are required.", 400)
   const operationRef = db.collection("adminAccountOperations").doc(operationDocumentId(operationId))
   const deterministicUid = `adm-${createHash("sha256").update(operationId).digest("hex").slice(0, 28)}`
+  const canonicalPayloadHash = createHash("sha256").update(JSON.stringify({ email, name, role })).digest("hex")
+
   const claimed = await db.runTransaction(async (transaction: any) => {
     const callerRef = db.collection(COLLECTION_USERS).doc(actorUid)
     const [callerSnapshot, operationSnapshot] = await Promise.all([transaction.get(callerRef), transaction.get(operationRef)])
     const caller = callerSnapshot.data() || {}
     if (!callerSnapshot.exists || INACTIVE.has(caller.status) || !isSuperAdminRole(caller.role)) throw httpError("Only an active Super Admin can create administrators.", 403)
     const existing = operationSnapshot.data()
-    if (existing?.status === "completed") return { completed: true, actor: caller }
+    if (existing?.status === "completed") {
+      if (existing.email !== email || existing.name !== name || existing.role !== role || existing.actorUid !== actorUid || existing.payloadHash !== canonicalPayloadHash) {
+        throw httpError("Idempotency conflict: operationId was already executed with different parameters.", 409)
+      }
+      return { completed: true, actor: caller }
+    }
     if (existing && (existing.email !== email || existing.uid !== deterministicUid)) throw httpError("Operation ID was already used for different input.", 409)
-    transaction.set(operationRef, { operationId, uid: deterministicUid, email, name, role, actorUid, status: "auth-pending", createdAt: existing?.createdAt || now, updatedAt: now })
+    if (existing && ["auth-pending", "auth-completed"].includes(existing.status)) {
+      if (existing.attemptId && existing.attemptId !== attemptId) {
+        throw httpError(`Administrator provisioning is actively running by attempt '${existing.attemptId}'. Concurrent takeover is blocked.`, 409)
+      }
+    }
+    transaction.set(operationRef, {
+      operationId, attemptId, uid: deterministicUid, email, name, role, actorUid,
+      payloadHash: canonicalPayloadHash, status: "auth-pending",
+      createdAt: existing?.createdAt || now, updatedAt: now
+    })
     return { completed: false, actor: caller }
   })
   if (claimed.completed) return { idempotent: true }
+
   let created = false
   try {
     try {
@@ -181,6 +231,7 @@ async function createAdminAccount(db: any, auth: any, actorUid: string, operatio
       await auth.createUser({ uid: deterministicUid, email, password, displayName: name, emailVerified: true })
       created = true
     }
+
     await db.runTransaction(async (transaction: any) => {
       const callerRef = db.collection(COLLECTION_USERS).doc(actorUid)
       const userRef = db.collection(COLLECTION_USERS).doc(deterministicUid)
@@ -188,19 +239,41 @@ async function createAdminAccount(db: any, auth: any, actorUid: string, operatio
       const [callerSnapshot, operationSnapshot, userSnapshot, auditSnapshot] = await Promise.all([transaction.get(callerRef), transaction.get(operationRef), transaction.get(userRef), transaction.get(auditRef)])
       const caller = callerSnapshot.data() || {}
       if (!callerSnapshot.exists || INACTIVE.has(caller.status) || !isSuperAdminRole(caller.role)) throw httpError("Super Admin authority changed before finalization.", 409)
-      if (operationSnapshot.data()?.uid !== deterministicUid || operationSnapshot.data()?.status === "completed" && !userSnapshot.exists) throw httpError("Administrator operation fence changed.", 409)
-      if (auditSnapshot.exists && userSnapshot.exists) return
+      const currentOp = operationSnapshot.data()
+      if (currentOp?.uid !== deterministicUid) throw httpError("Administrator operation fence changed.", 409)
+      if (currentOp?.attemptId !== attemptId) throw httpError("Administrator operation attempt changed; concurrent execution detected.", 409)
+      if (currentOp?.status === "completed" && userSnapshot.exists) return
       transaction.set(userRef, { email, name, role, status: "Active", initials: name.slice(0, 2).toUpperCase(), isOnline: false, lastActive: "Never", createdDate: new Date(now).toISOString().slice(0, 10), createdAt: now, isVerified: true })
-      transaction.create(auditRef, auditEvent({ uid: actorUid, name: caller.name || "Super Admin", email: caller.email, role: caller.role }, "admin.create", operationId, deterministicUid, ipAddress, null, { email, name, role }, now))
-      transaction.update(operationRef, { status: "completed", completedAt: now, updatedAt: now })
+      transaction.create(auditRef, auditEvent({ uid: actorUid, name: caller.name || "Super Admin", email: caller.email, role: caller.role }, "admin.create", operationId, deterministicUid, ipAddress, null, { email, name, role }, now, canonicalPayloadHash))
+      transaction.update(operationRef, { status: "completed", attemptId, completedAt: now, updatedAt: now })
     })
     return { idempotent: false, uid: deterministicUid }
   } catch (error) {
     let compensated = !created
     if (created) {
-      try { await auth.deleteUser(deterministicUid); compensated = true } catch { compensated = false }
+      try {
+        const opSnap = await operationRef.get()
+        const opData = opSnap.data()
+        // Compensation must NEVER delete an Auth account after another execution completed provisioning (A06)
+        if (opData?.status !== "completed" && (!opData?.attemptId || opData?.attemptId === attemptId)) {
+          await auth.deleteUser(deterministicUid)
+          compensated = true
+        } else {
+          compensated = false
+        }
+      } catch {
+        compensated = false
+      }
     }
-    await operationRef.update({ status: compensated ? "compensated" : "reconciliation-required", error: error instanceof Error ? error.message : String(error), updatedAt: Date.now() })
+    try {
+      const opSnap = await operationRef.get()
+      const opData = opSnap.data()
+      if (opData?.status !== "completed" && (!opData?.attemptId || opData?.attemptId === attemptId)) {
+        await operationRef.update({ status: compensated ? "compensated" : "reconciliation-required", attemptId, error: error instanceof Error ? error.message : String(error), updatedAt: Date.now() })
+      }
+    } catch {
+      // Best-effort status update
+    }
     throw Object.assign(new Error(compensated ? "Administrator creation failed and Auth was restored; retry the same operation." : "Administrator creation requires reconciliation."), { status: 503, cause: error })
   }
 }
