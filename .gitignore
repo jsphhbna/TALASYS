@@ -36,9 +36,12 @@ next-env.d.ts
 
 # ai entry point
 GEMINI.md
+AGENTS.md
 
 # audit 
 TALASYS-combined-audit.md
 
 # local operator migration checkpoints/manifests (may contain sensitive URLs)
 /.talasys-migrations/
+
+

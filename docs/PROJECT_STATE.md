@@ -45,7 +45,7 @@
   10. **Evidence & Verification Suite**: 94 automated unit/integration tests passing (including 28 in `test/reopened-remediation.test.ts`), `npx tsc --noEmit` exit 0, `npm run lint` exit 0, `npm run build` compiled 44/44 routes for production with Next.js 16.4.0.
 
 ## Verification & Test Infrastructure
-- **Automated Test Suite**: `npm test` (`node --test --experimental-strip-types "test/**/*.test.ts"`) -> **94 passed, 0 failed across 39 suites**.
+- **Automated Test Suite**: `npm test` (`node --test --experimental-strip-types "test/**/*.test.ts"`) -> **136 passed, 0 failed across 31 suites**.
 - **TypeScript Static Verification**: `npx tsc --noEmit` -> **Exit Code 0 (0 errors)**.
 - **ESLint Verification**: `npm run lint` -> **Exit Code 0 (0 errors, ESLint 9 configured)**.
 - **Production Build**: `npm run build` -> **Exit Code 0 (All 44 static/dynamic routes successfully generated with Next.js 16.4.0 Turbopack)**.

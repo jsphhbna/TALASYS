@@ -24,7 +24,11 @@ async function changeOwnedState(db: any, operation: IdentityEmailOperation, stat
       throw Object.assign(new Error("Stale identity attempt cannot change operation state."), { status: 409 })
     }
     transaction.update(operationRef, { status, error: message, leaseUntil: 0, updatedAt: now })
-    if (releaseLock) transaction.set(lockRef, { operationId: operation.id, attemptId: operation.attemptId, status, leaseUntil: 0, updatedAt: now })
+    if (releaseLock) {
+      transaction.set(lockRef, { operationId: operation.id, attemptId: operation.attemptId, status, leaseUntil: 0, updatedAt: now })
+    } else {
+      transaction.update(lockRef, { status, error: message, updatedAt: now })
+    }
   })
 }
 
@@ -51,13 +55,24 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
           return { outcome: "completed" as const }
         }
         const lock = lockSnapshot.exists ? lockSnapshot.data() : null
-        if (lock?.leaseUntil > now && (lock.operationId !== operationId || lock.attemptId !== attemptId)) return { outcome: "conflict" as const }
+        if (lock && ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"].includes(lock.status)) {
+          if (lock.status === "reconciliation-required") {
+            throw Object.assign(new Error("Identity operation requires reconciliation before retry."), { status: 409, requiresReconciliation: true, residentId })
+          }
+          if (lock.operationId === operationId) {
+            if (lock.status === "auth-mutating" && lock.attemptId !== attemptId) {
+              return { outcome: "conflict" as const }
+            }
+          } else {
+            return { outcome: "conflict" as const }
+          }
+        }
         const oldEmail = String(existing?.oldEmail || residentSnapshot.data()?.email || "").trim().toLowerCase()
         if (!oldEmail) throw Object.assign(new Error("Target resident has no authoritative email."), { status: 409 })
         if (existing && (existing.residentId !== residentId || existing.newEmail !== newEmail || JSON.stringify(existing.profileUpdates || {}) !== JSON.stringify(profileUpdates))) throw Object.assign(new Error("Operation ID was already used for different input."), { status: 409 })
-        const operation: IdentityEmailOperation = { id: operationId, residentId, actorUid, actorName: caller.name || "Administrator", attemptId, oldEmail, newEmail, profileUpdates, status: "auth-pending" }
-        transaction.set(operationRef, { ...operation, ipAddress, leaseUntil: now + 120_000, createdAt: existing?.createdAt || now, updatedAt: now })
-        transaction.set(lockRef, { operationId, attemptId, status: "auth-pending", leaseUntil: now + 120_000, updatedAt: now })
+        const operation: IdentityEmailOperation = { id: operationId, residentId, actorUid, actorName: caller.name || "Administrator", attemptId, oldEmail, newEmail, profileUpdates, status: "claimed" }
+        transaction.set(operationRef, { ...operation, ipAddress, createdAt: existing?.createdAt || now, updatedAt: now })
+        transaction.set(lockRef, { operationId, attemptId, residentId, operationType: "resident-email-update", status: "claimed", actorUid, actorName: caller.name || "Administrator", oldEmail, newEmail, ipAddress, updatedAt: now })
         return { outcome: "claimed" as const, operation }
       })
     },
@@ -70,14 +85,61 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
       ])
       return operationSnapshot.data()?.attemptId === operation.attemptId && lockSnapshot.data()?.attemptId === operation.attemptId && lockSnapshot.data()?.operationId === operation.id
     },
-    async complete(operation, now) {
+    async beginAuthMutation(operation, now) {
       await adminDb.runTransaction(async (transaction: any) => {
         const operationRef = adminDb.collection("identityOperations").doc(operation.id)
         const lockRef = adminDb.collection("identityOperationLocks").doc(operation.residentId)
+        const [operationSnapshot, lockSnapshot] = await Promise.all([transaction.get(operationRef), transaction.get(lockRef)])
+        if (operationSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.operationId !== operation.id) {
+          throw Object.assign(new Error("Stale identity attempt cannot advance to Auth mutation."), { status: 409 })
+        }
+        transaction.update(operationRef, { status: "auth-mutating", updatedAt: now })
+        transaction.update(lockRef, { status: "auth-mutating", updatedAt: now })
+      })
+    },
+    async authSucceeded(operation, now) {
+      await adminDb.runTransaction(async (transaction: any) => {
+        const operationRef = adminDb.collection("identityOperations").doc(operation.id)
+        const lockRef = adminDb.collection("identityOperationLocks").doc(operation.residentId)
+        const [operationSnapshot, lockSnapshot] = await Promise.all([transaction.get(operationRef), transaction.get(lockRef)])
+        if (operationSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.operationId !== operation.id) {
+          throw Object.assign(new Error("Stale identity attempt cannot confirm Auth success."), { status: 409 })
+        }
+        transaction.update(operationRef, { status: "auth-completed", updatedAt: now })
+        transaction.update(lockRef, { status: "auth-completed", updatedAt: now })
+      })
+    },
+    async beginCompensation(operation, message, now) {
+      try {
+        await adminDb.runTransaction(async (transaction: any) => {
+          const operationRef = adminDb.collection("identityOperations").doc(operation.id)
+          const lockRef = adminDb.collection("identityOperationLocks").doc(operation.residentId)
+          const [operationSnapshot, lockSnapshot] = await Promise.all([transaction.get(operationRef), transaction.get(lockRef)])
+          if (operationSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.operationId !== operation.id) {
+            throw Object.assign(new Error("Stale identity attempt cannot begin compensation."), { status: 409 })
+          }
+          transaction.update(operationRef, { status: "compensating", error: message, updatedAt: now })
+          transaction.update(lockRef, { status: "compensating", error: message, updatedAt: now })
+        })
+        return true
+      } catch (err: any) {
+        if (err?.status === 409) return false
+        throw err
+      }
+    },
+    async complete(operation, now) {
+      await adminDb.runTransaction(async (transaction: any) => {
+        const callerRef = adminDb.collection(COLLECTION_USERS).doc(operation.actorUid)
+        const operationRef = adminDb.collection("identityOperations").doc(operation.id)
+        const lockRef = adminDb.collection("identityOperationLocks").doc(operation.residentId)
         const residentRef = adminDb.collection(COLLECTION_USERS).doc(operation.residentId)
-        const [operationSnapshot, lockSnapshot, residentSnapshot] = await Promise.all([
-          transaction.get(operationRef), transaction.get(lockRef), transaction.get(residentRef),
+        const [callerSnapshot, operationSnapshot, lockSnapshot, residentSnapshot] = await Promise.all([
+          transaction.get(callerRef), transaction.get(operationRef), transaction.get(lockRef), transaction.get(residentRef),
         ])
+        if (!callerSnapshot.exists) throw Object.assign(new Error("Caller account not found at completion"), { status: 403 })
+        const caller = callerSnapshot.data() || {}
+        const authorized = isSuperAdminRole(caller.role) || isFullAdminRole(caller.role) || caller.role === "Resident Management"
+        if (!authorized || ["Locked", "Deleted", "Deleted by Resident"].includes(caller.status)) throw Object.assign(new Error("Caller authorization revoked during identity update."), { status: 403 })
         const stored = operationSnapshot.data()
         if (stored?.status === "completed" && stored?.attemptId === operation.attemptId) return
         if (stored?.attemptId !== operation.attemptId || lockSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.operationId !== operation.id) throw Object.assign(new Error("Identity operation fence changed."), { status: 409 })
@@ -88,7 +150,7 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
         transaction.set(adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(`resident-identity-${operation.id}`), {
           actor: { id: operation.actorUid, name: operation.actorName }, action: "Updated Resident Identity", actionType: "Resident Edit",
           targetId: operation.residentId, targetCollection: COLLECTION_USERS, before: { email: operation.oldEmail }, after: { email: operation.newEmail, changedFields: Object.keys(operation.profileUpdates) },
-          operationId: operation.id, ipAddress: stored?.ipAddress || "Unknown", timestamp: now, createdAt: now,
+          operationId: operation.id, ipAddress: stored?.ipAddress || "Unknown", timestamp: now, createdAt: now, authoritative: true,
         })
         transaction.update(operationRef, { status: "completed", completedAt: now, leaseUntil: 0, updatedAt: now })
         transaction.set(lockRef, { operationId: operation.id, attemptId: operation.attemptId, status: "completed", leaseUntil: 0, updatedAt: now })
@@ -121,7 +183,12 @@ export function createUpdateResidentEmailHandler(injected?: { auth?: typeof admi
       return NextResponse.json({ success: true, operationId, ...result })
     } catch (error: any) {
       const status = error?.code === "auth/email-already-exists" || error?.code === "auth/email-already-in-use" ? 400 : error?.status || 500
-      return NextResponse.json({ error: error?.message || "Identity update failed", operationIncomplete: status === 503 }, { status })
+      return NextResponse.json({
+        error: error?.message || "Identity update failed",
+        operationIncomplete: status === 503 || !!error?.requiresReconciliation,
+        requiresReconciliation: !!error?.requiresReconciliation,
+        residentId: error?.residentId,
+      }, { status })
     }
   }
 }

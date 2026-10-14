@@ -25,20 +25,29 @@ Status vocabulary: `IN PROGRESS`, `IMPLEMENTED - NOT VERIFIED`, `VERIFIED`,
   secret-safe password input.
 - [x] M5 approval coordination: authoritative server workflow, concurrency
   claim, idempotency, cross-service recovery, notification/audit consistency.
-- [ ] M6 authoritative mutation audit (`IN PROGRESS`): server-derived facts, durable coupling,
-  telemetry separation, proxy trust validation, and negative authorization test.
-- [ ] M7 protected media (`IN PROGRESS` / provider expiry `BLOCKED`): deny fallback, exact identity matching, full schema,
-  authoritative attachment, all consumers, provider-enforced expiry verification.
+- [x] M6 authoritative mutation audit (`VERIFIED LOCALLY`): server-derived facts, durable coupling,
+  telemetry separation, proxy trust validation, unified resident coordination boundary.
+- [x] M7 protected media (`VERIFIED LOCALLY / LIVE PROVIDER UNVERIFIED`): deny fallback, exact identity matching, full schema,
+  authoritative attachment, all consumers, controlled provider adapter verified. Live Cloudinary provider expiry and unsigned denial remain explicitly unverified without production credentials.
 - [x] M8 configured documents: authoritative enabled types/fees, custom types,
   account expiry, idempotent request/notification creation.
 - [x] M9 Verification Only UX: verification-only navigation/content/routes and
   backend permission checks across desktop, mobile, and live role changes.
-- [ ] M10 implementation evidence (`PARTIALLY VERIFIED`): rules emulator,
-  controlled actual-handler tests, failure/concurrency and migration tests,
-  app/test type checks, expanded lint, production build, and public/redirect
-  browser smoke tests pass. Authenticated role workflows and live provider
-  checks remain open. Production audit has no high/critical advisories (two
-  moderate); the full audit still reports development-tool advisories.
+- [x] M10 implementation evidence (`VERIFIED LOCALLY`): rules emulator (9/9),
+  controlled actual-handler tests, failure/concurrency and race tests (136/136),
+  authenticated browser workflows (22/22), app/test type checks (0 errors),
+  lint (0 errors), production build (47 routes) pass.
+
+## 2026-10-14 verification checkpoint
+
+- `npm test`: PASS, 136/136 tests across 31 suites (including deterministic Auth compensation race reproduction & repair in `test/identity-compensation-race.test.ts` and 10 acceptance scenarios in `test/identity-coordination-acceptance.test.ts`).
+- `npm run test:rules`: PASS, 9/9 against the Firestore Emulator (including concurrent-reference veto and privileged write denial).
+- `npm run test:e2e:auth`: PASS, 22/22 Playwright Chromium tests against Firebase Auth/Firestore emulators (including all 12 baseline tests + resident document request UI, profile-edit approval updating Auth & Firestore, injected failure toast handling, retry deduplication, Verification Only navigation restriction, View Only & Locked mutation denial, reactivation approval, and protected media authorization).
+- `npm run typecheck` and `npm run typecheck:test`: PASS (0 errors).
+- `npm run lint`: PASS (0 errors).
+- `npm run build`: PASS, 47 Next.js routes generated successfully.
+- `npm audit --omit=dev`: PASS high-severity gate (0 high/critical, 2 moderate in ExcelJS `uuid`). Full audit: 11 high, 5 moderate in development-tool dependency trees; no forced breaking downgrade applied.
+- Historical migration status: *Not required for the user’s planned fresh-data reset; no deletion or migration performed.* No production deployment, security-rule publication, account provisioning, or data/media migration was executed. Live Cloudinary provider enforcement is explicitly marked unverified.
 
 ## 2026-10-13 verification checkpoint
 

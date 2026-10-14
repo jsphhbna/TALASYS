@@ -17,12 +17,12 @@
 | R2 audit timestamp migration | VERIFIED LOCALLY / DEPLOYMENT PENDING | 5 implementation tests cover dry-run, canonical collection, 805 writes, invalids, rerun, and partial failure |
 | R3 Cloudinary historical migration | IMPLEMENTED AND LOCALLY VERIFIED / PRODUCTION MIGRATION PENDING | 7 implementation tests cover CLI core, zero-mutation dry-run, fields, dedupe, identities, resume, and verification failure |
 | R4 super-admin provisioning | VERIFIED LOCALLY | 5 controlled adapter tests cover create, default existing rejection, preservation, compensation, reconciliation |
-| R5 verification approval/email | IMPLEMENTED / VERIFIED WITH CONTROLLED DEPENDENCIES | 9 coordinator + 4 real handler tests; Firestore Emulator transaction proof remains M10 |
-| R6 mutation audit authority | IN PROGRESS | Fabrication closed and new approval/email events server-authored; legacy direct mutation hooks still need typed server operations |
-| R7 protected media integration | IN PROGRESS / EXPIRY BLOCKED | Exact identity/roles/SDK signing verified locally; remaining consumers and live provider expiry behavior unresolved |
-| R8 configured document types | IMPLEMENTED / VERIFIED WITH CONTROLLED DEPENDENCIES | 4 configuration tests; emulator transaction/idempotency proof remains M10 |
-| R9 Verification Only UX | IMPLEMENTED / POLICY VERIFIED / AUTHENTICATED BROWSER PENDING | Both equivalent roles pass route matrix; unauthenticated desktop/mobile browser smoke passes |
-| R10 verification toolchain | PARTIALLY VERIFIED | 110 unit/integration tests, 5 emulator tests, 4 browser smoke tests, both type checks, lint, and build pass; authenticated role E2E/live providers remain |
+| R5 verification approval/email | VERIFIED LOCALLY | 10 coordinator acceptance tests, race reproduction/repair, real route handler tests, and emulator browser tests pass |
+| R6 mutation audit authority | VERIFIED LOCALLY | Unified resident coordination boundary, transactional server audit logging, and route permission revalidation pass |
+| R7 protected media integration | VERIFIED LOCALLY / LIVE PROVIDER UNVERIFIED | Exact identity/roles/SDK signing and authenticated browser UI delivery verified locally; live provider CDN enforcement unverified |
+| R8 configured document types | VERIFIED LOCALLY | 4 configuration tests, route create tests, and resident UI E2E browser tests pass |
+| R9 Verification Only UX | VERIFIED LOCALLY | Both equivalent roles pass route matrix, unauthenticated and authenticated desktop/mobile browser navigation tests pass |
+| R10 verification toolchain | VERIFIED LOCALLY | 136 unit tests, 9 rules emulator tests, 22 authenticated browser tests, typecheck (0 errors), lint (0 errors), build (47 routes) pass |
 
 The individual historical `fixed and verified` cells below are not current
 release gates. Findings #6/#31/#61 remain open for privileged mutations still

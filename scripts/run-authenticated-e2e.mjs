@@ -14,6 +14,8 @@ const env = {
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: projectId,
   NEXT_PUBLIC_FIREBASE_API_KEY: "AIzaSyB00000000000000000000000000000000",
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: `${projectId}.firebaseapp.com`,
+  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "talasys-test-cloud",
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "talasys-test-secret-123456789",
 }
 const firebaseCli = "node_modules/firebase-tools/lib/bin/firebase.js"
 const command = "node node_modules/@playwright/test/cli.js test test/e2e/authenticated-workflows.spec.ts --project=chromium"
