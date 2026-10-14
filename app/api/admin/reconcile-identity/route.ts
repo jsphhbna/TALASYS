@@ -32,6 +32,10 @@ export function createReconcileIdentityHandler(injected?: { auth?: typeof adminA
         expectedOperationId: typeof body.expectedOperationId === "string" ? body.expectedOperationId : undefined,
         expectedAttemptId: typeof body.expectedAttemptId === "string" ? body.expectedAttemptId : undefined,
         forceRecover: Boolean(body.forceRecover),
+        externalWriteStopped: typeof body.externalWriteStopped === "boolean" ? body.externalWriteStopped : undefined,
+        externalWriteStatus: typeof body.externalWriteStatus === "string" ? body.externalWriteStatus : undefined,
+        quiescenceEvidence: typeof body.quiescenceEvidence === "string" ? body.quiescenceEvidence : undefined,
+        staleTimeoutMs: typeof body.staleTimeoutMs === "number" ? body.staleTimeoutMs : undefined,
         ipAddress: extractClientIp(req),
       })
       return NextResponse.json(result)

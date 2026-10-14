@@ -85,4 +85,22 @@
      - Verified live against Cloudinary `gmseg91m` using a dedicated disposable asset: unsigned access returns 401, signed access returns 200, query `exp` parameter is not validated by standard HMAC signatures, and `generateSignedDeliveryUrl` returning `expiresAt: null` is verified accurate.
 - **Consequences**: Complete multi-writer safety, zero read-after-write transaction errors across all reconciliation actions, safe and actionable operator recovery, and verified protected media delivery.
 
+## ADR-014: Fenced In-Flight Recovery Protection and Verification Approval Record Resolution
+- **Status**: Accepted & Verified
+- **Date**: 14 October 2026
+- **Context**:
+  - Blocker 1: An in-flight auth-mutating lock could previously become eligible for recovery with only `{ forceRecover: true }` without providing expected operation/attempt identifiers or verifiable proof that external side effects had ceased.
+  - Blocker 2: Email-only recovery reset linked verifications to `pending`, but restored the original approval operation ID onto the completed lock, causing the claim policy (`evaluateIdentityClaim`) to return `{ outcome: "completed", idempotent: true }` and skip pending approval work. Additionally, reconciliation inspected `identityOperations` rather than `verificationApprovalOperations`, leaving the approval operation unresolved.
+- **Decisions**:
+  1. **Strict In-Flight Recovery Fencing (Blocker 1)**:
+     - In `lib/admin/identity-coordination-policy.ts`, boolean-only `{ forceRecover: true }` is strictly disallowed for in-flight locks (`IN_FLIGHT_IDENTITY_STAGES`).
+     - In-flight recovery mandates explicit `expectedOperationId` and `expectedAttemptId` matching the active lock.
+     - In-flight recovery requires verifiable evidence or conditions that external writes have ceased (`externalWriteStopped: true`, `externalWriteStatus: "stopped" | "failed" | "timed-out"`, `quiescenceEvidence`, or explicit staleness window `staleTimeoutMs` / `isStale`).
+  2. **Dedicated Approval Operation Keying and Transition (Blocker 2)**:
+     - In `lib/admin/identity-reconciliation.ts`, resolve `linkedVerificationId` from lock and bind `opRef` to `verificationApprovalOperations.doc(linkedVerificationId)` for verification approval operations.
+     - Transition linked approval operation records to `status: "reconciled"` rather than `"completed"`.
+     - Complete resident lock strictly with `operationId: "reconcile-${residentId}-${reconciliationId}"`, retaining `targetOperationId` without restoring the approval operation ID.
+     - In `app/api/admin/verifications/approve/route.ts`, return `completed` only when `verification.status === "approved"`, never when the verification remains `pending`.
+- **Consequences**: Guarantees recovery cannot overlap with live auth-mutating external side effects, ensures pending verification approvals remain fully claimable and executable after email-only reconciliation, and preserves normal writer blocking during active reconciliation.
+
 

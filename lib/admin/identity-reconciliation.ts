@@ -16,6 +16,11 @@ export interface ReconcileIdentityInput {
   expectedOperationId?: string
   expectedAttemptId?: string
   forceRecover?: boolean
+  externalWriteStopped?: boolean
+  externalWriteStatus?: "stopped" | "failed" | "timed-out" | "completed" | "none" | string
+  quiescenceEvidence?: string
+  staleTimeoutMs?: number
+  isStale?: boolean
   now?: number
 }
 
@@ -65,10 +70,22 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
       expectedOperationId: input.expectedOperationId,
       expectedAttemptId: input.expectedAttemptId,
       forceRecover: input.forceRecover,
+      externalWriteStopped: input.externalWriteStopped,
+      externalWriteStatus: input.externalWriteStatus,
+      quiescenceEvidence: input.quiescenceEvidence,
+      staleTimeoutMs: input.staleTimeoutMs,
+      isStale: input.isStale,
+      now,
     })
     if (!eligibility.eligible) {
       throw Object.assign(new Error(eligibility.reason), { status: eligibility.status })
     }
+
+    const linkedVerificationId = lock?.verificationId || (
+      typeof lock?.operationId === "string" && lock.operationId.startsWith("verification-")
+        ? lock.operationId.replace(/^verification-/, "")
+        : null
+    )
 
     // Set lock to reconciling with complete immutable history
     transaction.set(lockRef, {
@@ -79,7 +96,7 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
       reconciledBy: input.actorUid,
       targetOperationId: lock?.operationId || null,
       targetAttemptId: lock?.attemptId || null,
-      verificationId: lock?.verificationId || null,
+      verificationId: linkedVerificationId || null,
       previousStatus: lock?.status || null,
       previousOperationId: lock?.operationId || null,
       previousAttemptId: lock?.attemptId || null,
@@ -91,7 +108,10 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
     return {
       firestoreEmail,
       callerName: caller.name || "Administrator",
-      lock,
+      lock: {
+        ...lock,
+        verificationId: linkedVerificationId || lock?.verificationId || null,
+      },
     }
   })
 
@@ -167,12 +187,21 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
       const lockRef = deps.db.collection("identityOperationLocks").doc(residentId)
       const residentRef = deps.db.collection(COLLECTION_USERS).doc(residentId)
       const callerRef = deps.db.collection(COLLECTION_USERS).doc(input.actorUid)
-      const verifRef = snapshot.lock?.verificationId
-        ? deps.db.collection(COLLECTION_VERIFICATIONS).doc(snapshot.lock.verificationId)
+      const linkedVerificationId = snapshot.lock?.verificationId || (
+        typeof snapshot.lock?.operationId === "string" && snapshot.lock.operationId.startsWith("verification-")
+          ? snapshot.lock.operationId.replace(/^verification-/, "")
+          : null
+      )
+      const verifRef = linkedVerificationId
+        ? deps.db.collection(COLLECTION_VERIFICATIONS).doc(linkedVerificationId)
         : null
-      const opRef = snapshot.lock?.operationId
-        ? deps.db.collection("identityOperations").doc(snapshot.lock.operationId)
-        : null
+
+      const isVerificationApproval = Boolean(
+        linkedVerificationId || snapshot.lock?.operationType === "verification-approval"
+      )
+      const opRef = isVerificationApproval
+        ? (linkedVerificationId ? deps.db.collection("verificationApprovalOperations").doc(linkedVerificationId) : null)
+        : (snapshot.lock?.operationId ? deps.db.collection("identityOperations").doc(snapshot.lock.operationId) : null)
 
       // Step 1: Execute ALL transaction reads before ANY write
       const [lockSnap, residentSnap, callerSnap, verifSnap, opSnap] = await Promise.all([
@@ -204,7 +233,7 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
       }
 
       // Linked verification recovery: reset processing fence to pending, never auto-approve
-      if (verifRef && verifSnap?.exists && verifSnap.data()?.status === "processing") {
+      if (verifRef && verifSnap?.exists && (verifSnap.data()?.status === "processing" || verifSnap.data()?.status === "pending")) {
         transaction.update(verifRef, {
           status: "pending",
           processingOperationId: null,
@@ -217,18 +246,33 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
       const completedStatus = input.action === "sync-firestore-to-auth" ? "compensated" : "completed"
 
       // Linked operation record recovery
-      if (opRef && opSnap?.exists) {
-        transaction.update(opRef, {
-          status: completedStatus,
-          reconciledAt: now,
-          updatedAt: now,
-        })
+      if (isVerificationApproval) {
+        if (opRef && opSnap?.exists) {
+          transaction.update(opRef, {
+            status: "reconciled",
+            reconciledAt: now,
+            reconciledBy: input.actorUid,
+            reconciliationId,
+            leaseUntil: 0,
+            updatedAt: now,
+          })
+        }
+      } else {
+        if (opRef && opSnap?.exists) {
+          transaction.update(opRef, {
+            status: completedStatus,
+            reconciledAt: now,
+            reconciledBy: input.actorUid,
+            reconciliationId,
+            updatedAt: now,
+          })
+        }
       }
 
-      // Complete the lock
+      // Complete the lock - ALWAYS with reconcile operationId so it never falsely completes the pending approval
       transaction.set(lockRef, {
         residentId,
-        operationId: snapshot.lock?.operationId || `reconcile-${residentId}-${reconciliationId}`,
+        operationId: `reconcile-${residentId}-${reconciliationId}`,
         attemptId: reconciliationId,
         status: completedStatus,
         reconciledBy: input.actorUid,
@@ -236,8 +280,10 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
         reconciledAt: now,
         targetOperationId: snapshot.lock?.operationId || null,
         targetAttemptId: snapshot.lock?.attemptId || null,
+        verificationId: linkedVerificationId || null,
         previousStatus: snapshot.lock?.status || null,
         previousOperationId: snapshot.lock?.operationId || null,
+        previousAttemptId: snapshot.lock?.attemptId || null,
         notes: input.notes || null,
         updatedAt: now,
       })

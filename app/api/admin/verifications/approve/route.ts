@@ -55,7 +55,7 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
         if (!verificationSnapshot.exists) throw Object.assign(new Error("Verification not found"), { status: 404 })
         const verification = verificationSnapshot.data() || {}
         const existing = operationSnapshot.exists ? operationSnapshot.data() : null
-        if (verification.status === "approved" || existing?.status === "completed") return { outcome: "completed" as const }
+        if (verification.status === "approved") return { outcome: "completed" as const }
         if (!["pending", "processing"].includes(verification.status || "pending")) throw Object.assign(new Error("Verification is no longer pending"), { status: 409 })
         if (!verification.residentId) throw Object.assign(new Error("Verification has no resident"), { status: 400 })
 

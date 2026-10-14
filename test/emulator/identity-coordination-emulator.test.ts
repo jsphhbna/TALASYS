@@ -6,6 +6,7 @@ import { createFirestoreApprovalDependencies } from "../../app/api/admin/verific
 import { reconcileResidentIdentity } from "../../lib/admin/identity-reconciliation.ts"
 import { coordinateIdentityEmailUpdate } from "../../lib/admin/identity-email-operation.ts"
 import { coordinateVerificationApproval } from "../../lib/admin/verification-approval.ts"
+import { evaluateIdentityClaim } from "../../lib/admin/identity-coordination-policy.ts"
 import {
   COLLECTION_USERS,
   COLLECTION_VERIFICATIONS,
@@ -366,10 +367,51 @@ test("Task 3 Acceptance: In-flight locks block recovery without forceRecover; bo
     }
   )
 
-  // With forceRecover, operator overrides stranded in-flight stage
+  // Subtest 3.1b: In-flight auth-mutating lock with ONLY { forceRecover: true } is REJECTED
+  await assert.rejects(
+    reconcileResidentIdentity(
+      { auth: adminAuth, db: adminDb },
+      { residentId, action: "sync-auth-to-firestore", actorUid: ADMIN_UID, forceRecover: true }
+    ),
+    (err: any) => {
+      assert.equal(err.status, 409)
+      assert.match(err.message, /expectedOperationId and expectedAttemptId fencing are required/)
+      return true
+    }
+  )
+
+  // Subtest 3.1c: In-flight auth-mutating lock with expected IDs but WITHOUT stopped evidence is REJECTED
+  await assert.rejects(
+    reconcileResidentIdentity(
+      { auth: adminAuth, db: adminDb },
+      {
+        residentId,
+        action: "sync-auth-to-firestore",
+        actorUid: ADMIN_UID,
+        forceRecover: true,
+        expectedOperationId: "op-in-flight",
+        expectedAttemptId: "att-in-flight",
+      }
+    ),
+    (err: any) => {
+      assert.equal(err.status, 409)
+      assert.match(err.message, /evidence that the external write has stopped, failed, or is safely stale is required/)
+      return true
+    }
+  )
+
+  // Subtest 3.1d: In-flight auth-mutating lock with expected IDs + verified stopped evidence SUCCEEDS
   const forceResult = await reconcileResidentIdentity(
     { auth: adminAuth, db: adminDb },
-    { residentId, action: "sync-auth-to-firestore", actorUid: ADMIN_UID, forceRecover: true }
+    {
+      residentId,
+      action: "sync-auth-to-firestore",
+      actorUid: ADMIN_UID,
+      forceRecover: true,
+      expectedOperationId: "op-in-flight",
+      expectedAttemptId: "att-in-flight",
+      externalWriteStopped: true,
+    }
   )
   assert.equal(forceResult.success, true)
 
@@ -641,4 +683,123 @@ test("Task 5 Acceptance: Competing different-attempt writers and stale attempts 
       return true
     }
   )
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TASK 6: Blocker 2 Acceptance - Email-Only Recovery on Verification Approval
+// ─────────────────────────────────────────────────────────────────────────────
+test("Task 6 Acceptance: Blocker 2 Regression - Email-only recovery on approval leaves verification pending, resolves verificationApprovalOperations, and allows subsequent approval claim to complete", async () => {
+  const residentId = "res-task6-b2-emulator"
+  await setupResident(residentId, "initial-t6@talasys.test")
+
+  const verifId = "verif-task6-b2-emulator"
+  const originalAttemptId = "att-t6-b2-old"
+
+  // 1. Setup pending verification with profile edits including email and full name
+  await adminDb.collection(COLLECTION_VERIFICATIONS).doc(verifId).set({
+    id: verifId,
+    residentId,
+    status: "processing",
+    type: "profile-edit",
+    changes: [
+      { field: "Email Address", newValue: "approved-t6@talasys.test" },
+      { field: "Full Name", newValue: "Updated Full Name T6" },
+    ],
+    processingOperationId: verifId,
+    processingAttemptId: originalAttemptId,
+    createdAt: Date.now(),
+  })
+
+  // 2. Setup verification approval operation record in verificationApprovalOperations
+  await adminDb.collection("verificationApprovalOperations").doc(verifId).set({
+    id: verifId,
+    verificationId: verifId,
+    residentId,
+    attemptId: originalAttemptId,
+    status: "claimed",
+    verificationType: "profile-edit",
+    actorUid: ADMIN_UID,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  })
+
+  // 3. Setup resident lock in reconciliation-required stage
+  await adminDb.collection("identityOperationLocks").doc(residentId).set({
+    residentId,
+    status: "reconciliation-required",
+    operationId: `verification-${verifId}`,
+    attemptId: originalAttemptId,
+    verificationId: verifId,
+    operationType: "verification-approval",
+    updatedAt: Date.now(),
+  })
+
+  // 4. Perform email-only recovery (sync-auth-to-firestore)
+  const recoveryResult = await reconcileResidentIdentity(
+    { auth: adminAuth, db: adminDb },
+    {
+      residentId,
+      action: "sync-auth-to-firestore",
+      actorUid: ADMIN_UID,
+    }
+  )
+  assert.equal(recoveryResult.success, true)
+
+  // 5. Verify post-recovery state in Firestore:
+  // - Verification MUST remain pending (never approved, processing fences cleared)
+  const verifSnapAfter = await adminDb.collection(COLLECTION_VERIFICATIONS).doc(verifId).get()
+  assert.equal(verifSnapAfter.data()?.status, "pending")
+  assert.equal(verifSnapAfter.data()?.processingOperationId, null)
+  assert.equal(verifSnapAfter.data()?.processingAttemptId, null)
+
+  // - Operation in verificationApprovalOperations MUST be resolved as "reconciled" (NOT "completed")
+  const opSnapAfter = await adminDb.collection("verificationApprovalOperations").doc(verifId).get()
+  assert.equal(opSnapAfter.data()?.status, "reconciled")
+  assert.equal(opSnapAfter.data()?.reconciledBy, ADMIN_UID)
+
+  // - Resident lock MUST be completed under reconcile operationId (NOT verification-verifId)
+  const lockSnapAfter = await adminDb.collection("identityOperationLocks").doc(residentId).get()
+  assert.equal(lockSnapAfter.data()?.status, "completed")
+  assert.notEqual(lockSnapAfter.data()?.operationId, `verification-${verifId}`)
+  assert.match(lockSnapAfter.data()?.operationId, /^reconcile-/)
+  assert.equal(lockSnapAfter.data()?.targetOperationId, `verification-${verifId}`)
+
+  // 6. Test claim policy directly:
+  // evaluateIdentityClaim MUST NOT return { outcome: "completed", idempotent: true } for pending approval retry!
+  const claimPolicyResult = evaluateIdentityClaim(
+    lockSnapAfter.data(),
+    opSnapAfter.data(),
+    {
+      operationId: `verification-${verifId}`,
+      attemptId: originalAttemptId,
+      residentId,
+    }
+  )
+  assert.equal(claimPolicyResult.outcome, "claimed", "Claim policy must return claimed, never completed idempotent for pending approval")
+
+  // 7. Verify subsequent approval claim and execution succeeds using real production approval coordinator
+  const realApprovalDeps = createFirestoreApprovalDependencies()
+  const approvalResult = await coordinateVerificationApproval(realApprovalDeps, {
+    verificationId: verifId,
+    actorUid: ADMIN_UID,
+    attemptId: "att-t6-b2-subsequent",
+    ipAddress: "127.0.0.1",
+  })
+  assert.equal(approvalResult.outcome, "completed")
+  assert.equal(approvalResult.idempotent, false)
+
+  // 8. Confirm approval work was actually executed:
+  // - Verification is approved
+  const verifFinal = await adminDb.collection(COLLECTION_VERIFICATIONS).doc(verifId).get()
+  assert.equal(verifFinal.data()?.status, "approved")
+  assert.equal(verifFinal.data()?.approvedByUid, ADMIN_UID)
+
+  // - Resident profile updates applied
+  const residentFinal = await adminDb.collection(COLLECTION_USERS).doc(residentId).get()
+  assert.equal(residentFinal.data()?.name, "Updated Full Name T6")
+  assert.equal(residentFinal.data()?.email, "approved-t6@talasys.test")
+
+  // - Operation in verificationApprovalOperations is completed
+  const opFinal = await adminDb.collection("verificationApprovalOperations").doc(verifId).get()
+  assert.equal(opFinal.data()?.status, "completed")
 })

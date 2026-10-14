@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { coordinateIdentityEmailUpdate, type IdentityEmailDependencies, type IdentityEmailOperation } from "../lib/admin/identity-email-operation.ts"
 import { coordinateVerificationApproval, type ApprovalCoordinatorDependencies } from "../lib/admin/verification-approval.ts"
 import { reconcileResidentIdentity, type ReconcileIdentityDependencies } from "../lib/admin/identity-reconciliation.ts"
+import { evaluateRecoveryEligibility, evaluateIdentityClaim, IN_FLIGHT_IDENTITY_STAGES } from "../lib/admin/identity-coordination-policy.ts"
 
 test("A loses ownership between ownership check and Auth write", async () => {
   let authEmail = "old@example.test"
@@ -559,3 +560,247 @@ test("Notifications and authoritative audit events are not duplicated on retry",
   assert.equal(result.idempotent, true)
   assert.equal(auditLogsCreated, 0)
 })
+
+test("Blocker 1 Unit: Auth-mutating lock with only { forceRecover: true } is rejected", () => {
+  const lock = {
+    residentId: "res-b1",
+    operationId: "op-b1",
+    attemptId: "att-b1",
+    status: "auth-mutating",
+    updatedAt: Date.now(),
+  }
+
+  // 1. Boolean-only forceRecover is strictly rejected
+  const resBoolOnly = evaluateRecoveryEligibility(lock, { forceRecover: true })
+  assert.equal(resBoolOnly.eligible, false)
+  assert.equal(resBoolOnly.status, 409)
+  assert.match(resBoolOnly.reason, /expectedOperationId and expectedAttemptId fencing are required/)
+
+  // 2. Missing attempt ID is rejected
+  const resMissingAttempt = evaluateRecoveryEligibility(lock, { forceRecover: true, expectedOperationId: "op-b1" })
+  assert.equal(resMissingAttempt.eligible, false)
+  assert.equal(resMissingAttempt.status, 409)
+  assert.match(resMissingAttempt.reason, /expectedOperationId and expectedAttemptId fencing are required/)
+
+  // 3. Mismatched operation ID is rejected
+  const resWrongOp = evaluateRecoveryEligibility(lock, {
+    forceRecover: true,
+    expectedOperationId: "op-wrong",
+    expectedAttemptId: "att-b1",
+    externalWriteStopped: true,
+  })
+  assert.equal(resWrongOp.eligible, false)
+  assert.equal(resWrongOp.status, 409)
+  assert.match(resWrongOp.reason, /Reconciliation expected operation ID 'op-wrong'/)
+
+  // 4. Mismatched attempt ID is rejected
+  const resWrongAtt = evaluateRecoveryEligibility(lock, {
+    forceRecover: true,
+    expectedOperationId: "op-b1",
+    expectedAttemptId: "att-wrong",
+    externalWriteStopped: true,
+  })
+  assert.equal(resWrongAtt.eligible, false)
+  assert.equal(resWrongAtt.status, 409)
+  assert.match(resWrongAtt.reason, /Reconciliation expected attempt ID 'att-wrong'/)
+
+  // 5. Correct IDs but missing stopped/stale evidence is rejected
+  const resNoEvidence = evaluateRecoveryEligibility(lock, {
+    forceRecover: true,
+    expectedOperationId: "op-b1",
+    expectedAttemptId: "att-b1",
+  })
+  assert.equal(resNoEvidence.eligible, false)
+  assert.equal(resNoEvidence.status, 409)
+  assert.match(resNoEvidence.reason, /evidence that the external write has stopped, failed, or is safely stale is required/)
+
+  // 6. Correct IDs + externalWriteStopped: true is allowed
+  const resWithStopped = evaluateRecoveryEligibility(lock, {
+    forceRecover: true,
+    expectedOperationId: "op-b1",
+    expectedAttemptId: "att-b1",
+    externalWriteStopped: true,
+  })
+  assert.equal(resWithStopped.eligible, true)
+
+  // 7. Correct IDs + externalWriteStatus: 'stopped' is allowed
+  const resWithStatus = evaluateRecoveryEligibility(lock, {
+    forceRecover: true,
+    expectedOperationId: "op-b1",
+    expectedAttemptId: "att-b1",
+    externalWriteStatus: "stopped",
+  })
+  assert.equal(resWithStatus.eligible, true)
+
+  // 8. Correct IDs + quiescenceEvidence is allowed
+  const resWithEvidence = evaluateRecoveryEligibility(lock, {
+    forceRecover: true,
+    expectedOperationId: "op-b1",
+    expectedAttemptId: "att-b1",
+    quiescenceEvidence: "pod terminated after crash",
+  })
+  assert.equal(resWithEvidence.eligible, true)
+
+  // 9. Correct IDs + isStale is allowed
+  const resWithStale = evaluateRecoveryEligibility(lock, {
+    forceRecover: true,
+    expectedOperationId: "op-b1",
+    expectedAttemptId: "att-b1",
+    isStale: true,
+  })
+  assert.equal(resWithStale.eligible, true)
+
+  // 10. Correct IDs + staleTimeoutMs threshold exceeded is allowed
+  const resWithTimeout = evaluateRecoveryEligibility(lock, {
+    forceRecover: true,
+    expectedOperationId: "op-b1",
+    expectedAttemptId: "att-b1",
+    staleTimeoutMs: 1000,
+    now: lock.updatedAt + 5000,
+  })
+  assert.equal(resWithTimeout.eligible, true)
+})
+
+test("Blocker 1 Unit: Same-attempt simultaneous execution is blocked across all six in-flight stages", () => {
+  for (const stage of IN_FLIGHT_IDENTITY_STAGES) {
+    const existingLock = {
+      operationId: "op-same",
+      attemptId: "att-same",
+      status: stage,
+      residentId: "res-same",
+    }
+    const incoming = {
+      operationId: "op-same",
+      attemptId: "att-same",
+      residentId: "res-same",
+    }
+    const result = evaluateIdentityClaim(existingLock, null, incoming)
+    assert.equal(result.outcome, "conflict", `Stage '${stage}' must block identical operationId & attemptId simultaneous execution`)
+    if (result.outcome === "conflict") {
+      assert.equal(result.status, 409)
+      assert.match(result.reason, /Simultaneous execution is blocked/)
+    }
+  }
+})
+
+test("Blocker 2 Unit: Email-only recovery resolves verificationApprovalOperations to 'reconciled', leaves verification pending, and allows pending approval retry to claim", async () => {
+  const residentId = "res-unit-b2"
+  const verifId = "verif-unit-b2"
+  const originalAttemptId = "att-unit-b2-old"
+
+  let firestoreEmail = "initial-unit-b2@example.test"
+  let verificationState: any = {
+    status: "processing",
+    processingOperationId: verifId,
+    processingAttemptId: originalAttemptId,
+  }
+  let approvalOpState: any = {
+    id: verifId,
+    verificationId: verifId,
+    residentId,
+    attemptId: originalAttemptId,
+    status: "claimed",
+  }
+  let lockState: any = {
+    residentId,
+    status: "reconciliation-required",
+    operationId: `verification-${verifId}`,
+    attemptId: originalAttemptId,
+    verificationId: verifId,
+    operationType: "verification-approval",
+  }
+
+  const mockDb = {
+    collection(name: string) {
+      return {
+        doc(id: string) {
+          return {
+            id,
+            collectionName: name,
+            async get() {
+              if (name === "users" && id === "admin-user") {
+                return { exists: true, data: () => ({ role: "Full Access", status: "Active", name: "Super Admin" }) }
+              }
+              if (name === "users" && id === residentId) {
+                return { exists: true, data: () => ({ role: "resident", status: "Active", email: firestoreEmail }) }
+              }
+              if (name === "identityOperationLocks" && id === residentId) {
+                return { exists: true, data: () => ({ ...lockState }) }
+              }
+              if (name === "verifications" && id === verifId) {
+                return { exists: true, data: () => ({ ...verificationState }) }
+              }
+              if (name === "verificationApprovalOperations" && id === verifId) {
+                return { exists: true, data: () => ({ ...approvalOpState }) }
+              }
+              return { exists: false }
+            },
+          }
+        },
+      }
+    },
+    async runTransaction(fn: any) {
+      const transaction = {
+        async get(ref: any) { return ref.get() },
+        update(ref: any, data: any) {
+          if (ref.collectionName === "users" && data.email) firestoreEmail = data.email
+          if (ref.collectionName === "verifications") verificationState = { ...verificationState, ...data }
+          if (ref.collectionName === "verificationApprovalOperations") approvalOpState = { ...approvalOpState, ...data }
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+        set(ref: any, data: any) {
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+          if (ref.collectionName === "verificationApprovalOperations") approvalOpState = { ...approvalOpState, ...data }
+        },
+      }
+      return fn(transaction)
+    },
+  }
+
+  const reconDeps: ReconcileIdentityDependencies = {
+    auth: {
+      async getUser() { return { email: "initial-unit-b2@example.test" } },
+      async updateUser() {},
+    },
+    db: mockDb,
+  }
+
+  // Execute email reconciliation
+  const result = await reconcileResidentIdentity(reconDeps, {
+    residentId,
+    action: "sync-auth-to-firestore",
+    actorUid: "admin-user",
+  })
+  assert.equal(result.success, true)
+
+  // 1. Verification must remain pending (processing fences cleared)
+  assert.equal(verificationState.status, "pending")
+  assert.equal(verificationState.processingOperationId, null)
+  assert.equal(verificationState.processingAttemptId, null)
+
+  // 2. Operation record in verificationApprovalOperations must be transitioned to 'reconciled'
+  assert.equal(approvalOpState.status, "reconciled")
+
+  // 3. Resident lock operationId must be reconcile-... and NOT verification-verifId
+  assert.equal(lockState.status, "completed")
+  assert.notEqual(lockState.operationId, `verification-${verifId}`)
+  assert.match(lockState.operationId, /^reconcile-/)
+  assert.equal(lockState.targetOperationId, `verification-${verifId}`)
+
+  // 4. evaluateIdentityClaim MUST NOT return completed idempotent for pending approval retry!
+  const claimPolicyRetry = evaluateIdentityClaim(lockState, approvalOpState, {
+    operationId: `verification-${verifId}`,
+    attemptId: originalAttemptId,
+    residentId,
+  })
+  assert.equal(claimPolicyRetry.outcome, "claimed", "evaluateIdentityClaim must return claimed, not completed idempotent")
+
+  // 5. evaluateIdentityClaim with a new attempt ID also succeeds
+  const claimPolicyNewAttempt = evaluateIdentityClaim(lockState, approvalOpState, {
+    operationId: `verification-${verifId}`,
+    attemptId: "att-unit-b2-new",
+    residentId,
+  })
+  assert.equal(claimPolicyNewAttempt.outcome, "claimed")
+})
+

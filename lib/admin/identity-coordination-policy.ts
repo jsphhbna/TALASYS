@@ -17,6 +17,7 @@ export type IdentityLockStatus =
   | "reconciling"
   | "reconciliation-required"
   | "completed"
+  | "reconciled"
 
 /**
  * Stages where external side-effects (Auth mutations, Firestore transactions)
@@ -188,6 +189,12 @@ export interface RecoveryEligibilityInput {
   expectedOperationId?: string
   expectedAttemptId?: string
   forceRecover?: boolean
+  externalWriteStopped?: boolean
+  externalWriteStatus?: "stopped" | "failed" | "timed-out" | "completed" | "none" | string
+  quiescenceEvidence?: string
+  staleTimeoutMs?: number
+  isStale?: boolean
+  now?: number
 }
 
 export type RecoveryEligibilityResult =
@@ -200,6 +207,8 @@ export type RecoveryEligibilityResult =
  * Enforces:
  * 1. Lock cannot be reconciled if another reconciler is actively running ("reconciling").
  * 2. In-flight operations cannot be reconciled without explicit operator verification of quiescence (forceRecover).
+ *    Boolean-only takeover is disallowed: forceRecover requires explicit expectedOperationId and expectedAttemptId,
+ *    plus verifiable evidence or condition that external side-effects have stopped, failed, or timed out.
  * 3. Lock cannot be reconciled if expected operation or attempt IDs do not match (anti-stomp binding).
  */
 export function evaluateRecoveryEligibility(
@@ -224,6 +233,7 @@ export function evaluateRecoveryEligibility(
 
   // Operation is currently in-flight
   if (IN_FLIGHT_IDENTITY_STAGES.includes(lockStatus)) {
+    // 1. Boolean-only takeover is disallowed
     if (!input.forceRecover) {
       return {
         eligible: false,
@@ -231,9 +241,59 @@ export function evaluateRecoveryEligibility(
         status: 409,
       }
     }
+
+    // 2. Fencing identifiers are mandatory for in-flight recovery
+    if (!input.expectedOperationId || !input.expectedAttemptId) {
+      return {
+        eligible: false,
+        reason: `Cannot force-recover lock in in-flight stage '${lockStatus}': explicit expectedOperationId and expectedAttemptId fencing are required.`,
+        status: 409,
+      }
+    }
+
+    if (existingLock.operationId && existingLock.operationId !== input.expectedOperationId) {
+      return {
+        eligible: false,
+        reason: `Reconciliation expected operation ID '${input.expectedOperationId}', but found active operation '${existingLock.operationId}'.`,
+        status: 409,
+      }
+    }
+
+    if (existingLock.attemptId && existingLock.attemptId !== input.expectedAttemptId) {
+      return {
+        eligible: false,
+        reason: `Reconciliation expected attempt ID '${input.expectedAttemptId}', but found active attempt '${existingLock.attemptId}'.`,
+        status: 409,
+      }
+    }
+
+    // 3. Evidence or condition that external write has stopped, failed, or is safely stale
+    const isStale = Boolean(
+      input.isStale === true ||
+      (typeof input.staleTimeoutMs === "number" &&
+       input.staleTimeoutMs > 0 &&
+       typeof existingLock.updatedAt === "number" &&
+       ((input.now || Date.now()) - existingLock.updatedAt) >= input.staleTimeoutMs)
+    )
+    const hasStoppedEvidence = Boolean(
+      input.externalWriteStopped === true ||
+      input.externalWriteStatus === "stopped" ||
+      input.externalWriteStatus === "failed" ||
+      input.externalWriteStatus === "timed-out" ||
+      (typeof input.quiescenceEvidence === "string" && input.quiescenceEvidence.trim().length > 0) ||
+      isStale
+    )
+
+    if (!hasStoppedEvidence) {
+      return {
+        eligible: false,
+        reason: `Cannot force-recover lock in in-flight stage '${lockStatus}': evidence that the external write has stopped, failed, or is safely stale is required.`,
+        status: 409,
+      }
+    }
   }
 
-  // Expected operationId binding
+  // Expected operationId binding (quiesced or other stages)
   if (input.expectedOperationId && existingLock.operationId !== input.expectedOperationId) {
     return {
       eligible: false,
@@ -242,7 +302,7 @@ export function evaluateRecoveryEligibility(
     }
   }
 
-  // Expected attemptId binding
+  // Expected attemptId binding (quiesced or other stages)
   if (input.expectedAttemptId && existingLock.attemptId !== input.expectedAttemptId) {
     return {
       eligible: false,
