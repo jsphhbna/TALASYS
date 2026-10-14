@@ -23,8 +23,12 @@ function GenerateDocumentsContent() {
   const { systemConfig } = useSuperAdminData()
   const { user } = useAuth()
   const isAuthorized = canManageRequestsRole(user?.role)
-  const { url: captainSignatureUrl } = useSecureMediaUrl(systemConfig?.captainSignatureUrl)
-  const { url: secretarySignatureUrl } = useSecureMediaUrl(systemConfig?.secretarySignatureUrl)
+  const { url: captainSignatureUrl, loading: captainSignatureLoading, error: captainSignatureError } = useSecureMediaUrl(systemConfig?.captainSignatureUrl)
+  const { url: secretarySignatureUrl, loading: secretarySignatureLoading, error: secretarySignatureError } = useSecureMediaUrl(systemConfig?.secretarySignatureUrl)
+  const requiredSignaturesLoading = (!!systemConfig?.captainSignatureUrl && captainSignatureLoading) || (!!systemConfig?.secretarySignatureUrl && secretarySignatureLoading)
+  const requiredSignatureError = captainSignatureError || secretarySignatureError ||
+    (!!systemConfig?.captainSignatureUrl && !captainSignatureUrl ? "Captain signature is unavailable." : null) ||
+    (!!systemConfig?.secretarySignatureUrl && !secretarySignatureUrl ? "Secretary signature is unavailable." : null)
 
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedResident, setSelectedResident] = useState<any>(null)
@@ -393,6 +397,8 @@ function GenerateDocumentsContent() {
                   <Button
                     onClick={async () => {
                       try {
+                        if (requiredSignaturesLoading) throw new Error("Protected signatures are still loading. Please wait before exporting.")
+                        if (requiredSignatureError) throw new Error(`Protected signature unavailable: ${requiredSignatureError}`)
                         const now = Date.now();
                         if (now - lastDownload < 5000) {
                           toast.error("You are clicking too fast! Please try again in 5 seconds.");
@@ -460,14 +466,14 @@ function GenerateDocumentsContent() {
                         } else {
                            toast.success("Document generated successfully.")
                         }
-                      } catch (error) {
+                      } catch (error: any) {
                         console.error("PDF Generation failed:", error)
-                        toast.error("Failed to generate PDF")
+                        toast.error(error?.message || "Failed to generate PDF")
                       } finally {
                         setIsGenerating(false)
                       }
                     }}
-                    disabled={isGenerating}
+                    disabled={isGenerating || requiredSignaturesLoading}
                     className="flex-1 min-w-[160px] h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
@@ -475,8 +481,10 @@ function GenerateDocumentsContent() {
                   </Button>
                   <Button
                     variant="outline"
-                    disabled={isGenerating}
+                    disabled={isGenerating || requiredSignaturesLoading}
                     onClick={() => {
+                      if (requiredSignaturesLoading) { toast.error("Protected signatures are still loading. Please wait before printing."); return }
+                      if (requiredSignatureError) { toast.error(`Protected signature unavailable: ${requiredSignatureError}`); return }
                       const element = document.getElementById("pdf-preview-container")
                       if (!element) return
                       const printWindow = window.open("", "_blank")

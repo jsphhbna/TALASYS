@@ -15,6 +15,13 @@ const SYSTEM_CONFIG_FIELDS = new Set(["barangayName", "barangayCaptainName", "se
 const SYSTEM_ALERT_FIELDS = new Set(["severity", "title", "description", "metric"])
 const ADMIN_ROLES = new Set(["admin", "Full Access", "Verification Only", "Documents Only", "View Only", "Resident Management", "Verifications", "Document Processing"])
 const REQUEST_STATUSES = new Set(["Approved", "On Process", "Processing", "Awaiting Payment", "Ready for Pick Up", "Completed", "Rejected", "Cancelled"])
+const REQUEST_TRANSITIONS: Record<string, ReadonlySet<string>> = {
+  "Pending": new Set(["Approved", "On Process", "Awaiting Payment", "Rejected", "Cancelled"]),
+  "Approved": new Set(["On Process", "Awaiting Payment", "Rejected", "Cancelled"]),
+  "On Process": new Set(["Awaiting Payment", "Ready for Pick Up", "Completed", "Rejected", "Cancelled"]),
+  "Awaiting Payment": new Set(["On Process", "Ready for Pick Up", "Rejected", "Cancelled"]),
+  "Ready for Pick Up": new Set(["Completed", "Cancelled"]),
+}
 
 function httpError(message: string, status: number) { return Object.assign(new Error(message), { status }) }
 function safeObject(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {} }
@@ -108,6 +115,10 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       let status = payload.status
       if (!REQUEST_STATUSES.has(status)) throw httpError("Unsupported request status.", 400)
       if (status === "Processing") status = "On Process"
+      const currentStatus = before.status === "Processing" ? "On Process" : before.status
+      if (!REQUEST_TRANSITIONS[currentStatus]?.has(status)) {
+        throw httpError(`Request cannot transition from '${currentStatus}' to '${status}'.`, 409)
+      }
       const reason = typeof payload.reason === "string" ? payload.reason.trim() : ""
       if (status === "Rejected" && reason.length < 10) throw httpError("Rejection requires a reason of at least 10 characters.", 400)
       after = { status, ...(reason ? { rejectionReason: reason, rejectReason: reason } : {}), [`statusTimestamps.${status}`]: now }
@@ -182,12 +193,12 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
   })
 }
 
-async function createAdminAccount(db: any, auth: any, actorUid: string, operationId: string, payload: Record<string, any>, ipAddress: string, now: number, injectedAttemptId?: string) {
+export async function createAdminAccount(db: any, auth: any, actorUid: string, operationId: string, payload: Record<string, any>, ipAddress: string, now: number, executionId: string = randomUUID(), onStage?: (stage: string) => Promise<void>) {
   const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : ""
   const password = typeof payload.password === "string" ? payload.password : ""
   const name = typeof payload.name === "string" ? payload.name.trim() : ""
   const role = typeof payload.role === "string" ? payload.role : "admin"
-  const attemptId = (typeof payload.attemptId === "string" && payload.attemptId) || injectedAttemptId || randomUUID()
+  const attemptId = (typeof payload.attemptId === "string" && payload.attemptId) || randomUUID()
   if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || !ADMIN_ROLES.has(role)) throw httpError("Valid admin name, email, password, and role are required.", 400)
   const operationRef = db.collection("adminAccountOperations").doc(operationDocumentId(operationId))
   const deterministicUid = `adm-${createHash("sha256").update(operationId).digest("hex").slice(0, 28)}`
@@ -206,19 +217,19 @@ async function createAdminAccount(db: any, auth: any, actorUid: string, operatio
       return { completed: true, actor: caller }
     }
     if (existing && (existing.email !== email || existing.uid !== deterministicUid)) throw httpError("Operation ID was already used for different input.", 409)
-    if (existing && ["auth-pending", "auth-completed"].includes(existing.status)) {
-      if (existing.attemptId && existing.attemptId !== attemptId) {
-        throw httpError(`Administrator provisioning is actively running by attempt '${existing.attemptId}'. Concurrent takeover is blocked.`, 409)
-      }
+    if (existing?.status === "reconciliation-required") throw httpError("Administrator provisioning requires reconciliation before retry.", 409)
+    if (existing && ["auth-pending", "auth-created", "finalizing", "compensating"].includes(existing.status)) {
+      throw httpError(`Administrator provisioning is actively running by attempt '${existing.attemptId}'. Concurrent execution is blocked.`, 409)
     }
     transaction.set(operationRef, {
-      operationId, attemptId, uid: deterministicUid, email, name, role, actorUid,
+      operationId, attemptId, executionId, uid: deterministicUid, email, name, role, actorUid,
       payloadHash: canonicalPayloadHash, status: "auth-pending",
       createdAt: existing?.createdAt || now, updatedAt: now
     })
     return { completed: false, actor: caller }
   })
   if (claimed.completed) return { idempotent: true }
+  await onStage?.("claimed")
 
   let created = false
   try {
@@ -233,6 +244,17 @@ async function createAdminAccount(db: any, auth: any, actorUid: string, operatio
     }
 
     await db.runTransaction(async (transaction: any) => {
+      const operationSnapshot = await transaction.get(operationRef)
+      const currentOp = operationSnapshot.data()
+      if (currentOp?.attemptId !== attemptId || currentOp?.executionId !== executionId || currentOp?.status !== "auth-pending") {
+        throw httpError("Administrator operation no longer owns the Auth creation stage.", 409)
+      }
+      transaction.update(operationRef, { status: "auth-created", authCreatedByExecution: created ? executionId : currentOp.authCreatedByExecution || null, updatedAt: Date.now() })
+    })
+    await onStage?.("auth-created")
+    await onStage?.("before-finalize")
+
+    await db.runTransaction(async (transaction: any) => {
       const callerRef = db.collection(COLLECTION_USERS).doc(actorUid)
       const userRef = db.collection(COLLECTION_USERS).doc(deterministicUid)
       const auditRef = db.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId(operationId))
@@ -242,35 +264,53 @@ async function createAdminAccount(db: any, auth: any, actorUid: string, operatio
       const currentOp = operationSnapshot.data()
       if (currentOp?.uid !== deterministicUid) throw httpError("Administrator operation fence changed.", 409)
       if (currentOp?.attemptId !== attemptId) throw httpError("Administrator operation attempt changed; concurrent execution detected.", 409)
-      if (currentOp?.status === "completed" && userSnapshot.exists) return
+      if (currentOp?.executionId !== executionId || currentOp?.status !== "auth-created") throw httpError("Administrator execution fence changed before finalization.", 409)
+      transaction.update(operationRef, { status: "finalizing", updatedAt: Date.now() })
       transaction.set(userRef, { email, name, role, status: "Active", initials: name.slice(0, 2).toUpperCase(), isOnline: false, lastActive: "Never", createdDate: new Date(now).toISOString().slice(0, 10), createdAt: now, isVerified: true })
       transaction.create(auditRef, auditEvent({ uid: actorUid, name: caller.name || "Super Admin", email: caller.email, role: caller.role }, "admin.create", operationId, deterministicUid, ipAddress, null, { email, name, role }, now, canonicalPayloadHash))
-      transaction.update(operationRef, { status: "completed", attemptId, completedAt: now, updatedAt: now })
+      transaction.update(operationRef, { status: "completed", attemptId, executionId, completedAt: now, updatedAt: now })
     })
+    await onStage?.("completed")
     return { idempotent: false, uid: deterministicUid }
   } catch (error) {
     let compensated = !created
     if (created) {
       try {
-        const opSnap = await operationRef.get()
-        const opData = opSnap.data()
-        // Compensation must NEVER delete an Auth account after another execution completed provisioning (A06)
-        if (opData?.status !== "completed" && (!opData?.attemptId || opData?.attemptId === attemptId)) {
-          await auth.deleteUser(deterministicUid)
-          compensated = true
-        } else {
-          compensated = false
-        }
+        const ownsCompensation = await db.runTransaction(async (transaction: any) => {
+          const opSnap = await transaction.get(operationRef)
+          const opData = opSnap.data()
+          if (
+            opData?.attemptId !== attemptId ||
+            opData?.executionId !== executionId ||
+            opData?.authCreatedByExecution !== executionId ||
+            !["auth-created", "finalizing"].includes(opData?.status)
+          ) return false
+          transaction.update(operationRef, { status: "compensating", compensationExecutionId: executionId, error: error instanceof Error ? error.message : String(error), updatedAt: Date.now() })
+          return true
+        })
+        if (!ownsCompensation) throw httpError("Administrator execution no longer owns compensation.", 409)
+        await onStage?.("compensating")
+        await auth.deleteUser(deterministicUid)
+        compensated = true
       } catch {
         compensated = false
       }
     }
     try {
-      const opSnap = await operationRef.get()
-      const opData = opSnap.data()
-      if (opData?.status !== "completed" && (!opData?.attemptId || opData?.attemptId === attemptId)) {
-        await operationRef.update({ status: compensated ? "compensated" : "reconciliation-required", attemptId, error: error instanceof Error ? error.message : String(error), updatedAt: Date.now() })
-      }
+      await db.runTransaction(async (transaction: any) => {
+        const opSnap = await transaction.get(operationRef)
+        const opData = opSnap.data()
+        if (opData?.status === "completed") return
+        if (opData?.attemptId !== attemptId || opData?.executionId !== executionId) return
+        if (created && opData?.status !== "compensating") return
+        transaction.update(operationRef, {
+          status: compensated ? "compensated" : "reconciliation-required",
+          attemptId,
+          executionId,
+          error: error instanceof Error ? error.message : String(error),
+          updatedAt: Date.now(),
+        })
+      })
     } catch {
       // Best-effort status update
     }
@@ -278,7 +318,7 @@ async function createAdminAccount(db: any, auth: any, actorUid: string, operatio
   }
 }
 
-export function createAdminOperationsHandler(injected?: { auth?: typeof adminAuth; db?: typeof adminDb; uuid?: () => string; now?: () => number }) {
+export function createAdminOperationsHandler(injected?: { auth?: typeof adminAuth; db?: typeof adminDb; uuid?: () => string; now?: () => number; onAdminCreateStage?: (stage: string) => Promise<void> }) {
   return async function POST(req: Request) {
     try {
       const auth = injected?.auth || adminAuth
@@ -294,7 +334,7 @@ export function createAdminOperationsHandler(injected?: { auth?: typeof adminAut
       if (operationId.length > 128) throw httpError("operationId is too long", 400)
       const now = (injected?.now || Date.now)()
       const result = body.operation === "admin.create"
-        ? await createAdminAccount(db, auth, decoded.uid, operationId, safeObject(body.payload), extractClientIp(req), now)
+        ? await createAdminAccount(db, auth, decoded.uid, operationId, safeObject(body.payload), extractClientIp(req), now, (injected?.uuid || randomUUID)(), injected?.onAdminCreateStage)
         : await executeFirestoreOperation(db, decoded.uid, { ...body, operation: body.operation, operationId }, extractClientIp(req), now)
       return NextResponse.json({ success: true, operationId, ...result })
     } catch (error: any) {

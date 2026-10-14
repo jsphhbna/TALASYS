@@ -223,26 +223,19 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
       console.error("Failed to send verification email during registration (uid:", userCredential.user.uid, "):", verificationEmailError)
     }
 
-    // Claim pre-registration media assets securely (A02)
-    try {
+    // Claim every uploaded proof before reporting registration completion. A
+    // missing/expired reservation is an incomplete registration, not a warning.
+    const uploadedProofs = input.proofs.filter(proof => !!proof.url)
+    if (uploadedProofs.length > 0) {
       const idToken = await userCredential.user.getIdToken()
       const { preRegistrationClaimTokens } = await import("./cloudinary")
-      const claims = input.proofs.map(proof => ({
+      const claims = uploadedProofs.map(proof => ({
         mediaUrl: proof.url,
-        claimToken: proof.url ? preRegistrationClaimTokens.get(proof.url) : undefined
+        claimToken: preRegistrationClaimTokens.get(proof.url as string)
       }))
-      if (claims.length > 0) {
-        await fetch("/api/media/claim", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${idToken}`
-          },
-          body: JSON.stringify({ claims })
-        })
-      }
-    } catch (claimErr) {
-      console.warn("Failed to claim pre-registration media assets:", claimErr)
+      const { claimRegistrationMedia } = await import("./media-claim-client")
+      await claimRegistrationMedia(fetch, idToken, claims)
+      for (const proof of uploadedProofs) preRegistrationClaimTokens.delete(proof.url as string)
     }
 
     // Sign out after all writes complete
@@ -250,7 +243,7 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
 
     return residentUser
   } catch (firestoreError) {
-    console.error("Firestore batch commit failed during resident registration; executing compensating Auth deletion:", firestoreError)
+    console.error("Resident registration did not complete; attempting compensating cleanup:", firestoreError)
     try {
       await userCredential.user.delete()
     } catch (deleteError) {

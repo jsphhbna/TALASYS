@@ -5,6 +5,7 @@ import {
   isSensitiveMedia,
   canAccessMedia,
   generateSignedDeliveryUrl,
+  mediaRegistryDocumentId,
   parseCloudinaryAsset,
   sameCloudinaryAsset
 } from "@/lib/security/media-auth"
@@ -110,8 +111,14 @@ export async function POST(req: Request) {
             authoritativeOwnerUid = namespaceOwner
           } else {
             // Pre-registration namespace: resolve from server-controlled mediaRegistry
-            const assetRegistryKey = crypto.createHash("sha256").update(cleanPublicId).digest("hex")
-            const regDoc = await adminDb.collection("mediaRegistry").doc(assetRegistryKey).get()
+            const assetRegistryKey = mediaRegistryDocumentId(parsed.cloudName || cloudName, parsed.resourceType, cleanPublicId)
+            let regDoc = await adminDb.collection("mediaRegistry").doc(assetRegistryKey).get()
+            // Read-only compatibility for reservations issued before exact
+            // Cloudinary identity became part of the registry key.
+            if (!regDoc.exists) {
+              const legacyKey = crypto.createHash("sha256").update(cleanPublicId).digest("hex")
+              regDoc = await adminDb.collection("mediaRegistry").doc(legacyKey).get()
+            }
             if (regDoc.exists && regDoc.data()?.status === "claimed" && regDoc.data()?.ownerUid) {
               authoritativeOwnerUid = regDoc.data().ownerUid
             } else if (callerRole && callerRole !== "resident") {
@@ -124,8 +131,12 @@ export async function POST(req: Request) {
 
       // Case C: Non-namespaced legacy assets: resolve via mediaRegistry or record reference
       if (!authoritativeOwnerUid) {
-        const assetRegistryKey = crypto.createHash("sha256").update(cleanPublicId).digest("hex")
-        const regDoc = await adminDb.collection("mediaRegistry").doc(assetRegistryKey).get()
+        const assetRegistryKey = mediaRegistryDocumentId(parsed.cloudName || cloudName, parsed.resourceType, cleanPublicId)
+        let regDoc = await adminDb.collection("mediaRegistry").doc(assetRegistryKey).get()
+        if (!regDoc.exists) {
+          const legacyKey = crypto.createHash("sha256").update(cleanPublicId).digest("hex")
+          regDoc = await adminDb.collection("mediaRegistry").doc(legacyKey).get()
+        }
         if (regDoc.exists && regDoc.data()?.ownerUid) {
           authoritativeOwnerUid = regDoc.data().ownerUid
         }

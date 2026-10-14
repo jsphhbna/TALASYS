@@ -1,4 +1,5 @@
 import { after, before, test } from "node:test"
+import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import {
   assertFails,
@@ -6,7 +7,9 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing"
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore"
+import { fetchOrderedCollectionPages } from "../../lib/firestore-pagination.ts"
+import { normalizeAuditLog } from "../../lib/security/audit-utils.ts"
 
 let environment: RulesTestEnvironment
 
@@ -30,6 +33,7 @@ before(async () => {
       ["processor", { role: "Document Processing", status: "Active" }],
       ["resident-manager", { role: "Resident Management", status: "Active" }],
       ["full-admin", { role: "Full Access", status: "Active" }],
+      ["retry-admin", { role: "Full Access ", status: "Active" }],
     ] as const
     for (const [id, data] of users) await setDoc(doc(db, "users", id), data)
     await setDoc(doc(db, "verifications", "pending"), {
@@ -96,8 +100,65 @@ test("resident retains only explicit self-service profile and request transition
   await assertSucceeds(updateDoc(doc(db, "documentRequests", "existing"), { status: "Cancelled", cancelledAt: 1, statusTimestamps: { Cancelled: 1 } }))
 })
 
+test("A07 resident payment submission preserves paid, waived, and terminal request states", async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    const db = context.firestore()
+    for (const [id, status, paymentStatus] of [
+      ["paid-request", "On Process", "paid"],
+      ["waived-request", "On Process", "waived"],
+      ["cancelled-request", "Cancelled", "unpaid"],
+      ["rejected-request", "Rejected", "unpaid"],
+      ["completed-request", "Completed", "unpaid"],
+      ["legitimate-unpaid", "On Process", "unpaid"],
+    ]) await setDoc(doc(db, "documentRequests", id), { residentId: "resident", status, paymentStatus })
+  })
+  const residentDb = environment.authenticatedContext("resident").firestore()
+  const payment = { paymentStatus: "pending_verification", paymentMethod: "gcash", gcashRefNumber: "REF-1", gcashScreenshotUrl: "protected", paymentSubmittedAt: 1 }
+  for (const id of ["paid-request", "waived-request", "cancelled-request", "rejected-request", "completed-request"]) {
+    await assertFails(updateDoc(doc(residentDb, "documentRequests", id), payment))
+  }
+  await assertSucceeds(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), payment))
+})
+
 test("clients cannot write authoritative audit evidence or telemetry", async () => {
   const db = environment.authenticatedContext("verifier").firestore()
   await assertFails(setDoc(doc(db, "activityLogs", "forged"), { action: "Approved" }))
   await assertFails(setDoc(doc(db, "clientTelemetry", "forged"), { event: "fake" }))
+})
+
+test("A18 denied admin query recovers after the authoritative role is corrected", async () => {
+  const deniedDb = environment.authenticatedContext("retry-admin").firestore()
+  await assertFails(getDocs(collection(deniedDb, "documentRequests")))
+  await environment.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), "users", "retry-admin"), { role: "Full Access" })
+  })
+  await assertSucceeds(getDocs(collection(deniedDb, "documentRequests")))
+})
+
+test("A11/A12 production cursor adapter returns complete queues, periods, and normalized fresh audit events", async () => {
+  const requestIds = Array.from({ length: 205 }, (_, index) => `page-request-${String(index).padStart(3, "0")}`)
+  const logIds = Array.from({ length: 505 }, (_, index) => `page-log-${String(index).padStart(3, "0")}`)
+  await environment.withSecurityRulesDisabled(async context => {
+    const db = context.firestore()
+    await Promise.all(requestIds.map((id, index) => setDoc(doc(db, "documentRequests", id), {
+      residentId: "resident", status: index === 204 ? "Pending" : "Completed", hasGenerated: index % 2 === 0,
+      createdAt: index === 204 ? Date.UTC(2024, 0, 1) : Date.UTC(2026, 0, 1) + index,
+    })))
+    await Promise.all(logIds.map((id, index) => setDoc(doc(db, "activityLogs", id), {
+      action: index === 504 ? "verification.reject" : "verification.approve",
+      actor: { id: "full-admin", name: "Fresh Admin", role: "Full Access" },
+      targetCollection: "verifications", targetId: "resident", timestamp: Date.UTC(2026, 0, 1) + index, authoritative: true,
+    })))
+  })
+  const db = environment.authenticatedContext("full-admin").firestore()
+  const requests = await fetchOrderedCollectionPages<any>(db as any, "documentRequests", "createdAt", 200)
+  const logs = await fetchOrderedCollectionPages<any>(db as any, "activityLogs", "timestamp", 250)
+  assert.equal(requests.filter(item => item.id.startsWith("page-request-")).length, 205)
+  assert.ok(requests.some(item => item.id === "page-request-204" && item.status === "Pending" && new Date(item.createdAt).getUTCFullYear() === 2024))
+  assert.equal(requests.filter(item => item.id.startsWith("page-request-") && item.hasGenerated === true).length, 103)
+  assert.equal(logs.filter(item => item.id.startsWith("page-log-")).length, 505)
+  const rejection = normalizeAuditLog(logs.find(item => item.id === "page-log-504"))
+  assert.equal(rejection.actionType, "rejected")
+  assert.equal(rejection.actor.name, "Fresh Admin")
+  assert.equal(rejection.targetId, "resident")
 })

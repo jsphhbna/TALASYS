@@ -20,10 +20,11 @@ import {
 } from "lucide-react"
 import { useAuth, isVerificationOnlyRole } from "@/lib/auth"
 import { VerificationWorkspace } from "@/components/admin/verification-workspace"
+import { DataLoadError } from "@/components/admin/data-load-error"
 
 export default function AdminDashboard() {
   const { user } = useAuth()
-  const { stats, verifications, documentRequests, activityLogs, notifications } = useAdminData()
+  const { stats, verifications, documentRequests, activityLogs, notifications, error, refresh } = useAdminData()
   const [reviewItem, setReviewItem] = useState<{ data: any; type: "verification" | "request" } | null>(null)
 
   // Dedicated Workspace for Verification Only / Verifications Role
@@ -73,6 +74,7 @@ export default function AdminDashboard() {
 
   return (
     <AdminPageShell>
+      <DataLoadError error={error} retry={refresh} hasData={verifications.length + documentRequests.length + activityLogs.length > 0} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Admin Dashboard</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Daily operational overview — what needs your attention today</p>

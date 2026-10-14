@@ -60,6 +60,16 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
         const verification = verificationSnapshot.data() || {}
         const existing = operationSnapshot.exists ? operationSnapshot.data() : null
         if (verification.status === "approved") return { outcome: "completed" as const }
+        if (verification.status !== "pending" && verification.status !== "processing") {
+          throw Object.assign(new Error(`Verification in state '${String(verification.status || "unknown")}' is not eligible for approval.`), { status: 409 })
+        }
+        if (verification.status === "processing" && (
+          verification.processingOperationId !== verificationId ||
+          verification.processingAttemptId !== attemptId ||
+          existing?.attemptId !== attemptId
+        )) {
+          throw Object.assign(new Error("Verification processing is owned by another operation attempt."), { status: 409 })
+        }
         if (verification.residentId && verification.userId && verification.residentId !== verification.userId) {
           throw Object.assign(new Error("Conflicting owner identities in verification record"), { status: 400 })
         }

@@ -28,8 +28,9 @@ import {
     SUPERADMIN_DISPLAY_NAME,
     SUPERADMIN_INITIALS,
 } from "@/lib/constants"
-import { parseAuditTimestamp } from "@/lib/security/audit-utils"
+import { normalizeAuditLog } from "@/lib/security/audit-utils"
 import { callAdminOperation } from "@/lib/admin/client-operation"
+import { fetchOrderedCollectionPages } from "@/lib/firestore-pagination"
 
 export function useSuperAdminData() {
     const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([])
@@ -49,7 +50,8 @@ export function useSuperAdminData() {
     })
     
     const [isLoaded, setIsLoaded] = useState(false)
-    const [error, setError] = useState<string | null>(null)
+    const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({})
+    const error = Object.values(sourceErrors).join("; ") || null
     const [stats, setStats] = useState({
         totalResidents: 0,
         activeRequests: 0,
@@ -62,6 +64,7 @@ export function useSuperAdminData() {
         const unsubscribeFunctions: (() => void)[] = []
         const sourcesLoaded = new Set<string>()
         const checkReady = (key: string) => {
+            setSourceErrors(previous => { const next = { ...previous }; delete next[key]; return next })
             sourcesLoaded.add(key)
             if (sourcesLoaded.size >= 4) {
                 setIsLoaded(true)
@@ -108,25 +111,23 @@ export function useSuperAdminData() {
             checkReady("users")
         }, (err) => {
             console.error("users snapshot error in superadmin hook:", err)
-            setError(err.message || "Failed to load users")
+            setSourceErrors(previous => ({ ...previous, users: err.message || "Failed to load users" }))
             setIsLoaded(true)
         }))
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(500)), (snapshot) => {
-            setAuditLogs(snapshot.docs.map(snapshotDoc => {
-                const data = snapshotDoc.data()
-                return {
-                    id: snapshotDoc.id,
-                    ...data,
-                    timestamp: parseAuditTimestamp(data.timestamp) || 0,
-                    action: data.action || data.actionType || "Action",
-                    actionType: data.actionType || data.action || "Action",
-                } as unknown as AuditLog
-            }))
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(500)), async () => {
+          try {
+            const allLogs = await fetchOrderedCollectionPages<any>(db, COLLECTION_ACTIVITY_LOGS, "timestamp", 500)
+            setAuditLogs(allLogs.map(normalizeAuditLog) as unknown as AuditLog[])
             checkReady("activityLogs")
+          } catch (err: any) {
+            console.error("activityLogs pagination error in superadmin hook:", err)
+            setSourceErrors(previous => ({ ...previous, activityLogs: err.message || "Failed to load complete audit history" }))
+            setIsLoaded(true)
+          }
         }, (err) => {
             console.error("activityLogs snapshot error in superadmin hook:", err)
-            setError(err.message || "Failed to load audit logs")
+            setSourceErrors(previous => ({ ...previous, activityLogs: err.message || "Failed to load audit logs" }))
             setIsLoaded(true)
         }))
 
@@ -139,7 +140,7 @@ export function useSuperAdminData() {
             checkReady("alerts")
         }, (err) => {
             console.error("alerts snapshot error in superadmin hook:", err)
-            setError(err.message || "Failed to load system alerts")
+            setSourceErrors(previous => ({ ...previous, alerts: err.message || "Failed to load system alerts" }))
             setIsLoaded(true)
         }))
 
@@ -148,7 +149,7 @@ export function useSuperAdminData() {
             checkReady("config")
         }, (err) => {
             console.error("config snapshot error in superadmin hook:", err)
-            setError(err.message || "Failed to load system config")
+            setSourceErrors(previous => ({ ...previous, config: err.message || "Failed to load system config" }))
             setIsLoaded(true)
         }))
 
@@ -216,7 +217,7 @@ export function useSuperAdminData() {
 
     const refresh = useCallback(async () => {
         setIsLoaded(false)
-        setError(null)
+        setSourceErrors({})
         setRefreshCounter(prev => prev + 1)
         try {
             const [totalResidentsSnap, activeRequestsSnap, pendingVerificationsSnap] = await Promise.all([
@@ -235,7 +236,7 @@ export function useSuperAdminData() {
             }))
         } catch (err: any) {
             console.error("Failed to refresh SuperAdmin dashboard:", err)
-            setError(err.message || "Failed to refresh dashboard stats")
+            setSourceErrors(previous => ({ ...previous, aggregates: err.message || "Failed to refresh dashboard stats" }))
         } finally {
             setIsLoaded(true)
         }
@@ -282,17 +283,8 @@ export function useSuperAdminData() {
         // Audit Logs
         fetchAllAuditLogs: useCallback(async () => {
             try {
-                const snap = await getDocs(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc")))
-                return snap.docs.map(snapshotDoc => {
-                    const data = snapshotDoc.data()
-                    return {
-                        id: snapshotDoc.id,
-                        ...data,
-                        timestamp: parseAuditTimestamp(data.timestamp) || 0,
-                        action: data.action || data.actionType || "Action",
-                        actionType: data.actionType || data.action || "Action",
-                    } as unknown as AuditLog
-                })
+                const logs = await fetchOrderedCollectionPages<any>(db, COLLECTION_ACTIVITY_LOGS, "timestamp", 500)
+                return logs.map(log => normalizeAuditLog(log) as unknown as AuditLog)
             } catch (e) {
                 console.error("fetchAllAuditLogs failed:", e)
                 return []

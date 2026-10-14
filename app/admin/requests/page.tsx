@@ -19,11 +19,12 @@ const AdminPaymentProcessModal = dynamic(
   { ssr: false }
 )
 import { SecureMediaViewer } from "@/components/media/secure-image"
+import { DataLoadError } from "@/components/admin/data-load-error"
 
 function DocumentRequestsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { residents, documentRequests: adminDocumentRequests, updateRequestStatus, confirmPayment, waivePayment } = useAdminData()
+  const { residents, documentRequests: adminDocumentRequests, updateRequestStatus, confirmPayment, waivePayment, error, refresh } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const { user } = useAuth()
   
@@ -94,6 +95,7 @@ function DocumentRequestsContent() {
 
   return (
     <AdminPageShell>
+      <DataLoadError error={error} retry={refresh} hasData={adminDocumentRequests.length > 0} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Document Requests</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Review and manage resident document requests</p>

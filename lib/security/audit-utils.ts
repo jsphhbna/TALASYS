@@ -58,7 +58,7 @@ export function extractValidYear(val: any): string | null {
     const epochMs = Number(strVal)
     const d = new Date(epochMs)
     if (!isNaN(d.getTime())) {
-      const year = d.getFullYear()
+      const year = new Date(d.getTime() + MANILA_OFFSET_MS).getUTCFullYear()
       if (year >= 2000 && year <= 2100) return String(year)
     }
     return null
@@ -70,7 +70,7 @@ export function extractValidYear(val: any): string | null {
 
   const d = new Date(val)
   if (!isNaN(d.getTime())) {
-    const year = d.getFullYear()
+    const year = new Date(d.getTime() + MANILA_OFFSET_MS).getUTCFullYear()
     if (year >= 2000 && year <= 2100) return String(year)
   }
 

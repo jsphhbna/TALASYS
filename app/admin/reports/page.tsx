@@ -13,9 +13,10 @@ import autoTable from "jspdf-autotable"
 
 import { Users, TrendingUp, Award, Loader2 } from "lucide-react"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
+import { DataLoadError } from "@/components/admin/data-load-error"
 
 export default function CategoryReports() {
-  const { stats, residents } = useAdminData()
+  const { stats, residents, error, refresh } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   
   const barangayName = systemConfig?.barangayName || "Barangay Sample"
@@ -243,6 +244,7 @@ export default function CategoryReports() {
 
   return (
     <AdminPageShell>
+      <DataLoadError error={error} retry={refresh} hasData={residents.length > 0} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Category Reports</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Generate PDF reports by resident category</p>

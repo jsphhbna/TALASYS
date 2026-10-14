@@ -2,9 +2,13 @@ import { expect, test, type Page } from "@playwright/test"
 import { deleteApp, getApps, initializeApp } from "firebase-admin/app"
 import { getAuth } from "firebase-admin/auth"
 import { getFirestore } from "firebase-admin/firestore"
+import { mediaRegistryDocumentId } from "../../lib/security/media-auth.ts"
 
 const projectId = "talasys-e2e"
 const password = "Talasys-E2E-Password-2026!"
+const testCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "talasys-test-cloud"
+const captainSignatureUrl = `https://res.cloudinary.com/${testCloudName}/image/authenticated/s--signature--/v1/talasys/signatures/captain.png`
+const claimedRegistrationProofUrl = `https://res.cloudinary.com/${testCloudName}/image/authenticated/v1/talasys/proofs/registration/e2e-claimed-proof.jpg`
 const identities = {
   viewer: { role: "View Only", allowedRoute: "/admin/residents" },
   verifier: { role: "Verification Only", allowedRoute: "/admin/verifications" },
@@ -31,6 +35,8 @@ test.beforeAll(async () => {
 
   // Global system config
   await db.collection("systemConfig").doc("global").set({
+    barangayCaptainName: "E2E Captain",
+    captainSignatureUrl,
     documentTypes: [
       "Barangay Clearance",
       "Certificate of Indigency",
@@ -52,6 +58,8 @@ test.beforeAll(async () => {
     try { await auth.createUser({ uid, email, password, emailVerified: true }) } catch (error: any) { if (error.code !== "auth/uid-already-exists") throw error }
     await db.collection("users").doc(uid).set({ name: `E2E ${key}`, email, role: identity.role, status: "Active", isVerified: true, createdAt: Date.now() })
   }
+  try { await auth.createUser({ uid: "e2e-super", email: "super@example.test", password, emailVerified: true }) } catch (error: any) { if (error.code !== "auth/uid-already-exists") throw error }
+  await db.collection("users").doc("e2e-super").set({ name: "E2E Super Admin", email: "super@example.test", role: "superadmin", status: "Active", isVerified: true, createdAt: Date.now() })
   for (const status of ["Locked", "Deleted"] as const) {
     const key = status.toLowerCase()
     const uid = `e2e-${key}`
@@ -83,6 +91,21 @@ test.beforeAll(async () => {
     statuses: ["Resident"],
     accountExpiry: new Date(Date.now() + 365 * 86400 * 1000).toISOString(),
     createdAt: Date.now(),
+  })
+  await db.collection("mediaRegistry").doc(mediaRegistryDocumentId(
+    testCloudName,
+    "image",
+    "talasys/proofs/registration/e2e-claimed-proof",
+  )).set({
+    cloudName: testCloudName,
+    resourceType: "image",
+    deliveryType: "authenticated",
+    publicId: "talasys/proofs/registration/e2e-claimed-proof",
+    ownerUid: "e2e-active-resident",
+    status: "claimed",
+    capabilityHash: null,
+    expiresAt: null,
+    claimedAt: Date.now(),
   })
 
   // Profile-edit resident & verification
@@ -168,7 +191,6 @@ test.beforeAll(async () => {
 
 
   // Protected media request
-  const testCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "talasys-test-cloud"
   const receiptUrl = `https://res.cloudinary.com/${testCloudName}/image/authenticated/s--signature--/v1/talasys/receipts/e2e-active-resident/test-receipt.jpg`
   const authLetterUrl = `https://res.cloudinary.com/${testCloudName}/raw/authenticated/s--signature--/v1/talasys/letters/e2e-active-resident/test-letter.pdf`
 
@@ -530,6 +552,18 @@ test("Protected media: authorized owner, admin role, denial, and no raw fallback
   expect(ownerBody.deliveryUrl).toMatch(/\/authenticated\/s--[a-zA-Z0-9_-]+--\//)
   expect(ownerBody.deliveryUrl).not.toBe(receiptUrl)
 
+  // A genuine pre-registration proof remains viewable through the claimed
+  // registry ownership path; the raw protected URL is never returned.
+  const claimedProofRes = await request.post("/api/media/view", {
+    headers: { Authorization: `Bearer ${ownerToken}`, "Content-Type": "application/json" },
+    data: { mediaUrl: claimedRegistrationProofUrl },
+  })
+  expect(claimedProofRes.status()).toBe(200)
+  const claimedProofBody = await claimedProofRes.json()
+  expect(claimedProofBody.authorized).toBe(true)
+  expect(claimedProofBody.deliveryUrl).toMatch(/\/authenticated\/s--[a-zA-Z0-9_-]+--\//)
+  expect(claimedProofBody.deliveryUrl).not.toBe(claimedRegistrationProofUrl)
+
   // 2. Authorized owner access for authorizationLetterUrl
   const letterRes = await request.post("/api/media/view", {
     headers: { Authorization: `Bearer ${ownerToken}`, "Content-Type": "application/json" },
@@ -629,4 +663,59 @@ test("New-data behavior: asset ownership validation and authoritative payment st
   // System config fee is 50, so authoritative fee must be 50, not the spoofed 0
   expect(createdReq?.documentFee).toBe(50)
   expect(createdReq?.paymentStatus).toBe("unpaid")
+})
+
+test("protected official signature uses the media endpoint for allowed roles and never previews the raw URL", async ({ page, request }) => {
+  const superToken = await getIdTokenForUser("super@example.test")
+  const fullToken = await getIdTokenForUser("full@example.test")
+  const viewerToken = await getIdTokenForUser("viewer@example.test")
+
+  for (const token of [superToken, fullToken]) {
+    const response = await request.post("/api/media/view", {
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      data: { mediaUrl: captainSignatureUrl },
+    })
+    expect(response.status()).toBe(200)
+    expect((await response.json()).deliveryUrl).not.toBe(captainSignatureUrl)
+  }
+  const denied = await request.post("/api/media/view", {
+    headers: { Authorization: `Bearer ${viewerToken}`, "Content-Type": "application/json" },
+    data: { mediaUrl: captainSignatureUrl },
+  })
+  expect(denied.status()).toBe(403)
+
+  await login(page, "full")
+  const mediaResponse = page.waitForResponse(response => response.url().includes("/api/media/view") && response.request().method() === "POST")
+  await page.goto("/admin/generate?requestId=e2e-request-media")
+  expect((await mediaResponse).status()).toBe(200)
+  const preview = page.getByAltText("Captain Signature")
+  await expect(preview).toHaveCount(1)
+  await expect(preview).not.toHaveAttribute("src", captainSignatureUrl)
+  await expect(preview).toHaveAttribute("src", /\/authenticated\/s--[a-zA-Z0-9_-]+--\//)
+})
+
+test("document export waits for protected signatures and fails visibly without marking the request generated", async ({ page }) => {
+  await login(page, "full")
+  let releaseMedia!: () => void
+  let announceMediaRequest!: () => void
+  const mediaGate = new Promise<void>(resolve => { releaseMedia = resolve })
+  const mediaRequested = new Promise<void>(resolve => { announceMediaRequest = resolve })
+  await page.route("**/api/media/view", async route => {
+    announceMediaRequest()
+    await mediaGate
+    await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Controlled signature service failure" }) })
+  })
+
+  await page.goto("/admin/generate?requestId=e2e-request-media")
+  await mediaRequested
+  const download = page.getByRole("button", { name: "Download PDF" })
+  await expect(download).toBeDisabled()
+  releaseMedia()
+  await expect(download).toBeEnabled()
+  await download.click()
+  await expect(page.getByRole("region", { name: "Notifications alt+T" }).getByText(/Protected signature unavailable: Controlled signature service failure/i)).toBeVisible()
+
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const requestDocument = await getFirestore(app).collection("documentRequests").doc("e2e-request-media").get()
+  expect(requestDocument.data()?.hasGenerated).not.toBe(true)
 })

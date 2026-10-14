@@ -168,9 +168,10 @@ export async function uploadFileToCloudinary(file: File, options?: UploadOptions
     formData.append("type", type)
   }
 
-  // Use /auto/upload so Cloudinary properly accepts and classifies both images and PDFs (#51, #52)
+  // Proof images and PDFs use Cloudinary's image resource type. The server-side
+  // reservation is bound to this exact resource type before the upload begins.
   const response = await withTimeout(
-    fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
+    fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
       method: "POST",
       body: formData,
     }),

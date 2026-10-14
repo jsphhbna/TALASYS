@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
-import { verifyAndConsumeRegistrationTicket } from "@/lib/security/upload-ticket"
+import { consumeRegistrationTicket } from "@/lib/security/upload-ticket"
 import { extractClientIp } from "@/lib/security/request-ip"
 import { rateLimit } from "@/lib/rate-limit"
 import { isSuperAdminRole, isFullAdminRole } from "@/lib/auth/auth-types"
 import crypto from "crypto"
+import { mediaRegistryDocumentId } from "@/lib/security/media-auth"
 
 const ALLOWED_FOLDERS = [
   "talasys/residents",
@@ -23,6 +24,8 @@ const SENSITIVE_FOLDERS = new Set<AllowedFolder>([
   "talasys/letters",
   "talasys/residents"
 ])
+
+const REGISTRATION_RESERVATION_TTL_MS = 60 * 60 * 1000
 
 export async function POST(req: Request) {
   try {
@@ -48,6 +51,7 @@ export async function POST(req: Request) {
     let callerType: "admin" | "resident" | "registration-applicant" | null = null
     let callerRole: string | null = null
     let callerUid: string | null = null
+    let registrationTicketNonce: string | null = null
 
     // 1. Authenticate via Firebase Auth ID token if provided (#51)
     if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -86,14 +90,15 @@ export async function POST(req: Request) {
     } 
     // 2. Alternatively, authenticate via single-use registration ticket for new residents (#51)
     else if (registrationTicket) {
-      const isValidTicket = verifyAndConsumeRegistrationTicket(registrationTicket)
-      if (!isValidTicket) {
+      const verifiedTicket = consumeRegistrationTicket(registrationTicket)
+      if (!verifiedTicket) {
         return NextResponse.json(
           { error: "Unauthorized: Invalid, expired, or replayed registration ticket." },
           { status: 401 }
         )
       }
       callerType = "registration-applicant"
+      registrationTicketNonce = verifiedTicket.nonce
     }
 
     // Reject unauthenticated requests
@@ -172,24 +177,35 @@ export async function POST(req: Request) {
     }
 
     const signature = crypto.createHash("sha1").update(signatureString).digest("hex")
-    const claimToken = callerType === "registration-applicant" ? crypto.randomBytes(32).toString("hex") : undefined
+    const claimToken = callerType === "registration-applicant" ? crypto.randomBytes(32).toString("base64url") : undefined
 
     // 8. Server-controlled asset registry: record ownership or pre-registration claim requirement (A02)
-    if (adminDb) {
-      try {
-        const fullPublicId = `${targetFolder}/${publicId}`
-        const assetRegistryKey = crypto.createHash("sha256").update(fullPublicId).digest("hex")
-        await adminDb.collection("mediaRegistry").doc(assetRegistryKey).set({
-          publicId: fullPublicId,
-          folder: targetFolder,
-          ownerUid: callerUid || null,
-          status: callerUid ? "claimed" : "unclaimed",
-          claimToken: claimToken || null,
-          createdAt: Date.now(),
-        })
-      } catch (regError) {
-        console.warn("Could not register asset in mediaRegistry:", regError)
-      }
+    if (!adminDb) {
+      return NextResponse.json({ error: "Server media registry is unavailable." }, { status: 503 })
+    }
+    try {
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+      if (!cloudName) throw new Error("Cloudinary cloud name is not configured")
+      const fullPublicId = `${targetFolder}/${publicId}`
+      const resourceType = "image"
+      const assetRegistryKey = mediaRegistryDocumentId(cloudName, resourceType, fullPublicId)
+      const reservationExpiresAt = Date.now() + REGISTRATION_RESERVATION_TTL_MS
+      await adminDb.collection("mediaRegistry").doc(assetRegistryKey).create({
+        cloudName,
+        publicId: fullPublicId,
+        folder: targetFolder,
+        resourceType,
+        deliveryType: type || "upload",
+        ownerUid: callerUid || null,
+        status: callerUid ? "claimed" : "reserved",
+        capabilityHash: claimToken ? crypto.createHash("sha256").update(claimToken).digest("hex") : null,
+        ticketNonce: registrationTicketNonce,
+        expiresAt: claimToken ? reservationExpiresAt : null,
+        createdAt: Date.now(),
+      })
+    } catch (regError) {
+      console.error("Could not create media reservation:", regError)
+      return NextResponse.json({ error: "Unable to reserve the protected upload. Please retry." }, { status: 503 })
     }
 
     return NextResponse.json({

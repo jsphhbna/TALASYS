@@ -1,4 +1,9 @@
 import { v2 as cloudinary } from "cloudinary"
+import crypto from "node:crypto"
+
+export function mediaRegistryDocumentId(cloudName: string, resourceType: string, publicId: string): string {
+  return crypto.createHash("sha256").update(`${cloudName}:${resourceType}:${publicId.replace(/^\//, "")}`).digest("hex")
+}
 
 export function isSuperAdminRole(role?: string | null): boolean {
   if (!role) return false

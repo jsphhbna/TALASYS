@@ -29,6 +29,39 @@ export interface RegistrationTicketPayload {
   nonce: string
 }
 
+function readVerifiedTicket(ticket?: string | null, allowConsumed = false): RegistrationTicketPayload | null {
+  if (!ticket || typeof ticket !== "string") return null
+  const parts = ticket.split(".")
+  if (parts.length !== 2) return null
+
+  let secret: string
+  try {
+    secret = getTicketSecret()
+  } catch {
+    return null
+  }
+
+  const [serialized, receivedHmac] = parts
+  const expectedHmac = crypto.createHmac("sha256", secret).update(serialized).digest()
+  let suppliedHmac: Buffer
+  try {
+    suppliedHmac = Buffer.from(receivedHmac, "base64url")
+  } catch {
+    return null
+  }
+  if (suppliedHmac.length !== expectedHmac.length || !crypto.timingSafeEqual(suppliedHmac, expectedHmac)) return null
+
+  try {
+    const payload = JSON.parse(Buffer.from(serialized, "base64url").toString("utf8")) as RegistrationTicketPayload
+    if (payload.purpose !== "registration" || typeof payload.nonce !== "string") return null
+    if (!Number.isFinite(payload.issuedAt) || !Number.isFinite(payload.expiresAt) || Date.now() > payload.expiresAt) return null
+    if (!allowConsumed && consumedNonces.has(payload.nonce)) return null
+    return payload
+  } catch {
+    return null
+  }
+}
+
 /**
  * Creates a signed, tamper-proof ticket for pre-registration proof uploads (#51).
  * Fails closed if server secret is unconfigured.
@@ -54,47 +87,21 @@ export function createRegistrationTicket(customTtlMs?: number): string {
  * Validates a registration upload ticket and ensures it is active and untampered (#51).
  */
 export function verifyRegistrationTicket(ticket?: string | null): boolean {
-  if (!ticket || typeof ticket !== "string") return false
-  const parts = ticket.split(".")
-  if (parts.length !== 2) return false
-
-  let secret: string
-  try {
-    secret = getTicketSecret()
-  } catch {
-    return false
-  }
-
-  const [serialized, receivedHmac] = parts
-  const expectedHmac = crypto.createHmac("sha256", secret).update(serialized).digest("base64url")
-
-  if (receivedHmac !== expectedHmac) return false
-
-  try {
-    const payloadJson = Buffer.from(serialized, "base64url").toString("utf8")
-    const payload: RegistrationTicketPayload = JSON.parse(payloadJson)
-    if (payload.purpose !== "registration") return false
-    if (Date.now() > payload.expiresAt) return false
-    if (consumedNonces.has(payload.nonce)) return false
-    return true
-  } catch {
-    return false
-  }
+  return readVerifiedTicket(ticket) !== null
 }
 
 /**
  * Validates AND consumes a registration upload ticket to prevent replay (#51).
  */
 export function verifyAndConsumeRegistrationTicket(ticket?: string | null): boolean {
-  if (!verifyRegistrationTicket(ticket)) return false
-  try {
-    const [serialized] = (ticket as string).split(".")
-    const payloadJson = Buffer.from(serialized, "base64url").toString("utf8")
-    const payload: RegistrationTicketPayload = JSON.parse(payloadJson)
-    pruneConsumedNonces()
-    consumedNonces.set(payload.nonce, payload.expiresAt)
-    return true
-  } catch {
-    return false
-  }
+  return consumeRegistrationTicket(ticket) !== null
+}
+
+/** Validates before exposing payload fields, then consumes the nonce. */
+export function consumeRegistrationTicket(ticket?: string | null): RegistrationTicketPayload | null {
+  pruneConsumedNonces()
+  const payload = readVerifiedTicket(ticket)
+  if (!payload) return null
+  consumedNonces.set(payload.nonce, payload.expiresAt)
+  return payload
 }

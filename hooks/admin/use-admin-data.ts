@@ -23,7 +23,8 @@ import {
     COLOR_ADMIN_AMBER,
 } from "@/lib/constants"
 import { useAuth } from "@/lib/auth"
-import { parseAuditTimestamp } from "@/lib/security/audit-utils"
+import { normalizeAuditLog } from "@/lib/security/audit-utils"
+import { fetchOrderedCollectionPages } from "@/lib/firestore-pagination"
 
 export function useAdminData() {
     const [residents, setResidents] = useState<AdminResident[]>([])
@@ -33,7 +34,8 @@ export function useAdminData() {
     const [notifications, setNotifications] = useState<AdminNotification[]>([])
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
     const [isLoaded, setIsLoaded] = useState(false)
-    const [error, setError] = useState<string | null>(null)
+    const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({})
+    const error = Object.values(sourceErrors).join("; ") || null
     const [refreshCounter, setRefreshCounter] = useState(0)
 
     const [stats, setStats] = useState({
@@ -61,6 +63,7 @@ export function useAdminData() {
         const unsubscribeFunctions: (() => void)[] = []
         const sourcesLoaded = new Set<string>()
         const checkReady = (sourceKey: string) => {
+            setSourceErrors(previous => { const next = { ...previous }; delete next[sourceKey]; return next })
             sourcesLoaded.add(sourceKey)
             if (sourcesLoaded.size >= 5) {
                 setIsLoaded(true)
@@ -127,7 +130,7 @@ export function useAdminData() {
             checkReady("users")
         }, (err) => {
             console.error("users snapshot error:", err)
-            setError(err.message || "Failed to load residents")
+            setSourceErrors(previous => ({ ...previous, users: err.message || "Failed to load residents" }))
             setIsLoaded(true)
         }))
 
@@ -141,12 +144,13 @@ export function useAdminData() {
             checkReady("verifications")
         }, (err) => {
             console.error("verifications snapshot error:", err)
-            setError(err.message || "Failed to load verifications")
+            setSourceErrors(previous => ({ ...previous, verifications: err.message || "Failed to load verifications" }))
             setIsLoaded(true)
         }))
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), orderBy("createdAt", "desc"), limit(200)), (snapshot) => {
-            const allRequests = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as AdminDocumentRequest))
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_DOCUMENT_REQUESTS), orderBy("createdAt", "desc"), limit(200)), async () => {
+          try {
+            const allRequests = await fetchOrderedCollectionPages<AdminDocumentRequest>(db, COLLECTION_DOCUMENT_REQUESTS, "createdAt", 200)
             setDocumentRequests(allRequests)
             
             const pendingRequests = allRequests.filter(request => request.status === "Pending")
@@ -163,9 +167,14 @@ export function useAdminData() {
                 totalDocumentsGenerated: actuallyGenerated.length
             }))
             checkReady("requests")
+          } catch (err: any) {
+            console.error("documentRequests pagination error:", err)
+            setSourceErrors(previous => ({ ...previous, requests: err.message || "Failed to load complete document request queue" }))
+            setIsLoaded(true)
+          }
         }, (err) => {
             console.error("documentRequests snapshot error:", err)
-            setError(err.message || "Failed to load document requests")
+            setSourceErrors(previous => ({ ...previous, requests: err.message || "Failed to load document requests" }))
             setIsLoaded(true)
         }))
 
@@ -186,25 +195,23 @@ export function useAdminData() {
             checkReady("notifications")
         }, (err) => {
             console.error("notifications snapshot error:", err)
-            setError(err.message || "Failed to load notifications")
+            setSourceErrors(previous => ({ ...previous, notifications: err.message || "Failed to load notifications" }))
             setIsLoaded(true)
         }))
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(250)), (snapshot) => {
-            setActivityLogs(snapshot.docs.map(snapshotDoc => {
-                const data = snapshotDoc.data()
-                return {
-                    id: snapshotDoc.id,
-                    ...data,
-                    timestamp: parseAuditTimestamp(data.timestamp) || 0,
-                    action: data.action || data.actionType || "Action",
-                    actionType: data.actionType || data.action || "Action",
-                } as unknown as ActivityLog
-            }))
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(250)), async () => {
+          try {
+            const allLogs = await fetchOrderedCollectionPages<any>(db, COLLECTION_ACTIVITY_LOGS, "timestamp", 250)
+            setActivityLogs(allLogs.map(normalizeAuditLog) as unknown as ActivityLog[])
             checkReady("activityLogs")
+          } catch (err: any) {
+            console.error("activityLogs pagination error:", err)
+            setSourceErrors(previous => ({ ...previous, activityLogs: err.message || "Failed to load complete activity history" }))
+            setIsLoaded(true)
+          }
         }, (err) => {
             console.error("activityLogs snapshot error:", err)
-            setError(err.message || "Failed to load activity logs")
+            setSourceErrors(previous => ({ ...previous, activityLogs: err.message || "Failed to load activity logs" }))
             setIsLoaded(true)
         }))
 
@@ -212,7 +219,7 @@ export function useAdminData() {
     }, [userCreatedAt, refreshCounter])
 
     const refresh = useCallback(() => {
-        setError(null)
+        setSourceErrors({})
         setIsLoaded(false)
         setRefreshCounter(prev => prev + 1)
     }, [])

@@ -44,7 +44,7 @@ export default function VerificationHistoryPage() {
         actionText.includes("profile edit") ||
         actionText.includes("reactivation")
 
-      return isVerificationDomain && (!selectedYear || log.date?.includes(selectedYear))
+      return isVerificationDomain && (!selectedYear || extractValidYear(log.timestamp) === selectedYear)
     }),
     [activityLogs, selectedYear]
   )

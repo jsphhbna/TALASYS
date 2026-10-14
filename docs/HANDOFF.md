@@ -1,5 +1,15 @@
 # TALASYS Remediation Handoff
 
+## Current handoff — 2026-10-15
+
+Working branch: `main`. Audited baseline: `cbd01f759b3ca12030e8250c81c4dcc520d17e70`. The delivered revision is the final synchronized `main` HEAD reported with the Git handoff; this document intentionally avoids a self-referential commit SHA.
+
+The current repair closes the reproduced arbitrary media-claim ownership path, restores verification eligibility, adds exact execution/compensation fencing to administrator provisioning, and completes A07/A11/A12/A14/A16/A18 production wiring. Evidence is provided by 155 unit/integration tests, 28 declared Auth/Firestore emulator tests, 24 authenticated Chromium workflows, both TypeScript checks, lint (0 errors; 741 warnings), a 48-page production build, and 29 timezone tests in each of UTC, Asia/Manila, and America/Los_Angeles.
+
+No deployment, Firebase Rules publication, historical migration, live account/data change, or live Cloudinary asset mutation was performed. `.env.local` values were neither printed nor staged. Controlled adapters and local emulators are not evidence of live-provider availability. A18 permission failure and recovery are adapter-backed; no live network outage was induced.
+
+The prior handoff below is retained as historical context and must not be used for current test counts.
+
 ## Current state — 2026-10-14
 
 Working branch: `main`. Baseline reviewed: `9ea2f4a360543022461a2968eb1cd7eb2eb09410`.

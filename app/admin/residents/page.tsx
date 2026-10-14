@@ -12,6 +12,7 @@ import {
 import { useAuth } from "@/lib/auth"
 import dynamic from 'next/dynamic'
 import { ModalOverlay } from "@/components/ui/modal-overlay"
+import { DataLoadError } from "@/components/admin/data-load-error"
 
 const ResidentProfileModal = dynamic(
   () => import('@/components/admin/resident-profile-modal').then(mod => mod.ResidentProfileModal),
@@ -19,7 +20,7 @@ const ResidentProfileModal = dynamic(
 )
 
 export default function ResidentManagement() {
-  const { residents: allResidents, activityLogs, stats, deleteResident, deactivateResident, activateResident, updateResident } = useAdminData()
+  const { residents: allResidents, activityLogs, stats, deleteResident, deactivateResident, activateResident, updateResident, error, refresh } = useAdminData()
   const { user } = useAuth()
   type ResidentRecord = (typeof allResidents)[number]
 
@@ -68,6 +69,7 @@ export default function ResidentManagement() {
 
   return (
     <AdminPageShell>
+      <DataLoadError error={error} retry={refresh} hasData={allResidents.length > 0} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Resident Management</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">View, search, and manage all registered residents</p>

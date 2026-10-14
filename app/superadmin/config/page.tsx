@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner"
 import { uploadFileToCloudinary } from "@/lib/resident/cloudinary"
 import { BackupHistoryList } from "@/components/superadmin/layout/backup-history-list"
+import { SecureMediaViewer } from "@/components/media/secure-image"
 
 const changeTypeIcons: Record<string, typeof Palette> = {
   branding: Palette,
@@ -392,7 +393,7 @@ City of Manila, {{date_issued}}.`,
                   </div>
                   {formData.captainSignatureUrl && (
                     <div className="w-full h-20 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded flex items-center justify-center p-2 relative group">
-                      <img src={formData.captainSignatureUrl} alt="Captain Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                      <SecureMediaViewer src={formData.captainSignatureUrl} alt="Captain Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal" />
                       <button onClick={() => setFormData(prev => ({ ...prev, captainSignatureUrl: "" }))} className="absolute top-1 right-1 p-1 bg-red-100 text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity">
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -430,7 +431,7 @@ City of Manila, {{date_issued}}.`,
                   </div>
                   {formData.secretarySignatureUrl && (
                     <div className="w-full h-20 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded flex items-center justify-center p-2 relative group">
-                      <img src={formData.secretarySignatureUrl} alt="Secretary Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal" />
+                      <SecureMediaViewer src={formData.secretarySignatureUrl} alt="Secretary Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal" />
                       <button onClick={() => setFormData(prev => ({ ...prev, secretarySignatureUrl: "" }))} className="absolute top-1 right-1 p-1 bg-red-100 text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity">
                         <Trash2 className="w-3 h-3" />
                       </button>

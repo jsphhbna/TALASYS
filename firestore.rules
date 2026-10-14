@@ -157,8 +157,9 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'paymentStatus', 'paymentMethod', 'gcashRefNumber', 'gcashScreenshotUrl', 'paymentSubmittedAt'
             ]) &&
+            (!('paymentStatus' in resource.data) || resource.data.paymentStatus in ['unpaid', 'pending_verification']) &&
             request.resource.data.paymentStatus == 'pending_verification' &&
-            resource.data.status in ['Pending', 'Approved', 'Processing', 'On Process']
+            resource.data.status in ['Pending', 'Approved', 'On Process']
           )
         )
       );
