@@ -163,3 +163,8 @@ Each issue includes affected files, root cause, required repair, and test verifi
 - **#59 Inactivity timeout role mismatch**: Timeout hook only checks lowercase `admin` / `superadmin`. Check all canonical admin roles.
 - **#60 Dependency vulnerabilities**: Locked dependencies (`next`, `xlsx`, `sharp`, `protobufjs`). Update dependencies safely and mitigate unpatched components.
 - **#61 Lack of atomic transactions**: Verification approval updates verification, user, and logs in separate uncoordinated writes. Use Firestore `writeBatch` or transactions.
+- **#62 Missing reconciling stage in identity writer claim guards**: Normal operations, approvals, and competing reconcilers could replace a lock actively being reconciled. Resolved in ADR-009 via `lib/admin/identity-coordination-policy.ts` and hardened claim guards.
+- **#63 Firestore transaction read-after-write ordering in reconciliation**: Scheduling resident update before reading linked verification caused transaction aborts in Firestore emulator. Resolved in ADR-009 by reading all documents before scheduling writes.
+- **#64 In-flight recovery collision and stranded locks**: In-flight operations lacked quiescence enforcement, and recovery failures could leave locks stranded in reconciling. Resolved in ADR-009 via `evaluateRecoveryEligibility` and durable `reconciliation-required` transition on error.
+- **#65 Simultaneous same-attempt execution overlap**: Matching operationId and attemptId could pass claim guards and execute overlapping external mutations. Resolved in ADR-009 via `evaluateIdentityClaim` returning 409 conflict.
+

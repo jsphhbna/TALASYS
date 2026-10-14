@@ -6,6 +6,7 @@ export type IdentityEmailStatus =
   | "auth-failed"
   | "compensating"
   | "compensated"
+  | "reconciling"
   | "reconciliation-required"
   | "completed"
 

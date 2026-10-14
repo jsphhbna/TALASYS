@@ -19,9 +19,7 @@
 - Auth/Firestore emulator-backed browser coverage now exercises real identities,
   role restrictions, locked/deleted sessions, live role changes, approval,
   rejection, and resident deactivation.
-- Current evidence: 136/136 unit/integration tests, 9/9 firestore rules emulator
-  tests, 22/22 authenticated browser workflows, app/test type checks (0 errors),
-  quiet lint (0 errors), and a 47-route Next.js build all pass locally.
+- Current evidence: 136/136 unit/integration tests, 14/14 auth & firestore emulator tests (including multi-writer coordination), 22/22 authenticated browser workflows, live Cloudinary provider verification, app/test type checks (0 errors), quiet lint (0 errors), and a 47-route Next.js build all pass locally.
 
 ## Milestone Status Overview
 - [x] **Milestone A**: Baseline & Reproduction Harness (Mapped 61 items, established test runner and issue register)
@@ -46,8 +44,11 @@
 
 ## Verification & Test Infrastructure
 - **Automated Test Suite**: `npm test` (`node --test --experimental-strip-types "test/**/*.test.ts"`) -> **136 passed, 0 failed across 31 suites**.
+- **Emulator Concurrency Suite**: `npm run test:rules` -> **14 passed, 0 failed against Auth & Firestore emulators**.
+- **Authenticated E2E Suite**: `npm run test:e2e:auth` -> **22 passed, 0 failed across Chromium workflows**.
+- **Live Provider Probe**: `node --experimental-strip-types scripts/verify-cloudinary-provider.ts` -> **Verified signed/unsigned delivery and HMAC semantics**.
 - **TypeScript Static Verification**: `npx tsc --noEmit` -> **Exit Code 0 (0 errors)**.
 - **ESLint Verification**: `npm run lint` -> **Exit Code 0 (0 errors, ESLint 9 configured)**.
-- **Production Build**: `npm run build` -> **Exit Code 0 (All 44 static/dynamic routes successfully generated with Next.js 16.4.0 Turbopack)**.
+- **Production Build**: `npm run build` -> **Exit Code 0 (All 47 static/dynamic routes successfully generated with Next.js 16.4.0 Turbopack)**.
 - **Issue Register**: [docs/TALASYS-ISSUE-REGISTER.md](file:///c:/Users/Administrator/Downloads/TALASYS/docs/TALASYS-ISSUE-REGISTER.md).
 - **Dependency Triage**: [docs/DEPENDENCY_TRIAGE.md](file:///c:/Users/Administrator/Downloads/TALASYS/docs/DEPENDENCY_TRIAGE.md).

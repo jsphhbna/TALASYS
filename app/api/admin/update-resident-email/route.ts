@@ -3,6 +3,7 @@ import { NextResponse } from "next/server.js"
 import { adminAuth, adminDb } from "../../../../lib/firebase-admin.ts"
 import { isFullAdminRole, isSuperAdminRole } from "../../../../lib/auth/auth-types.ts"
 import { coordinateIdentityEmailUpdate, type IdentityEmailDependencies, type IdentityEmailOperation, type IdentityEmailStatus } from "../../../../lib/admin/identity-email-operation.ts"
+import { evaluateIdentityClaim } from "../../../../lib/admin/identity-coordination-policy.ts"
 import { extractClientIp } from "../../../../lib/security/request-ip.ts"
 import { COLLECTION_ACTIVITY_LOGS, COLLECTION_USERS } from "../../../../lib/constants.ts"
 
@@ -50,30 +51,38 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
         if (!authorized || ["Locked", "Deleted", "Deleted by Resident"].includes(caller.status)) throw Object.assign(new Error("Caller is not authorized to modify resident identities."), { status: 403 })
         if (!residentSnapshot.exists || residentSnapshot.data()?.role !== "resident") throw Object.assign(new Error("Target resident record not found."), { status: 404 })
         const existing = operationSnapshot.exists ? operationSnapshot.data() : null
-        if (existing?.status === "completed") {
-          if (existing.residentId !== residentId || existing.newEmail !== newEmail) throw Object.assign(new Error("Operation ID was already used for different input."), { status: 409 })
+        const lock = lockSnapshot.exists ? lockSnapshot.data() : null
+
+        const claimResult = evaluateIdentityClaim(lock, existing, {
+          operationId,
+          attemptId,
+          residentId,
+          newEmail,
+          profileUpdates,
+        })
+
+        if (claimResult.outcome === "completed") {
+          if (existing && (existing.residentId !== residentId || existing.newEmail !== newEmail)) {
+            throw Object.assign(new Error("Operation ID was already used for different input."), { status: 409 })
+          }
           return { outcome: "completed" as const }
         }
-        const lock = lockSnapshot.exists ? lockSnapshot.data() : null
-        if (lock && ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"].includes(lock.status)) {
-          if (lock.status === "reconciliation-required") {
-            throw Object.assign(new Error("Identity operation requires reconciliation before retry."), { status: 409, requiresReconciliation: true, residentId })
-          }
-          if (lock.operationId === operationId) {
-            // Same operation: only the owning attempt may continue; different attempts are rejected
-            if (lock.attemptId !== attemptId) {
-              return { outcome: "conflict" as const }
-            }
-          } else {
-            return { outcome: "conflict" as const }
-          }
+
+        if (claimResult.outcome === "reconciliation-required") {
+          throw Object.assign(new Error(claimResult.reason), { status: 409, requiresReconciliation: true, residentId })
+        }
+
+        if (claimResult.outcome === "conflict") {
+          return { outcome: "conflict" as const }
         }
         const oldEmail = String(existing?.oldEmail || residentSnapshot.data()?.email || "").trim().toLowerCase()
         if (!oldEmail) throw Object.assign(new Error("Target resident has no authoritative email."), { status: 409 })
         if (existing && (existing.residentId !== residentId || existing.newEmail !== newEmail || JSON.stringify(existing.profileUpdates || {}) !== JSON.stringify(profileUpdates))) throw Object.assign(new Error("Operation ID was already used for different input."), { status: 409 })
+        const effectiveNow = now || Date.now()
+        const effectiveIp = ipAddress || "Unknown"
         const operation: IdentityEmailOperation = { id: operationId, residentId, actorUid, actorName: caller.name || "Administrator", attemptId, oldEmail, newEmail, profileUpdates, status: "claimed" }
-        transaction.set(operationRef, { ...operation, ipAddress, createdAt: existing?.createdAt || now, updatedAt: now })
-        transaction.set(lockRef, { operationId, attemptId, residentId, operationType: "resident-email-update", status: "claimed", actorUid, actorName: caller.name || "Administrator", oldEmail, newEmail, ipAddress, updatedAt: now })
+        transaction.set(operationRef, { ...operation, ipAddress: effectiveIp, createdAt: existing?.createdAt || effectiveNow, updatedAt: effectiveNow })
+        transaction.set(lockRef, { operationId, attemptId, residentId, operationType: "resident-email-update", status: "claimed", actorUid, actorName: caller.name || "Administrator", oldEmail, newEmail, ipAddress: effectiveIp, updatedAt: effectiveNow })
         return { outcome: "claimed" as const, operation }
       })
     },

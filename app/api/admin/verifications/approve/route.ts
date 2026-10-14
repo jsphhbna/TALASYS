@@ -4,6 +4,7 @@ import { adminAuth, adminDb } from "../../../../../lib/firebase-admin.ts"
 import { canManageVerificationsRole } from "../../../../../lib/auth/auth-types.ts"
 import { extractClientIp } from "../../../../../lib/security/request-ip.ts"
 import { coordinateVerificationApproval, type ApprovalCoordinatorDependencies, type ApprovalOperation, type VerificationType } from "../../../../../lib/admin/verification-approval.ts"
+import { evaluateIdentityClaim } from "../../../../../lib/admin/identity-coordination-policy.ts"
 import { COLLECTION_ACTIVITY_LOGS, COLLECTION_NOTIFICATIONS, COLLECTION_USERS, COLLECTION_VERIFICATIONS } from "../../../../../lib/constants.ts"
 
 function normalizedType(value: unknown): VerificationType | null {
@@ -68,20 +69,22 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
 
         const lock = lockSnapshot.exists ? lockSnapshot.data() : null
         const approvalOpId = `verification-${verificationId}`
-        if (lock && ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"].includes(lock.status)) {
-          if (lock.status === "reconciliation-required") {
-            throw Object.assign(new Error("Resident identity requires reconciliation before approval."), { status: 409, requiresReconciliation: true, residentId: verification.residentId })
-          }
-          if (lock.operationId === approvalOpId) {
-            // Same operation: only the owning attempt may continue; different attempts are rejected
-            if (lock.attemptId !== attemptId) {
-              return { outcome: "conflict" as const }
-            }
-          } else {
-            return { outcome: "conflict" as const }
-          }
+
+        const claimResult = evaluateIdentityClaim(lock, existing, {
+          operationId: approvalOpId,
+          attemptId,
+          residentId: verification.residentId,
+        })
+
+        if (claimResult.outcome === "completed") {
+          return { outcome: "completed" as const }
         }
-        if (existing?.attemptId !== attemptId && ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"].includes(existing?.status)) {
+
+        if (claimResult.outcome === "reconciliation-required") {
+          throw Object.assign(new Error(claimResult.reason), { status: 409, requiresReconciliation: true, residentId: verification.residentId })
+        }
+
+        if (claimResult.outcome === "conflict") {
           return { outcome: "conflict" as const }
         }
 

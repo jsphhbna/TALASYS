@@ -61,3 +61,28 @@
   7. **Dual-Boundary Authorization & Target Revalidation**: Revalidate actor permissions and target resident state at both the initial claim boundary and the final transactional completion boundary.
 - **Consequences**: Guarantees serial execution of identity mutations per resident, prevents stale attempts from undoing newer completed identities, ensures strict parity between Firebase Auth and Firestore email fields, and provides actionable conflict/incomplete status codes.
 
+## ADR-009: Canonical Multi-Writer Identity Coordination, Transaction Ordering, and Quiescent Recovery
+- **Status**: Accepted & Verified
+- **Date**: 14 October 2026
+- **Context**:
+  - Competing writers (normal email update, verification approval, administrative reconciliation) previously maintained duplicate, inconsistent stage lists.
+  - `reconciling` was missing from blocked-stage lists, allowing normal operations or another reconciler to replace a lock held by an executing reconciler.
+  - In `sync-auth-to-firestore`, Firestore transaction ordering scheduled a resident update before reading the linked verification (`read-after-write` defect in Firestore emulator).
+  - Simultaneous requests sharing identical `operationId` and `attemptId` could pass claim guards and overlap external mutations.
+  - Standard Cloudinary HMAC URL signatures (`/s--...--/`) do not validate query-based expiration parameters (`?exp=...`), requiring truthful `expiresAt: null` return value.
+- **Decisions**:
+  1. **Canonical State Policy Module (`lib/admin/identity-coordination-policy.ts`)**:
+     - Single shared policy module exporting `IN_FLIGHT_IDENTITY_STAGES` (`claimed`, `auth-pending`, `auth-mutating`, `auth-completed`, `compensating`, `reconciling`) and `ACTIVE_LOCKED_STAGES`.
+     - `evaluateIdentityClaim`: blocks all active/in-flight stages, detects same-attempt simultaneous execution (returning 409 conflict), returns idempotent completion for matching inputs without duplicate writes.
+     - `evaluateRecoveryEligibility`: blocks reconciliation while another reconciler runs (`reconciling`) or an operation is in-flight without operator `forceRecover`; binds recovery to `expectedOperationId` and `expectedAttemptId` to prevent anti-stomp collisions.
+  2. **Transaction Read-Before-Write Ordering**:
+     - In Phase 3 of `reconcileResidentIdentity`, all document reads (`lockRef`, `residentRef`, `callerRef`, `verifRef`, `opRef`) are executed strictly before any write, preventing Firestore transaction read-after-write errors.
+  3. **Linked Verification Recovery Invariant**:
+     - Linked verification is reset to `status: "pending"` with `processingOperationId: null` and `processingAttemptId: null`. Reconciling email synchronization alone never approves verification.
+  4. **Durable Failure Handling**:
+     - If finalization fails or caller permission is revoked during reconciliation, the lock is transitioned to `reconciliation-required` with the exact error message, never silently released or permanently stranded in `reconciling`.
+  5. **Cloudinary Protected Media Delivery**:
+     - Verified live against Cloudinary `gmseg91m` using a dedicated disposable asset: unsigned access returns 401, signed access returns 200, query `exp` parameter is not validated by standard HMAC signatures, and `generateSignedDeliveryUrl` returning `expiresAt: null` is verified accurate.
+- **Consequences**: Complete multi-writer safety, zero read-after-write transaction errors across all reconciliation actions, safe and actionable operator recovery, and verified protected media delivery.
+
+

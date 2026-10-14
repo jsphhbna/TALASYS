@@ -175,8 +175,8 @@ test("repaired coordinator prevents Attempt B takeover while Attempt A is unreso
 
   const depsB: IdentityEmailDependencies = {
     async claim() {
-      // Repaired boundary: cannot claim while resident lock is active or compensating
-      if (residentLock && ["claimed", "auth-mutating", "auth-completed", "compensating"].includes(residentLock.status)) {
+      // Repaired boundary: cannot claim while resident lock is active, compensating, or reconciling
+      if (residentLock && ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciling"].includes(residentLock.status)) {
         return { outcome: "conflict" }
       }
       return { outcome: "claimed" }

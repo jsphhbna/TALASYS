@@ -11,7 +11,7 @@ export interface ApprovalOperation {
   oldEmail?: string
   newEmail?: string
   profileUpdates: Record<string, unknown>
-  status: "claimed" | "auth-pending" | "auth-mutating" | "auth-completed" | "compensating" | "compensated" | "reconciliation-required" | "completed"
+  status: "claimed" | "auth-pending" | "auth-mutating" | "auth-completed" | "auth-failed" | "compensating" | "compensated" | "reconciling" | "reconciliation-required" | "completed"
 }
 
 export interface ApprovalCoordinatorDependencies {

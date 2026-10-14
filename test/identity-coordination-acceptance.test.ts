@@ -66,7 +66,7 @@ test("Approval and general email editing race on the same resident", async () =>
 
   // Shared resident lock boundary
   function claimResidentLock(operationId: string, attemptId: string) {
-    if (residentLock && ["claimed", "auth-mutating", "auth-completed", "compensating"].includes(residentLock.status)) {
+    if (residentLock && ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciling"].includes(residentLock.status)) {
       if (residentLock.operationId !== operationId) return { outcome: "conflict" as const }
     }
     residentLock = { operationId, attemptId, status: "claimed" }
@@ -174,7 +174,7 @@ test("Approval and general email editing race on the same resident", async () =>
 })
 
 test("Two retries race on the same operation: all active stages reject competing attempt", async () => {
-  const activeStages = ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"]
+  const activeStages = ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciling", "reconciliation-required"]
   const currentAttempt = "attempt-1"
 
   for (const stage of activeStages) {
@@ -182,7 +182,7 @@ test("Two retries race on the same operation: all active stages reject competing
 
     const deps: IdentityEmailDependencies = {
       async claim({ attemptId }) {
-        if (["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"].includes(lockStatus)) {
+        if (["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciling", "reconciliation-required"].includes(lockStatus)) {
           if (lockStatus === "reconciliation-required") {
             throw Object.assign(new Error("Identity operation requires reconciliation"), { status: 409, requiresReconciliation: true })
           }

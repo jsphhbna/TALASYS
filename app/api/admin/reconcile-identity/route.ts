@@ -29,6 +29,9 @@ export function createReconcileIdentityHandler(injected?: { auth?: typeof adminA
         actorUid: decoded.uid,
         actorName: body.actorName,
         notes: typeof body.notes === "string" ? body.notes : undefined,
+        expectedOperationId: typeof body.expectedOperationId === "string" ? body.expectedOperationId : undefined,
+        expectedAttemptId: typeof body.expectedAttemptId === "string" ? body.expectedAttemptId : undefined,
+        forceRecover: Boolean(body.forceRecover),
         ipAddress: extractClientIp(req),
       })
       return NextResponse.json(result)
