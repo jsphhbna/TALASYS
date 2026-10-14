@@ -62,7 +62,7 @@ Status vocabulary: `IN PROGRESS`, `IMPLEMENTED - NOT VERIFIED`, `VERIFIED`,
 - **Base Commit**: `afae47d31c2072b300177679884238f10cf65e32`
 - **Tech Stack**: Next.js 16 (App Router), React 19, Firebase Auth & Firestore, Cloudinary Media, Tailwind CSS.
 - **Scope**: Complete remediation of 61 identified findings across Super Admin, Admin, and Resident portals.
-- **Branch**: `remediation/61-findings`
+- **Working branch**: `main` (updated by the 2026-10-14 branch workflow override)
 
 ---
 

@@ -1,164 +1,129 @@
-import { NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
-import { isSuperAdminRole, isFullAdminRole } from "@/lib/auth/auth-types"
-import { extractClientIp } from "@/lib/security/request-ip"
-import { COLLECTION_ACTIVITY_LOGS } from "@/lib/constants"
+import { randomUUID } from "node:crypto"
+import { NextResponse } from "next/server.js"
+import { adminAuth, adminDb } from "../../../../lib/firebase-admin.ts"
+import { isFullAdminRole, isSuperAdminRole } from "../../../../lib/auth/auth-types.ts"
+import { coordinateIdentityEmailUpdate, type IdentityEmailDependencies, type IdentityEmailOperation, type IdentityEmailStatus } from "../../../../lib/admin/identity-email-operation.ts"
+import { extractClientIp } from "../../../../lib/security/request-ip.ts"
+import { COLLECTION_ACTIVITY_LOGS, COLLECTION_USERS } from "../../../../lib/constants.ts"
 
-export async function POST(req: Request) {
-  try {
-    // Fail closed if Firebase Admin is not configured on the server
-    if (!adminAuth || !adminDb) {
-      return NextResponse.json(
-        { error: "Server authentication service is unavailable. Missing Firebase Admin configuration." },
-        { status: 503 }
-      )
+const PROFILE_FIELDS = new Set(["name", "dateOfBirth", "contactNumber", "address", "statuses", "profilePicture"])
+
+function cleanProfileUpdates(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  const entries = Object.entries(value as Record<string, unknown>)
+  if (entries.some(([key]) => !PROFILE_FIELDS.has(key))) throw Object.assign(new Error("Resident update contains a server-managed or unsupported field."), { status: 400 })
+  return Object.fromEntries(entries.filter(([, fieldValue]) => fieldValue !== undefined))
+}
+
+async function changeOwnedState(db: any, operation: IdentityEmailOperation, status: IdentityEmailStatus, message: string, now: number, releaseLock: boolean) {
+  await db.runTransaction(async (transaction: any) => {
+    const operationRef = db.collection("identityOperations").doc(operation.id)
+    const lockRef = db.collection("identityOperationLocks").doc(operation.residentId)
+    const [operationSnapshot, lockSnapshot] = await Promise.all([transaction.get(operationRef), transaction.get(lockRef)])
+    if (operationSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.operationId !== operation.id) {
+      throw Object.assign(new Error("Stale identity attempt cannot change operation state."), { status: 409 })
     }
+    transaction.update(operationRef, { status, error: message, leaseUntil: 0, updatedAt: now })
+    if (releaseLock) transaction.set(lockRef, { operationId: operation.id, attemptId: operation.attemptId, status, leaseUntil: 0, updatedAt: now })
+  })
+}
 
-    const authHeader = req.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Missing or invalid authorization token" }, { status: 401 })
-    }
-
-    const token = authHeader.replace("Bearer ", "").trim()
-
-    // Verify token with checkRevoked=true to reject locked or revoked sessions (#30)
-    let decodedToken
-    try {
-      decodedToken = await adminAuth.verifyIdToken(token, true)
-    } catch (authErr: any) {
-      return NextResponse.json({ error: "Session invalid or expired. Please sign in again." }, { status: 401 })
-    }
-
-    const callerUid = decodedToken.uid
-
-    // Read current role and account status authoritatively from Firestore `users` collection (#28, #30)
-    const callerDoc = await adminDb.collection("users").doc(callerUid).get()
-    if (!callerDoc.exists) {
-      return NextResponse.json({ error: "Caller account record not found" }, { status: 403 })
-    }
-
-    const callerData = callerDoc.data() || {}
-    const callerRole = callerData.role as string | undefined
-    const callerStatus = callerData.status as string | undefined
-
-    // Reject locked, deleted, or disabled callers
-    if (callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident") {
-      return NextResponse.json({ error: "Account is locked or inactive. Operation forbidden." }, { status: 403 })
-    }
-
-    const body = await req.json().catch(() => ({}))
-    const { residentId, newEmail, verificationId } = body
-
-    if (!residentId || typeof residentId !== "string" || !newEmail || typeof newEmail !== "string" || !newEmail.includes("@")) {
-      return NextResponse.json({ error: "Invalid resident ID or email address parameter" }, { status: 400 })
-    }
-
-    const normalizedNewEmail = newEmail.trim().toLowerCase()
-
-    // Authorization checks by role
-    const isSuper = isSuperAdminRole(callerRole)
-    const isFull = isFullAdminRole(callerRole)
-    const isResidentMgmt = callerRole === "Resident Management"
-    const isVerificationAdmin = callerRole === "Verification Only" || callerRole === "Verifications"
-
-    // View Only, Document Processing, and unauthorized roles must NEVER modify identities
-    if (!isSuper && !isFull && !isResidentMgmt && !isVerificationAdmin) {
-      return NextResponse.json({ error: "Unauthorized: Your role does not have permission to modify resident identities." }, { status: 403 })
-    }
-
-    // Verification Only admins can ONLY change email as part of an authorized pending profile-edit verification review
-    if (isVerificationAdmin && !isSuper && !isFull && !isResidentMgmt) {
-      if (!verificationId) {
-        return NextResponse.json({ 
-          error: "Verification administrators may only modify emails as part of an approved pending profile edit review." 
-        }, { status: 403 })
-      }
-
-      const verifDoc = await adminDb.collection("verifications").doc(verificationId).get()
-      if (!verifDoc.exists) {
-        return NextResponse.json({ error: "Associated verification record not found." }, { status: 404 })
-      }
-
-      const verifData = verifDoc.data() || {}
-      if (verifData.residentId !== residentId || verifData.type !== "profile-edit" || verifData.status !== "pending") {
-        return NextResponse.json({ 
-          error: "Verification record does not match a pending profile edit for this resident." 
-        }, { status: 403 })
-      }
-
-      // Check that the verification changes actually include this email change
-      const requestedEmailChange = Array.isArray(verifData.changes) && verifData.changes.some(
-        (c: any) => c.field === "Email Address" && (c.newValue || "").trim().toLowerCase() === normalizedNewEmail
-      )
-      if (!requestedEmailChange) {
-        return NextResponse.json({ 
-          error: "The requested email does not match the pending verification submission." 
-        }, { status: 403 })
-      }
-    }
-
-    // Verify target exists and is strictly a resident (never modify privileged accounts)
-    const targetDoc = await adminDb.collection("users").doc(residentId).get()
-    if (!targetDoc.exists) {
-      return NextResponse.json({ error: "Target resident record not found." }, { status: 404 })
-    }
-
-    const targetData = targetDoc.data() || {}
-    if (targetData.role !== "resident") {
-      return NextResponse.json({ error: "Forbidden: Target account is not a resident. Cannot modify privileged accounts." }, { status: 403 })
-    }
-
-    const oldEmail = targetData.email || "unknown"
-    if (oldEmail.toLowerCase() === normalizedNewEmail) {
-      return NextResponse.json({ error: "New email address must be different from current email." }, { status: 400 })
-    }
-
-    // 1. Update Firebase Auth identity email
-    await adminAuth.updateUser(residentId, { email: normalizedNewEmail })
-
-    // 2. Update Firestore user document
-    await adminDb.collection("users").doc(residentId).update({
-      email: normalizedNewEmail,
-      updatedAt: Date.now()
-    })
-
-    // 3. Create server-authored audit record with authenticated actor identity and trusted request IP
-    const clientIp = extractClientIp(req)
-    const now = Date.now()
-    const manilaDate = new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "Asia/Manila"
-    }).format(new Date(now))
-
-    await adminDb.collection(COLLECTION_ACTIVITY_LOGS).add({
-      actor: {
-        id: callerUid,
-        name: callerData.name || "Administrator",
-        email: callerData.email || decodedToken.email || "unknown",
-        role: callerRole
-      },
-      action: "Updated Resident Email",
-      actionType: "Resident Edit",
-      targetId: residentId,
-      targetName: targetData.name || "Resident",
-      details: `Email changed from ${oldEmail} to ${normalizedNewEmail}`,
-      ipAddress: clientIp,
-      timestamp: now,
-      date: manilaDate,
-      createdAt: now
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: "Email synchronized in both Firebase Auth and Firestore successfully"
-    })
-  } catch (error: any) {
-    console.error("Failed to update resident email:", error)
-    if (error.code === "auth/email-already-in-use") {
-      return NextResponse.json({ error: "Email address is already in use by another account" }, { status: 400 })
-    }
-    return NextResponse.json({ error: error.message || "Failed to synchronize email" }, { status: 500 })
+export function createIdentityEmailDependencies(): IdentityEmailDependencies {
+  if (!adminDb || !adminAuth) throw Object.assign(new Error("Server authentication service unavailable"), { status: 503 })
+  return {
+    async claim({ operationId, residentId, newEmail, profileUpdates, actorUid, attemptId, ipAddress, now }) {
+      return adminDb.runTransaction(async (transaction: any) => {
+        const callerRef = adminDb.collection(COLLECTION_USERS).doc(actorUid)
+        const residentRef = adminDb.collection(COLLECTION_USERS).doc(residentId)
+        const operationRef = adminDb.collection("identityOperations").doc(operationId)
+        const lockRef = adminDb.collection("identityOperationLocks").doc(residentId)
+        const [callerSnapshot, residentSnapshot, operationSnapshot, lockSnapshot] = await Promise.all([
+          transaction.get(callerRef), transaction.get(residentRef), transaction.get(operationRef), transaction.get(lockRef),
+        ])
+        if (!callerSnapshot.exists) throw Object.assign(new Error("Caller account record not found"), { status: 403 })
+        const caller = callerSnapshot.data() || {}
+        const authorized = isSuperAdminRole(caller.role) || isFullAdminRole(caller.role) || caller.role === "Resident Management"
+        if (!authorized || ["Locked", "Deleted", "Deleted by Resident"].includes(caller.status)) throw Object.assign(new Error("Caller is not authorized to modify resident identities."), { status: 403 })
+        if (!residentSnapshot.exists || residentSnapshot.data()?.role !== "resident") throw Object.assign(new Error("Target resident record not found."), { status: 404 })
+        const existing = operationSnapshot.exists ? operationSnapshot.data() : null
+        if (existing?.status === "completed") {
+          if (existing.residentId !== residentId || existing.newEmail !== newEmail) throw Object.assign(new Error("Operation ID was already used for different input."), { status: 409 })
+          return { outcome: "completed" as const }
+        }
+        const lock = lockSnapshot.exists ? lockSnapshot.data() : null
+        if (lock?.leaseUntil > now && (lock.operationId !== operationId || lock.attemptId !== attemptId)) return { outcome: "conflict" as const }
+        const oldEmail = String(existing?.oldEmail || residentSnapshot.data()?.email || "").trim().toLowerCase()
+        if (!oldEmail) throw Object.assign(new Error("Target resident has no authoritative email."), { status: 409 })
+        if (existing && (existing.residentId !== residentId || existing.newEmail !== newEmail || JSON.stringify(existing.profileUpdates || {}) !== JSON.stringify(profileUpdates))) throw Object.assign(new Error("Operation ID was already used for different input."), { status: 409 })
+        const operation: IdentityEmailOperation = { id: operationId, residentId, actorUid, actorName: caller.name || "Administrator", attemptId, oldEmail, newEmail, profileUpdates, status: "auth-pending" }
+        transaction.set(operationRef, { ...operation, ipAddress, leaseUntil: now + 120_000, createdAt: existing?.createdAt || now, updatedAt: now })
+        transaction.set(lockRef, { operationId, attemptId, status: "auth-pending", leaseUntil: now + 120_000, updatedAt: now })
+        return { outcome: "claimed" as const, operation }
+      })
+    },
+    async getAuthEmail(uid) { return (await adminAuth.getUser(uid)).email },
+    async updateAuthEmail(uid, email) { await adminAuth.updateUser(uid, { email }) },
+    async owns(operation) {
+      const [operationSnapshot, lockSnapshot] = await Promise.all([
+        adminDb.collection("identityOperations").doc(operation.id).get(),
+        adminDb.collection("identityOperationLocks").doc(operation.residentId).get(),
+      ])
+      return operationSnapshot.data()?.attemptId === operation.attemptId && lockSnapshot.data()?.attemptId === operation.attemptId && lockSnapshot.data()?.operationId === operation.id
+    },
+    async complete(operation, now) {
+      await adminDb.runTransaction(async (transaction: any) => {
+        const operationRef = adminDb.collection("identityOperations").doc(operation.id)
+        const lockRef = adminDb.collection("identityOperationLocks").doc(operation.residentId)
+        const residentRef = adminDb.collection(COLLECTION_USERS).doc(operation.residentId)
+        const [operationSnapshot, lockSnapshot, residentSnapshot] = await Promise.all([
+          transaction.get(operationRef), transaction.get(lockRef), transaction.get(residentRef),
+        ])
+        const stored = operationSnapshot.data()
+        if (stored?.status === "completed" && stored?.attemptId === operation.attemptId) return
+        if (stored?.attemptId !== operation.attemptId || lockSnapshot.data()?.attemptId !== operation.attemptId || lockSnapshot.data()?.operationId !== operation.id) throw Object.assign(new Error("Identity operation fence changed."), { status: 409 })
+        if (!residentSnapshot.exists || residentSnapshot.data()?.role !== "resident") throw new Error("Resident disappeared during identity update.")
+        const currentEmail = String(residentSnapshot.data()?.email || "").trim().toLowerCase()
+        if (currentEmail !== operation.oldEmail && currentEmail !== operation.newEmail) throw Object.assign(new Error("Resident email changed during identity update."), { status: 409 })
+        transaction.update(residentRef, { ...operation.profileUpdates, email: operation.newEmail, updatedAt: now })
+        transaction.set(adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(`resident-identity-${operation.id}`), {
+          actor: { id: operation.actorUid, name: operation.actorName }, action: "Updated Resident Identity", actionType: "Resident Edit",
+          targetId: operation.residentId, targetCollection: COLLECTION_USERS, before: { email: operation.oldEmail }, after: { email: operation.newEmail, changedFields: Object.keys(operation.profileUpdates) },
+          operationId: operation.id, ipAddress: stored?.ipAddress || "Unknown", timestamp: now, createdAt: now,
+        })
+        transaction.update(operationRef, { status: "completed", completedAt: now, leaseUntil: 0, updatedAt: now })
+        transaction.set(lockRef, { operationId: operation.id, attemptId: operation.attemptId, status: "completed", leaseUntil: 0, updatedAt: now })
+      })
+    },
+    async authFailed(operation, message, now) { await changeOwnedState(adminDb, operation, "auth-failed", message, now, true) },
+    async compensated(operation, message, now) { await changeOwnedState(adminDb, operation, "compensated", message, now, true) },
+    async reconciliationRequired(operation, message, now) { await changeOwnedState(adminDb, operation, "reconciliation-required", message, now, false) },
   }
 }
+
+export function createUpdateResidentEmailHandler(injected?: { auth?: typeof adminAuth; dependencies?: IdentityEmailDependencies; uuid?: () => string }) {
+  return async function POST(req: Request) {
+    try {
+      const auth = injected?.auth || adminAuth
+      if (!auth) return NextResponse.json({ error: "Server authentication service unavailable" }, { status: 503 })
+      const header = req.headers.get("authorization")
+      if (!header?.startsWith("Bearer ")) return NextResponse.json({ error: "Missing authorization token" }, { status: 401 })
+      let decoded: any
+      try { decoded = await auth.verifyIdToken(header.slice(7), true) } catch { return NextResponse.json({ error: "Session invalid or expired" }, { status: 401 }) }
+      const body = await req.json().catch(() => ({}))
+      const residentId = typeof body.residentId === "string" ? body.residentId.trim() : ""
+      const newEmail = typeof body.newEmail === "string" ? body.newEmail.trim().toLowerCase() : ""
+      if (!residentId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return NextResponse.json({ error: "Valid residentId and newEmail are required" }, { status: 400 })
+      const operationId = typeof body.operationId === "string" && body.operationId ? body.operationId : (injected?.uuid || randomUUID)()
+      const attemptId = typeof body.attemptId === "string" && body.attemptId ? body.attemptId : (injected?.uuid || randomUUID)()
+      const result = await coordinateIdentityEmailUpdate(injected?.dependencies || createIdentityEmailDependencies(), {
+        operationId, residentId, newEmail, profileUpdates: cleanProfileUpdates(body.profileUpdates), actorUid: decoded.uid, attemptId, ipAddress: extractClientIp(req),
+      })
+      return NextResponse.json({ success: true, operationId, ...result })
+    } catch (error: any) {
+      const status = error?.code === "auth/email-already-exists" || error?.code === "auth/email-already-in-use" ? 400 : error?.status || 500
+      return NextResponse.json({ error: error?.message || "Identity update failed", operationIncomplete: status === 503 }, { status })
+    }
+  }
+}
+
+export const POST = createUpdateResidentEmailHandler()

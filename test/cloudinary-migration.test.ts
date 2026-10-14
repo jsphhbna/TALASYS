@@ -92,4 +92,54 @@ test("verification failure prevents false success and remains resumable", async 
     firestore: { projectId: "fixture-project", scan: async () => [], updateReferences: async () => {} },
   }), /failed assets/)
   assert.equal(Object.values(state.entries)[0].status, "firestore-updated")
+  assert.equal(Object.values(state.entries)[0].failure?.stage, "firestore-updated")
+})
+
+test("intent is saved before provider mutation and an authenticated provider state resumes without rename", async () => {
+  const plan = planCloudinaryMigration([{ collection: "documentRequests", id: "r", data: { gcashScreenshotUrl: image } }], cloud)
+  const state = manifest()
+  let renameCalls = 0
+  let firstSaveStatus = ""
+  const result = await executeCloudinaryMigration({
+    plan, commit: true, manifest: state,
+    saveManifest: async value => { if (!firstSaveStatus) firstSaveStatus = value.entries[plan.assets[0].key].status },
+    cloudinary: {
+      resolve: async () => ({ state: "authenticated", protectedUrl: image.replace("/upload/", "/authenticated/") }),
+      renameToAuthenticated: async () => { renameCalls++; return { protectedUrl: "" } },
+      verify: async asset => ({ authenticatedExists: true, authorizedDeliveryWorks: true, originals: asset.references.map(reference => ({ url: reference.originalUrl, status: "unavailable" })) }),
+    },
+    firestore: { projectId: "fixture-project", scan: async () => [], updateReferences: async () => {} },
+  })
+  assert.equal(firstSaveStatus, "intent-recorded")
+  assert.equal(renameCalls, 0)
+  assert.equal(result.verified, 1)
+})
+
+test("manifest-only provider checkpoint resumes even when a fresh scan no longer finds the original URL", async () => {
+  const scanned = planCloudinaryMigration([{ collection: "documentRequests", id: "r", data: { gcashScreenshotUrl: image } }], cloud)
+  const asset = scanned.assets[0]
+  const state = manifest()
+  state.entries[asset.key] = { ...asset, protectedUrl: image.replace("/upload/", "/authenticated/"), status: "provider-completed" }
+  let updates = 0
+  const result = await executeCloudinaryMigration({
+    plan: { assets: [], rejected: [] }, commit: true, manifest: state,
+    cloudinary: { renameToAuthenticated: async () => { throw new Error("must not rename") }, verify: async () => ({ authenticatedExists: true, oldPublicUnavailable: true }) },
+    firestore: { projectId: "fixture-project", scan: async () => [], updateReferences: async () => { updates++ } },
+  })
+  assert.equal(updates, 1)
+  assert.equal(result.verified, 1)
+})
+
+test("ambiguous public verification is blocking rather than treated as unavailable", async () => {
+  const plan = planCloudinaryMigration([{ collection: "documentRequests", id: "r", data: { gcashScreenshotUrl: image } }], cloud)
+  const state = manifest()
+  await assert.rejects(executeCloudinaryMigration({
+    plan, commit: true, manifest: state,
+    cloudinary: {
+      renameToAuthenticated: async () => ({ protectedUrl: image.replace("/upload/", "/authenticated/") }),
+      verify: async asset => ({ authenticatedExists: true, authorizedDeliveryWorks: true, originals: asset.references.map(reference => ({ url: reference.originalUrl, status: "ambiguous", httpStatus: 503 })) }),
+    },
+    firestore: { projectId: "fixture-project", scan: async () => [], updateReferences: async () => {} },
+  }), /failed assets/)
+  assert.equal(Object.values(state.entries)[0].status, "firestore-updated")
 })

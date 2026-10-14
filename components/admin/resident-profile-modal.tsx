@@ -108,7 +108,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
     setRemovePhotoReason("")
   }
 
-  const canEdit = userRole === "SuperAdmin" || userRole === "Super Admin" || userRole === "Full Access" || userRole === "admin"
+  const canEdit = userRole === "SuperAdmin" || userRole === "Super Admin" || userRole === "Full Access" || userRole === "admin" || userRole === "Resident Management"
 
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose}>

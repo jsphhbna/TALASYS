@@ -3,9 +3,9 @@ import assert from "node:assert/strict"
 import { createApproveVerificationHandler } from "../app/api/admin/verifications/approve/route.ts"
 import type { ApprovalCoordinatorDependencies } from "../lib/admin/verification-approval.ts"
 
-const operation = { id: "v", verificationId: "v", residentId: "r", verificationType: "registration" as const, actorUid: "admin", actorName: "Admin", profileUpdates: {}, status: "auth-pending" as const }
+const operation = { id: "v", verificationId: "v", residentId: "r", verificationType: "registration" as const, actorUid: "admin", actorName: "Admin", attemptId: "a", profileUpdates: {}, status: "auth-pending" as const }
 function dependencies(claim: ApprovalCoordinatorDependencies["claim"]): ApprovalCoordinatorDependencies {
-  return { claim, getAuthEmail: async () => undefined, updateAuthEmail: async () => {}, complete: async () => {}, authFailed: async () => {}, reconciliationRequired: async () => {}, compensated: async () => {} }
+  return { claim, getAuthEmail: async () => undefined, updateAuthEmail: async () => {}, owns: async () => true, complete: async () => {}, authFailed: async () => {}, reconciliationRequired: async () => {}, compensated: async () => {} }
 }
 const auth: any = { verifyIdToken: async (token: string, revoked: boolean) => { assert.equal(revoked, true); if (token === "bad") throw new Error("bad"); return { uid: "admin" } } }
 

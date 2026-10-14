@@ -7,6 +7,7 @@ export interface ApprovalOperation {
   verificationType: VerificationType
   actorUid: string
   actorName: string
+  attemptId: string
   oldEmail?: string
   newEmail?: string
   profileUpdates: Record<string, unknown>
@@ -17,6 +18,7 @@ export interface ApprovalCoordinatorDependencies {
   claim(input: { verificationId: string; actorUid: string; attemptId: string; ipAddress: string; now: number }): Promise<{ outcome: "claimed" | "completed" | "conflict"; operation?: ApprovalOperation }>
   getAuthEmail(uid: string): Promise<string | undefined>
   updateAuthEmail(uid: string, email: string): Promise<void>
+  owns(operation: ApprovalOperation): Promise<boolean>
   complete(operation: ApprovalOperation, now: number): Promise<void>
   authFailed(operation: ApprovalOperation, message: string, now: number): Promise<void>
   reconciliationRequired(operation: ApprovalOperation, message: string, now: number): Promise<void>
@@ -49,11 +51,18 @@ export async function coordinateVerificationApproval(deps: ApprovalCoordinatorDe
   } catch (error) {
     if (authChanged && operation.oldEmail) {
       try {
+        if (!await deps.owns(operation)) {
+          throw Object.assign(new Error("Approval ownership changed; stale attempt will not compensate Firebase Auth."), { status: 409 })
+        }
+        const current = (await deps.getAuthEmail(operation.residentId))?.toLowerCase()
+        if (current !== operation.newEmail?.toLowerCase()) {
+          throw Object.assign(new Error("Firebase Auth identity changed after this attempt; automatic compensation is unsafe."), { status: 409 })
+        }
         await deps.updateAuthEmail(operation.residentId, operation.oldEmail)
         await deps.compensated(operation, error instanceof Error ? error.message : String(error), now)
         throw Object.assign(new Error("Approval storage failed; Auth email was restored. Retry the approval."), { status: 503, cause: error })
       } catch (compensationError: any) {
-        if (compensationError?.status === 503) throw compensationError
+        if (compensationError?.status === 503 || compensationError?.status === 409) throw compensationError
         await deps.reconciliationRequired(operation, compensationError instanceof Error ? compensationError.message : String(compensationError), now)
         throw Object.assign(new Error("Approval is incomplete and requires reconciliation before retry."), { status: 503, cause: compensationError })
       }

@@ -1,9 +1,27 @@
 # TALASYS Project State
 
-- **Date**: 13 October 2026
-- **Current Branch**: `remediation/61-findings`
+- **Date**: 14 October 2026
+- **Current Branch**: `main`
 - **Head Commit**: `[Branch Head]`
-- **Status**: **Reopened Remediation Independent Review Pass Completed & Verified (10/10 Core Areas Repaired)**
+- **Status**: **Remaining consistency and migration repair pass verified locally; production/provider operations pending**
+
+## 14 October consistency and migration repair
+
+- Direct client approval and privileged mutation bypasses are denied by rules;
+  typed server operations now couple supported privileged mutations with
+  server-derived audit records.
+- Resident email synchronization and verification approval use durable,
+  idempotent, fenced cross-service operation state with compensation and
+  reconciliation handling.
+- Cloudinary migration ordering, concurrent-reference validation, stage-aware
+  recovery, manifest-only resume, metadata checks, bounded access verification,
+  and ambiguous-response blocking are implemented.
+- Auth/Firestore emulator-backed browser coverage now exercises real identities,
+  role restrictions, locked/deleted sessions, live role changes, approval,
+  rejection, and resident deactivation.
+- Current evidence: 124/124 unit/integration tests, 9/9 emulator tests, 12/12
+  authenticated browser workflows, app/test type checks, quiet lint, and a
+  46-route Next.js build all pass locally.
 
 ## Milestone Status Overview
 - [x] **Milestone A**: Baseline & Reproduction Harness (Mapped 61 items, established test runner and issue register)

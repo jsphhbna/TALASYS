@@ -28,6 +28,8 @@ before(async () => {
       ["viewer", { role: "View Only", status: "Active" }],
       ["verifier", { role: "Verification Only", status: "Active" }],
       ["processor", { role: "Document Processing", status: "Active" }],
+      ["resident-manager", { role: "Resident Management", status: "Active" }],
+      ["full-admin", { role: "Full Access", status: "Active" }],
     ] as const
     for (const [id, data] of users) await setDoc(doc(db, "users", id), data)
     await setDoc(doc(db, "verifications", "pending"), {
@@ -70,12 +72,28 @@ test("resident direct request creation and forged fee fields are denied", async 
 
 test("specialized roles are limited to their assigned mutation scope", async () => {
   const verifierDb = environment.authenticatedContext("verifier").firestore()
-  await assertSucceeds(updateDoc(doc(verifierDb, "verifications", "pending"), { status: "approved" }))
+  await assertFails(updateDoc(doc(verifierDb, "verifications", "pending"), { status: "approved" }))
   await assertFails(updateDoc(doc(verifierDb, "documentRequests", "existing"), { status: "Approved" }))
 
   const processorDb = environment.authenticatedContext("processor").firestore()
-  await assertSucceeds(updateDoc(doc(processorDb, "documentRequests", "existing"), { status: "Approved" }))
+  await assertFails(updateDoc(doc(processorDb, "documentRequests", "existing"), { status: "Approved" }))
   await assertFails(updateDoc(doc(processorDb, "verifications", "pending"), { status: "rejected" }))
+})
+
+test("approval and resident server-managed fields cannot be bypassed by any admin client", async () => {
+  for (const uid of ["verifier", "resident-manager", "full-admin"]) {
+    const db = environment.authenticatedContext(uid).firestore()
+    await assertFails(updateDoc(doc(db, "users", "resident"), { isVerified: true, status: "Active" }))
+    await assertFails(updateDoc(doc(db, "users", "resident"), { email: `${uid}@example.test` }))
+    await assertFails(updateDoc(doc(db, "verifications", "pending"), { status: "approved", approvedBy: uid }))
+  }
+})
+
+test("resident retains only explicit self-service profile and request transitions", async () => {
+  const db = environment.authenticatedContext("resident").firestore()
+  await assertSucceeds(updateDoc(doc(db, "users", "resident"), { contactNumber: "09170000000" }))
+  await assertFails(updateDoc(doc(db, "users", "resident"), { email: "forged@example.test" }))
+  await assertSucceeds(updateDoc(doc(db, "documentRequests", "existing"), { status: "Cancelled", cancelledAt: 1, statusTimestamps: { Cancelled: 1 } }))
 })
 
 test("clients cannot write authoritative audit evidence or telemetry", async () => {

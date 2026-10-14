@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { db, auth } from "@/lib/firebase"
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, limit, writeBatch } from "firebase/firestore"
-import { recordServerAudit } from "@/lib/audit/server-audit"
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, limit } from "firebase/firestore"
+import { callAdminOperation, updateResidentIdentity } from "@/lib/admin/client-operation"
 import type {
     AdminResident,
     PendingVerification,
@@ -213,98 +213,20 @@ export function useAdminData() {
             throw new Error("Residents cannot be added manually. They must register through the resident portal to maintain data integrity.")
         }, []),
         updateResident: useCallback(async (id: string, updates: Partial<AdminResident>, adminName?: string, residentName?: string, removePhotoReason?: string) => {
-            // If email is being updated, synchronize with Firebase Auth FIRST (#44, #61)
-            // Propagate failures; do not update Firestore if Auth synchronization fails!
-            if (updates.email) {
-                const token = await auth.currentUser?.getIdToken()
-                if (!token) throw new Error("Active session token required to update resident identity.")
-                const emailRes = await fetch("/api/admin/update-resident-email", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                    body: JSON.stringify({ residentId: id, newEmail: updates.email })
-                })
-                if (!emailRes.ok) {
-                    const errBody = await emailRes.json().catch(() => ({}))
-                    throw new Error(errBody.error || "Failed to synchronize email with Auth service. Operation aborted.")
-                }
-            }
-
-            // Atomic batch for resident profile updates and notification (#61)
-            const batch = writeBatch(db)
-            const now = Date.now()
-            const userRef = doc(db, COLLECTION_USERS, id)
-            batch.update(userRef, { ...updates, updatedAt: now })
-
-            if (removePhotoReason) {
-                const notifRef = doc(collection(db, COLLECTION_NOTIFICATIONS))
-                batch.set(notifRef, {
-                    targetId: id,
-                    type: "warning",
-                    title: "Profile Picture Removed",
-                    message: `Your profile picture was removed by an administrator. Reason: ${removePhotoReason}`,
-                    timestamp: "Just now",
-                    isRead: false,
-                    createdAt: now
-                })
-            }
-
-            await batch.commit()
-
-            if (adminName && residentName) {
-                let auditDetails = `Edited profile information for ${residentName}`
-                if (removePhotoReason) {
-                    auditDetails += `. Removed profile picture. Reason: ${removePhotoReason}`
-                }
-                await recordServerAudit({
-                    action: "Edited Resident",
-                    actionType: "Edited Resident",
-                    details: auditDetails,
-                    targetId: id,
-                    targetName: residentName,
-                    targetCollection: "residents"
-                })
-            }
+            const { email, id: _id, role: _role, status: _status, isVerified: _verified, ...profileUpdates } = updates as any
+            if (email) await updateResidentIdentity(id, email, profileUpdates)
+            else await callAdminOperation("resident.update", { targetId: id, payload: { updates: profileUpdates, removePhotoReason } })
         }, []),
         deleteResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
             // Soft-delete instead of physical delete: Firebase Auth would let the user log back in
             // and auto-recreate a blank profile if the Firestore document were physically removed.
-            await updateDoc(doc(db, COLLECTION_USERS, id), { role: "Deleted" })
-            if (adminName && residentName) {
-                await recordServerAudit({
-                    action: "Deleted Resident",
-                    actionType: "Deleted Resident",
-                    details: `Deleted resident account for ${residentName}`,
-                    targetId: id,
-                    targetName: residentName,
-                    targetCollection: "residents"
-                })
-            }
+            await callAdminOperation("resident.delete", { targetId: id })
         }, []),
         deactivateResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
-            await updateDoc(doc(db, COLLECTION_USERS, id), { status: "Expired" })
-            if (adminName && residentName) {
-                await recordServerAudit({
-                    action: "Deactivated Resident",
-                    actionType: "Deactivated Resident",
-                    details: `Deactivated account for ${residentName}`,
-                    targetId: id,
-                    targetName: residentName,
-                    targetCollection: "residents"
-                })
-            }
+            await callAdminOperation("resident.deactivate", { targetId: id })
         }, []),
         activateResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
-            await updateDoc(doc(db, COLLECTION_USERS, id), { status: "Active" })
-            if (adminName && residentName) {
-                await recordServerAudit({
-                    action: "Activated Resident",
-                    actionType: "Activated Resident",
-                    details: `Re-activated account for ${residentName}`,
-                    targetId: id,
-                    targetName: residentName,
-                    targetCollection: "residents"
-                })
-            }
+            await callAdminOperation("resident.activate", { targetId: id })
         }, []),
 
         // Verifications
@@ -331,52 +253,7 @@ export function useAdminData() {
             if (!reason || reason.trim().length < 10) {
                 throw new Error("Rejection requires a reason of at least 10 characters.")
             }
-            const verification = verifications.find(ver => ver.id === id)
-            if (!verification) {
-                throw new Error("Verification record not found.")
-            }
-            if (verification.status !== "pending") {
-                throw new Error("This verification request has already been processed or is no longer pending.")
-            }
-
-            // Atomic batch for rejection status update and notification (#61)
-            const batch = writeBatch(db)
-            const now = Date.now()
-
-            const verifRef = doc(db, COLLECTION_VERIFICATIONS, id)
-            batch.update(verifRef, {
-                status: "rejected",
-                rejectionReason: reason.trim(),
-                rejectedAt: now,
-                rejectedBy: adminName || "Admin"
-            })
-
-            if (verification.residentId) {
-                const notifRef = doc(collection(db, COLLECTION_NOTIFICATIONS))
-                batch.set(notifRef, {
-                    targetId: verification.residentId,
-                    type: "error",
-                    title: "Verification Rejected",
-                    message: `Your verification was rejected: ${reason}`,
-                    timestamp: "Just now",
-                    isRead: false,
-                    createdAt: now
-                })
-            }
-
-            await batch.commit()
-
-            if (adminName && verification.residentId) {
-                const actionName = verification.type === "profile-edit" ? "Rejected Profile Edit" : (verification.type === "reactivation" ? "Rejected Reactivation" : "Rejected Verification")
-                await recordServerAudit({
-                    action: actionName,
-                    actionType: "rejected",
-                    details: `Rejected ${verification.type} for Resident ID ${verification.residentId}. Reason: ${reason}`,
-                    targetId: verification.residentId,
-                    targetName: (verification as any).name || "Resident",
-                    targetCollection: "verifications"
-                })
-            }
+            await callAdminOperation("verification.reject", { targetId: id, payload: { reason: reason.trim() } })
         }, [verifications]),
 
         // Document Requests
@@ -389,159 +266,34 @@ export function useAdminData() {
                     throw new Error("Rejection requires a reason of at least 10 characters.")
                 }
 
-                await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, id), { 
-                    status, 
-                    ...(reason ? { rejectReason: reason } : {}),
-                    [`statusTimestamps.${status}`]: Date.now()
-                })
-                
-                const documentRequest = documentRequests.find(request => request.id === id)
-                if (documentRequest && documentRequest.residentId) {
-                    await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
-                        targetId: documentRequest.residentId,
-                        type: status === "Rejected" ? "error" : "info",
-                        title: `Document ${status}`,
-                        message: `Your request for ${documentRequest.documentType} is now ${status}.${reason ? ` Reason: ${reason}` : ""}`,
-                        timestamp: "Just now",
-                        isRead: false,
-                        createdAt: Date.now()
-                    })
-
-                    if (adminName) {
-                        await recordServerAudit({
-                            actionType: status.toLowerCase(),
-                            action: `Updated Document Status`,
-                            details: `Updated ${documentRequest.documentType} to ${status} for ${documentRequest.residentName}.${reason ? ` Reason: ${reason}` : ""}`,
-                            targetId: id,
-                            targetName: documentRequest.residentName,
-                            targetCollection: "documentRequests"
-                        })
-                    }
-                }
+                await callAdminOperation("request.updateStatus", { targetId: id, payload: { status, reason } })
             } catch (error: any) {
                 console.error("Error updating document request (id:", id, "):", error)
                 throw error
             }
         }, [documentRequests]),
         deleteDocumentRequest: useCallback(async (id: string) => {
-            await deleteDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, id))
+            await callAdminOperation("request.delete", { targetId: id })
         }, []),
         updateRequestGenerated: useCallback(async (id: string) => {
-            await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, id), { hasGenerated: true })
+            await callAdminOperation("request.markGenerated", { targetId: id })
         }, []),
 
         confirmPayment: useCallback(async (id: string, adminName: string, adminEmail?: string, paymentMethodOverride?: "cash" | "gcash", paymentRefOverride?: string) => {
-            const documentRequest = documentRequests.find(request => request.id === id)
-            if (!documentRequest) return
-            const receiptYear = new Date().getFullYear()
-            const receiptNumber = `REC-${receiptYear}-${Date.now().toString().slice(-5)}`
-            
-            const paymentUpdates: any = {
-                paymentStatus: "paid",
-                paymentConfirmedAt: Date.now(),
-                paymentConfirmedBy: adminName,
-                receiptNumber,
-            }
-            if (documentRequest.status === "Pending" || documentRequest.status === "Awaiting Payment") {
-                paymentUpdates.status = "On Process"
-                paymentUpdates["statusTimestamps.On Process"] = Date.now()
-            }
-
-            if (paymentMethodOverride) paymentUpdates.paymentMethod = paymentMethodOverride
-            if (paymentRefOverride) {
-                if (paymentMethodOverride === "gcash") paymentUpdates.gcashRefNumber = paymentRefOverride
-                else paymentUpdates.paymentReferenceNumber = paymentRefOverride
-            }
-
-            await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, id), paymentUpdates)
-            if (documentRequest.residentId) {
-                await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
-                    targetId: documentRequest.residentId,
-                    type: "success",
-                    title: "Payment Confirmed",
-                    message: `Your payment for ${documentRequest.documentType} has been confirmed. Receipt #: ${receiptNumber}`,
-                    timestamp: "Just now",
-                    isRead: false,
-                    createdAt: Date.now()
-                })
-                const confirmedPaymentMethod = paymentMethodOverride || documentRequest.paymentMethod || "Cash"
-                await recordServerAudit({
-                    actionType: "approved",
-                    action: "Payment Confirmed",
-                    details: `Confirmed ${confirmedPaymentMethod} payment for ${documentRequest.documentType} (${documentRequest.residentName}). Receipt: ${receiptNumber}`,
-                    targetId: id,
-                    targetName: documentRequest.residentName,
-                    targetCollection: "documentRequests"
-                })
-            }
+            await callAdminOperation("request.confirmPayment", { targetId: id, payload: { paymentMethod: paymentMethodOverride, paymentReference: paymentRefOverride } })
         }, [documentRequests]),
 
         markPayLater: useCallback(async (id: string, adminName: string, adminEmail?: string) => {
-            const documentRequest = documentRequests.find(request => request.id === id)
-            if (!documentRequest) return
-            
-            const { updateDoc, doc, collection, addDoc } = await import("firebase/firestore")
-            const { db } = await import("@/lib/firebase")
-
-            await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, id), {
-                paymentStatus: "unpaid",
-                paymentMethod: "cash"
-            })
-            if (documentRequest.residentId) {
-                await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
-                    targetId: documentRequest.residentId,
-                    type: "info",
-                    title: "Payment Option Updated",
-                    message: `Your payment method for ${documentRequest.documentType} was marked as Pay Later by the admin.`,
-                    timestamp: "Just now",
-                    isRead: false,
-                    createdAt: Date.now()
-                })
-                await recordServerAudit({
-                    actionType: "updated",
-                    action: "Payment Updated to Pay Later",
-                    details: `Admin ${adminName} marked payment for ${documentRequest.documentType} as Pay Later.`,
-                    targetId: id,
-                    targetName: documentRequest.residentName,
-                    targetCollection: "documentRequests"
-                })
-            }
+            await callAdminOperation("request.markPayLater", { targetId: id })
         }, [documentRequests]),
 
         waivePayment: useCallback(async (id: string, adminName: string, adminEmail?: string) => {
-            const documentRequest = documentRequests.find(request => request.id === id)
-            if (!documentRequest) return
-            await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, id), {
-                status: "On Process",
-                paymentStatus: "waived",
-                paymentConfirmedAt: Date.now(),
-                paymentConfirmedBy: adminName,
-                "statusTimestamps.On Process": Date.now()
-            })
-            if (documentRequest.residentId) {
-                await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
-                    targetId: documentRequest.residentId,
-                    type: "info",
-                    title: "Fee Waived",
-                    message: `The document fee for your ${documentRequest.documentType} request has been waived.`,
-                    timestamp: "Just now",
-                    isRead: false,
-                    createdAt: Date.now()
-                })
-                await recordServerAudit({
-                    actionType: "approved",
-                    action: "Fee Waived",
-                    details: `Waived document fee for ${documentRequest.documentType} (${documentRequest.residentName}).`,
-                    targetId: id,
-                    targetName: documentRequest.residentName,
-                    targetCollection: "documentRequests"
-                })
-            }
+            await callAdminOperation("request.waivePayment", { targetId: id })
         }, [documentRequests]),
 
         // Notifications
         addNotification: useCallback(async (input: Omit<AdminNotification, "id">) => {
-            await addDoc(collection(db, COLLECTION_NOTIFICATIONS), { ...input, createdAt: Date.now() })
+            await callAdminOperation("notification.create", { payload: { notification: input as any } })
         }, []),
         markNotificationRead: useCallback(async (id: string) => {
             await updateDoc(doc(db, COLLECTION_NOTIFICATIONS, id), { isRead: true })
@@ -560,14 +312,7 @@ export function useAdminData() {
 
         // Activity Logs
         addActivityLog: useCallback(async (input: Omit<ActivityLog, "id" | "time">) => {
-            await recordServerAudit({
-                action: input.action,
-                actionType: input.actionType,
-                details: input.details,
-                targetId: input.targetId,
-                targetName: input.residentName,
-                targetCollection: input.targetCollection,
-            })
+            throw new Error("Authoritative audit events are derived by typed server operations and cannot be submitted independently.")
         }, []),
         clearActivityLogs: useCallback(async () => {
             throw new Error("Audit log deletion is restricted to a dedicated server-authorized retention workflow.")

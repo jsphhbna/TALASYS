@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { coordinateVerificationApproval, type ApprovalCoordinatorDependencies, type ApprovalOperation, type VerificationType } from "../lib/admin/verification-approval.ts"
 
 function operation(type: VerificationType, email = false): ApprovalOperation {
-  return { id: `v-${type}`, verificationId: `v-${type}`, residentId: "resident", verificationType: type, actorUid: "admin", actorName: "Admin", oldEmail: email ? "old@example.test" : undefined, newEmail: email ? "new@example.test" : undefined, profileUpdates: {}, status: "auth-pending" }
+  return { id: `v-${type}`, verificationId: `v-${type}`, residentId: "resident", verificationType: type, actorUid: "admin", actorName: "Admin", attemptId: "attempt", oldEmail: email ? "old@example.test" : undefined, newEmail: email ? "new@example.test" : undefined, profileUpdates: {}, status: "auth-pending" }
 }
 
 function fixture(options: { type?: VerificationType; claim?: "claimed" | "completed" | "conflict"; authEmail?: string; authFailure?: boolean; completeFailure?: boolean; compensationFailure?: boolean } = {}) {
@@ -14,6 +14,7 @@ function fixture(options: { type?: VerificationType; claim?: "claimed" | "comple
     async claim() { calls.push("claim"); return { outcome: options.claim || "claimed", operation: (options.claim || "claimed") === "claimed" ? op : undefined } },
     async getAuthEmail() { calls.push("get-auth"); return authEmail },
     async updateAuthEmail(_uid, email) { calls.push(`auth:${email}`); if (options.authFailure && email === "new@example.test") throw new Error("auth down"); if (options.compensationFailure && email === "old@example.test") throw new Error("compensation down"); authEmail = email },
+    async owns() { calls.push("owns"); return true },
     async complete() { calls.push("complete"); if (options.completeFailure) throw new Error("firestore down") },
     async authFailed() { calls.push("auth-failed") },
     async reconciliationRequired() { calls.push("reconciliation") },
@@ -69,4 +70,12 @@ test("already completed operation is idempotent", async () => {
   const result = await coordinateVerificationApproval(state.deps, { verificationId: "v", actorUid: "admin", attemptId: "retry", ipAddress: "", now: () => 1 })
   assert.equal(result.idempotent, true)
   assert.deepEqual(state.calls, ["claim"])
+})
+
+test("stale approval attempt cannot compensate a newer owner", async () => {
+  const state = fixture({ completeFailure: true })
+  state.deps.owns = async () => false
+  await assert.rejects(() => coordinateVerificationApproval(state.deps, { verificationId: "v", actorUid: "admin", attemptId: "a", ipAddress: "", now: () => 1 }), (error: any) => error.status === 409)
+  assert.equal(state.authEmail, "new@example.test")
+  assert.equal(state.calls.includes("compensated"), false)
 })

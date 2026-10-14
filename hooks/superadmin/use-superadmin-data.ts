@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, where, setDoc, limit, getDocs } from "firebase/firestore"
+import { collection, query, onSnapshot, orderBy, doc, getCountFromServer, where, limit, getDocs } from "firebase/firestore"
 import { isAnyAdminRole, isSuperAdminRole } from "@/lib/auth/auth-types"
 import type {
     AdminAccount,
@@ -29,7 +29,7 @@ import {
     SUPERADMIN_INITIALS,
 } from "@/lib/constants"
 import { parseAuditTimestamp } from "@/lib/security/audit-utils"
-import { recordServerAudit } from "@/lib/audit/server-audit"
+import { callAdminOperation } from "@/lib/admin/client-operation"
 
 export function useSuperAdminData() {
     const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([])
@@ -254,81 +254,14 @@ export function useSuperAdminData() {
 
         // Admin Accounts
         addAdmin: useCallback(async (input: Omit<AdminAccount, "id" | "initials" | "isOnline" | "lastActive" | "createdDate">) => {
-            try {
-                const { initializeApp, deleteApp } = await import("firebase/app")
-                const { getAuth, createUserWithEmailAndPassword } = await import("firebase/auth")
-                const { firebaseConfig } = await import("@/lib/firebase")
-                
-                // A secondary Firebase app instance is used to create the admin account without
-                // signing out the currently authenticated SuperAdmin from the primary app.
-                const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp" + Date.now())
-                const secondaryAuth = getAuth(secondaryApp)
-                
-                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, input.email, input.password)
-                const newAdminUid = userCredential.user.uid
-                
-                const { sendEmailVerification } = await import("firebase/auth")
-                await sendEmailVerification(userCredential.user)
-                
-                const { password: _password, ...userDataToSave } = input;
-                await setDoc(doc(db, COLLECTION_USERS, newAdminUid), {
-                    ...userDataToSave,
-                    initials: input.name.substring(0, 2).toUpperCase(),
-                    isOnline: false,
-                    lastActive: "Never",
-                    createdDate: new Date().toISOString().split("T")[0],
-                    createdAt: Date.now(),
-                    isVerified: false,
-                    role: input.role || "admin",
-                })
-                
-                await deleteApp(secondaryApp)
-                
-                // Record the admin creation action via server-authored audit endpoint (#6)
-                await recordServerAudit({
-                    action: "Created Admin",
-                    actionType: "Admin Management",
-                    details: `Created admin account for ${input.name}`,
-                    targetId: newAdminUid,
-                    targetName: input.name,
-                    targetCollection: "users"
-                })
-            } catch (createAdminError: any) {
-                console.error(`Error creating admin auth account (email: ${input.email}):`, createAdminError)
-                throw createAdminError
-            }
+            await callAdminOperation("admin.create", { payload: { name: input.name, email: input.email, password: input.password, role: input.role } })
         }, []),
         updateAdmin: useCallback(async (id: string, updates: Partial<AdminAccount>) => {
-            await updateDoc(doc(db, COLLECTION_USERS, id), updates)
-            const targetAdmin = adminAccounts.find(a => a.id === id)
-            const targetName = targetAdmin?.name || id
-            const actionName = updates.status === "Locked" ? "Locked Admin" : (updates.status === "Active" ? "Unlocked Admin" : (updates.role ? "Updated Admin Role" : "Updated Admin"))
-            const details = updates.role ? `Changed role of ${targetName} to ${updates.role}` : (updates.status ? `${updates.status} account of ${targetName}` : `Updated settings for ${targetName}`)
-            
-            // Record admin update action via server-authored audit endpoint with real IP (#6)
-            await recordServerAudit({
-                action: actionName,
-                actionType: "Admin Management",
-                details,
-                targetId: id,
-                targetName,
-                targetCollection: "users"
-            })
+            const { password: _password, email: _email, id: _id, ...allowed } = updates as any
+            await callAdminOperation("admin.update", { targetId: id, payload: { updates: allowed } })
         }, [adminAccounts]),
         deleteAdmin: useCallback(async (id: string) => {
-            const targetAdmin = adminAccounts.find(a => a.id === id)
-            const targetName = targetAdmin?.name || id
-            await deleteDoc(doc(db, COLLECTION_USERS, id))
-            
-            // Record admin deletion action via server-authored audit endpoint with real IP (#6)
-            await recordServerAudit({
-                action: "Deleted Admin",
-                actionType: "Admin Management",
-                details: `Deleted admin account for ${targetName}`,
-                targetId: id,
-                targetName,
-                targetCollection: "users"
-            })
+            await callAdminOperation("admin.delete", { targetId: id })
         }, [adminAccounts]),
 
         // Audit Logs
@@ -351,14 +284,7 @@ export function useSuperAdminData() {
             }
         }, []),
         addAuditLog: useCallback(async (input: Omit<AuditLog, "id" | "time" | "date" | "timestamp">) => {
-            await recordServerAudit({
-                action: input.action,
-                actionType: input.actionType,
-                details: input.details,
-                targetId: input.targetId,
-                targetName: input.residentName,
-                targetCollection: input.targetCollection,
-            })
+            throw new Error("Authoritative audit events are derived by typed server operations and cannot be submitted independently.")
         }, []),
         clearAuditLogs: useCallback(async () => {
             throw new Error("Audit log deletion is restricted to a dedicated server-authorized retention workflow.")
@@ -366,21 +292,15 @@ export function useSuperAdminData() {
 
         // System Alerts
         addAlert: useCallback(async (input: Omit<SystemAlert, "id" | "timestamp">) => {
-            await addDoc(collection(db, COLLECTION_SYSTEM_ALERTS), { ...input, timestamp: Date.now() })
+            await callAdminOperation("system.alert.create", { payload: { alert: input as any } })
         }, []),
         dismissAlert: useCallback(async (id: string) => {
-            await deleteDoc(doc(db, COLLECTION_SYSTEM_ALERTS, id))
+            await callAdminOperation("system.alert.dismiss", { targetId: id })
         }, []),
 
         // System Config
         updateConfig: useCallback(async (updates: Partial<SystemConfig>) => {
-            await setDoc(doc(db, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID), updates, { merge: true })
-            await recordServerAudit({
-                action: "Config Edit",
-                actionType: "Config Edit",
-                details: `Updated system configuration (${Object.keys(updates).join(", ")})`,
-                targetCollection: "systemConfig",
-            })
+            await callAdminOperation("system.config.update", { payload: { updates: updates as any } })
         }, []),
     }
 }

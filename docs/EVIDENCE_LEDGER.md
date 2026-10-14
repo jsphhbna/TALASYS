@@ -7,6 +7,19 @@
 
 | ID | Scope | Evidence | Result | Date | Classification |
 |---|---|---|---|---|---|
+| C-E01 | Branch workflow | `git fetch --prune`, branch/log/status inspection | `main` selected and matched `origin/main` at baseline; only one distinct extra branch name existed | 2026-10-14 | TEST_EVIDENCE / VERIFIED |
+| C-E02 | Authorization and audit boundary | Source inspection + `npm run test:rules` + authenticated UI operations | Direct privileged client writes denied; server rejection and resident deactivation commit derived audit with mutation | 2026-10-14 | IMPLEMENTATION + TEST_EVIDENCE / VERIFIED LOCALLY |
+| C-E03 | Identity coordinator | `test/identity-email-operation.test.ts`, `test/identity-email-route.test.ts` | Success, intended-state retry, Auth failure, compensation, failed compensation, stale-owner denial, idempotency, unsupported-field and authorization denial pass | 2026-10-14 | TEST_EVIDENCE / VERIFIED WITH CONTROLLED DEPENDENCIES |
+| C-E04 | Approval fencing | `test/verification-approval.test.ts` plus emulator browser approval | Attempt ownership persists across lifecycle; stale compensation denied; real Firestore/Auth-emulator approval completes | 2026-10-14 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| C-E05 | Cloudinary recovery and verification | `test/cloudinary-migration.test.ts` | PASS: pre-provider intent, provider-state resolution, manifest-only resume, separate failure metadata, and ambiguous HTTP blocking | 2026-10-14 | TEST_EVIDENCE / VERIFIED WITH CONTROLLED PROVIDER ADAPTER |
+| C-E06 | Firestore migration adapter | `npm run test:rules` (`test/emulator/cloudinary-firestore-adapter.test.ts`) | PASS: real emulator multi-document update and concurrent-reference overwrite veto | 2026-10-14 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| C-E07 | Authenticated workflow matrix | `npm run test:e2e:auth` | PASS 12/12: five active roles, specialized denial, approval, rejection, resident deactivation, locked/deleted, live role change | 2026-10-14 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| C-E08 | Integrated checks | `npm test`; type checks; quiet lint; `npm run build` | PASS 124/124; PASS/PASS; PASS; PASS with 46 routes | 2026-10-14 | TEST_EVIDENCE / VERIFIED LOCALLY |
+| C-E09 | Live provider and production operations | Not run by instruction; no safe Cloudinary test credentials supplied | No deployment, production migration, rules publication, or production account changes | 2026-10-14 | BLOCKED / DEPLOYMENT PENDING |
+| C-D01 | Documentation authority | Firebase Firestore transactions documentation (read-before-write, retry, atomicity) and Cloudinary Rename/access-control documentation, reviewed 2026-10-14 | Informed transaction ordering, provider-state recovery, signed authenticated delivery, and CDN invalidation assumptions; does not prove project behavior | 2026-10-14 | DOC_EVIDENCE / SOURCE_BACKED |
+
+| ID | Scope | Evidence | Result | Date | Classification |
+|---|---|---|---|---|---|
 | R-E01 | Branch/status reconciliation | `git branch --show-current`, `git status --short`, source inspection | Requested branch selected; clean baseline before edits | 2026-10-13 | TEST_EVIDENCE / VERIFIED |
 | R-E02 | M1 schema/caller inventory | Inspected required scripts/routes/hooks/rules/tests and repository field references | Reopened defects confirmed; canonical collections and sensitive fields identified | 2026-10-13 | IMPLEMENTATION_EVIDENCE / REVIEWED |
 | R-E03 | Production migration/deployment | Not run by instruction | No production state changed | 2026-10-13 | NOT TESTED / DEPLOYMENT PENDING |

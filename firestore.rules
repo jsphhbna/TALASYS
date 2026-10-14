@@ -93,7 +93,7 @@ service cloud.firestore {
       // Account Creation:
       // - Super Admin can provision accounts.
       // - Residents can only self-register with role='resident', isVerified=false, status='Pending' (#29).
-      allow create: if isSuperAdmin() || (
+      allow create: if (
         isAuthenticated() && 
         request.auth.uid == userId &&
         request.resource.data.role == 'resident' &&
@@ -103,20 +103,9 @@ service cloud.firestore {
       );
       
       // Updates:
-      // - Super Admin can update any user/role.
-      // - Resident Management / Full Admin can update resident data, but CANNOT modify Super Admin/Admins, and CANNOT escalate roles.
-      // - Verifications Admin can update verification status / expiry on residents.
-      // - Residents can only update allowlisted self-editable fields (e.g. contactNumber, profilePicture) OR self-deactivate (#26, #55).
-      allow update: if isSuperAdmin() || (
-        canManageResidents() &&
-        resource.data.role == 'resident' &&
-        request.resource.data.role == 'resident'
-      ) || (
-        canManageVerifications() &&
-        resource.data.role == 'resident' &&
-        request.resource.data.role == 'resident'
-      ) || (
-        isOwner(userId) && (
+      // Privileged changes are server-only typed operations. Residents retain
+      // only the explicit contact/photo and self-deactivation transitions.
+      allow update: if isOwner(userId) && (
           // Self-profile edits: restricted to non-sensitive contact/photo fields
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'contactNumber', 'profilePicture', 'updatedAt'
@@ -127,11 +116,10 @@ service cloud.firestore {
             request.resource.data.status == 'Deleted by Resident' &&
             resource.data.status != 'Deleted'
           )
-        )
-      );
+        );
       
       // Deletions: Only Super Admin can hard-delete user documents.
-      allow delete: if isSuperAdmin();
+      allow delete: if false;
     }
 
     // ==============================================================
@@ -145,15 +133,14 @@ service cloud.firestore {
       // Creation:
       // Direct client creation by residents is blocked to prevent fee tampering and forged waivers (#56).
       // Residents must create requests via the protected server route /api/resident/requests/create.
-      // Administrators with request management privileges may create directly.
-      allow create: if canManageRequests();
+      allow create: if false;
       
       // Updates:
       // - Document Processing / Full Admin can update everything.
       // - Residents can only perform validated transitions (#26, #56):
       //   1. Cancel a Pending request: status -> 'Cancelled'
       //   2. Submit Payment: paymentStatus -> 'pending_verification'
-      allow update: if canManageRequests() || (
+      allow update: if (
         isAuthenticated() &&
         isActiveAccount() &&
         resource.data.residentId == request.auth.uid &&
@@ -179,7 +166,7 @@ service cloud.firestore {
       // Deletions:
       // - Super Admin can delete.
       // - Residents can ONLY delete requests if still Pending or Cancelled (cannot delete processed/receipted requests) (#56).
-      allow delete: if isSuperAdmin() || (
+      allow delete: if (
         isAuthenticated() &&
         resource.data.residentId == request.auth.uid &&
         resource.data.status in ['Pending', 'Cancelled']
@@ -196,9 +183,8 @@ service cloud.firestore {
       );
       
       // Creation:
-      // - Verifications Admin / Full Admin can create.
       // - Residents can create verification for themselves, BUT status MUST be 'pending' (#57).
-      allow create: if canManageVerifications() || (
+      allow create: if (
         isAuthenticated() &&
         isActiveAccount() &&
         (request.resource.data.residentId == request.auth.uid || request.resource.data.userId == request.auth.uid) &&
@@ -206,13 +192,14 @@ service cloud.firestore {
         request.resource.data.type in ['registration', 'profile-edit', 'reactivation']
       );
       
-      // Updates: Only Verifications Admin / Full Admin can review / update verifications (#57)
-      allow update: if canManageVerifications();
+      // Review transitions are coupled to audit/notification/identity state by
+      // trusted server operations; no client role may write them directly.
+      allow update: if false;
 
       // Deletions:
       // - Super Admin can delete.
       // - Residents can ONLY withdraw unreviewed 'pending' verifications (#57).
-      allow delete: if isSuperAdmin() || (
+      allow delete: if (
         isAuthenticated() &&
         (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid) &&
         resource.data.status == 'pending'
@@ -231,7 +218,7 @@ service cloud.firestore {
       // Creation:
       // - Admins can notify anyone.
       // - Residents can ONLY create notification with targetId == 'admin' (#58 impersonation defense).
-      allow create: if isAnyAdmin() || (
+      allow create: if (
         isAuthenticated() &&
         request.resource.data.targetId == 'admin' &&
         request.resource.data.type in ['info', 'alert']
@@ -251,7 +238,7 @@ service cloud.firestore {
       // Authoritative mutation evidence is server-authored only. Admin SDK
       // bypasses client rules inside trusted mutation operations.
       allow create: if false;
-      allow update, delete: if isSuperAdmin();
+      allow update, delete: if false;
     }
 
     match /clientTelemetry/{telemetryId} {
@@ -263,12 +250,12 @@ service cloud.firestore {
     // ==============================================================
     match /systemAlerts/{alertId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isSuperAdmin();
+      allow create, update, delete: if false;
     }
 
     match /systemConfig/{configId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isSuperAdmin();
+      allow create, update, delete: if false;
     }
 
     // ==============================================================

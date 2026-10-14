@@ -1,100 +1,89 @@
 # TALASYS Remediation Handoff
 
-## Current state — 2026-10-13
+## Current state — 2026-10-14
 
-Branch: `remediation/61-findings`.
+Working branch: `main`.
 
-This branch is not represented as production-complete. It contains substantial
-local remediation and reproducible evidence, but M6, M7, and parts of M9/M10
-remain open. No production deployment, Firestore Rules publication, account
-provisioning, data migration, or Cloudinary migration was performed.
+The remaining consistency and migration defects in this pass are implemented
+and verified locally. No production deployment, Firestore Rules publication,
+production account change, data migration, or Cloudinary migration was
+performed.
 
-## Implemented and locally verified
+## Implemented in this pass
 
-- Audit timestamp migration: dry-run first, canonical `activityLogs`, bounded
-  fresh batches, invalid-value reporting, restart cursor, original-value
-  history, partial-failure reporting, and rollback guidance.
-- Cloudinary migration: real Rename API integration, schema field discovery,
-  exact identity and foreign-cloud rejection, deduplication, checkpoint/resume,
-  transactional reference updates, and old/new access verification hooks.
-- Super-admin provisioning: hidden password input, explicit existing-account
-  promotion/reset flags, profile preservation, durable operation state,
-  compensation, reconciliation, and audit evidence.
-- Verification approval: authenticated server handler, authoritative state,
-  transaction lease/claim, idempotency, Auth retry/compensation, deterministic
-  notification/audit IDs, and incomplete-state reporting.
-- Request creation: server-resolved enabled/custom document types and fees,
-  explicit waiver policy only, account expiry checks, idempotent transaction,
-  and resident direct-create denial in rules.
-- Audit boundary: clients cannot write `activityLogs`; `/api/audit/log` accepts
-  allowlisted non-authoritative telemetry only; forwarding headers are ignored
-  unless one exact trusted proxy header is configured.
-- Media boundary: official Cloudinary SDK signing, exact asset identity,
-  authoritative record attachment checks, scoped role/owner authorization,
-  protected upload IDs, and fail-closed viewers without original-URL fallback.
-  An authenticated signed Cloudinary URL is correctly described as non-expiring.
-- Verification-only policy/navigation: only verification routes and scoped
-  workspace content are exposed for both supported verification roles.
-- Vulnerable `xlsx` was replaced by ExcelJS; production dependency audit has
-  no high or critical advisories. The Firebase browser gRPC tree is overridden
-  to a patched release.
+- Firestore client rules now deny direct approval/rejection, administrator
+  resident mutation, request-processing mutation, audit mutation, and system
+  configuration mutation. Resident self-service remains limited to explicit
+  contact/photo, deactivation, cancellation, and payment-submission fields.
+- Approval and rejection are trusted server operations. Approval carries a
+  persisted attempt ID through claim, completion, failure, compensation, and
+  reconciliation; every transition rechecks ownership so a stale attempt
+  cannot release state or revert a newer Auth identity.
+- The legacy resident-email endpoint now uses a durable identity coordinator:
+  intent precedes Firebase Auth, retries recognize the intended Auth state,
+  Firestore profile/audit finalization is atomic, and compensation is fenced.
+  Verification-only roles cannot use it as a general resident editor.
+- Resident lifecycle/profile operations, request status/payment operations,
+  administrator management, alerts, configuration, and notifications now use
+  typed server operations. Audit events are derived server-side and written in
+  the same Firestore transaction as their mutation. New administrator Auth
+  creation uses deterministic operation identity plus compensation/reconciliation.
+- Cloudinary migration transactions read and validate every referenced
+  document before writing. Exact paths are compared with the scanned original,
+  so concurrent changes are not overwritten.
+- Cloudinary manifests now checkpoint intent before provider mutation and keep
+  the completed stage separate from failure details. Resume can recover a
+  provider-completed entry even when a fresh scan no longer contains the old
+  URL, while ambiguous provider state blocks another rename.
+- Every distinct original delivery URL is checked. `401`, `403`, and `404` are
+  classified as unavailable; network errors, `429`, and `5xx` remain ambiguous
+  after bounded retries and block success. Authenticated asset existence and a
+  signed authorized delivery are checked separately.
+- The client and Admin SDK can connect to isolated Auth/Firestore emulators.
+  The browser matrix uses real emulator identities for View Only, Verification
+  Only, Document Processing, Resident Management, Full Access, locked/deleted,
+  and live role-change cases. It exercises approval, rejection, and resident
+  deactivation through the actual UI and server routes.
+- Login routing now derives from the canonical role policy, fixing specialized
+  roles that previously fell through to the resident portal.
 
 ## Reproducible local evidence
 
-- `npm test` — 110/110 pass.
-- `npm run test:rules` — 5/5 pass in the Firestore Emulator.
-- `npm run typecheck` — pass.
-- `npm run typecheck:test` — pass.
-- `npm run lint -- --quiet` — pass with app, scripts, and tests included.
-  Running without `--quiet` exposes existing warnings; do not claim zero warnings.
-- `npm run build` — pass; 45 application routes.
-- Playwright against an externally managed local Next server — 4/4 pass for
-  desktop/mobile unauthenticated redirect and public/login horizontal reflow.
-- `npm audit --omit=dev` — zero critical/high, two moderate ExcelJS/uuid.
-- Full `npm audit` — 11 high and 5 moderate in development tooling.
+- `npm test` — PASS, 124/124.
+- `npm run test:rules` — PASS, 9/9 across Firestore rules and the real Admin
+  Firestore migration adapter (including a concurrent-reference change veto).
+- `npm run typecheck` — PASS.
+- `npm run typecheck:test` — PASS.
+- `npm run lint -- --quiet` — PASS with zero errors. Non-quiet legacy warnings
+  were not used as a zero-warning claim.
+- `npm run build` — PASS; Next.js 16.4.0 generated 46 routes.
+- `npm run test:e2e:auth` — PASS, 12/12 authenticated Chromium workflows.
 
-The deleted `test/reopened-remediation.test.ts` copied/simulated suite is not
-acceptance evidence. Controlled dependency tests are labelled as such in
-`docs/EVIDENCE_LEDGER.md`.
+The Firebase emulator CLI on this Windows/Node 26 environment can leave its
+Firestore JVM after `emulators:exec` exits. During verification, only the exact
+TALASYS emulator process bound to the configured test port was stopped.
 
-## Exact remaining blockers
+## Remaining production boundaries
 
-1. M6 authoritative audit coupling: several legacy privileged mutations still
-   execute in client hooks. Their former direct `activityLogs` writes were
-   removed, but UI telemetry after a mutation is not authoritative evidence.
-   Move each mutation into a typed server operation that commits its derived
-   audit event with the Firestore mutation, with explicit cross-service
-   recovery where Firebase Auth is involved. Findings #6/#31/#61 remain open
-   for those paths.
-2. M7 provider proof: Cloudinary token-auth expiry requires a separate token
-   key/eligible plan or an application proxy. No safe provider test account was
-   supplied, so expired-link rejection, old-public denial, CDN invalidation,
-   and the production migration are unverified and deployment-pending.
-3. M9/M10 authenticated browser matrix: local Firebase test identities and an
-   Auth/Firestore emulator-integrated app setup are needed to drive View Only,
-   Verification Only, Document Processing, Resident Management, Full Admin,
-   locked/deleted, and live role-change sessions end to end. Current browser
-   evidence is smoke coverage only.
-4. Dependency tooling: the production high-severity gate passes, but the full
-   audit retains high advisories in Firebase CLI and ESLint transitive trees.
-   Do not run `npm audit fix --force`; npm proposes breaking/downgrade changes.
-5. Production migrations and rules deployment require an approved maintenance
-   window, backups, real credentials, project-ID confirmation, dry-run review,
-   monitoring, and rollback ownership.
+1. Live Cloudinary/CDN enforcement is not verified because no safe provider
+   credentials or test product environment were supplied. Production rename,
+   old-public denial, signed delivery, invalidation propagation, and migration
+   remain operator/deployment checks.
+2. No production rules deployment or migration was run. Those actions still
+   require confirmed project/cloud identities, backups, a maintenance window,
+   dry-run and manifest review, monitoring, rollback ownership, and credentials.
+3. Dependency audits were not rerun in this pass. The 2026-10-13 handoff record
+   remains historical evidence: production had no high/critical advisories,
+   while development tooling retained transitive advisories.
 
-## Operator commands (do not run against production without approval)
+## Operator commands (production requires separate approval)
 
-- Audit migration preview: `npm run migrate:audit-timestamps -- --limit 10000`
-- Audit migration commit: add `--commit` only after backup/project review; use
-  `--start-after <document-id>` to resume.
-- Media migration preview: `npm run migrate:cloudinary-access`
-- Media migration commit: add `-- --commit` only after manifest backup and a
-  safe provider validation window.
-- Super-admin provisioning: `npm run seed:superadmin -- --email <email>`;
-  existing accounts require explicit `--promote-existing` and/or
-  `--reset-password`.
+- Audit preview: `npm run migrate:audit-timestamps -- --limit 10000`
+- Cloudinary preview: `npm run migrate:cloudinary-access`
+- Cloudinary commit: add `-- --commit` only after reviewing the manifest target,
+  backup, credentials, and rollback plan.
+- Authenticated local acceptance: `npm run test:e2e:auth`
 
 Required runtime configuration includes Firebase client/Admin credentials,
 Cloudinary cloud/API credentials, `REGISTRATION_TICKET_SECRET`, and optionally
-`TRUSTED_PROXY_IP_HEADER` set to the single exact header injected by the trusted
-hosting proxy. Leave it unset if that contract is not documented.
+`TRUSTED_PROXY_IP_HEADER` when one exact trusted proxy header is documented.

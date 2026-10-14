@@ -162,12 +162,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { _error: "Please verify your email address before logging in. Check your inbox for the verification link." } as any
       }
 
-      // Update isVerified flag in Firestore for admins who verified their email
-      if (userData.role !== "resident" && userData.role !== "superadmin" && !userData.isVerified && userCredential.user.emailVerified) {
-        await updateDoc(userDocRef, { isVerified: true })
-        userData.isVerified = true
-      }
-
       // Enforce email verification for residents before granting access
       if (userData.role === "resident" && !userCredential.user.emailVerified) {
         const { sendEmailVerification } = await import("firebase/auth")

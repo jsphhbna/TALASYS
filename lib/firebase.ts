@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 export const firebaseConfig = {
@@ -33,5 +33,12 @@ const app = getApps().length > 0 ? getApp() : initializeApp(effectiveConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+const emulatorGlobal = globalThis as typeof globalThis & { __talasysFirebaseEmulatorsConnected?: boolean }
+if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" && !emulatorGlobal.__talasysFirebaseEmulatorsConnected) {
+  connectAuthEmulator(auth, process.env.NEXT_PUBLIC_AUTH_EMULATOR_URL || "http://127.0.0.1:9099", { disableWarnings: true })
+  connectFirestoreEmulator(db, process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || "8080"))
+  emulatorGlobal.__talasysFirebaseEmulatorsConnected = true
+}
 
 export default app;

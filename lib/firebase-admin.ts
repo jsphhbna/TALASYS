@@ -9,6 +9,10 @@ function initAdminApp() {
   }
   
   try {
+    const emulatorMode = Boolean(process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.FIRESTORE_EMULATOR_HOST)
+    if (emulatorMode) {
+      return initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || "talasys-e2e" })
+    }
     if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY) {
       throw new Error("Missing Firebase Admin environment variables");
     }

@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { useAuth } from "@/lib/auth"
+import { getAllowedLandingPage, useAuth } from "@/lib/auth"
 import { BrandMark } from "@/components/layout/brand-mark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -53,13 +53,7 @@ export default function LoginPage() {
 
     if (user) {
       localStorage.setItem("talasys_trusted_device", trustDevice.toString())
-      if (user.role === "superadmin" || (user.role as any) === "SuperAdmin" || (user.role as any) === "Super Admin") {
-        router.push("/superadmin/dashboard")
-      } else if (["admin", "Full Access", "Verification Only", "Documents Only", "View Only"].includes(user.role)) {
-        router.push("/admin/dashboard")
-      } else {
-        router.push("/resident/dashboard")
-      }
+      router.push(getAllowedLandingPage(user.role))
     } else {
       setError(credentialHint)
       setIsSigningIn(false)
