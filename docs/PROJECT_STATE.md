@@ -19,9 +19,9 @@
 - Auth/Firestore emulator-backed browser coverage now exercises real identities,
   role restrictions, locked/deleted sessions, live role changes, approval,
   rejection, and resident deactivation.
-- Current evidence: 124/124 unit/integration tests, 9/9 emulator tests, 12/12
-  authenticated browser workflows, app/test type checks, quiet lint, and a
-  46-route Next.js build all pass locally.
+- Current evidence: 136/136 unit/integration tests, 9/9 firestore rules emulator
+  tests, 22/22 authenticated browser workflows, app/test type checks (0 errors),
+  quiet lint (0 errors), and a 47-route Next.js build all pass locally.
 
 ## Milestone Status Overview
 - [x] **Milestone A**: Baseline & Reproduction Harness (Mapped 61 items, established test runner and issue register)

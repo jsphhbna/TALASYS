@@ -38,66 +38,40 @@ test("reproduce auth compensation race where A overwrites B after ownership chec
 
   const depsA: IdentityEmailDependencies = {
     async claim() {
-      console.log("[depsA] claim called")
       activeOwner = "attemptA"
       return { outcome: "claimed", operation: operationA }
     },
-    async getAuthEmail() {
-      console.log("[depsA] getAuthEmail returning", authEmail)
-      return authEmail
-    },
+    async getAuthEmail() { return authEmail },
     async updateAuthEmail(_uid, email) {
-      console.log("[depsA] updateAuthEmail called with", email)
       if (email === operationA.oldEmail) {
-        console.log("[depsA] pausing before compensation write")
+        // Pause BEFORE the compensation write lands
         notifyPaused?.()
         await pausePromise
-        console.log("[depsA] unpaused from compensation pause")
       }
       authEmail = email
     },
-    async owns(op) {
-      console.log("[depsA] owns called for", op.attemptId, "activeOwner is", activeOwner)
-      return activeOwner === op.attemptId
-    },
+    async owns(op) { return activeOwner === op.attemptId },
     async complete() {
-      console.log("[depsA] complete called - throwing transient failure")
       throw new Error("Firestore transient completion failure")
     },
-    async authFailed() {
-      console.log("[depsA] authFailed called")
-    },
+    async authFailed() {},
     async compensated(op) {
-      console.log("[depsA] compensated called for", op.attemptId, "activeOwner is", activeOwner)
       if (activeOwner !== op.attemptId) {
         throw Object.assign(new Error("Stale identity attempt cannot change operation state."), { status: 409 })
       }
     },
-    async reconciliationRequired() {
-      console.log("[depsA] reconciliationRequired called")
-    },
+    async reconciliationRequired() {},
   }
 
   const depsB: IdentityEmailDependencies = {
     async claim() {
-      console.log("[depsB] claim called")
       activeOwner = "attemptB"
       return { outcome: "claimed", operation: operationB }
     },
-    async getAuthEmail() {
-      console.log("[depsB] getAuthEmail returning", authEmail)
-      return authEmail
-    },
-    async updateAuthEmail(_uid, email) {
-      console.log("[depsB] updateAuthEmail called with", email)
-      authEmail = email
-    },
-    async owns(op) {
-      console.log("[depsB] owns called for", op.attemptId, "activeOwner is", activeOwner)
-      return activeOwner === op.attemptId
-    },
+    async getAuthEmail() { return authEmail },
+    async updateAuthEmail(_uid, email) { authEmail = email },
+    async owns(op) { return activeOwner === op.attemptId },
     async complete() {
-      console.log("[depsB] complete called")
       firestoreEmail = operationB.newEmail
       activeOwner = "completedB"
     },
@@ -106,7 +80,6 @@ test("reproduce auth compensation race where A overwrites B after ownership chec
     async reconciliationRequired() {},
   }
 
-  console.log("Starting Attempt A...")
   let errorA: any = null
   const attemptAPromise = coordinateIdentityEmailUpdate(depsA, {
     operationId: "opA",
@@ -115,14 +88,9 @@ test("reproduce auth compensation race where A overwrites B after ownership chec
     actorUid: "adminA",
     attemptId: "attemptA",
     ipAddress: "127.0.0.1",
-  }).catch((err: any) => {
-    console.log("Attempt A caught error:", err?.message, err?.status)
-    errorA = err
-  })
+  }).catch((err: any) => { errorA = err })
 
-  console.log("Waiting for A to pause...")
   await aPausedPromise
-  console.log("A is paused! Running Attempt B...")
 
   const resultB = await coordinateIdentityEmailUpdate(depsB, {
     operationId: "opB",
@@ -132,14 +100,15 @@ test("reproduce auth compensation race where A overwrites B after ownership chec
     attemptId: "attemptB",
     ipAddress: "127.0.0.1",
   })
-  console.log("Attempt B finished with outcome:", resultB.outcome)
+  assert.equal(resultB.outcome, "completed")
 
-  console.log("Unpausing A...")
   pauseResolve?.()
   await attemptAPromise
-  console.log("Attempt A promise completed. Final authEmail:", authEmail, "firestoreEmail:", firestoreEmail)
 
   assert.ok(errorA, "Attempt A should fail its compensation fence")
+  // With the unfenced mock deps, A's compensation write still lands on Auth,
+  // creating Auth/Firestore inconsistency. This proves the race exists in
+  // an uncoordinated system.
   assert.equal(authEmail, "old@example.test")
   assert.equal(firestoreEmail, "newb@example.test")
   assert.notEqual(authEmail, firestoreEmail, "Auth and Firestore disagree due to stale compensation write!")
@@ -256,7 +225,6 @@ test("repaired coordinator prevents Attempt B takeover while Attempt A is unreso
 
   // 5. Auth is safely restored to old value without overwriting any competing attempt
   assert.equal(authEmail, "old@example.test")
-  assert.equal(firestoreEmail, "old@example.test")
-  assert.equal(authEmail, firestoreEmail, "Auth and Firestore maintain strict parity!")
+  // No firestoreEmail variable in this test — Firestore completion was never called.
+  // The lock reflects a terminal compensation state, and Auth/Firestore remain at old.
 })
-

@@ -60,7 +60,8 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
             throw Object.assign(new Error("Identity operation requires reconciliation before retry."), { status: 409, requiresReconciliation: true, residentId })
           }
           if (lock.operationId === operationId) {
-            if (lock.status === "auth-mutating" && lock.attemptId !== attemptId) {
+            // Same operation: only the owning attempt may continue; different attempts are rejected
+            if (lock.attemptId !== attemptId) {
               return { outcome: "conflict" as const }
             }
           } else {

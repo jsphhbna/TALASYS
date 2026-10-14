@@ -73,7 +73,8 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
             throw Object.assign(new Error("Resident identity requires reconciliation before approval."), { status: 409, requiresReconciliation: true, residentId: verification.residentId })
           }
           if (lock.operationId === approvalOpId) {
-            if (lock.status === "auth-mutating" && lock.attemptId !== attemptId) {
+            // Same operation: only the owning attempt may continue; different attempts are rejected
+            if (lock.attemptId !== attemptId) {
               return { outcome: "conflict" as const }
             }
           } else {

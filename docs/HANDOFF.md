@@ -2,29 +2,35 @@
 
 ## Current state — 2026-10-14
 
-Working branch: `main`. Baseline reviewed: `0bac62c8fc491a643b5bdc4fafd64391dd47d434`.
+Working branch: `main`. Baseline reviewed: `27e5726b2615c1545ee0c8b28565c9e5eb7f723e`.
 
-The remaining identity concurrency defects, unified coordination boundary, and end-to-end browser workflows have been repaired and verified locally.
+The remaining identity consistency defects, claim adapter stage protections, reconciliation service isolation, and test suite execution have been fully repaired and verified locally.
 
 **Scope change & historical migration status:**
 "Not required for the user’s planned fresh-data reset; no deletion or migration performed."
 No production deployment, production Firestore rules publication, production account mutation, or historical data deletion was performed.
 
-## Implemented in this pass
+## Implemented in this repair pass
 
-- **Task 1 — Auth Compensation Race Reproduction (`test/identity-compensation-race.test.ts`)**:
-  - Deterministically reproduced the race where Attempt A verified lock ownership, paused before Auth compensation write, Attempt B completed identity update, and Attempt A proceeded to overwrite Auth with the old email, leaving Firestore with `newb@example.test` and Auth with `old@example.test`.
-  - Verified repaired coordinator prevents Attempt B takeover during active compensation and fences Attempt A compensation.
-- **Tasks 2 & 3 — Unified Resident Coordination Boundary & Stale Auth Elimination (ADR-013)**:
-  - Unified all resident identity writers (`lib/admin/identity-email-operation.ts`, `lib/admin/verification-approval.ts`, `/api/admin/update-resident-email`, `/api/admin/verifications/approve`) under the single resident lock boundary: `identityOperationLocks/${residentId}`.
-  - Implemented multi-stage lock state machine: `claimed` -> `auth-mutating` -> `auth-completed` -> `completed` / `compensating` -> `compensated` / `reconciliation-required`.
-  - Completely eliminated timeout-based lock stealing during in-flight operations.
-  - Added lost Auth response recovery via `getAuthEmail` before assuming mutation failure.
-  - Added fenced backward compensation: if ownership was lost or Auth state drifted, lock transitions to `reconciliation-required` rather than blindly reverting Auth.
-  - Implemented dedicated operator reconciliation service (`lib/admin/identity-reconciliation.ts`, `POST /api/admin/reconcile-identity`) with audit logging.
-  - Verified with 10/10 acceptance tests in `test/identity-coordination-acceptance.test.ts`.
+- **Identity Compensation Race Scoping Repair (`test/identity-compensation-race.test.ts`)**:
+  - Repaired variable scoping error where `firestoreEmail` was referenced outside its declaring test scope.
+  - Confirmed both race reproduction and repaired coordinator tests pass deterministically.
+- **Production Claim Adapter Stage Protections (D1)**:
+  - Repaired `/api/admin/update-resident-email` and `/api/admin/verifications/approve` claim adapters.
+  - Enforced that competing attempts on the same operationId are rejected during ALL active/unresolved lock stages (`claimed`, `auth-pending`, `auth-mutating`, `auth-completed`, `compensating`, `reconciliation-required`), not merely during `auth-mutating`.
+- **Identity Reconciliation Hardening (D2–D7)**:
+  - Re-architected `reconcileResidentIdentity` (`lib/admin/identity-reconciliation.ts`):
+    - **Transaction Isolation**: Auth mutation (`updateUser`) is now executed outside Firestore `runTransaction` callback, eliminating duplicate Auth writes on transaction retries.
+    - **Authoritative Approval Safeguard**: Syncing emails no longer auto-approves linked verifications. Verifications are cleanly reset to `pending` so they proceed through standard authoritative multi-step verification approval.
+    - **Lock State Verification**: Reconciler validates that the lock is quiesced and not actively in-flight (`claimed`, `auth-mutating`, `auth-completed`, `compensating`) before intervening.
+    - **Collision-Resistant Idempotency & Audit**: Accepts or generates unique `reconciliationId` for replay idempotency and writes non-colliding audit log document IDs (`reconcile-${residentId}-${reconciliationId}`).
+    - **Endpoint Alignment**: `POST /api/admin/reconcile-identity` accepts both `action` and `resolution` parameter names, forwards `reconciliationId`, and logs client IP.
+- **Acceptance Suite Matrix Expansion (`test/identity-coordination-acceptance.test.ts`)**:
+  - Enhanced retry race acceptance test to assert rejection of competing attempts across all six active/unresolved stages.
+  - Updated operator recovery mock to track full lock document state including attempt fences.
+  - Resolved TypeScript literal comparison check with strict typed variable annotation.
 - **Tasks 4 & 5 — Authenticated Browser Workflows & Fresh Data Verification (`test/e2e/authenticated-workflows.spec.ts`)**:
-  - Expanded authenticated Chromium suite from 12 to 22 tests against live Firebase Auth and Firestore emulators.
+  - Authenticated Chromium suite: 22 tests against live Firebase Auth and Firestore emulators.
   - Verified resident document request creation via actual modal/portal UI (`/resident/request` -> `POST /api/resident/requests/create` -> `/resident/history`).
   - Verified profile-edit approval with email change updating both Auth and Firestore.
   - Verified injected identity failure yields 409 conflict/incomplete toast in UI rather than false success.

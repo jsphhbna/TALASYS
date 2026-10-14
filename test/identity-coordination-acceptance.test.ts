@@ -173,57 +173,62 @@ test("Approval and general email editing race on the same resident", async () =>
   )
 })
 
-test("Two retries race on the same operation", async () => {
-  let lockStatus = "claimed"
+test("Two retries race on the same operation: all active stages reject competing attempt", async () => {
+  const activeStages = ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"]
   const currentAttempt = "attempt-1"
 
-  const deps: IdentityEmailDependencies = {
-    async claim({ attemptId }) {
-      if (lockStatus === "auth-mutating" && attemptId !== currentAttempt) {
-        return { outcome: "conflict" }
-      }
-      return {
-        outcome: "claimed",
-        operation: {
-          id: "op-retry",
-          residentId: "res1",
-          actorUid: "admin1",
-          actorName: "Admin",
-          attemptId,
-          oldEmail: "old@example.test",
-          newEmail: "new@example.test",
-          profileUpdates: {},
-          status: "claimed",
-        },
-      }
-    },
-    async getAuthEmail() { return "old@example.test" },
-    async beginAuthMutation() {
-      lockStatus = "auth-mutating"
-    },
-    async updateAuthEmail() {},
-    async owns() { return true },
-    async complete() { lockStatus = "completed" },
-    async authFailed() {},
-    async compensated() {},
-    async reconciliationRequired() {},
+  for (const stage of activeStages) {
+    const lockStatus = stage
+
+    const deps: IdentityEmailDependencies = {
+      async claim({ attemptId }) {
+        if (["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"].includes(lockStatus)) {
+          if (lockStatus === "reconciliation-required") {
+            throw Object.assign(new Error("Identity operation requires reconciliation"), { status: 409, requiresReconciliation: true })
+          }
+          if (attemptId !== currentAttempt) {
+            return { outcome: "conflict" }
+          }
+        }
+        return {
+          outcome: "claimed",
+          operation: {
+            id: "op-retry",
+            residentId: "res1",
+            actorUid: "admin1",
+            actorName: "Admin",
+            attemptId,
+            oldEmail: "old@example.test",
+            newEmail: "new@example.test",
+            profileUpdates: {},
+            status: "claimed",
+          },
+        }
+      },
+      async getAuthEmail() { return "old@example.test" },
+      async beginAuthMutation() {},
+      async updateAuthEmail() {},
+      async owns() { return true },
+      async complete() {},
+      async authFailed() {},
+      async compensated() {},
+      async reconciliationRequired() {},
+    }
+
+    // Attempt 2 arrives while Attempt 1 is in active stage
+    await assert.rejects(
+      coordinateIdentityEmailUpdate(deps, {
+        operationId: "op-retry",
+        residentId: "res1",
+        newEmail: "new@example.test",
+        actorUid: "admin1",
+        attemptId: "attempt-2",
+        ipAddress: "127.0.0.1",
+      }),
+      (err: any) => err.status === 409,
+      `Expected competing attempt to be rejected during stage: ${stage}`
+    )
   }
-
-  // Attempt 1 advances to auth-mutating
-  lockStatus = "auth-mutating"
-
-  // Attempt 2 arrives concurrently
-  await assert.rejects(
-    coordinateIdentityEmailUpdate(deps, {
-      operationId: "op-retry",
-      residentId: "res1",
-      newEmail: "new@example.test",
-      actorUid: "admin1",
-      attemptId: "attempt-2",
-      ipAddress: "127.0.0.1",
-    }),
-    (err: any) => err.status === 409
-  )
 })
 
 test("Auth succeeds but its response is lost", async () => {
@@ -336,7 +341,7 @@ test("Firestore completion fails after Auth succeeds", async () => {
 })
 
 test("An old attempt resumes after recovery", async () => {
-  const activeAttempt = "att-2" // Recovery promoted attempt 2
+  const activeAttempt: string = "att-2" // Recovery promoted attempt 2
 
   const operation1: IdentityEmailOperation = {
     id: "op-stale",
@@ -386,7 +391,7 @@ test("An old attempt resumes after recovery", async () => {
 test("An unresolved attempt cannot silently block forever: operator recovery", async () => {
   let authEmail = "drifted@example.test"
   let firestoreEmail = "original@example.test"
-  let lockStatus = "reconciliation-required"
+  let lockData: any = { status: "reconciliation-required", residentId: "res-blocked" }
   const logs: any[] = []
 
   const mockDb = {
@@ -394,6 +399,7 @@ test("An unresolved attempt cannot silently block forever: operator recovery", a
       return {
         doc(id: string) {
           return {
+            id,
             async get() {
               if (name === "users" && id === "admin-user") {
                 return { exists: true, data: () => ({ role: "Full Access", status: "Active", name: "Super Admin" }) }
@@ -402,7 +408,7 @@ test("An unresolved attempt cannot silently block forever: operator recovery", a
                 return { exists: true, data: () => ({ role: "resident", status: "Active", email: firestoreEmail }) }
               }
               if (name === "identityOperationLocks" && id === "res-blocked") {
-                return { exists: true, data: () => ({ status: lockStatus, residentId: "res-blocked" }) }
+                return { exists: true, data: () => ({ ...lockData }) }
               }
               return { exists: false }
             },
@@ -415,10 +421,12 @@ test("An unresolved attempt cannot silently block forever: operator recovery", a
         async get(ref: any) { return ref.get() },
         update(_ref: any, data: any) {
           if (data.email) firestoreEmail = data.email
-          if (data.status) lockStatus = data.status
+          if (data.status) lockData.status = data.status
         },
-        set(_ref: any, data: any) {
-          if (data.status) lockStatus = data.status
+        set(ref: any, data: any) {
+          if (ref.id === "res-blocked" || data.residentId === "res-blocked") {
+            lockData = { ...lockData, ...data }
+          }
           if (data.action) logs.push(data)
         },
       }
@@ -444,7 +452,7 @@ test("An unresolved attempt cannot silently block forever: operator recovery", a
   assert.equal(result.success, true)
   assert.equal(firestoreEmail, "drifted@example.test")
   assert.equal(authEmail, "drifted@example.test")
-  assert.equal(lockStatus, "completed")
+  assert.equal(lockData.status, "completed")
   assert.equal(logs.length, 1)
   assert.equal(logs[0].authoritative, true)
 })
