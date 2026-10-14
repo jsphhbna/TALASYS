@@ -34,20 +34,21 @@ Historical migrations remain outside scope; disposable historical data will be c
     - Query-parameter expiry: HTTP 200 (proves standard Cloudinary HMAC signatures do not enforce query `exp`, verifying that `generateSignedDeliveryUrl` returning `expiresAt: null` is accurate).
     - Disposable asset `talasys/disposable-probe-...` uploaded and destroyed immediately (`result: ok`).
     - Zero secrets logged or committed. Existing assets untouched.
-- **Emulator Regression Suite (`test/emulator/identity-coordination-emulator.test.ts`)**:
-  - Tests 14/14 pass against live Firebase Auth and Firestore emulators exercising real production claim/transition/finalization adapters.
+- **Recovery Liveness & Phase 2/Owned Phase 3 Cleanup**:
+  - Implemented `restoreLockToRecoveryState` in `lib/admin/identity-reconciliation.ts` to idempotently transition locks to `status: "reconciliation-required"` on any Phase 2 failure (Auth lookup failures, empty Auth emails in `sync-auth-to-firestore`, empty Firestore emails in `sync-firestore-to-auth`, provider update failures, unsupported actions).
+  - Ensured owned Phase 3 409 errors run lock cleanup before rethrowing, preventing locks from being permanently stranded in `reconciling`.
+  - Added `finally` cleanup guarantee to safeguard against unhandled errors or pre-finalization aborts.
+  - Updated `evaluateRecoveryEligibility` in `lib/admin/identity-coordination-policy.ts` to allow matching `targetOperationId` and `previousOperationId` on quiesced locks.
+  - Added comprehensive unit and emulator regression tests verifying that locks become `reconciliation-required` on all Phase 2 failures and owned Phase 3 409 errors, and that subsequent recovery attempts immediately succeed.
 
 ## Reproducible local evidence
 
-- `npm test` — PASS, 136/136 tests across 31 suites.
-- `npm run test:rules` — PASS, 14/14 tests against Auth & Firestore emulators (including comprehensive identity coordination suite).
-- `npm run test:e2e:auth` — PASS, 22/22 authenticated browser tests against Auth & Firestore emulators.
-- `node --experimental-strip-types scripts/verify-cloudinary-provider.ts` — PASS, live provider verification completed.
+- `npm test` — PASS, 143/143 tests across 31 suites (including 4 new recovery liveness regression tests).
+- `npm run test:rules` — PASS, 16/16 tests against Auth & Firestore emulators (including Task 7 recovery liveness subtests 7.1, 7.2, 7.3).
 - `npm run typecheck` — PASS (0 errors).
 - `npm run typecheck:test` — PASS (0 errors).
 - `npm run lint` — PASS (0 errors).
 - `npm run build` — PASS; Next.js 16.4.0 Turbopack compiled 47 routes.
-- `npm audit` — 16 advisories (5 mod, 11 high) strictly in dev tooling (`firebase-tools`, `eslint-config-next`) and `exceljs` transitive dependency.
 
 ## Remaining boundaries & limitations
 

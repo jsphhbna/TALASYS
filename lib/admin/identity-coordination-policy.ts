@@ -60,6 +60,10 @@ export interface ExistingLockState {
   status?: string | null
   residentId?: string | null
   verificationId?: string | null
+  targetOperationId?: string | null
+  targetAttemptId?: string | null
+  previousOperationId?: string | null
+  previousAttemptId?: string | null
   updatedAt?: number | null
   [key: string]: unknown
 }
@@ -295,19 +299,23 @@ export function evaluateRecoveryEligibility(
 
   // Expected operationId binding (quiesced or other stages)
   if (input.expectedOperationId && existingLock.operationId !== input.expectedOperationId) {
-    return {
-      eligible: false,
-      reason: `Reconciliation expected operation ID '${input.expectedOperationId}', but found active operation '${existingLock.operationId}'.`,
-      status: 409,
+    if (existingLock.targetOperationId !== input.expectedOperationId && existingLock.previousOperationId !== input.expectedOperationId) {
+      return {
+        eligible: false,
+        reason: `Reconciliation expected operation ID '${input.expectedOperationId}', but found active operation '${existingLock.operationId}'.`,
+        status: 409,
+      }
     }
   }
 
   // Expected attemptId binding (quiesced or other stages)
   if (input.expectedAttemptId && existingLock.attemptId !== input.expectedAttemptId) {
-    return {
-      eligible: false,
-      reason: `Reconciliation expected attempt ID '${input.expectedAttemptId}', but found active attempt '${existingLock.attemptId}'.`,
-      status: 409,
+    if (existingLock.targetAttemptId !== input.expectedAttemptId && existingLock.previousAttemptId !== input.expectedAttemptId) {
+      return {
+        eligible: false,
+        reason: `Reconciliation expected attempt ID '${input.expectedAttemptId}', but found active attempt '${existingLock.attemptId}'.`,
+        status: 409,
+      }
     }
   }
 

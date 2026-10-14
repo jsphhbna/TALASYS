@@ -804,3 +804,371 @@ test("Blocker 2 Unit: Email-only recovery resolves verificationApprovalOperation
   assert.equal(claimPolicyNewAttempt.outcome, "claimed")
 })
 
+test("Recovery Liveness: auth.getUser() throws in Phase 2 -> lock becomes reconciliation-required and subsequent recovery succeeds", async () => {
+  const residentId = "res-liveness-auth-lookup"
+  let firestoreEmail = "fs-lookup@talasys.test"
+  let authEmail = "auth-lookup@talasys.test"
+  let shouldAuthLookupFail = true
+
+  let lockState: any = {
+    residentId,
+    operationId: "op-failed-before",
+    attemptId: "att-failed-before",
+    status: "reconciliation-required",
+    updatedAt: Date.now() - 5000,
+  }
+
+  const mockDb = {
+    collection(name: string) {
+      return {
+        doc(id: string) {
+          return {
+            id,
+            collectionName: name,
+            async get() {
+              if (name === "users" && id === "admin-user") {
+                return { exists: true, data: () => ({ role: "Full Access", status: "Active", name: "Admin" }) }
+              }
+              if (name === "users" && id === residentId) {
+                return { exists: true, data: () => ({ role: "resident", status: "Active", email: firestoreEmail }) }
+              }
+              if (name === "identityOperationLocks" && id === residentId) {
+                return { exists: true, data: () => ({ ...lockState }) }
+              }
+              return { exists: false }
+            },
+          }
+        },
+      }
+    },
+    async runTransaction(fn: any) {
+      const transaction = {
+        async get(ref: any) { return ref.get() },
+        update(ref: any, data: any) {
+          if (ref.collectionName === "users" && data.email) firestoreEmail = data.email
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+        set(ref: any, data: any) {
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+      }
+      return fn(transaction)
+    },
+  }
+
+  const deps: ReconcileIdentityDependencies = {
+    auth: {
+      async getUser() {
+        if (shouldAuthLookupFail) throw new Error("Auth service unavailable (503)")
+        return { email: authEmail }
+      },
+      async updateUser(_uid, props) { authEmail = props.email },
+    },
+    db: mockDb,
+  }
+
+  // Attempt 1: Auth lookup throws
+  await assert.rejects(
+    reconcileResidentIdentity(deps, {
+      residentId,
+      action: "sync-auth-to-firestore",
+      actorUid: "admin-user",
+    }),
+    (err: any) => {
+      assert.equal(err.status, 502)
+      assert.match(err.message, /Firebase Auth lookup failed/)
+      return true
+    }
+  )
+
+  // Critical invariant: Lock must NOT remain stuck in 'reconciling'
+  assert.equal(lockState.status, "reconciliation-required", "Lock must transition back to reconciliation-required")
+  assert.match(lockState.error, /Firebase Auth lookup failed/)
+
+  // Attempt 2: Subsequent recovery attempt must be able to claim the lock and succeed
+  shouldAuthLookupFail = false
+  const retryResult = await reconcileResidentIdentity(deps, {
+    residentId,
+    action: "sync-auth-to-firestore",
+    actorUid: "admin-user",
+  })
+  assert.equal(retryResult.success, true)
+  assert.equal(lockState.status, "completed")
+  assert.equal(firestoreEmail, authEmail)
+})
+
+test("Recovery Liveness: sync-auth-to-firestore with missing Auth email in Phase 2 -> lock becomes reconciliation-required and remains recoverable", async () => {
+  const residentId = "res-liveness-empty-auth"
+  let firestoreEmail = "fs-empty@talasys.test"
+  let authEmail = "" // No Auth email initially
+
+  let lockState: any = {
+    residentId,
+    operationId: "op-empty-auth-prev",
+    attemptId: "att-empty-auth-prev",
+    status: "reconciliation-required",
+    updatedAt: Date.now() - 5000,
+  }
+
+  const mockDb = {
+    collection(name: string) {
+      return {
+        doc(id: string) {
+          return {
+            id,
+            collectionName: name,
+            async get() {
+              if (name === "users" && id === "admin-user") {
+                return { exists: true, data: () => ({ role: "Full Access", status: "Active", name: "Admin" }) }
+              }
+              if (name === "users" && id === residentId) {
+                return { exists: true, data: () => ({ role: "resident", status: "Active", email: firestoreEmail }) }
+              }
+              if (name === "identityOperationLocks" && id === residentId) {
+                return { exists: true, data: () => ({ ...lockState }) }
+              }
+              return { exists: false }
+            },
+          }
+        },
+      }
+    },
+    async runTransaction(fn: any) {
+      const transaction = {
+        async get(ref: any) { return ref.get() },
+        update(ref: any, data: any) {
+          if (ref.collectionName === "users" && data.email) firestoreEmail = data.email
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+        set(ref: any, data: any) {
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+      }
+      return fn(transaction)
+    },
+  }
+
+  const deps: ReconcileIdentityDependencies = {
+    auth: {
+      async getUser() { return { email: authEmail } },
+      async updateUser(_uid, props) { authEmail = props.email },
+    },
+    db: mockDb,
+  }
+
+  // Attempt 1: sync-auth-to-firestore finds no Auth email
+  await assert.rejects(
+    reconcileResidentIdentity(deps, {
+      residentId,
+      action: "sync-auth-to-firestore",
+      actorUid: "admin-user",
+    }),
+    (err: any) => {
+      assert.equal(err.status, 400)
+      assert.match(err.message, /Target resident has no Auth email to sync from/)
+      return true
+    }
+  )
+
+  // Lock must be in reconciliation-required, NEVER stranded in reconciling
+  assert.equal(lockState.status, "reconciliation-required")
+  assert.match(lockState.error, /Target resident has no Auth email to sync from/)
+
+  // Attempt 2: Auth user now has an email; subsequent recovery must succeed
+  authEmail = "populated-auth@talasys.test"
+  const retryResult = await reconcileResidentIdentity(deps, {
+    residentId,
+    action: "sync-auth-to-firestore",
+    actorUid: "admin-user",
+  })
+  assert.equal(retryResult.success, true)
+  assert.equal(lockState.status, "completed")
+  assert.equal(firestoreEmail, "populated-auth@talasys.test")
+})
+
+test("Recovery Liveness: Owned Phase 3 409 failure cleans up lock to reconciliation-required and subsequent recovery succeeds", async () => {
+  const residentId = "res-liveness-phase3-owned409"
+  let firestoreEmail = "fs-p3@talasys.test"
+  let authEmail = "auth-p3@talasys.test"
+  let injectOwnedPhase3Conflict = true
+  let phase1Completed = false
+
+  let lockState: any = {
+    residentId,
+    operationId: "op-phase3-test",
+    attemptId: "att-phase3-test",
+    status: "reconciliation-required",
+    updatedAt: Date.now() - 5000,
+  }
+
+  const mockDb = {
+    collection(name: string) {
+      return {
+        doc(id: string) {
+          return {
+            id,
+            collectionName: name,
+            async get() {
+              if (name === "users" && id === "admin-user") {
+                return { exists: true, data: () => ({ role: "Full Access", status: "Active", name: "Admin" }) }
+              }
+              if (name === "users" && id === residentId) {
+                return { exists: true, data: () => ({ role: "resident", status: "Active", email: firestoreEmail }) }
+              }
+              if (name === "identityOperationLocks" && id === residentId) {
+                return { exists: true, data: () => ({ ...lockState }) }
+              }
+              return { exists: false }
+            },
+          }
+        },
+      }
+    },
+    async runTransaction(fn: any) {
+      const transaction = {
+        async get(ref: any) {
+          if (phase1Completed && injectOwnedPhase3Conflict && ref.collectionName === "users" && ref.id === "admin-user") {
+            throw Object.assign(new Error("Simulated owned transaction 409 conflict during finalization"), { status: 409 })
+          }
+          return ref.get()
+        },
+        update(ref: any, data: any) {
+          if (ref.collectionName === "users" && data.email) firestoreEmail = data.email
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+        set(ref: any, data: any) {
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+      }
+      const res = await fn(transaction)
+      phase1Completed = true
+      return res
+    },
+  }
+
+  const deps: ReconcileIdentityDependencies = {
+    auth: {
+      async getUser() { return { email: authEmail } },
+      async updateUser(_uid, props) { authEmail = props.email },
+    },
+    db: mockDb,
+  }
+
+  // Attempt 1: Phase 3 throws owned 409
+  await assert.rejects(
+    reconcileResidentIdentity(deps, {
+      residentId,
+      action: "sync-auth-to-firestore",
+      actorUid: "admin-user",
+    }),
+    (err: any) => {
+      assert.equal(err.status, 409)
+      assert.match(err.message, /Simulated owned transaction 409 conflict/)
+      return true
+    }
+  )
+
+  // Lock must NOT be stuck in 'reconciling'; cleanup must have transitioned it to 'reconciliation-required'
+  assert.equal(lockState.status, "reconciliation-required", "Owned 409 must trigger cleanup and leave reconciliation-required")
+  assert.match(lockState.error, /Reconciliation finalization failed/)
+
+  // Attempt 2: Without injected conflict, subsequent recovery succeeds
+  injectOwnedPhase3Conflict = false
+  phase1Completed = false
+  const retryResult = await reconcileResidentIdentity(deps, {
+    residentId,
+    action: "sync-auth-to-firestore",
+    actorUid: "admin-user",
+  })
+  assert.equal(retryResult.success, true)
+  assert.equal(lockState.status, "completed")
+  assert.equal(firestoreEmail, authEmail)
+})
+
+test("Recovery Liveness: Unowned Phase 3 409 does NOT overwrite newer owner lock", async () => {
+  const residentId = "res-liveness-phase3-unowned409"
+  let firestoreEmail = "fs-unowned@talasys.test"
+  const authEmail = "auth-unowned@talasys.test"
+
+  let lockState: any = {
+    residentId,
+    operationId: "op-unowned-test",
+    attemptId: "att-unowned-test",
+    status: "reconciliation-required",
+    updatedAt: Date.now() - 5000,
+  }
+
+  const mockDb = {
+    collection(name: string) {
+      return {
+        doc(id: string) {
+          return {
+            id,
+            collectionName: name,
+            async get() {
+              if (name === "users" && id === "admin-user") {
+                return { exists: true, data: () => ({ role: "Full Access", status: "Active", name: "Admin" }) }
+              }
+              if (name === "users" && id === residentId) {
+                return { exists: true, data: () => ({ role: "resident", status: "Active", email: firestoreEmail }) }
+              }
+              if (name === "identityOperationLocks" && id === residentId) {
+                return { exists: true, data: () => ({ ...lockState }) }
+              }
+              return { exists: false }
+            },
+          }
+        },
+      }
+    },
+    async runTransaction(fn: any) {
+      const transaction = {
+        async get(ref: any) { return ref.get() },
+        update(ref: any, data: any) {
+          if (ref.collectionName === "users" && data.email) firestoreEmail = data.email
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+        set(ref: any, data: any) {
+          if (ref.collectionName === "identityOperationLocks") lockState = { ...lockState, ...data }
+        },
+      }
+      return fn(transaction)
+    },
+  }
+
+  const deps: ReconcileIdentityDependencies = {
+    auth: {
+      async getUser() {
+        // Another operator/attempt takes over during Phase 2
+        lockState = {
+          residentId,
+          operationId: "reconcile-res-newer",
+          attemptId: "attempt-newer-owner",
+          status: "reconciling",
+          updatedAt: Date.now(),
+        }
+        return { email: authEmail }
+      },
+      async updateUser() { /* no-op */ },
+    },
+    db: mockDb,
+  }
+
+  await assert.rejects(
+    reconcileResidentIdentity(deps, {
+      residentId,
+      action: "sync-auth-to-firestore",
+      actorUid: "admin-user",
+    }),
+    (err: any) => {
+      assert.equal(err.status, 409)
+      assert.match(err.message, /Reconciliation fence changed/)
+      return true
+    }
+  )
+
+  // Because lock was taken over by attempt-newer-owner, Attempt 1 must NOT overwrite it
+  assert.equal(lockState.attemptId, "attempt-newer-owner")
+  assert.equal(lockState.status, "reconciling")
+})
+

@@ -103,4 +103,25 @@
      - In `app/api/admin/verifications/approve/route.ts`, return `completed` only when `verification.status === "approved"`, never when the verification remains `pending`.
 - **Consequences**: Guarantees recovery cannot overlap with live auth-mutating external side effects, ensures pending verification approvals remain fully claimable and executable after email-only reconciliation, and preserves normal writer blocking during active reconciliation.
 
+## ADR-015: Idempotent Lock Cleanup and Recovery Liveness on Phase 2 & Owned Phase 3 Failures
+- **Status**: Accepted & Verified
+- **Date**: 14 October 2026
+- **Context**:
+  - During identity reconciliation, the resident lock transitions to `reconciling` in Phase 1.
+  - If `auth.getUser()` failed, or `sync-auth-to-firestore` found no Auth email, or any other Phase 2 error occurred, the function threw without transitioning the lock out of `reconciling`.
+  - Because `reconciling` blocks every recovery attempt (returning 409), that resident became permanently stuck and unrecoverable.
+  - Additionally, Phase 3 immediately rethrew errors with status 409 before running its catch cleanup transaction, leaving locks owned by the reconciliation attempt stuck in `reconciling` on owned 409 errors.
+- **Decisions**:
+  1. **Comprehensive Phase 2 Cleanup**:
+     - Wrapped Phase 2 in defensive error handling that catches auth lookup failures, empty Auth emails in `sync-auth-to-firestore`, empty Firestore emails in `sync-firestore-to-auth`, provider update failures, and differing emails on `release-lock`.
+     - Added `restoreLockToRecoveryState`: an idempotent helper running a Firestore transaction to update `identityOperationLocks/{residentId}` to `status: "reconciliation-required"` with the specific failure details whenever the lock is still owned (`attemptId === reconciliationId && status === "reconciling"`).
+  2. **Owned Phase 3 409 Cleanup Before Rethrow**:
+     - Removed the short-circuiting `if (finalizeError?.status === 409) throw finalizeError` before cleanup in Phase 3.
+     - Catch block invokes `restoreLockToRecoveryState` first: if the lock is owned by `reconciliationId` in `reconciling`, it transitions to `reconciliation-required` before rethrowing the 409 error. If another operation took over the fence, `restoreLockToRecoveryState` safely leaves the newer lock untouched.
+  3. **Idempotent Finally Guarantee**:
+     - Integrated `finally` block ensuring that any unhandled exception or pre-finalization abort releases the lock to `reconciliation-required` without masking the original error.
+  4. **Target and Previous Operation ID Binding**:
+     - Updated `ExistingLockState` and `evaluateRecoveryEligibility` in `lib/admin/identity-coordination-policy.ts` to allow `expectedOperationId` and `expectedAttemptId` to match `targetOperationId` / `previousOperationId` on quiesced locks, ensuring subsequent recoveries can cleanly target the original operation.
+- **Consequences**: Eliminates permanent lock stranding in `reconciling`; all Phase 2 and owned Phase 3 failure paths leave durable, actionable `reconciliation-required` locks that can be claimed by subsequent recovery attempts; preserves strict anti-stomp protections and normal writer blocking.
+
 

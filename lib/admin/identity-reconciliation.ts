@@ -32,6 +32,31 @@ export interface ReconcileIdentityDependencies {
   db: any
 }
 
+async function restoreLockToRecoveryState(
+  db: any,
+  residentId: string,
+  reconciliationId: string,
+  errorMessage: string
+): Promise<void> {
+  try {
+    await db.runTransaction(async (transaction: any) => {
+      const lockRef = db.collection("identityOperationLocks").doc(residentId)
+      const lockSnap = await transaction.get(lockRef)
+      if (!lockSnap || !lockSnap.exists) return
+      const lockData = typeof lockSnap.data === "function" ? lockSnap.data() : null
+      if (lockData?.attemptId === reconciliationId && lockData?.status === "reconciling") {
+        transaction.update(lockRef, {
+          status: "reconciliation-required",
+          error: errorMessage,
+          updatedAt: Date.now(),
+        })
+      }
+    })
+  } catch {
+    // Best effort to persist durable recovery state; never mask original error
+  }
+}
+
 export async function reconcileResidentIdentity(deps: ReconcileIdentityDependencies, input: ReconcileIdentityInput) {
   const now = input.now || Date.now()
   const residentId = input.residentId.trim()
@@ -84,7 +109,9 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
     const linkedVerificationId = lock?.verificationId || (
       typeof lock?.operationId === "string" && lock.operationId.startsWith("verification-")
         ? lock.operationId.replace(/^verification-/, "")
-        : null
+        : (typeof lock?.targetOperationId === "string" && lock.targetOperationId.startsWith("verification-")
+          ? lock.targetOperationId.replace(/^verification-/, "")
+          : null)
     )
 
     // Set lock to reconciling with complete immutable history
@@ -94,8 +121,8 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
       attemptId: reconciliationId,
       status: "reconciling",
       reconciledBy: input.actorUid,
-      targetOperationId: lock?.operationId || null,
-      targetAttemptId: lock?.attemptId || null,
+      targetOperationId: lock?.targetOperationId || lock?.operationId || null,
+      targetAttemptId: lock?.targetAttemptId || lock?.attemptId || null,
       verificationId: linkedVerificationId || null,
       previousStatus: lock?.status || null,
       previousOperationId: lock?.operationId || null,
@@ -115,230 +142,245 @@ export async function reconcileResidentIdentity(deps: ReconcileIdentityDependenc
     }
   })
 
-  // ─── Phase 2: Auth mutation OUTSIDE the transaction ─────────────────
-  const authUser = await deps.auth.getUser(residentId)
-  const authEmail = authUser.email?.trim().toLowerCase() || ""
+  let lockReleasedOrFinalized = false
+  let lastFailureReason = "Reconciliation aborted before finalization"
+
+  let authEmail = ""
   let syncedEmail = ""
   let authMutated = false
 
-  if (input.action === "sync-auth-to-firestore") {
-    if (!authEmail) throw Object.assign(new Error("Target resident has no Auth email to sync from."), { status: 400 })
-    syncedEmail = authEmail
-    // No Auth mutation needed — we copy Auth → Firestore
-  } else if (input.action === "sync-firestore-to-auth") {
-    if (!snapshot.firestoreEmail) throw Object.assign(new Error("Target resident has no Firestore email to sync from."), { status: 400 })
-    syncedEmail = snapshot.firestoreEmail
-    if (authEmail !== snapshot.firestoreEmail) {
-      try {
-        await deps.auth.updateUser(residentId, { email: snapshot.firestoreEmail })
-        authMutated = true
-      } catch (authError: any) {
-        // Auth mutation failed — restore lock to reconciliation-required
-        try {
-          await deps.db.runTransaction(async (transaction: any) => {
-            const lockRef = deps.db.collection("identityOperationLocks").doc(residentId)
-            const lockSnap = await transaction.get(lockRef)
-            if (lockSnap.data()?.attemptId !== reconciliationId) {
-              throw Object.assign(new Error("Reconciliation ownership changed"), { status: 409 })
-            }
-            transaction.update(lockRef, {
-              status: "reconciliation-required",
-              error: `Auth sync failed: ${authError instanceof Error ? authError.message : String(authError)}`,
-              updatedAt: Date.now(),
-            })
-          })
-        } catch {
-          // Best effort to restore lock state
-        }
-        throw Object.assign(new Error("Firebase Auth update failed during reconciliation."), { status: 502, cause: authError })
-      }
-    }
-  } else if (input.action === "release-lock") {
-    if (authEmail !== snapshot.firestoreEmail) {
-      // Restore lock to previous state since we can't release with mismatched emails
-      try {
-        await deps.db.runTransaction(async (transaction: any) => {
-          const lockRef = deps.db.collection("identityOperationLocks").doc(residentId)
-          const lockSnap = await transaction.get(lockRef)
-          if (lockSnap.data()?.attemptId !== reconciliationId) return
-          transaction.update(lockRef, {
-            status: snapshot.lock?.status || "reconciliation-required",
-            error: `Release denied: Auth (${authEmail}) and Firestore (${snapshot.firestoreEmail}) emails differ.`,
-            updatedAt: Date.now(),
-          })
-        })
-      } catch {
-        // Best effort
-      }
-      throw Object.assign(new Error(
-        `Cannot release lock: Auth (${authEmail}) and Firestore (${snapshot.firestoreEmail}) emails differ. ` +
-        `Choose sync-auth-to-firestore or sync-firestore-to-auth.`
-      ), { status: 400 })
-    }
-    syncedEmail = snapshot.firestoreEmail
-  } else {
-    throw Object.assign(new Error("Unsupported reconciliation action"), { status: 400 })
-  }
-
-  // ─── Phase 3: Finalize Firestore changes in a fenced transaction ────
-  // TASK 2 ENFORCEMENT: ALL READS MUST PRECEDE ALL WRITES
   try {
-    await deps.db.runTransaction(async (transaction: any) => {
-      const lockRef = deps.db.collection("identityOperationLocks").doc(residentId)
-      const residentRef = deps.db.collection(COLLECTION_USERS).doc(residentId)
-      const callerRef = deps.db.collection(COLLECTION_USERS).doc(input.actorUid)
-      const linkedVerificationId = snapshot.lock?.verificationId || (
-        typeof snapshot.lock?.operationId === "string" && snapshot.lock.operationId.startsWith("verification-")
-          ? snapshot.lock.operationId.replace(/^verification-/, "")
-          : null
+    // ─── Phase 2: Auth mutation OUTSIDE the transaction ─────────────────
+    let authUser: { email?: string }
+    try {
+      authUser = await deps.auth.getUser(residentId)
+    } catch (authLookupError: any) {
+      lastFailureReason = `Firebase Auth lookup failed during reconciliation: ${authLookupError instanceof Error ? authLookupError.message : String(authLookupError)}`
+      throw Object.assign(
+        new Error(lastFailureReason),
+        { status: authLookupError?.status || 502, cause: authLookupError }
       )
-      const verifRef = linkedVerificationId
-        ? deps.db.collection(COLLECTION_VERIFICATIONS).doc(linkedVerificationId)
-        : null
+    }
+    authEmail = authUser?.email?.trim().toLowerCase() || ""
 
-      const isVerificationApproval = Boolean(
-        linkedVerificationId || snapshot.lock?.operationType === "verification-approval"
-      )
-      const opRef = isVerificationApproval
-        ? (linkedVerificationId ? deps.db.collection("verificationApprovalOperations").doc(linkedVerificationId) : null)
-        : (snapshot.lock?.operationId ? deps.db.collection("identityOperations").doc(snapshot.lock.operationId) : null)
-
-      // Step 1: Execute ALL transaction reads before ANY write
-      const [lockSnap, residentSnap, callerSnap, verifSnap, opSnap] = await Promise.all([
-        transaction.get(lockRef),
-        transaction.get(residentRef),
-        transaction.get(callerRef),
-        verifRef ? transaction.get(verifRef) : Promise.resolve(null),
-        opRef ? transaction.get(opRef) : Promise.resolve(null),
-      ])
-
-      // Step 2: Validate snapshots
-      if (lockSnap.data()?.attemptId !== reconciliationId || lockSnap.data()?.status !== "reconciling") {
-        throw Object.assign(new Error("Reconciliation fence changed; another operation took over."), { status: 409 })
+    if (input.action === "sync-auth-to-firestore") {
+      if (!authEmail) {
+        lastFailureReason = "Target resident has no Auth email to sync from."
+        throw Object.assign(new Error(lastFailureReason), { status: 400 })
       }
-
-      const caller = callerSnap.exists ? callerSnap.data() || {} : {}
-      const stillAuthorized = isSuperAdminRole(caller.role) || isFullAdminRole(caller.role)
-      if (!stillAuthorized || ["Locked", "Deleted", "Deleted by Resident"].includes(caller.status)) {
-        throw Object.assign(new Error("Caller authorization revoked during reconciliation."), { status: 403 })
+      syncedEmail = authEmail
+      // No Auth mutation needed — we copy Auth → Firestore
+    } else if (input.action === "sync-firestore-to-auth") {
+      if (!snapshot.firestoreEmail) {
+        lastFailureReason = "Target resident has no Firestore email to sync from."
+        throw Object.assign(new Error(lastFailureReason), { status: 400 })
       }
-
-      if (!residentSnap.exists) {
-        throw Object.assign(new Error("Target resident was removed during reconciliation."), { status: 404 })
-      }
-
-      // Step 3: Apply writes (NO READS AFTER THIS POINT)
-      if (input.action === "sync-auth-to-firestore") {
-        transaction.update(residentRef, { email: authEmail, updatedAt: now })
-      }
-
-      // Linked verification recovery: reset processing fence to pending, never auto-approve
-      if (verifRef && verifSnap?.exists && (verifSnap.data()?.status === "processing" || verifSnap.data()?.status === "pending")) {
-        transaction.update(verifRef, {
-          status: "pending",
-          processingOperationId: null,
-          processingAttemptId: null,
-          reconciledAt: now,
-          updatedAt: now,
-        })
-      }
-
-      const completedStatus = input.action === "sync-firestore-to-auth" ? "compensated" : "completed"
-
-      // Linked operation record recovery
-      if (isVerificationApproval) {
-        if (opRef && opSnap?.exists) {
-          transaction.update(opRef, {
-            status: "reconciled",
-            reconciledAt: now,
-            reconciledBy: input.actorUid,
-            reconciliationId,
-            leaseUntil: 0,
-            updatedAt: now,
-          })
-        }
-      } else {
-        if (opRef && opSnap?.exists) {
-          transaction.update(opRef, {
-            status: completedStatus,
-            reconciledAt: now,
-            reconciledBy: input.actorUid,
-            reconciliationId,
-            updatedAt: now,
-          })
+      syncedEmail = snapshot.firestoreEmail
+      if (authEmail !== snapshot.firestoreEmail) {
+        try {
+          await deps.auth.updateUser(residentId, { email: snapshot.firestoreEmail })
+          authMutated = true
+        } catch (authError: any) {
+          lastFailureReason = `Auth sync failed: ${authError instanceof Error ? authError.message : String(authError)}`
+          throw Object.assign(new Error("Firebase Auth update failed during reconciliation."), { status: 502, cause: authError })
         }
       }
+    } else if (input.action === "release-lock") {
+      if (authEmail !== snapshot.firestoreEmail) {
+        lastFailureReason = `Release denied: Auth (${authEmail}) and Firestore (${snapshot.firestoreEmail}) emails differ.`
+        throw Object.assign(new Error(
+          `Cannot release lock: Auth (${authEmail}) and Firestore (${snapshot.firestoreEmail}) emails differ. ` +
+          `Choose sync-auth-to-firestore or sync-firestore-to-auth.`
+        ), { status: 400 })
+      }
+      syncedEmail = snapshot.firestoreEmail
+    } else {
+      lastFailureReason = "Unsupported reconciliation action"
+      throw Object.assign(new Error(lastFailureReason), { status: 400 })
+    }
 
-      // Complete the lock - ALWAYS with reconcile operationId so it never falsely completes the pending approval
-      transaction.set(lockRef, {
-        residentId,
-        operationId: `reconcile-${residentId}-${reconciliationId}`,
-        attemptId: reconciliationId,
-        status: completedStatus,
-        reconciledBy: input.actorUid,
-        reconciledAction: input.action,
-        reconciledAt: now,
-        targetOperationId: snapshot.lock?.operationId || null,
-        targetAttemptId: snapshot.lock?.attemptId || null,
-        verificationId: linkedVerificationId || null,
-        previousStatus: snapshot.lock?.status || null,
-        previousOperationId: snapshot.lock?.operationId || null,
-        previousAttemptId: snapshot.lock?.attemptId || null,
-        notes: input.notes || null,
-        updatedAt: now,
-      })
-
-      // Authoritative audit record
-      const auditRef = deps.db.collection(COLLECTION_ACTIVITY_LOGS).doc(`reconcile-${residentId}-${reconciliationId}`)
-      transaction.set(auditRef, {
-        actor: { id: input.actorUid, name: input.actorName || snapshot.callerName },
-        action: "Reconciled Resident Identity",
-        actionType: "Identity Reconciliation",
-        targetId: residentId,
-        targetCollection: COLLECTION_USERS,
-        before: {
-          authEmail,
-          firestoreEmail: snapshot.firestoreEmail,
-          lockStatus: snapshot.lock?.status || null,
-          lockOperationId: snapshot.lock?.operationId || null,
-          lockAttemptId: snapshot.lock?.attemptId || null,
-        },
-        after: {
-          syncedEmail,
-          action: input.action,
-          lockStatus: completedStatus,
-          authMutated,
-        },
-        reconciliationId,
-        notes: input.notes || null,
-        ipAddress: input.ipAddress || "Unknown",
-        timestamp: now,
-        createdAt: now,
-        authoritative: true,
-      })
-    })
-  } catch (finalizeError: any) {
-    if (finalizeError?.status === 409) throw finalizeError
-
-    // Transition lock out of 'reconciling' into 'reconciliation-required' so it does not stay stranded
+    // ─── Phase 3: Finalize Firestore changes in a fenced transaction ────
+    // TASK 2 ENFORCEMENT: ALL READS MUST PRECEDE ALL WRITES
     try {
       await deps.db.runTransaction(async (transaction: any) => {
         const lockRef = deps.db.collection("identityOperationLocks").doc(residentId)
-        const lockSnap = await transaction.get(lockRef)
-        if (lockSnap.data()?.attemptId === reconciliationId) {
-          transaction.update(lockRef, {
-            status: "reconciliation-required",
-            error: `Reconciliation finalization failed${authMutated ? " after Auth mutation" : ""}: ${finalizeError instanceof Error ? finalizeError.message : String(finalizeError)}`,
-            updatedAt: Date.now(),
+        const residentRef = deps.db.collection(COLLECTION_USERS).doc(residentId)
+        const callerRef = deps.db.collection(COLLECTION_USERS).doc(input.actorUid)
+        const linkedVerificationId = snapshot.lock?.verificationId || (
+          typeof snapshot.lock?.operationId === "string" && snapshot.lock.operationId.startsWith("verification-")
+            ? snapshot.lock.operationId.replace(/^verification-/, "")
+            : (typeof snapshot.lock?.targetOperationId === "string" && snapshot.lock.targetOperationId.startsWith("verification-")
+              ? snapshot.lock.targetOperationId.replace(/^verification-/, "")
+              : null)
+        )
+        const verifRef = linkedVerificationId
+          ? deps.db.collection(COLLECTION_VERIFICATIONS).doc(linkedVerificationId)
+          : null
+
+        const isVerificationApproval = Boolean(
+          linkedVerificationId || snapshot.lock?.operationType === "verification-approval"
+        )
+        const targetIdentityOpId = (
+          typeof snapshot.lock?.targetOperationId === "string" && snapshot.lock.targetOperationId
+            ? snapshot.lock.targetOperationId
+            : (typeof snapshot.lock?.operationId === "string" && !snapshot.lock.operationId.startsWith("reconcile-")
+              ? snapshot.lock.operationId
+              : null)
+        )
+        const opRef = isVerificationApproval
+          ? (linkedVerificationId ? deps.db.collection("verificationApprovalOperations").doc(linkedVerificationId) : null)
+          : (targetIdentityOpId ? deps.db.collection("identityOperations").doc(targetIdentityOpId) : null)
+
+        // Step 1: Execute ALL transaction reads before ANY write
+        const [lockSnap, residentSnap, callerSnap, verifSnap, opSnap] = await Promise.all([
+          transaction.get(lockRef),
+          transaction.get(residentRef),
+          transaction.get(callerRef),
+          verifRef ? transaction.get(verifRef) : Promise.resolve(null),
+          opRef ? transaction.get(opRef) : Promise.resolve(null),
+        ])
+
+        // Step 2: Validate snapshots
+        if (lockSnap.data()?.attemptId !== reconciliationId || lockSnap.data()?.status !== "reconciling") {
+          throw Object.assign(new Error("Reconciliation fence changed; another operation took over."), { status: 409 })
+        }
+
+        const caller = callerSnap.exists ? callerSnap.data() || {} : {}
+        const stillAuthorized = isSuperAdminRole(caller.role) || isFullAdminRole(caller.role)
+        if (!stillAuthorized || ["Locked", "Deleted", "Deleted by Resident"].includes(caller.status)) {
+          throw Object.assign(new Error("Caller authorization revoked during reconciliation."), { status: 403 })
+        }
+
+        if (!residentSnap.exists) {
+          throw Object.assign(new Error("Target resident was removed during reconciliation."), { status: 404 })
+        }
+
+        // Step 3: Apply writes (NO READS AFTER THIS POINT)
+        if (input.action === "sync-auth-to-firestore") {
+          transaction.update(residentRef, { email: authEmail, updatedAt: now })
+        }
+
+        // Linked verification recovery: reset processing fence to pending, never auto-approve
+        if (verifRef && verifSnap?.exists && (verifSnap.data()?.status === "processing" || verifSnap.data()?.status === "pending")) {
+          transaction.update(verifRef, {
+            status: "pending",
+            processingOperationId: null,
+            processingAttemptId: null,
+            reconciledAt: now,
+            updatedAt: now,
           })
         }
-      })
-    } catch {
-      // Best effort to persist durable recovery state
-    }
 
-    if (finalizeError?.status === 403) throw finalizeError
-    throw Object.assign(new Error("Reconciliation finalization failed; lock remains in recovery state."), { status: 503, cause: finalizeError })
+        const completedStatus = input.action === "sync-firestore-to-auth" ? "compensated" : "completed"
+
+        // Linked operation record recovery
+        if (isVerificationApproval) {
+          if (opRef && opSnap?.exists) {
+            transaction.update(opRef, {
+              status: "reconciled",
+              reconciledAt: now,
+              reconciledBy: input.actorUid,
+              reconciliationId,
+              leaseUntil: 0,
+              updatedAt: now,
+            })
+          }
+        } else {
+          if (opRef && opSnap?.exists) {
+            transaction.update(opRef, {
+              status: completedStatus,
+              reconciledAt: now,
+              reconciledBy: input.actorUid,
+              reconciliationId,
+              updatedAt: now,
+            })
+          }
+        }
+
+        // Complete the lock - ALWAYS with reconcile operationId so it never falsely completes the pending approval
+        transaction.set(lockRef, {
+          residentId,
+          operationId: `reconcile-${residentId}-${reconciliationId}`,
+          attemptId: reconciliationId,
+          status: completedStatus,
+          reconciledBy: input.actorUid,
+          reconciledAction: input.action,
+          reconciledAt: now,
+          targetOperationId: targetIdentityOpId || snapshot.lock?.targetOperationId || snapshot.lock?.operationId || null,
+          targetAttemptId: snapshot.lock?.targetAttemptId || (snapshot.lock?.operationId?.startsWith("reconcile-") ? null : snapshot.lock?.attemptId) || null,
+          verificationId: linkedVerificationId || null,
+          previousStatus: snapshot.lock?.status || null,
+          previousOperationId: snapshot.lock?.operationId || null,
+          previousAttemptId: snapshot.lock?.attemptId || null,
+          notes: input.notes || null,
+          updatedAt: now,
+        })
+
+        // Authoritative audit record
+        const auditRef = deps.db.collection(COLLECTION_ACTIVITY_LOGS).doc(`reconcile-${residentId}-${reconciliationId}`)
+        transaction.set(auditRef, {
+          actor: { id: input.actorUid, name: input.actorName || snapshot.callerName },
+          action: "Reconciled Resident Identity",
+          actionType: "Identity Reconciliation",
+          targetId: residentId,
+          targetCollection: COLLECTION_USERS,
+          before: {
+            authEmail,
+            firestoreEmail: snapshot.firestoreEmail,
+            lockStatus: snapshot.lock?.status || null,
+            lockOperationId: snapshot.lock?.operationId || null,
+            lockAttemptId: snapshot.lock?.attemptId || null,
+          },
+          after: {
+            syncedEmail,
+            action: input.action,
+            lockStatus: completedStatus,
+            authMutated,
+          },
+          reconciliationId,
+          notes: input.notes || null,
+          ipAddress: input.ipAddress || "Unknown",
+          timestamp: now,
+          createdAt: now,
+          authoritative: true,
+        })
+      })
+      lockReleasedOrFinalized = true
+    } catch (finalizeError: any) {
+      lastFailureReason = `Reconciliation finalization failed${authMutated ? " after Auth mutation" : ""}: ${finalizeError instanceof Error ? finalizeError.message : String(finalizeError)}`
+
+      // If owned by this attempt in 'reconciling', transition to 'reconciliation-required' before rethrowing.
+      // If another operation took over, restoreLockToRecoveryState does not overwrite.
+      await restoreLockToRecoveryState(
+        deps.db,
+        residentId,
+        reconciliationId,
+        lastFailureReason
+      )
+
+      if (finalizeError?.status === 409) throw finalizeError
+      if (finalizeError?.status === 403) throw finalizeError
+      if (finalizeError?.status === 404) throw finalizeError
+      throw Object.assign(new Error("Reconciliation finalization failed; lock remains in recovery state."), { status: 503, cause: finalizeError })
+    }
+  } catch (error: any) {
+    // Audit & restore lock state on Phase 2 or any other pre-finalization error
+    await restoreLockToRecoveryState(
+      deps.db,
+      residentId,
+      reconciliationId,
+      lastFailureReason || `Reconciliation failed: ${error instanceof Error ? error.message : String(error)}`
+    )
+    throw error
+  } finally {
+    if (!lockReleasedOrFinalized) {
+      await restoreLockToRecoveryState(
+        deps.db,
+        residentId,
+        reconciliationId,
+        lastFailureReason || "Reconciliation did not complete; lock restored to recovery state."
+      )
+    }
   }
 
   return {

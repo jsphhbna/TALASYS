@@ -803,3 +803,176 @@ test("Task 6 Acceptance: Blocker 2 Regression - Email-only recovery on approval 
   const opFinal = await adminDb.collection("verificationApprovalOperations").doc(verifId).get()
   assert.equal(opFinal.data()?.status, "completed")
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TASK 7: Recovery Liveness (Phase 2 & Owned Phase 3 Failures)
+// ─────────────────────────────────────────────────────────────────────────────
+test("Task 7 Acceptance: Recovery Liveness - Phase 2 failures and owned Phase 3 409 transition lock out of reconciling into reconciliation-required, permitting subsequent recovery", async () => {
+  // Subtest 7.1: auth.getUser() failure in Phase 2 transitions lock to reconciliation-required
+  const res7a = "res-task7-auth-lookup"
+  await setupResident(res7a, "fs-lookup@talasys.test")
+  await adminDb.collection("identityOperationLocks").doc(res7a).set({
+    residentId: res7a,
+    status: "reconciliation-required",
+    operationId: "op-lookup-prior",
+    attemptId: "att-lookup-prior",
+    updatedAt: Date.now(),
+  })
+
+  let failLookup = true
+  const lookupFailingDeps = {
+    auth: {
+      async getUser(uid: string) {
+        if (failLookup) throw new Error("Auth service lookup failure (503)")
+        return adminAuth.getUser(uid)
+      },
+      async updateUser(uid: string, props: { email: string }) {
+        return adminAuth.updateUser(uid, props)
+      },
+    },
+    db: adminDb,
+  }
+
+  await assert.rejects(
+    reconcileResidentIdentity(
+      lookupFailingDeps,
+      { residentId: res7a, action: "sync-auth-to-firestore", actorUid: ADMIN_UID }
+    ),
+    (err: any) => {
+      assert.equal(err.status, 502)
+      assert.match(err.message, /Firebase Auth lookup failed/)
+      return true
+    }
+  )
+
+  const lockAfterLookupFail = await adminDb.collection("identityOperationLocks").doc(res7a).get()
+  assert.equal(lockAfterLookupFail.data()?.status, "reconciliation-required", "Lock must not remain stuck in reconciling")
+  assert.match(lockAfterLookupFail.data()?.error, /Firebase Auth lookup failed/)
+
+  // Subsequent recovery succeeds
+  failLookup = false
+  const recon7a = await reconcileResidentIdentity(
+    lookupFailingDeps,
+    { residentId: res7a, action: "sync-auth-to-firestore", actorUid: ADMIN_UID }
+  )
+  assert.equal(recon7a.success, true)
+  const lock7aFinal = await adminDb.collection("identityOperationLocks").doc(res7a).get()
+  assert.equal(lock7aFinal.data()?.status, "completed")
+
+  // Subtest 7.2: sync-auth-to-firestore with missing Auth email in Phase 2
+  const res7b = "res-task7-empty-auth"
+  await setupResident(res7b, "fs-empty@talasys.test")
+  await adminDb.collection("identityOperationLocks").doc(res7b).set({
+    residentId: res7b,
+    status: "reconciliation-required",
+    operationId: "op-empty-prior",
+    attemptId: "att-empty-prior",
+    updatedAt: Date.now(),
+  })
+
+  let emptyEmailInAuth = true
+  const emptyAuthDeps = {
+    auth: {
+      async getUser(uid: string) {
+        if (emptyEmailInAuth) return { email: "" }
+        return adminAuth.getUser(uid)
+      },
+      async updateUser(uid: string, props: { email: string }) {
+        return adminAuth.updateUser(uid, props)
+      },
+    },
+    db: adminDb,
+  }
+
+  await assert.rejects(
+    reconcileResidentIdentity(
+      emptyAuthDeps,
+      { residentId: res7b, action: "sync-auth-to-firestore", actorUid: ADMIN_UID }
+    ),
+    (err: any) => {
+      assert.equal(err.status, 400)
+      assert.match(err.message, /Target resident has no Auth email to sync from/)
+      return true
+    }
+  )
+
+  const lockAfterEmptyAuth = await adminDb.collection("identityOperationLocks").doc(res7b).get()
+  assert.equal(lockAfterEmptyAuth.data()?.status, "reconciliation-required", "Lock must be in reconciliation-required")
+  assert.match(lockAfterEmptyAuth.data()?.error, /Target resident has no Auth email to sync from/)
+
+  // Subsequent recovery succeeds
+  emptyEmailInAuth = false
+  const recon7b = await reconcileResidentIdentity(
+    emptyAuthDeps,
+    { residentId: res7b, action: "sync-auth-to-firestore", actorUid: ADMIN_UID }
+  )
+  assert.equal(recon7b.success, true)
+  const lock7bFinal = await adminDb.collection("identityOperationLocks").doc(res7b).get()
+  assert.equal(lock7bFinal.data()?.status, "completed")
+
+  // Subtest 7.3: Owned Phase 3 409 error transitions lock to reconciliation-required
+  const res7c = "res-task7-phase3-owned409"
+  await setupResident(res7c, "fs-p3@talasys.test")
+  await adminDb.collection("identityOperationLocks").doc(res7c).set({
+    residentId: res7c,
+    status: "reconciliation-required",
+    operationId: "op-p3-prior",
+    attemptId: "att-p3-prior",
+    updatedAt: Date.now(),
+  })
+
+  let injectPhase3Conflict = true
+  let phase1Done = false
+  const phase3ConflictDb = {
+    ...adminDb,
+    collection(name: string) {
+      return adminDb.collection(name)
+    },
+    async runTransaction(updateFunction: any, transactionOptions?: any) {
+      return adminDb.runTransaction(async (transaction: any) => {
+        const wrappedTx = {
+          ...transaction,
+          get: async (ref: any) => {
+            if (phase1Done && injectPhase3Conflict && ref.path?.includes("users") && ref.path?.includes(ADMIN_UID)) {
+              throw Object.assign(new Error("Simulated owned 409 conflict during finalization"), { status: 409 })
+            }
+            return transaction.get(ref)
+          },
+          set: (ref: any, data: any, options?: any) => transaction.set(ref, data, options),
+          update: (ref: any, ...args: any[]) => transaction.update(ref, ...args),
+          delete: (ref: any) => transaction.delete(ref),
+        }
+        const res = await updateFunction(wrappedTx)
+        phase1Done = true
+        return res
+      }, transactionOptions)
+    },
+  }
+
+  await assert.rejects(
+    reconcileResidentIdentity(
+      { auth: adminAuth, db: phase3ConflictDb },
+      { residentId: res7c, action: "sync-auth-to-firestore", actorUid: ADMIN_UID }
+    ),
+    (err: any) => {
+      assert.equal(err.status, 409)
+      assert.match(err.message, /Simulated owned 409 conflict/)
+      return true
+    }
+  )
+
+  const lockAfterPhase3Conflict = await adminDb.collection("identityOperationLocks").doc(res7c).get()
+  assert.equal(lockAfterPhase3Conflict.data()?.status, "reconciliation-required", "Owned Phase 3 409 must transition to reconciliation-required")
+  assert.match(lockAfterPhase3Conflict.data()?.error, /Reconciliation finalization failed/)
+
+  // Subsequent recovery succeeds against real Firestore emulator
+  injectPhase3Conflict = false
+  phase1Done = false
+  const recon7c = await reconcileResidentIdentity(
+    { auth: adminAuth, db: adminDb },
+    { residentId: res7c, action: "sync-auth-to-firestore", actorUid: ADMIN_UID }
+  )
+  assert.equal(recon7c.success, true)
+  const lock7cFinal = await adminDb.collection("identityOperationLocks").doc(res7c).get()
+  assert.equal(lock7cFinal.data()?.status, "completed")
+})
