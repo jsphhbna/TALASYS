@@ -208,11 +208,13 @@ service cloud.firestore {
 
       // Deletions:
       // - Super Admin can delete.
-      // - Residents can ONLY withdraw unreviewed 'pending' verifications (#57).
-      allow delete: if (
+      // - Residents can ONLY withdraw unreviewed 'pending' verifications of type 'profile-edit' or 'reactivation' (#57, R09).
+      // - Registration verifications are strictly server-managed and cannot be deleted by residents.
+      allow delete: if isSuperAdmin() || (
         isAuthenticated() &&
         (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid) &&
-        resource.data.status == 'pending'
+        resource.data.status == 'pending' &&
+        resource.data.type in ['profile-edit', 'reactivation']
       );
     }
 

@@ -1,33 +1,32 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-15 (Comprehensive Registration & Identity Lifecycle Hardening: R01–R08)
+## Current handoff — 2026-10-15 (Final Registration Lifecycle Remediation: R09–R12)
 
-Working branch: `main`. Audited baseline: `242835a6d1aba8a31f582776f72a793ee8af23ac`.
+Working branch: `main`. Audited baseline: `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`.
 
-This comprehensive hardening and remediation pass addresses the full registration, identity, and resubmission lifecycle:
-1. **R01 (Proof Verification)**: Completely eliminated unverified proof submission in `lib/security/registration-resubmission.ts`. Enforced Cloudinary authenticated delivery type, cloud identity matching, caller publicId namespace (`talasys/proofs/${callerUid}/` or `talasys/proofs/registration/`), reservation/claim ownership in `mediaRegistry`, and strict classification-required document validation using `getRequiredDocuments`. Arbitrary URLs, foreign user assets, and mismatched classifications are strictly denied.
-2. **R02 (Concurrency Protection)**: Implemented transactionally protected mutual exclusion for concurrent resubmissions using `residentVerificationLocks/{residentId}` and `users/{residentId}`. Two concurrent submissions contend on the same lock document; exactly one commits, and the retried competitor immediately aborts with 409 `PENDING_VERIFICATION_EXISTS`.
-3. **R03 (Idempotency Binding)**: Bound `registrationOperations` records for resubmission to `(callerUid, operationId, operationType: "registration-resubmission", targetId: callerUid, payloadHash)`. Replaying exact operations returns idempotent success; replays with modified documents, reasons, or targets fail with 409 `IDEMPOTENCY_CONFLICT`.
-4. **R04 (Auth Session Restoration)**: Fixed registration recovery in `app/auth/register/page.tsx` by subscribing via `onAuthStateChanged` rather than evaluating `auth.currentUser` synchronously on mount, eliminating silent recovery failure during async IndexedDB session restoration on browser refresh.
-5. **R05 (Accurate Recovery UI)**: Replaced false claims of verification email dispatch on recovered registrations with dedicated recovery UI ("Registration Pending Review"), displaying the resident's accurate email populated from Auth/Firestore.
-6. **R06 (Status Classification)**: Removed fabricated, unobservable `in-flight` state from `lib/security/registration-status.ts`, ensuring all advertised states correspond to genuine authoritative persistence.
-7. **R07 (Lifecycle State Machine)**: Strictly gated resubmission to accounts in `status === "Pending"` with `isVerified !== true`. Explicitly rejected `Active`, `Expired`, `Locked`, and `Deleted` accounts with specific error codes.
-8. **R08 (Rules Lockdown)**: Added explicit server-only default-deny security rule for `match /residentVerificationLocks/{residentId} { allow read, write: if false; }` in `firestore.rules`.
-9. Added dedicated deterministic concurrency, idempotency, lifecycle, and proof security test suite in `test/emulator/registration-resubmission-concurrency.test.ts`.
+This final remediation and automatic regression repair pass resolves the confirmed defects R09–R12 while preserving all prior repairs:
+1. **R09 (Pending registration verification deletion bypass)**: In `firestore.rules`, client deletion of verifications with `type == "registration"` is strictly denied. Residents may only delete unreviewed pending verifications of type `profile-edit` or `reactivation`. SuperAdmin retains deletion capabilities. This prevents residents from breaking server lifecycle invariants (`residentVerificationLocks` and `users.hasPendingVerification`).
+2. **R10 (Cloudinary provider verification fail-closed)**: `app/api/resident/registration/resubmit/route.ts` and `lib/security/registration-resubmission.ts` enforce fail-closed behavior. Route no longer silently swallows verifier initialization errors; throws 503 `PROVIDER_VERIFICATION_UNAVAILABLE`. `processRegistrationResubmission` mandates `dependencies.verifyAsset`, rejecting with 503 `PROVIDER_VERIFICATION_REQUIRED` if absent. Asset 404 maps to `PROOF_ASSET_NOT_FOUND` and metadata mismatch maps to `PROOF_IDENTITY_MISMATCH` (409). Provider verification precedes database transactions, guaranteeing zero partial writes on failure.
+3. **R11 (Idempotent retry verification ID correction)**: In `lib/security/registration-resubmission.ts`, transactional same-operation detection returns `{ idempotent: true, verificationId: opData.verificationId }`. The outer return accurately surfaces this authoritative `verificationId` on all concurrent replays and transaction retries, preventing callers from receiving nonexistent uncommitted IDs.
+4. **R12 (Frontend resubmission operation ID preservation)**: Created `lib/resident/resubmission-operation.ts` to manage deterministic payload fingerprinting and stable `operationId` persistence in `sessionStorage` (`talasys_resubmit_op_${residentId}`). Updated `hooks/resident/use-resident-data.ts` and `app/resident/profile/page.tsx` with duplicate submit guards (`isSubmittingProfileEditRef`), stable `operationId` forwarding in request body, cleanup on completion or 409 `PENDING_VERIFICATION_EXISTS`, and truthful UI state reporting. Sensitive tokens/secrets are never stored.
 
 Evidence is provided by:
-- 159 unit tests (PASS)
-- 51 Auth/Firestore emulator tests (PASS, exit 0, up from 46)
+- 163 unit tests (PASS, up from 159 across 31 suites)
+- 56 Auth/Firestore emulator tests (PASS, up from 51)
 - 24 authenticated Playwright Chromium E2E tests (PASS)
 - Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
-- ESLint (0 errors, 784 warnings)
-- Production build (51/51 routes successfully generated)
-- Timezone matrix (3 x 159 tests under UTC, Asia/Manila, America/Los_Angeles)
+- ESLint (0 errors, 791 warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Timezone matrix (3 x 6 tests under UTC, Asia/Manila, America/Los_Angeles)
 - Clean `git diff --check`
 
 No production deployment, Firebase Rules publication, live account/data mutation, or live Cloudinary asset mutation was performed.
 
-Deployment order is mandatory: deploy and verify the application/server finalizer, recovery, and resubmission endpoints first, then publish the tightened Firestore Rules.
+Deployment order is mandatory: deploy and verify the application/server code first, then publish the tightened Firestore Rules.
+
+## Prior handoff — 2026-10-15 (Comprehensive Registration & Identity Lifecycle Hardening: R01–R08)
+
+Working branch: `main`. Audited baseline: `242835a6d1aba8a31f582776f72a793ee8af23ac`. Commit: `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`.
 
 The prior handoff below is retained as historical context and must not be used for current test counts.
 

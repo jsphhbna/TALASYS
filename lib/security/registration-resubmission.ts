@@ -263,12 +263,18 @@ export async function processRegistrationResubmission(
       throw registrationHttpError("Media is already owned by another account.", 409, "PROOF_OWNER_CONFLICT")
     }
 
-    if (dependencies.verifyAsset) {
-      try {
-        await dependencies.verifyAsset(asset)
-      } catch (err) {
-        throw registrationHttpError("The uploaded proof could not be verified with the media provider.", 503, "PROVIDER_VERIFICATION_FAILED")
-      }
+    if (!dependencies.verifyAsset) {
+      throw registrationHttpError("Media verification provider is required.", 503, "PROVIDER_VERIFICATION_REQUIRED")
+    }
+    try {
+      await dependencies.verifyAsset(asset)
+    } catch (err: any) {
+      if (err?.status && err?.code) throw err
+      throw registrationHttpError(
+        err?.message || "The uploaded proof could not be verified with the media provider.",
+        err?.status || 503,
+        err?.code || "PROVIDER_VERIFICATION_FAILED",
+      )
     }
   }
 
@@ -282,7 +288,7 @@ export async function processRegistrationResubmission(
     month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Manila",
   }).format(new Date(now))
 
-  let txResult: { idempotent: boolean }
+  let txResult: { idempotent: boolean; verificationId: string }
   try {
     txResult = await db.runTransaction(async (transaction: any) => {
       // Re-check operation within transaction
@@ -299,7 +305,7 @@ export async function processRegistrationResubmission(
           throw registrationHttpError("This resubmission operation was already used with different parameters.", 409, "IDEMPOTENCY_CONFLICT", "unknown")
         }
         if (opData.status === "completed" && opData.verificationId) {
-          return { idempotent: true }
+          return { idempotent: true, verificationId: opData.verificationId }
         }
         throw registrationHttpError("Resubmission operation is in an inconsistent state.", 409, "OPERATION_STATE_CONFLICT", "unknown")
       }
@@ -421,7 +427,7 @@ export async function processRegistrationResubmission(
         completedAt: now,
       })
 
-      return { idempotent: false }
+      return { idempotent: false, verificationId: newVerificationRef.id }
     })
   } catch (error: any) {
     if (error?.committed === false) throw error
@@ -436,6 +442,6 @@ export async function processRegistrationResubmission(
   return {
     success: true,
     idempotent: txResult.idempotent,
-    verificationId: newVerificationRef.id,
+    verificationId: txResult.verificationId,
   }
 }

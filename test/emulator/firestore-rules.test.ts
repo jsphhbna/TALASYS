@@ -7,7 +7,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing"
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore"
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore"
 import { fetchOrderedCollectionPages } from "../../lib/firestore-pagination.ts"
 import { normalizeAuditLog } from "../../lib/security/audit-utils.ts"
 
@@ -34,6 +34,7 @@ before(async () => {
       ["resident-manager", { role: "Resident Management", status: "Active" }],
       ["full-admin", { role: "Full Access", status: "Active" }],
       ["retry-admin", { role: "Full Access ", status: "Active" }],
+      ["superadmin", { role: "Super Admin", status: "Active" }],
     ] as const
     for (const [id, data] of users) await setDoc(doc(db, "users", id), data)
     await setDoc(doc(db, "verifications", "pending"), {
@@ -146,6 +147,72 @@ test("profile-edit and reactivation client workflows remain allowed for existing
   await assertSucceeds(setDoc(doc(expiredDb, "notifications", "reactivation-new"), {
     targetId: "admin", type: "reactivation", title: "Reactivation",
   }))
+})
+
+test("R09: resident cannot delete pending registration verifications, while profile-edit and reactivation withdrawal remain allowed", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore()
+    await setDoc(doc(db, "users", "unverified-reg-user"), {
+      role: "resident",
+      status: "Pending",
+      isVerified: false,
+      hasPendingVerification: true,
+      pendingVerificationId: "reg-verif-1",
+    })
+    await setDoc(doc(db, "verifications", "reg-verif-1"), {
+      residentId: "unverified-reg-user",
+      userId: "unverified-reg-user",
+      type: "registration",
+      status: "pending",
+    })
+    await setDoc(doc(db, "residentVerificationLocks", "unverified-reg-user"), {
+      activeVerificationStatus: "pending",
+      activeVerificationId: "reg-verif-1",
+    })
+    await setDoc(doc(db, "verifications", "profile-edit-verif"), {
+      residentId: "resident",
+      userId: "resident",
+      type: "profile-edit",
+      status: "pending",
+    })
+    await setDoc(doc(db, "verifications", "reactivation-verif"), {
+      residentId: "expired-resident",
+      userId: "expired-resident",
+      type: "reactivation",
+      status: "pending",
+    })
+  })
+
+  const regUserDb = environment.authenticatedContext("unverified-reg-user").firestore()
+  const otherResidentDb = environment.authenticatedContext("resident").firestore()
+  const expiredDb = environment.authenticatedContext("expired-resident").firestore()
+  const superAdminDb = environment.authenticatedContext("superadmin").firestore()
+
+  // 1. Resident cannot delete their own pending registration verification
+  await assertFails(deleteDoc(doc(regUserDb, "verifications", "reg-verif-1")))
+
+  // 2. Another resident cannot delete the registration verification
+  await assertFails(deleteDoc(doc(otherResidentDb, "verifications", "reg-verif-1")))
+
+  // 3. Pending registration remains reviewable and untouched
+  const adminDb = environment.authenticatedContext("verifier").firestore()
+  const snap = await getDoc(doc(adminDb, "verifications", "reg-verif-1"))
+  assert.equal(snap.exists(), true)
+  assert.equal(snap.data()?.status, "pending")
+
+  // 4. Unauthorized deletion does not alter pending flags or locks
+  const userSnap = await getDoc(doc(regUserDb, "users", "unverified-reg-user"))
+  assert.equal(userSnap.data()?.hasPendingVerification, true)
+  assert.equal(userSnap.data()?.pendingVerificationId, "reg-verif-1")
+
+  // 5. Legitimate profile-edit withdrawal by owner remains functional
+  await assertSucceeds(deleteDoc(doc(otherResidentDb, "verifications", "profile-edit-verif")))
+
+  // 6. Legitimate reactivation withdrawal by owner remains functional
+  await assertSucceeds(deleteDoc(doc(expiredDb, "verifications", "reactivation-verif")))
+
+  // 7. SuperAdmin can delete verifications
+  await assertSucceeds(deleteDoc(doc(superAdminDb, "verifications", "reg-verif-1")))
 })
 
 test("A07 resident payment submission preserves paid, waived, and terminal request states", async () => {

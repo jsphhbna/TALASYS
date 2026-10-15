@@ -44,3 +44,9 @@ export type { AutoResidentStatus } from "./resident-status"
 
 export { parseIdImage } from "./ocr-parser"
 export type { ParsedIdData } from "./ocr-parser"
+
+export {
+  computeResubmissionPayloadFingerprint,
+  getOrGenerateResubmissionOperationId,
+  clearResubmissionOperationId,
+} from "./resubmission-operation"

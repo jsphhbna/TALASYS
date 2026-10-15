@@ -5,6 +5,8 @@ import { adminAuth, adminDb } from "../../lib/firebase-admin.ts"
 import { createRegistrationResubmissionHandler } from "../../app/api/resident/registration/resubmit/route.ts"
 import { mediaRegistryDocumentId } from "../../lib/security/media-auth.ts"
 import { registrationOperationDocumentId } from "../../lib/security/registration-finalization.ts"
+import { processRegistrationResubmission } from "../../lib/security/registration-resubmission.ts"
+import { registrationHttpError } from "../../lib/security/registration-media-claim.ts"
 
 const cloudName = "resubmit-concurrency-cloud"
 const createdUids = new Set<string>()
@@ -428,4 +430,301 @@ test("Resubmission Document Requirements: Classification mismatch and unauthenti
   }))
   assert.equal(dupRes.status, 400)
   assert.equal((await dupRes.json()).code, "INVALID_PROOF")
+})
+
+test("R10: Missing Cloudinary configuration or provider verifier fails closed", async () => {
+  const identity = await createIdentity("r10-failclosed")
+  const proofId = randomUUID()
+  await reserveProof(identity.uid, proofId)
+
+  await adminDb.collection("users").doc(identity.uid).set({
+    role: "resident",
+    status: "Pending",
+    statuses: ["Adult"],
+    isVerified: false,
+    dateOfBirth: "1990-01-01",
+  })
+
+  await adminDb.collection("verifications").doc(`rejected-${identity.uid}`).set({
+    residentId: identity.uid,
+    userId: identity.uid,
+    type: "registration",
+    status: "rejected",
+    rejectionReason: "ID blurry",
+    createdAt: Date.now() - 5000,
+  })
+
+  const payload = {
+    proofs: [{ name: "Valid Government ID", url: proofUrl(identity.uid, proofId) }],
+    reason: "Resubmitting with new scan",
+  }
+
+  // 1. Calling production handler without verifyAsset and without env config fails closed
+  const originalKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY
+  const originalSecret = process.env.CLOUDINARY_API_SECRET
+  try {
+    delete process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY
+    delete process.env.CLOUDINARY_API_SECRET
+
+    const noConfigHandler = createRegistrationResubmissionHandler({
+      auth: {
+        verifyIdToken: async () => ({ uid: identity.uid }),
+      },
+      db: adminDb,
+      cloudName,
+    })
+
+    const res = await noConfigHandler(new Request("http://localhost/api/resident/registration/resubmit", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }))
+
+    assert.equal(res.status, 503)
+    const json = await res.json()
+    assert.equal(json.code, "PROVIDER_VERIFICATION_UNAVAILABLE")
+  } finally {
+    if (originalKey) process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY = originalKey
+    if (originalSecret) process.env.CLOUDINARY_API_SECRET = originalSecret
+  }
+
+  // 2. Calling processRegistrationResubmission without verifyAsset dependency fails closed
+  await assert.rejects(
+    async () => {
+      await processRegistrationResubmission(payload, identity.uid, {
+        db: adminDb,
+        cloudName,
+      })
+    },
+    (err: any) => {
+      assert.equal(err?.status, 503)
+      assert.equal(err?.code, "PROVIDER_VERIFICATION_REQUIRED")
+      return true
+    },
+  )
+})
+
+test("R10: Provider lookup failure, identity mismatch, and provider error fail closed with zero database writes", async () => {
+  const identity = await createIdentity("r10-provider-failures")
+  const proofId = randomUUID()
+  await reserveProof(identity.uid, proofId)
+
+  await adminDb.collection("users").doc(identity.uid).set({
+    role: "resident",
+    status: "Pending",
+    statuses: ["Adult"],
+    isVerified: false,
+    dateOfBirth: "1990-01-01",
+  })
+
+  await adminDb.collection("verifications").doc(`rejected-${identity.uid}`).set({
+    residentId: identity.uid,
+    userId: identity.uid,
+    type: "registration",
+    status: "rejected",
+    rejectionReason: "ID blurry",
+    createdAt: Date.now() - 5000,
+  })
+
+  const makeReq = () => new Request("http://localhost/api/resident/registration/resubmit", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      proofs: [{ name: "Valid Government ID", url: proofUrl(identity.uid, proofId) }],
+      reason: "Resubmitting with new scan",
+    }),
+  })
+
+  // 1. Provider asset lookup failure (404)
+  const lookupFailHandler = resubmitHandler({
+    verifyAsset: async () => {
+      throw registrationHttpError("The uploaded proof asset does not exist on Cloudinary.", 404, "PROOF_ASSET_NOT_FOUND")
+    },
+  })
+  const lookupRes = await lookupFailHandler(makeReq())
+  assert.equal(lookupRes.status, 404)
+  assert.equal((await lookupRes.json()).code, "PROOF_ASSET_NOT_FOUND")
+
+  // 2. Provider asset identity mismatch (409)
+  const mismatchHandler = resubmitHandler({
+    verifyAsset: async () => {
+      throw registrationHttpError("Uploaded media does not match its reservation.", 409, "PROOF_IDENTITY_MISMATCH")
+    },
+  })
+  const mismatchRes = await mismatchHandler(makeReq())
+  assert.equal(mismatchRes.status, 409)
+  assert.equal((await mismatchRes.json()).code, "PROOF_IDENTITY_MISMATCH")
+
+  // 3. Provider network or server error (503)
+  const providerErrorHandler = resubmitHandler({
+    verifyAsset: async () => {
+      throw new Error("Cloudinary connection reset by peer")
+    },
+  })
+  const errorRes = await providerErrorHandler(makeReq())
+  assert.equal(errorRes.status, 503)
+  assert.equal((await errorRes.json()).code, "PROVIDER_VERIFICATION_FAILED")
+
+  // Verify Zero writes in Firestore
+  const verifs = await adminDb.collection("verifications")
+    .where("residentId", "==", identity.uid)
+    .where("status", "==", "pending")
+    .get()
+  assert.equal(verifs.empty, true, "No pending verification should be written after provider failure")
+
+  const notifs = await adminDb.collection("notifications")
+    .where("residentName", "==", "Juan Dela Cruz")
+    .get()
+  assert.equal(notifs.docs.filter((d: any) => d.data().residentId === identity.uid).length, 0)
+
+  const lock = await adminDb.collection("residentVerificationLocks").doc(identity.uid).get()
+  assert.equal(lock.exists, false, "No lock should be written after provider failure")
+})
+
+test("R11: Concurrent same-operation requests converge on single authoritative verification ID", async () => {
+  const identity = await createIdentity("r11-same-op-race")
+  const proofId = randomUUID()
+  await reserveProof(identity.uid, proofId)
+
+  await adminDb.collection("users").doc(identity.uid).set({
+    role: "resident",
+    name: "Maria Santos",
+    initials: "MS",
+    email: identity.email,
+    status: "Pending",
+    statuses: ["Adult"],
+    isVerified: false,
+    dateOfBirth: "1992-05-15",
+  })
+
+  await adminDb.collection("verifications").doc(`rejected-${identity.uid}`).set({
+    residentId: identity.uid,
+    userId: identity.uid,
+    type: "registration",
+    status: "rejected",
+    rejectionReason: "Expired ID",
+    createdAt: Date.now() - 5000,
+  })
+
+  const sharedOperationId = `op-same-race-${randomUUID()}`
+  const payload = {
+    operationId: sharedOperationId,
+    proofs: [{ name: "Valid Government ID", url: proofUrl(identity.uid, proofId) }],
+    reason: "New renewed government ID",
+  }
+
+  const makeReq = () => new Request("http://localhost/api/resident/registration/resubmit", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+
+  // Fire both requests concurrently with the EXACT SAME operationId
+  const [res1, res2] = await Promise.all([
+    resubmitHandler()(makeReq()),
+    resubmitHandler()(makeReq()),
+  ])
+
+  // BOTH requests must return HTTP 200 success!
+  assert.equal(res1.status, 200, `res1 returned ${res1.status}`)
+  assert.equal(res2.status, 200, `res2 returned ${res2.status}`)
+
+  const json1 = await res1.json()
+  const json2 = await res2.json()
+
+  assert.equal(json1.success, true)
+  assert.equal(json2.success, true)
+
+  // One is the initial commit (idempotent: false), the other is the idempotent replay (idempotent: true)
+  const idempotentFlags = [json1.idempotent, json2.idempotent].sort()
+  assert.deepEqual(idempotentFlags, [false, true], "One should be initial commit and the other idempotent replay")
+
+  // CRITICAL R11 ASSERTION: Both responses MUST return the EXACT SAME verificationId!
+  assert.equal(json1.verificationId, json2.verificationId, "Both same-operation requests must return the identical authoritative verification ID")
+
+  // Verify database: exactly ONE pending verification document exists with that exact ID
+  const verifications = await adminDb.collection("verifications")
+    .where("residentId", "==", identity.uid)
+    .where("status", "==", "pending")
+    .get()
+  assert.equal(verifications.docs.length, 1)
+  assert.equal(verifications.docs[0].id, json1.verificationId)
+
+  // Verify operation document recorded that exact verificationId
+  const opDoc = await adminDb.collection("registrationOperations")
+    .doc(registrationOperationDocumentId(identity.uid, sharedOperationId))
+    .get()
+  assert.equal(opDoc.exists, true)
+  assert.equal(opDoc.data()?.status, "completed")
+  assert.equal(opDoc.data()?.verificationId, json1.verificationId)
+
+  // Verify lock and user pending records match the exact verificationId
+  const lockDoc = await adminDb.collection("residentVerificationLocks").doc(identity.uid).get()
+  assert.equal(lockDoc.data()?.activeVerificationId, json1.verificationId)
+
+  const userDoc = await adminDb.collection("users").doc(identity.uid).get()
+  assert.equal(userDoc.data()?.pendingVerificationId, json1.verificationId)
+})
+
+test("R11: Lost HTTP response followed by same-operation retry recovers original verification ID", async () => {
+  const identity = await createIdentity("r11-lost-response")
+  const proofId = randomUUID()
+  await reserveProof(identity.uid, proofId)
+
+  await adminDb.collection("users").doc(identity.uid).set({
+    role: "resident",
+    name: "Elena Ramos",
+    initials: "ER",
+    email: identity.email,
+    status: "Pending",
+    statuses: ["Adult"],
+    isVerified: false,
+    dateOfBirth: "1994-03-22",
+  })
+
+  await adminDb.collection("verifications").doc(`rejected-${identity.uid}`).set({
+    residentId: identity.uid,
+    userId: identity.uid,
+    type: "registration",
+    status: "rejected",
+    rejectionReason: "Unreadable text",
+    createdAt: Date.now() - 5000,
+  })
+
+  const operationId = `op-lost-${randomUUID()}`
+  const payload = {
+    operationId,
+    proofs: [{ name: "Valid Government ID", url: proofUrl(identity.uid, proofId) }],
+    reason: "High resolution scan",
+  }
+
+  // 1. First attempt commits, but client simulates lost response (e.g. dropped socket)
+  const firstRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }))
+  assert.equal(firstRes.status, 200)
+  const firstJson = await firstRes.json()
+  const originalVerificationId = firstJson.verificationId
+
+  // 2. Client retries with exact same operationId and payload
+  const retryRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }))
+  assert.equal(retryRes.status, 200)
+  const retryJson = await retryRes.json()
+  assert.equal(retryJson.success, true)
+  assert.equal(retryJson.idempotent, true)
+  assert.equal(retryJson.verificationId, originalVerificationId)
+
+  // 3. Exactly one verification exists in database
+  const verifications = await adminDb.collection("verifications")
+    .where("residentId", "==", identity.uid)
+    .where("status", "==", "pending")
+    .get()
+  assert.equal(verifications.docs.length, 1)
+  assert.equal(verifications.docs[0].id, originalVerificationId)
 })

@@ -27,19 +27,30 @@ export function createCloudinaryAssetVerifier() {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || ""
   const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || ""
   const apiSecret = process.env.CLOUDINARY_API_SECRET || ""
-  if (!cloudName || !apiKey || !apiSecret) throw httpError("Cloudinary verification is unavailable.", 503)
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw registrationHttpError("Cloudinary verification is unavailable.", 503, "PROVIDER_VERIFICATION_UNAVAILABLE")
+  }
   cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true })
   return async (asset: RegistrationAssetIdentity) => {
-    const result = await cloudinary.api.resource(asset.publicId, {
-      resource_type: asset.resourceType,
-      type: asset.deliveryType,
-    })
+    let result: any
+    try {
+      result = await cloudinary.api.resource(asset.publicId, {
+        resource_type: asset.resourceType,
+        type: asset.deliveryType,
+      })
+    } catch (err: any) {
+      const httpCode = err?.error?.http_code || err?.status
+      if (httpCode === 404 || err?.message?.toLowerCase().includes("not found")) {
+        throw registrationHttpError("The uploaded proof asset does not exist on Cloudinary.", 404, "PROOF_ASSET_NOT_FOUND")
+      }
+      throw registrationHttpError("The uploaded proof could not be verified with the media provider.", 503, "PROVIDER_VERIFICATION_FAILED")
+    }
     if (
       result?.public_id !== asset.publicId ||
       result?.resource_type !== asset.resourceType ||
       result?.type !== asset.deliveryType
     ) {
-      throw httpError("Uploaded media does not match its reservation.", 409)
+      throw registrationHttpError("Uploaded media does not match its reservation.", 409, "PROOF_IDENTITY_MISMATCH")
     }
   }
 }

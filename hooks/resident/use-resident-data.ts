@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAuth } from "@/lib/auth"
 import { db, auth } from "@/lib/firebase"
 import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, limit, writeBatch } from "firebase/firestore"
@@ -10,6 +10,10 @@ import {
   type ResidentProofDocument,
   type ResidentRequest,
 } from "@/lib/resident"
+import {
+  getOrGenerateResubmissionOperationId,
+  clearResubmissionOperationId,
+} from "@/lib/resident/resubmission-operation"
 import { uploadFileToCloudinary } from "@/lib/resident/cloudinary"
 import {
   COLLECTION_DOCUMENT_REQUESTS,
@@ -235,6 +239,8 @@ export function useResidentData() {
     [residentId, user]
   )
 
+  const isSubmittingProfileEditRef = useRef(false)
+
   const requestProfileEdit = useCallback(
     async (
       changes: { field: string; oldValue: string; newValue: string }[], 
@@ -244,103 +250,124 @@ export function useResidentData() {
       verificationType: "profile-edit" | "registration" = "profile-edit"
     ) => {
       if (!residentId || !user) return null
-
-      const uploadedDocuments: any[] = []
-      
-      const uploadAndCollectDocument = async (file: File | null, documentName: string) => {
-        if (!file) return
-        const uploadedUrl = await uploadFileToCloudinary(file, { folder: "talasys/proofs" })
-        if (!uploadedUrl) {
-          throw new Error(`Failed to upload ${documentName}`)
-        }
-        uploadedDocuments.push({ 
-          name: documentName, 
-          url: uploadedUrl,
-          status: "pending", 
-          uploadDate: new Date().toLocaleDateString('en-US') 
-        })
+      if (isSubmittingProfileEditRef.current) {
+        throw new Error("A request submission is already in progress.")
       }
+      isSubmittingProfileEditRef.current = true
 
-      await Promise.all([
-        uploadAndCollectDocument(uploadedFiles.validId, "Valid ID"),
-        uploadAndCollectDocument(uploadedFiles.parentId, "Parent's ID"),
-        uploadAndCollectDocument(uploadedFiles.seniorId, "Senior Citizen ID"),
-        uploadAndCollectDocument(uploadedFiles.votersId, "Voter's ID"),
-      ])
+      try {
+        const uploadedDocuments: any[] = []
 
-      if (newProfilePicture) {
-        uploadedDocuments.push({
-          name: "New Profile Picture",
-          url: newProfilePicture,
+        const uploadAndCollectDocument = async (file: File | null, documentName: string) => {
+          if (!file) return
+          const uploadedUrl = await uploadFileToCloudinary(file, { folder: "talasys/proofs" })
+          if (!uploadedUrl) {
+            throw new Error(`Failed to upload ${documentName}`)
+          }
+          uploadedDocuments.push({
+            name: documentName,
+            url: uploadedUrl,
+            status: "pending",
+            uploadDate: new Date().toLocaleDateString('en-US')
+          })
+        }
+
+        await Promise.all([
+          uploadAndCollectDocument(uploadedFiles.validId, "Valid ID"),
+          uploadAndCollectDocument(uploadedFiles.parentId, "Parent's ID"),
+          uploadAndCollectDocument(uploadedFiles.seniorId, "Senior Citizen ID"),
+          uploadAndCollectDocument(uploadedFiles.votersId, "Voter's ID"),
+        ])
+
+        if (newProfilePicture) {
+          uploadedDocuments.push({
+            name: "New Profile Picture",
+            url: newProfilePicture,
+            status: "pending",
+            uploadDate: new Date().toLocaleDateString('en-US')
+          })
+        }
+
+        if (verification && verification.status === "pending") {
+          clearResubmissionOperationId(residentId)
+          return verification.id
+        }
+
+        // Finding #48 / Issue #3 / R12: If resident was never verified or explicit registration type,
+        // route through the server-authoritative resubmission endpoint with stable operation ID.
+        if (!user.isVerified || verificationType === "registration") {
+          const { auth } = await import("@/lib/firebase")
+          const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : ""
+          if (!idToken) throw new Error("Authentication session is required to resubmit registration.")
+
+          const resubmitReason = reason || "Registration verification resubmission with updated documents"
+          const { operationId } = getOrGenerateResubmissionOperationId(residentId, uploadedDocuments, resubmitReason)
+
+          const response = await fetch("/api/resident/registration/resubmit", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              operationId,
+              proofs: uploadedDocuments,
+              reason: resubmitReason,
+            }),
+          })
+
+          const result = await response.json().catch(() => ({}))
+          if (!response.ok || !result.success) {
+            if (result.code === "PENDING_VERIFICATION_EXISTS") {
+              clearResubmissionOperationId(residentId)
+              if (verification && verification.status === "pending") {
+                return verification.id
+              }
+            }
+            throw new Error(result.error || "Failed to resubmit registration verification.")
+          }
+
+          clearResubmissionOperationId(residentId)
+          return result.verificationId
+        }
+
+        const verificationPayload = {
+          residentId,
+          userId: residentId,
+          name: user.name,
+          initials: user.initials,
+          type: "profile-edit",
+          submittedDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
           status: "pending",
-          uploadDate: new Date().toLocaleDateString('en-US')
-        })
-      }
-
-      if (verification && verification.status === "pending") {
-        return verification.id
-      }
-
-      // Finding #48 / Issue #3: If resident was never verified or explicit registration type,
-      // route through the server-authoritative resubmission endpoint.
-      if (!user.isVerified || verificationType === "registration") {
-        const { auth } = await import("@/lib/firebase")
-        const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : ""
-        if (!idToken) throw new Error("Authentication session is required to resubmit registration.")
-
-        const response = await fetch("/api/resident/registration/resubmit", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            proofs: uploadedDocuments,
-            reason: reason || "Registration verification resubmission with updated documents",
-          }),
-        })
-
-        const result = await response.json().catch(() => ({}))
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || "Failed to resubmit registration verification.")
+          categories: user.statuses || ["Resident"],
+          changes,
+          reason,
+          documents: uploadedDocuments,
+          createdAt: Date.now()
         }
-        return result.verificationId
+
+        const batch = writeBatch(db)
+        const verifDocRef = doc(collection(db, COLLECTION_VERIFICATIONS))
+        const notifDocRef = doc(collection(db, COLLECTION_NOTIFICATIONS))
+
+        batch.set(verifDocRef, verificationPayload)
+        batch.set(notifDocRef, {
+          targetId: "admin",
+          type: "info",
+          title: "Profile Edit Request",
+          message: `${user.name} submitted a profile edit request.`,
+          timestamp: "Just now",
+          isRead: false,
+          createdAt: Date.now(),
+          residentName: user.name,
+          actionUrl: "/admin/verifications"
+        })
+
+        await batch.commit()
+        return verifDocRef.id
+      } finally {
+        isSubmittingProfileEditRef.current = false
       }
-
-      const verificationPayload = {
-        residentId,
-        userId: residentId,
-        name: user.name,
-        initials: user.initials,
-        type: "profile-edit",
-        submittedDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
-        status: "pending",
-        categories: user.statuses || ["Resident"],
-        changes,
-        reason,
-        documents: uploadedDocuments,
-        createdAt: Date.now()
-      }
-
-      const batch = writeBatch(db)
-      const verifDocRef = doc(collection(db, COLLECTION_VERIFICATIONS))
-      const notifDocRef = doc(collection(db, COLLECTION_NOTIFICATIONS))
-
-      batch.set(verifDocRef, verificationPayload)
-      batch.set(notifDocRef, {
-        targetId: "admin",
-        type: "info",
-        title: "Profile Edit Request",
-        message: `${user.name} submitted a profile edit request.`,
-        timestamp: "Just now",
-        isRead: false,
-        createdAt: Date.now(),
-        residentName: user.name,
-        actionUrl: "/admin/verifications"
-      })
-
-      await batch.commit()
-      return verifDocRef.id
     },
     [residentId, user, verification]
   )

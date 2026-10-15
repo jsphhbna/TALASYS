@@ -17,9 +17,9 @@ export function createRegistrationResubmissionHandler(injected?: HandlerDependen
       const db = injected?.db || adminDb
       const cloudName = injected?.cloudName || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || ""
 
-      if (!auth || !db) {
+      if (!auth || !db || !cloudName) {
         return NextResponse.json(
-          { success: false, error: "Server registration resubmission service is unavailable." },
+          { success: false, code: "RESUBMISSION_UNAVAILABLE", error: "Server registration resubmission service is unavailable." },
           { status: 503 },
         )
       }
@@ -55,8 +55,15 @@ export function createRegistrationResubmissionHandler(injected?: HandlerDependen
       if (!verifyAsset) {
         try {
           verifyAsset = createCloudinaryAssetVerifier()
-        } catch {
-          // If Cloudinary verification is not configured or in test mode without env keys, verifyAsset can be omitted
+        } catch (err: any) {
+          return NextResponse.json(
+            {
+              success: false,
+              code: err?.code || "PROVIDER_VERIFICATION_UNAVAILABLE",
+              error: err?.message || "Cloudinary verification is unavailable.",
+            },
+            { status: Number.isInteger(err?.status) ? err.status : 503 },
+          )
         }
       }
 

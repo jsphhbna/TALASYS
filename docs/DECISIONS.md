@@ -1,4 +1,4 @@
-﻿# TALASYS Architecture & Remediation Decisions (ADR)
+# TALASYS Architecture & Remediation Decisions (ADR)
 
 ## ADR-001: Canonical Administrative Role Matrix
 - **Context**: Discrepancy existed between UI role options (`Full Access`, `Resident Management`, `Verifications`, `Document Processing`, `View Only`, `Admin`, `Super Admin`) and backend `firestore.rules` checking only a small subset, causing newly created admins to lose permissions or disappear.
@@ -179,5 +179,21 @@
   7. **Strict State Machine Enforcement**: Limit resubmission strictly to `status === "Pending"` and `isVerified !== true`, explicitly rejecting `Active`, `Expired`, `Locked`, and `Deleted` accounts with specific error codes.
   8. **Firestore Rules Lockdown**: Add `match /residentVerificationLocks/{residentId} { allow read, write: if false; }` in `firestore.rules`.
 - **Consequences**: Completely stops proof spoofing and cross-user proof theft; guarantees mutual exclusion under concurrent load; provides dependable browser refresh recovery; eliminates false UI assertions.
+
+## ADR-019: Registration Verification Deletion Lockdown, Fail-Closed Provider Verification, Authoritative Idempotent Verification IDs, and Stable Frontend Operation IDs (R09–R12)
+
+- **Status**: Accepted; verified against unit, emulator, and Playwright suites; deployment and Rules publication pending
+- **Date**: 15 October 2026
+- **Context**:
+  - `firestore.rules` allowed authenticated residents to delete any pending verification where `residentId == auth.uid`, allowing direct client deletion of `type == "registration"` verifications. This bypassed server lifecycle controls and left `residentVerificationLocks` and `users.hasPendingVerification` desynchronized (R09).
+  - `app/api/resident/registration/resubmit/route.ts` silently caught initialization exceptions from `createCloudinaryAssetVerifier()`, falling back to `undefined` and skipping Cloudinary provider checks whenever configuration was missing or threw (R10).
+  - In `lib/security/registration-resubmission.ts`, transactional same-operation detection returned `{ idempotent: true }` without `verificationId`, causing the outer handler to return a newly generated, uncommitted UUID. Racing same-operation replays returned document IDs that did not exist (R11).
+  - The resident profile and registration resubmission client (`hooks/resident/use-resident-data.ts`) did not supply an `operationId`, causing the server to generate fresh UUIDs on each attempt and treating network retries as separate operations (R12).
+- **Decisions**:
+  1. **Strict Lockdown of Verification Deletion in Firestore Rules (R09)**: Updated `verifications` delete rule to strictly deny resident deletion of `type == "registration"` verifications. Residents may only delete unreviewed pending verifications of type `profile-edit` or `reactivation`. SuperAdmin retains administrative deletion rights.
+  2. **Fail-Closed Provider Verification in Resubmission (R10)**: Removed try/catch fallback in `/api/resident/registration/resubmit`. Route throws 503 `PROVIDER_VERIFICATION_UNAVAILABLE` on verifier creation failure. `processRegistrationResubmission` mandates `dependencies.verifyAsset`, rejecting with 503 `PROVIDER_VERIFICATION_REQUIRED` if omitted. Provider verification runs before database transactions, mapping 404 to `PROOF_ASSET_NOT_FOUND` and mismatch to `PROOF_IDENTITY_MISMATCH` (409) with zero database writes.
+  3. **Authoritative Verification ID on Idempotent Replays (R11)**: `runTransaction` returns `{ idempotent: true, verificationId: opData.verificationId }` when a completed operation is detected. The outer response returns `verificationId: txResult.verificationId`, guaranteeing that concurrent replays, transaction retries, and lost response recoveries always reference the existing authoritative verification document.
+  4. **Stable Operation ID and Duplicate Submit Guards on Frontend (R12)**: Implemented `lib/resident/resubmission-operation.ts` to compute deterministic payload fingerprints and persist `operationId` in `sessionStorage` (`talasys_resubmit_op_${residentId}`) across retries and refreshes without storing secrets. Guarded submissions with `isSubmittingProfileEditRef` in `use-resident-data.ts` and UI state in `profile/page.tsx`. Cleared operation ID on completion or `PENDING_VERIFICATION_EXISTS`.
+- **Consequences**: Closes lifecycle desynchronization via client deletion; prevents unverified proof resubmission on missing provider configuration; eliminates phantom verification IDs on retries; ensures frontend retries are idempotent and safe.
 
 

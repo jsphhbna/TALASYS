@@ -1,8 +1,25 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18 & R01–R08)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18 & R01–R12)
 
-## Comprehensive Registration & Identity Lifecycle Hardening — current pass (R01–R08)
+## Final Registration Lifecycle Remediation & Self-Audit (R09–R12) — active pass
 
-- **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from baseline `242835a6d1aba8a31f582776f72a793ee8af23ac`.
+- **Status**: IN PROGRESS on `main` from baseline `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`.
+- **Target findings**:
+  1. **R09 (Pending registration verification deletion bypass)**: Current Firestore Rules permit residents to delete any pending verification, allowing deletion of `type: "registration"` verifications. This bypasses server lifecycle controls, leaving `residentVerificationLocks/{uid}` and `users/{uid}.hasPendingVerification` in an inconsistent state. Deny client deletion of registration verifications; restrict deletion strictly to SuperAdmin and resident withdrawal of unreviewed `profile-edit` and `reactivation` verifications.
+  2. **R10 (Cloudinary provider verification fail-closed)**: `app/api/resident/registration/resubmit/route.ts` silently swallows exceptions from `createCloudinaryAssetVerifier()`, making provider checks optional under missing config or initialization errors. Enforce fail-closed behavior, ensuring missing/invalid verifier throws 503 `PROVIDER_VERIFICATION_UNAVAILABLE` or `PROVIDER_VERIFICATION_REQUIRED`, asset lookup failure throws 404, identity mismatch throws 409, and zero Firestore records are written on failure.
+  3. **R11 (Idempotent retry verification ID correction)**: In `lib/security/registration-resubmission.ts`, transactional same-operation detection returns `{ idempotent: true }` without `verificationId`, causing the outer return to use a newly generated, uncommitted UUID. Return the stored authoritative `verificationId` from `opData` across all idempotent code paths (pre-transaction, inside transaction, and during transaction retry).
+  4. **R12 (Frontend resubmission operation ID preservation)**: `hooks/resident/use-resident-data.ts` does not provide an `operationId`, generating fresh server-side UUIDs on every retry. Generate and preserve a stable operation ID per logical payload attempt in `sessionStorage`, support safe retries across network drops and browser refreshes, guard against duplicate in-flight clicks, and truthfully report results.
+
+| Milestone | Status | Verified Evidence |
+|---|---|---|
+| M-R09: Rules Verification Deletion Lockdown | VERIFIED | `firestore.rules` updated; resident deletion of registration verifications denied; profile-edit and reactivation withdrawal preserved; 56/56 emulator rules and concurrency tests PASS. |
+| M-R10: Provider Verification Fail-Closed | VERIFIED | Resubmit route and `registration-resubmission.ts` fail closed on missing/invalid provider; asset lookup failures fail closed with zero partial Firestore writes; unit and emulator tests PASS. |
+| M-R11: Idempotent Resubmission Verification ID | VERIFIED | Authoritative `verificationId` returned from completed operation on concurrent same-operation replays and transaction retries; verified with deterministic concurrency tests. |
+| M-R12: Frontend Operation ID & State Recovery | VERIFIED | `use-resident-data.ts` and `resubmission-operation.ts` derive/persist stable operation ID per payload; retries reuse operation ID; duplicate clicks blocked; unit tests PASS 4/4; truthful UI error and success states. |
+| M-R-Audit: Adversarial Review & Verification Gate | VERIFIED | Unit tests PASS (163/163), emulator tests PASS (56/56), E2E auth Playwright PASS (24/24), TypeScript app/test (0 errors), ESLint (0 errors, 791 warnings), Build (51/51 routes), Timezone matrix (3 x 6 tests PASS), `git diff --check` clean. |
+
+## Comprehensive Registration & Identity Lifecycle Hardening — prior pass (R01–R08)
+
+- **Status**: IMPLEMENTED, FULLY VERIFIED on `main` at `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`.
 - **Delivered scope**:
   1. **R01 (Proof Verification)**: Completely eliminated unverified proof submission in `lib/security/registration-resubmission.ts`. Enforced Cloudinary authenticated delivery type, cloud identity matching, caller publicId namespace (`talasys/proofs/${callerUid}/` or `talasys/proofs/registration/`), reservation/claim ownership in `mediaRegistry`, and strict classification-required document validation using `getRequiredDocuments`.
   2. **R02 (Concurrency Protection)**: Implemented transactionally protected mutual exclusion for concurrent resubmissions using `residentVerificationLocks/{residentId}` and `users/{residentId}`. Two concurrent submissions contend on the same lock document; exactly one commits, and the retried competitor immediately aborts with 409 `PENDING_VERIFICATION_EXISTS`.

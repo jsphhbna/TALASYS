@@ -21,6 +21,7 @@ import { ProfileDangerZoneCard } from "@/components/resident/profile/profile-dan
 import type { ProfileEditFormData } from "@/components/resident/profile/profile-types"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
+import { toast } from "@/hooks/use-toast"
 import { calculateAge, mergeWithAutoStatuses } from "@/lib/resident"
 import { uploadFileToCloudinary } from "@/lib/resident"
 import { getRequiredDocuments, type UploadField } from "@/lib/resident"
@@ -209,6 +210,8 @@ export default function ProfilePage() {
   }
 
   const handleSubmitRequest = async () => {
+    if (isSubmittingRequest) return
+
     if (!formData.reason.trim()) {
       showToastPreset("reasonRequired")
       return
@@ -274,14 +277,25 @@ export default function ProfilePage() {
       setIsDialogOpen(false)
       setIsRequestSubmitted(true)
       setUploadedFiles(defaultUploadState)
-      showToastPreset("profileRequestSubmitted")
+      if (!user.isVerified) {
+        toast({
+          title: "Registration Resubmitted",
+          description: "Your registration verification has been resubmitted for review.",
+        })
+      } else {
+        showToastPreset("profileRequestSubmitted")
+      }
       
       setTimeout(() => {
         setIsRequestSubmitted(false)
       }, 3000)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to submit profile edit:", error)
-      showToastPreset("uploadFailedSize")
+      toast({
+        title: "Submission failed",
+        description: error?.message || "Failed to submit request.",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmittingRequest(false)
     }

@@ -1,22 +1,32 @@
 # TALASYS Project State
 
-## Current verified state — 15 October 2026 (R01–R08 Pass)
+## Current verified state — 15 October 2026 (R09–R12 Final Remediation Pass)
 
 - **Working branch**: `main`
+- **Audited baseline**: `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`
+- **Status**: Final registration lifecycle remediation, continuous self-audit, and automatic regression repair (R09–R12) are fully implemented and verified.
+  1. **R09 (Pending registration verification deletion bypass)**: `firestore.rules` updated so residents cannot delete registration verifications. Deletion is strictly restricted to SuperAdmin or residents withdrawing unreviewed `profile-edit` and `reactivation` verifications.
+  2. **R10 (Cloudinary provider verification fail-closed)**: `app/api/resident/registration/resubmit/route.ts` and `lib/security/registration-resubmission.ts` enforce fail-closed provider verification. Missing or invalid verifier fails with 503 `PROVIDER_VERIFICATION_UNAVAILABLE` or `PROVIDER_VERIFICATION_REQUIRED`. Missing assets fail with 404, identity mismatches fail with 409, and zero Firestore records are written on failure.
+  3. **R11 (Idempotent retry verification ID correction)**: In `lib/security/registration-resubmission.ts`, concurrent and transaction-retried idempotent resubmissions return the authoritative `verificationId` from the completed operation (`opData.verificationId`), ensuring replayed requests never receive nonexistent document references.
+  4. **R12 (Frontend resubmission operation ID preservation)**: `lib/resident/resubmission-operation.ts` and `hooks/resident/use-resident-data.ts` preserve stable operation IDs per logical payload in `sessionStorage` across retries, network drops, and browser refreshes without storing secrets. Guarded against in-flight double submission, and truthful error/success states surfaced to the UI.
+- **Rules state**: Client deletion of `type == "registration"` verifications is denied; `residentVerificationLocks` remains default-denied; client creation of initial user profiles and notifications remains denied.
+- **Verification metrics**:
+  - `npm test`: PASS 163/163 across 31 suites (including 4 new unit tests for R12).
+  - `npm run test:rules`: PASS 56/56 against Auth & Firestore emulators (including 2 new tests for R09 rules and 4 new tests for R10/R11 concurrency/fail-closed behavior).
+  - `npm run test:e2e:auth`: PASS 24/24 across Chromium authenticated workflows.
+  - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+  - `npm run lint`: PASS (0 errors, 791 warnings).
+  - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
+  - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles (6/6 tests each).
+  - `git diff --check`: PASS (clean).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No production deployment, rules publication, or live Cloudinary mutation performed.
+- **Deployment order**: Deploy and verify application code first; then publish updated Firestore Rules.
+
+## Prior verified state — 15 October 2026 (R01–R08 Pass)
+
 - **Audited baseline**: `242835a6d1aba8a31f582776f72a793ee8af23ac`
-- **Status**: Comprehensive registration and identity lifecycle audit, security hardening, and final remediation (R01–R08) are fully implemented and verified.
-  1. Proof validation in `registration-resubmission.ts` requires authentic Cloudinary assets (`talasys/proofs/${callerUid}/` or `registration/`), authenticated delivery, valid `mediaRegistry` ownership, and matches classification requirements (R01).
-  2. Transactional mutual exclusion on `residentVerificationLocks/{residentId}` prevents duplicate concurrent resubmissions (R02).
-  3. `registrationOperations` enforces `operationType: "registration-resubmission"`, `targetId`, and canonical payload hash idempotency (R03).
-  4. Client registration recovery listens to `onAuthStateChanged` rather than one-shot mount evaluation, restoring accounts smoothly after browser refresh (R04).
-  5. Recovery UI renders accurate pending-review status and accurate resident email without falsely claiming a verification email was dispatched (R05).
-  6. Dead `in-flight` status removed from `registration-status.ts` (R06).
-  7. Strict lifecycle enforcement allows only `status === "Pending"` and `isVerified !== true` to resubmit, rejecting Active, Expired, Locked, and Deleted accounts (R07).
-  8. `firestore.rules` enforces default-deny for `residentVerificationLocks/{residentId}` (R08).
-- **Rules state**: client creation of initial user profiles, registration verifications, and notifications is denied; `residentVerificationLocks` is server-only (deny all client read/write); existing unverified registration resubmission is routed through `/api/resident/registration/resubmit`.
-- **Verification metrics**: unit 159/159; Auth/Firestore emulator exit 0 with 51 declared tests (including 5 new deterministic concurrency/idempotency/lifecycle tests); authenticated Chromium 24/24; both TypeScript checks pass (0 errors); lint 0 errors/784 warnings; Next.js 16.4 production build 51/51 routes; timezone suites pass under UTC, Asia/Manila, and America/Los_Angeles; `git diff --check` passes cleanly.
-- **Evidence boundary**: local emulators and controlled provider behavior only. No production deployment, rules publication, historical migration, live account/data change, or live Cloudinary asset mutation was performed.
-- **Deployment order**: deploy and verify the application/server finalizer, recovery, and resubmission endpoints first; only then publish the tightened Firestore Rules. Neither action was performed here.
+- **Delivered commit**: `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`
+- **Summary**: Comprehensive registration and identity lifecycle audit, security hardening, and remediation (R01–R08) implemented and verified.
 
 The dated material below is historical and applies only to the revision and counts stated there.
 
