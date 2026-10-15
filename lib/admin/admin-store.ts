@@ -39,6 +39,8 @@ export interface AdminResident {
     email: string
     profilePicture?: string
     createdAt?: string
+    registrationDenied?: boolean
+    deniedAt?: number
 }
 
 export const subscribeToAdminStorage = subscribeToMasterStorage
@@ -106,6 +108,10 @@ export const getAdminVerifications = (): PendingVerification[] => {
 
 export const getAdminRejectedVerifications = (): PendingVerification[] => {
     return readMasterStorage().verifications.filter(verification => verification.status === "rejected")
+}
+
+export const getAdminDeniedVerifications = (): PendingVerification[] => {
+    return readMasterStorage().verifications.filter(verification => verification.status === "denied")
 }
 
 export const addAdminVerification = (input: Omit<PendingVerification, "id" | "initials">) => {
@@ -204,6 +210,47 @@ export const rejectVerification = (id: string, reason: string = "No reason provi
         residentName: verification.name,
         details: `Rejected account for ${verification.name}`,
         role: "Admin",
+        targetId: id,
+        targetCollection: "verifications"
+    })
+
+    writeMasterStorage(storage)
+    return verification
+}
+
+/**
+ * Permanently denies a pending initial registration with a mandatory reason,
+ * soft-deletes the resident account, and logs the action for auditability.
+ */
+export const denyRegistration = (id: string, reason: string = "Registration permanently denied") => {
+    const storage = readMasterStorage()
+    const verificationIndex = storage.verifications.findIndex((verification) => verification.id === id)
+    if (verificationIndex === -1) return null
+
+    const verification = storage.verifications[verificationIndex]
+    storage.verifications[verificationIndex].status = "denied"
+    storage.verifications[verificationIndex].denialReason = reason
+    storage.verifications[verificationIndex].deniedAt = Date.now()
+
+    const resident = storage.residents.find(resident => resident.id === verification.residentId)
+    if (resident) {
+        resident.user.status = "Deleted"
+        resident.user.registrationDenied = true
+        resident.user.deniedAt = Date.now()
+        resident.user.denialReason = reason
+    }
+
+    storage.auditLogs.unshift({
+        id: generateId(),
+        time: formatTimeDisplay(new Date()),
+        date: formatDateDisplay(new Date()),
+        timestamp: Date.now().toString(),
+        admin: { name: SYSTEM_ADMIN_DISPLAY_NAME, initials: SYSTEM_ADMIN_INITIALS, color: COLOR_ADMIN_BLUE },
+        action: `Denied Registration`,
+        actionType: "denied",
+        residentName: verification.name,
+        details: `Permanently denied registration for ${verification.name}. Reason: "${reason}"`,
+        role: "SuperAdmin",
         targetId: id,
         targetCollection: "verifications"
     })

@@ -40,6 +40,9 @@ export interface AuthUser {
   barangay?: string
   city?: string
   province?: string
+  registrationDenied?: boolean
+  deniedAt?: number
+  denialReason?: string
   _error?: string
 }
 

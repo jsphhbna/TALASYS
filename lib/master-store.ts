@@ -133,8 +133,12 @@ export interface MasterVerification {
   initials: string
   type: "registration" | "profile-edit" | "reactivation"
   submittedDate: string
-  status?: "pending" | "approved" | "rejected"
+  status?: "pending" | "approved" | "rejected" | "denied"
   rejectionReason?: string
+  denialReason?: string
+  deniedAt?: number
+  deniedBy?: string
+  deniedByUid?: string
   categories: string[]
   age?: number
   gender?: "Male" | "Female" | string

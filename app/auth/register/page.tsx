@@ -124,6 +124,10 @@ export default function RegisterPage() {
               setStep(3)
             } else if (data.status === "incomplete") {
               setRecoveryNotice("Incomplete registration detected. You can resume uploading your documents to complete your account.")
+            } else if (data.status === "denied") {
+              setRecoveryNotice(
+                `Your registration application was permanently denied${data.details?.denialReason ? `: ${data.details.denialReason}` : ""}. Please contact the barangay office if you believe this is an error.`,
+              )
             } else if (data.status === "rejected") {
               setRecoveryNotice(
                 `Your previous registration was rejected: ${data.details?.rejectionReason || "Please review requirements"}. Please log in to resubmit with updated documents.`,

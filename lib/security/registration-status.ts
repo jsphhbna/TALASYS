@@ -4,6 +4,7 @@ export type RegistrationStatusType =
   | "completed"
   | "incomplete"
   | "rejected"
+  | "denied"
   | "existing-resident"
 
 export type RegistrationStatusResponse = {
@@ -17,6 +18,7 @@ export type RegistrationStatusResponse = {
     accountStatus?: string
     verificationStatus?: string
     rejectionReason?: string
+    denialReason?: string
     verificationId?: string
   }
 }
@@ -60,6 +62,22 @@ export async function inspectRegistrationStatus(
     const accountStatus = userData.status || "Pending"
     const isVerified = userData.isVerified === true
 
+    // Check if user account was permanently denied or soft-deleted
+    if (userData.registrationDenied || accountStatus === "Deleted") {
+      return {
+        status: "denied",
+        uid: callerUid,
+        email: authEmail,
+        emailVerified,
+        details: {
+          isVerified: false,
+          accountStatus,
+          verificationStatus: "denied",
+          denialReason: userData.denialReason || "",
+        },
+      }
+    }
+
     // Check if user is an existing verified/active resident or administrative role
     if (role !== "resident" || isVerified || accountStatus === "Active") {
       return {
@@ -84,6 +102,21 @@ export async function inspectRegistrationStatus(
       const docs = verificationsSnapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }))
       docs.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
       const latest = docs[0]
+
+      if (latest.status === "denied") {
+        return {
+          status: "denied",
+          uid: callerUid,
+          email: authEmail,
+          emailVerified,
+          details: {
+            isVerified: false,
+            accountStatus,
+            verificationStatus: "denied",
+            denialReason: latest.denialReason || userData.denialReason || "",
+          },
+        }
+      }
 
       if (latest.status === "rejected") {
         return {

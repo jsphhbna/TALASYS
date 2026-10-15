@@ -145,7 +145,7 @@ export interface CanonicalAuditLog {
     role: string
   }
   action: string
-  actionType: "approved" | "rejected" | "generated" | "verified" | "sent" | "admin" | "resident" | "request" | "system" | "other"
+  actionType: "approved" | "rejected" | "denied" | "generated" | "verified" | "sent" | "admin" | "resident" | "request" | "system" | "other"
   residentName: string
   details: string
   ipAddress: string
@@ -243,6 +243,9 @@ export function normalizeAuditLog(raw: any): CanonicalAuditLog {
   if (rawAction === "verification.approve" || /approved?\s+verif/i.test(rawAction)) {
     action = "Approved Verification"
     actionType = "approved"
+  } else if (rawAction === "verification.denyRegistration" || /denied?\s+registration/i.test(rawAction) || rawAction === "denied") {
+    action = "Denied Registration"
+    actionType = "denied"
   } else if (rawAction === "verification.reject" || /rejected?\s+verif/i.test(rawAction)) {
     action = "Rejected Verification"
     actionType = "rejected"
@@ -307,7 +310,9 @@ export function normalizeAuditLog(raw: any): CanonicalAuditLog {
   // Derive Details (A11)
   let details = String(raw?.details || "").trim()
   if (!details) {
-    if (after?.rejectionReason) {
+    if (after?.denialReason) {
+      details = `Reason: "${after.denialReason}"`
+    } else if (after?.rejectionReason) {
       details = `Reason: "${after.rejectionReason}"`
     } else if (after?.receiptNumber) {
       details = `Receipt #: ${after.receiptNumber} (${after.paymentMethod || "cash"})`

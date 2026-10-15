@@ -1,6 +1,26 @@
 # TALASYS Project State
 
-## Current verified state — 16 October 2026 (Final Two Targeted Functional Corrections: F17, F18)
+## Current Verified State — 16 October 2026 (Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency)
+
+- **Working branch**: `main`
+- **Audited baseline**: `0c18235e8ebf194303957491b713d9a780321c18`
+- **Status**: Safe, server-authoritative Deny Registration workflow for initial resident registrations is fully implemented, self-audited, and verified.
+  1. **Two Distinct Registration Decisions**: Reject Registration (correctable, resident remains `Pending` with resubmission path) vs Deny Registration (permanent, resident becomes `Deleted` via soft deletion, preserving history, no resubmission or login).
+  2. **Dedicated Server-Authoritative Denial Route (`verification.denyRegistration`)**: Active Super Admin required, authoritative Firestore state verified, transactional updates across `verifications`, `users`, `residentVerificationLocks`, `notifications`, and `activityLogs`.
+  3. **Lifecycle Consistency & Reactivation Prevention**: Generic `verification.delete` blocked on pending registration verifications to prevent stranding first-time applicants; `resident.activate` blocked on permanently denied residents; `verifications/approve` blocked on denied residents.
+  4. **UI, UX & History**: Distinct review actions in `verif-review-page.tsx`, confirmation dialog with required 10-char reason, verification history display with rose denied badges in `history/page.tsx`, and truthful registration status inspection in `lib/security/registration-status.ts`.
+  5. **Verification Metrics**:
+     - `npm test`: PASS 198/198 across 31 suites.
+     - `npm run test:rules`: PASS 71/71 against Auth & Firestore emulators (including all 17 items of Milestone E1 in `test/emulator/registration-denial-lifecycle.test.ts`).
+     - `npm run test:e2e:auth`: PASS 30/30 across Chromium authenticated workflows (including Workflows B and D).
+     - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+     - `npm run lint`: PASS (0 errors).
+     - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
+     - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles.
+     - `git diff --check`: PASS (clean).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No unauthorized production deployment or live rules publication performed.
+
+## Prior verified state — 16 October 2026 (Final Two Targeted Functional Corrections: F17, F18)
 
 - **Working branch**: `main`
 - **Audited baseline**: `a071b7c8dc82b884ef1ab64598c2d479368fe756`

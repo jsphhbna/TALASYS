@@ -318,3 +318,42 @@
   - Eliminates stale payment actions: paid, waived, cancelled, or deleted requests instantly disable modal submission with accurate explanatory feedback.
   - Guarantees administrative reports and analytics truthfully reflect actual document generation events rather than submission dates.
   - Ensures complete output parity across PDF, CSV, and XLSX exports without database migration or date fabrication.
+
+## ADR-024: Permanent Registration Denial, Safe Soft Deletion, and Lifecycle Consistency
+
+- **Status**: Proposed / In-Progress
+- **Date**: 16 October 2026
+- **Context**:
+  - Previously, Super Admin deletion of an initial pending registration verification (`verification.delete`) cleared the resident's pending verification references while leaving their account in `status = "Pending"`.
+  - Because registration resubmission (`POST /api/resident/registration/resubmit`) strictly requires a prior `rejected` initial registration verification, deleting the verification record orphaned the resident account in `Pending` without a valid resubmission or correction path.
+  - The system lacked a first-class, server-authoritative **Deny Registration** workflow for initial resident registrations that should be permanently refused.
+  - Physical deletion of the resident's Firebase Auth identity, Firestore user document, or verification history would destroy audit trails and evidence.
+  - Generic account activation (`resident.activate`) could also inadvertently reactivate a denied resident if lifecycle guards were missing.
+- **Decisions**:
+  1. **Two Distinct Registration Decisions**:
+     - **Reject Registration (Correctable)**: Return the application for document corrections (`verification.reject`). The verification becomes `rejected`, resident account remains `Pending`, and the resident retains access to the registration-resubmission path.
+     - **Deny Registration (Permanent)**: Permanently deny the registration (`verification.denyRegistration`). The verification becomes `denied`, resident account transitions to `Deleted` (safe soft deletion, preserving Auth UID, email, name, registration history, and uploaded documents), coordination locks are finalized, and the resident cannot sign in, resubmit, or access services.
+  2. **Dedicated Server-Authoritative Denial Route (`verification.denyRegistration`)**:
+     - Requires active Super Admin authorization (`isSuperAdminRole(actor.role)`).
+     - Authoritatively validates Firestore state: target verification must exist, be of type `registration`, and have status `pending`; target resident must exist, have role `resident`, be unverified (`isVerified !== true`), and have status `Pending`.
+     - Fences active operations: verifies no active approval or competing verification operation owns the resident's locks.
+     - Runs atomically in a Firestore transaction:
+       - `users/{residentId}`: set `status = "Deleted"`, `registrationDenied = true`, `deniedAt`, `denialReason`, `deniedBy`, `deniedByUid`, clear `hasPendingVerification` and `pendingVerificationId`.
+       - `verifications/{targetId}`: set `status = "denied"`, `denialReason`, `deniedAt`, `deniedBy`, `deniedByUid`, `updatedAt`.
+       - `residentVerificationLocks/{residentId}`: set `activeVerificationId = targetId`, `activeVerificationStatus = "denied"`, `denialReason`, `deniedAt`, `updatedAt`.
+       - `notifications`: dispatch authoritative denial notification.
+       - `activityLogs`: record authoritative audit event with actor, action, previous/new lifecycle states, and denial reason.
+  3. **Prevent Orphaned-Pending Deletion & Accidental Reactivation**:
+     - `verification.delete`: Explicitly reject generic deletion of pending initial registration verifications (preventing stranding a first-time applicant in `Pending` without a verification record).
+     - `resident.activate`: Explicitly reject activation attempts on permanently denied residents (`registrationDenied === true` or unverified `Deleted` status).
+     - `verifications/approve`: Reject approval attempts if the resident was permanently denied or soft-deleted.
+  4. **Truthful UI, UX & Verification History**:
+     - Provide distinct "Reject Registration" and "Deny Registration" actions in `verif-review-page.tsx`. Super Admin sees the permanent denial action.
+     - Confirmation dialog "Deny Resident Registration?" requiring a 10-character reason, with loading states and duplicate-submit guards.
+     - Display denied registrations distinctly in `history/page.tsx` with details, timestamps, and responsible admins.
+     - In `lib/security/registration-status.ts`: Accurately report `status: "denied"` for denied residents so registration recovery renders truthful permanent denial notice instead of pending review.
+- **Consequences**:
+  - Eliminates the orphaned-Pending lifecycle inconsistency completely.
+  - Safe soft deletion preserves all evidence, audit history, and uploaded documents without physical deletion.
+  - Denied residents cannot authenticate, resubmit, or access any resident services.
+  - Normal administrators cannot accidentally activate permanently denied accounts.

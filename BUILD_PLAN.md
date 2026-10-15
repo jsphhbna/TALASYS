@@ -1,8 +1,44 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, & F01–F18)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, & Registration Denial Lifecycle)
 
-## Final Two Targeted Functional Corrections (F17, F18) — CURRENT PASS
+## Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency — CURRENT PASS
 
-- **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from audited baseline `a071b7c8dc82b884ef1ab64598c2d479368fe756`.
+- **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from audited baseline `0c18235e8ebf194303957491b713d9a780321c18`.
+- **Target findings & remediations**:
+  1. **Two Distinct Registration Decisions (A1, A2)**:
+     - Clarify and enforce two separate lifecycle decisions for initial registration verifications:
+       - **Reject Registration (Correctable)**: Return the application for document corrections. Verification status becomes `rejected`, resident account remains `Pending`, and the resident retains access to the registration-resubmission path.
+       - **Deny Registration (Permanent)**: Permanently deny the application. Verification status becomes `denied`, resident account transitions to `Deleted` (safe soft deletion, preserving Auth UID, email, name, registration history, and uploaded documents), coordination locks are finalized, and the resident cannot sign in, resubmit, or access services.
+  2. **Server-Authoritative Denial Operation (`verification.denyRegistration`) (B1–B4)**:
+     - Implement dedicated operation `verification.denyRegistration` in `app/api/admin/operations/route.ts` requiring active Super Admin authorization.
+     - Validate authoritative Firestore state: target verification must exist, be of type `registration`, and have status `pending`; target resident must exist, have role `resident`, be unverified (`isVerified !== true`), and have status `Pending`.
+     - Transactionally and atomically update:
+       - `users/{residentId}`: set `status = "Deleted"`, `registrationDenied = true`, `deniedAt`, `denialReason`, `deniedBy`, `deniedByUid`, clear `hasPendingVerification` and `pendingVerificationId`.
+       - `verifications/{targetId}`: set `status = "denied"`, `denialReason`, `deniedAt`, `deniedBy`, `deniedByUid`, `updatedAt`.
+       - `residentVerificationLocks/{residentId}`: set `activeVerificationId = targetId`, `activeVerificationStatus = "denied"`, `denialReason`, `deniedAt`, `updatedAt`.
+       - `notifications`: dispatch authoritative denial notification.
+       - `activityLogs`: record authoritative audit event with actor, action, previous/new lifecycle states, and denial reason.
+     - Check concurrent and active operations safely: reject if approval or another operation owns the active lock, or if the resident was already verified or denied.
+  3. **Prevent Orphaned-Pending Deletion & Accidental Reactivation (C1–C3)**:
+     - In `verification.delete`: Explicitly reject generic deletion of pending initial registration verifications (preventing stranding a first-time applicant in `Pending` without a verification record).
+     - In `resident.activate`: Explicitly reject activation attempts on permanently denied residents (`registrationDenied === true` or unverified `Deleted` status).
+     - In `verifications/approve`: Reject approval attempts if the resident was permanently denied or soft-deleted.
+  4. **UI / UX & History Consistency (D1–D4)**:
+     - In `components/admin/verif-review-page.tsx`: For `registration` verifications, present distinct "Reject Registration" and "Deny Registration" actions. Super Admin sees the permanent denial action.
+     - Add confirmation dialog "Deny Resident Registration?" requiring a 10-character reason, with loading states and duplicate-submit guards.
+     - In `app/admin/verifications/history/page.tsx`: Display denied registrations distinctly in charts, KPI cards, breakdown tables, and common reasons.
+     - In `lib/security/registration-status.ts`: Accurately report `status: "denied"` for denied residents so registration recovery renders truthful permanent denial notice instead of pending review.
+  5. **Verification & Regression Gate (E1–E3)**:
+     - Unit tests, emulator tests in `test/emulator/registration-denial-lifecycle.test.ts`, and authenticated Playwright E2E browser tests in `test/e2e/authenticated-workflows.spec.ts`.
+
+| Milestone | Status | Verified Evidence |
+|---|---|---|
+| M-Deny-A: Two Distinct Registration Decisions | VERIFIED | Contract defined; Reject Registration preserves Pending with resubmission path; Deny Registration soft-deletes to Deleted with preserved history. |
+| M-Deny-B: Server-Authoritative Denial Route | VERIFIED | Dedicated `verification.denyRegistration` operation in `app/api/admin/operations/route.ts` with Firestore transaction and lock coordination. |
+| M-Deny-C: Deletion & Reactivation Lifecycle Protections | VERIFIED | Generic `verification.delete` blocked on pending registration verifications; `resident.activate` blocked on denied residents; `verifications/approve` blocked on denied residents. |
+| M-Deny-D: Review UI, Dialog, History & Auth | VERIFIED | Distinct action buttons in `verif-review-page.tsx`, confirmation dialog with required 10-char reason, history display with rose denied badges in `history/page.tsx`, and registration status inspection. |
+| M-Deny-E: Emulator, Browser & Regression Testing | VERIFIED | Emulator test suite PASS (71/71); Playwright authenticated E2E test suite PASS (30/30); Unit tests PASS (198/198); Typechecks PASS; Lint PASS (0 errors); Build PASS (51/51 routes); Timezone matrix PASS; git diff --check clean. |
+
+## Final Two Targeted Functional Corrections (F17, F18) — prior pass
 - **Target findings & remediations**:
   1. **F17 (Resident Payment Modal Live-State Consistency & Ineligibility Handling)**:
      - Root cause: `app/resident/history/page.tsx` stored the selected request as a static object snapshot (`paymentRequest`) rather than tracking live real-time updates from `requests`. When opening `PaymentModal`, it also passed a projection omitting `paymentStatus`. In `lib/resident/payment-policy.ts`, `isResidentPaymentActionEligible` defaulted absent `paymentStatus` to `"unpaid"`, incorrectly authorizing paid/waived requests when omitted by callers. Furthermore, if the request became paid, cancelled, rejected, completed, or deleted in the background while the modal remained open, the modal stayed interactive with outdated payment options.

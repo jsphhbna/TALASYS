@@ -874,7 +874,45 @@ test("R14: Server-authoritative verification.delete clears pending state, unlock
   assert.equal((await adminDb.collection("verifications").doc(verifId).get()).exists, true)
   assert.equal((await adminDb.collection("users").doc(targetResident.uid).get()).data()?.hasPendingVerification, true)
 
-  // 2. Super Admin executes verification.delete successfully
+  // 1b. Super Admin cannot delete a pending registration verification (Milestone C: 400)
+  const regDeleteRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "verification.delete",
+      operationId: `op-del-pending-reg-${randomUUID()}`,
+      targetId: verifId,
+    }),
+  }))
+  assert.equal(regDeleteRes.status, 400)
+  const regDeleteJson = await regDeleteRes.json()
+  assert.match(regDeleteJson.error, /Generic deletion of pending registration verifications is not permitted/)
+
+  // Verification and locks still intact
+  assert.equal((await adminDb.collection("verifications").doc(verifId).get()).exists, true)
+  assert.equal((await adminDb.collection("users").doc(targetResident.uid).get()).data()?.hasPendingVerification, true)
+
+  // 2. Super Admin executes verification.delete successfully on a non-registration verification (profile-edit)
+  const profileVerifId = `profile-verif-r14-${randomUUID()}`
+  await adminDb.collection("verifications").doc(profileVerifId).set({
+    residentId: targetResident.uid,
+    userId: targetResident.uid,
+    type: "profile-edit",
+    status: "pending",
+    name: "Target Resident",
+    email: targetResident.email,
+    createdAt: Date.now(),
+  })
+  await adminDb.collection("residentVerificationLocks").doc(targetResident.uid).set({
+    residentId: targetResident.uid,
+    activeVerificationId: profileVerifId,
+    activeVerificationStatus: "pending",
+    createdAt: Date.now(),
+  })
+  await adminDb.collection("users").doc(targetResident.uid).update({
+    hasPendingVerification: true,
+    pendingVerificationId: profileVerifId,
+  })
   const deleteOpId = `op-del-success-${randomUUID()}`
   const deleteRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
     method: "POST",
@@ -882,7 +920,7 @@ test("R14: Server-authoritative verification.delete clears pending state, unlock
     body: JSON.stringify({
       operation: "verification.delete",
       operationId: deleteOpId,
-      targetId: verifId,
+      targetId: profileVerifId,
     }),
   }))
   assert.equal(deleteRes.status, 200)
@@ -891,7 +929,7 @@ test("R14: Server-authoritative verification.delete clears pending state, unlock
   assert.equal(deleteJson.idempotent, false)
 
   // 3. Verification document is deleted
-  assert.equal((await adminDb.collection("verifications").doc(verifId).get()).exists, false)
+  assert.equal((await adminDb.collection("verifications").doc(profileVerifId).get()).exists, false)
 
   // 4. Resident user record has pending flags cleared
   const userSnap = await adminDb.collection("users").doc(targetResident.uid).get()
@@ -904,13 +942,13 @@ test("R14: Server-authoritative verification.delete clears pending state, unlock
   assert.equal(lockSnap.data()?.activeVerificationId, null)
 
   // 6. Authoritative audit log was created
-  const auditLogs = await adminDb.collection("activityLogs").where("targetId", "==", verifId).get()
+  const auditLogs = await adminDb.collection("activityLogs").where("targetId", "==", profileVerifId).get()
   assert.equal(auditLogs.docs.length, 1)
   const auditData = auditLogs.docs[0].data()
   assert.equal(auditData.action, "verification.delete")
   assert.equal(auditData.actor.id, superAdmin.uid)
   assert.equal(auditData.authoritative, true)
-  assert.equal(auditData.before.type, "registration")
+  assert.equal(auditData.before.type, "profile-edit")
   assert.equal(auditData.after, null)
 
   // 7. Idempotent replay succeeds without modification
@@ -920,7 +958,7 @@ test("R14: Server-authoritative verification.delete clears pending state, unlock
     body: JSON.stringify({
       operation: "verification.delete",
       operationId: deleteOpId,
-      targetId: verifId,
+      targetId: profileVerifId,
     }),
   }))
   assert.equal(replayRes.status, 200)

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/admin"
 import { useMounted } from "@/hooks/use-mounted"
 import { ClipboardCheck, CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react"
-import { useAuth } from "@/lib/auth"
+import { useAuth, isSuperAdminRole } from "@/lib/auth"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { SecureMediaViewer } from "@/components/media/secure-image"
@@ -26,11 +26,14 @@ const colorMap = {
 }
 
 export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifReviewPageProps) {
-  const { verifications: pendingVerifications, activityLogs, approveVerification, rejectVerification } = useAdminData()
+  const { verifications: pendingVerifications, activityLogs, approveVerification, rejectVerification, denyRegistration } = useAdminData()
   const { user } = useAuth()
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [showRejectConfirm, setShowRejectConfirm] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
+  const [showDenyConfirm, setShowDenyConfirm] = useState(false)
+  const [denyReason, setDenyReason] = useState("")
+  const [denyError, setDenyError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [selectedUserDetails, setSelectedUserDetails] = useState<any>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -174,7 +177,16 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
       </div>
 
       {/* Modal Detail */}
-      <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+      <Dialog open={!!selectedItem} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedItem(null)
+          setShowRejectConfirm(false)
+          setShowDenyConfirm(false)
+          setDenyError(null)
+          setRejectReason("")
+          setDenyReason("")
+        }
+      }}>
         <DialogContent 
           className="max-w-3xl max-h-[90vh] p-0 border-0 overflow-hidden flex flex-col gap-0"
           onInteractOutside={(e) => {
@@ -278,48 +290,82 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
                 </div>
 
                 {user?.role !== "View Only" && (
-                  <div className="flex gap-4 pt-4 mt-6 border-t border-slate-100 dark:border-slate-800">
-                    <Button
-                      disabled={isProcessing}
-                      onClick={async () => {
-                        setIsProcessing(true)
-                        try {
-                          await approveVerification(selectedItem.id, user?.name || "Admin", user?.email || "admin@system.com")
-                          toast.success("Request approved successfully")
-                          setSelectedItem(null)
-                        } catch (err: any) {
-                          toast.error(err?.message || "Failed to approve request")
-                        } finally {
-                          setIsProcessing(false)
-                        }
-                      }}
-                      className="flex-1 h-12 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                      Approve Request
-                    </Button>
-                    <Button
-                      disabled={isProcessing}
-                      onClick={() => setShowRejectConfirm(true)}
-                      className="flex-1 h-12 text-sm font-semibold bg-red-600 hover:bg-red-700"
-                    >
-                      Reject Request
-                    </Button>
+                  <div className="pt-4 mt-6 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                    <div className="flex gap-4">
+                      <Button
+                        disabled={isProcessing}
+                        onClick={async () => {
+                          setIsProcessing(true)
+                          try {
+                            await approveVerification(selectedItem.id, user?.name || "Admin", user?.email || "admin@system.com")
+                            toast.success("Request approved successfully")
+                            setSelectedItem(null)
+                          } catch (err: any) {
+                            toast.error(err?.message || "Failed to approve request")
+                          } finally {
+                            setIsProcessing(false)
+                          }
+                        }}
+                        className="flex-1 h-12 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        {type === "registration" ? "Approve Registration" : "Approve Request"}
+                      </Button>
+                      <Button
+                        disabled={isProcessing}
+                        onClick={() => {
+                          setShowRejectConfirm(true)
+                          setShowDenyConfirm(false)
+                        }}
+                        className="flex-1 h-12 text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white"
+                        title={type === "registration" ? "Return the application for corrections" : "Reject Request"}
+                      >
+                        {type === "registration" ? "Reject Registration" : "Reject Request"}
+                      </Button>
+                    </div>
+
+                    {type === "registration" && isSuperAdminRole(user?.role) && (
+                      <div className="pt-1">
+                        <Button
+                          disabled={isProcessing}
+                          onClick={() => {
+                            setShowDenyConfirm(true)
+                            setShowRejectConfirm(false)
+                            setDenyError(null)
+                          }}
+                          className="w-full h-11 text-sm font-semibold bg-rose-700 hover:bg-rose-800 text-white border border-rose-900 shadow-sm"
+                          title="Permanently deny this application and deactivate the resident account"
+                        >
+                          Deny Registration (Permanent)
+                        </Button>
+                        <p className="text-2xs text-slate-500 dark:text-slate-400 mt-1 text-center">
+                          Permanently deny this application and deactivate the resident account.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {showRejectConfirm && (
-                  <div className="mt-4 p-5 bg-red-50 border border-red-200 rounded-xl">
-                    <p className="text-base font-bold text-red-800 mb-2">Confirm Rejection</p>
-                    <p className="text-sm text-red-700 mb-4">Please provide a reason (min 10 characters):</p>
+                  <div className="mt-4 p-5 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-base font-bold text-amber-900 mb-1">
+                      {type === "registration" ? "Reject Registration (Return for Correction)" : "Confirm Rejection"}
+                    </p>
+                    <p className="text-sm text-amber-800 mb-4">
+                      {type === "registration"
+                        ? "Please provide a reason so the resident can correct and resubmit their documents (min 10 characters):"
+                        : "Please provide a reason (min 10 characters):"}
+                    </p>
                     <textarea
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       placeholder="Enter rejection reason..."
-                      className="w-full p-4 border border-red-200 rounded-lg text-sm mb-3 focus:outline-none focus:border-red-400 bg-white dark:bg-slate-900"
+                      className="w-full p-4 border border-amber-200 rounded-lg text-sm mb-3 focus:outline-none focus:border-amber-400 bg-white dark:bg-slate-900"
                       rows={3}
                     />
-                    <p className={`text-xs mb-4 font-medium ${rejectReason.trim().length >= 10 ? "text-green-600" : "text-red-500"}`}>{rejectReason.trim().length}/10 characters minimum</p>
+                    <p className={`text-xs mb-4 font-medium ${rejectReason.trim().length >= 10 ? "text-green-600" : "text-amber-700"}`}>
+                      {rejectReason.trim().length}/10 characters minimum
+                    </p>
                     <div className="flex gap-3">
                       <Button
                         disabled={rejectReason.trim().length < 10 || isProcessing}
@@ -338,7 +384,7 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
                             setIsProcessing(false)
                           }
                         }}
-                        className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-sm font-semibold disabled:opacity-50"
+                        className="flex-1 h-11 bg-amber-600 hover:bg-amber-700 text-sm font-semibold disabled:opacity-50 text-white"
                       >
                         {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                         Confirm Reject
@@ -348,6 +394,80 @@ export function VerifReviewPage({ type, title, subtitle, accentColor }: VerifRev
                         disabled={isProcessing}
                         onClick={() => { setShowRejectConfirm(false); setRejectReason("") }}
                         className="flex-1 h-11 bg-transparent text-sm font-semibold text-slate-700"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {showDenyConfirm && (
+                  <div className="mt-4 p-5 bg-rose-50 border-2 border-rose-300 rounded-xl">
+                    <div className="flex items-start gap-3 mb-3">
+                      <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-base font-bold text-rose-950">Deny Resident Registration?</p>
+                        <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+                          This action will permanently deny the resident&apos;s current registration and deactivate their TALASYS account. The resident will not be able to sign in or resubmit this registration. The application history will be retained.
+                        </p>
+                      </div>
+                    </div>
+
+                    {denyError && (
+                      <div className="p-3 mb-3 bg-red-100 border border-red-300 text-red-900 rounded-lg text-xs font-semibold">
+                        {denyError}
+                      </div>
+                    )}
+
+                    <p className="text-xs font-semibold text-rose-900 uppercase tracking-wider mb-1.5">Required Denial Reason:</p>
+                    <textarea
+                      value={denyReason}
+                      onChange={(e) => {
+                        setDenyReason(e.target.value)
+                        if (denyError) setDenyError(null)
+                      }}
+                      placeholder="State the authoritative reason for permanently denying this registration application..."
+                      className="w-full p-4 border border-rose-300 rounded-lg text-sm mb-2 focus:outline-none focus:border-rose-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                      rows={3}
+                    />
+                    <p className={`text-xs mb-4 font-medium ${denyReason.trim().length >= 10 ? "text-emerald-700" : "text-rose-600"}`}>
+                      {denyReason.trim().length}/10 characters minimum
+                    </p>
+
+                    <div className="flex gap-3">
+                      <Button
+                        disabled={denyReason.trim().length < 10 || isProcessing}
+                        onClick={async () => {
+                          if (denyReason.trim().length < 10 || isProcessing) return
+                          setIsProcessing(true)
+                          setDenyError(null)
+                          try {
+                            await denyRegistration(selectedItem.id, denyReason)
+                            toast.success("Registration permanently denied and account deactivated.")
+                            setSelectedItem(null)
+                            setShowDenyConfirm(false)
+                            setDenyReason("")
+                          } catch (err: any) {
+                            setDenyError(err?.message || "Failed to permanently deny registration.")
+                            toast.error(err?.message || "Failed to permanently deny registration.")
+                          } finally {
+                            setIsProcessing(false)
+                          }
+                        }}
+                        className="flex-1 h-11 bg-rose-700 hover:bg-rose-800 text-white text-sm font-semibold disabled:opacity-50"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        Permanently Deny Registration
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={isProcessing}
+                        onClick={() => {
+                          setShowDenyConfirm(false)
+                          setDenyReason("")
+                          setDenyError(null)
+                        }}
+                        className="flex-1 h-11 bg-transparent text-sm font-semibold text-slate-700 hover:bg-slate-100"
                       >
                         Cancel
                       </Button>

@@ -288,13 +288,19 @@ export default function ResidentManagement() {
                         </button>
                         {showActionsMenu === resident.id && (
                           <div className="absolute right-0 top-8 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10">
-                            {resident.status === "Expired" ? (
+                            {resident.status === "Deleted" || (resident as any).registrationDenied ? (
+                              <div className="px-4 py-2 text-2xs text-slate-400 italic">Account Inactive</div>
+                            ) : resident.status === "Expired" ? (
                               <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-emerald-600">Activate Account</button>
                             ) : (
                               <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-amber-600">Deactivate Account</button>
                             )}
-                            <div className="border-t border-slate-200 dark:border-slate-700" />
-                            <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-red-600">Delete Resident</button>
+                            {resident.status !== "Deleted" && (
+                              <>
+                                <div className="border-t border-slate-200 dark:border-slate-700" />
+                                <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-red-600">Delete Resident</button>
+                              </>
+                            )}
                           </div>
                         )}
                       </>

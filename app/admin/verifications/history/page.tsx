@@ -13,7 +13,7 @@ import { extractValidYear } from "@/lib/security/audit-utils"
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 export default function VerificationHistoryPage() {
-  const { activityLogs, rejectedVerifications } = useAdminData()
+  const { activityLogs, rejectedVerifications, deniedVerifications } = useAdminData()
   const mounted = useMounted()
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
 
@@ -21,7 +21,7 @@ export default function VerificationHistoryPage() {
   const allYears = useMemo(() => {
     const years = new Set<string>()
     activityLogs.forEach(log => {
-      if (log.actionType === "approved" || log.actionType === "rejected") {
+      if (log.actionType === "approved" || log.actionType === "rejected" || log.actionType === "denied") {
         const y = extractValidYear(log.timestamp || log.date)
         if (y) years.add(y)
       }
@@ -34,13 +34,14 @@ export default function VerificationHistoryPage() {
 
   const verifLogs = useMemo(() =>
     activityLogs.filter(log => {
-      const isApprovedOrRejected = log.actionType === "approved" || log.actionType === "rejected"
+      const isApprovedOrRejected = log.actionType === "approved" || log.actionType === "rejected" || log.actionType === "denied"
       if (!isApprovedOrRejected) return false
 
       const actionText = (log.action || log.actionType || "").toLowerCase()
       const isVerificationDomain =
         log.targetCollection === "verifications" ||
         actionText.includes("verification") ||
+        actionText.includes("registration") ||
         actionText.includes("profile edit") ||
         actionText.includes("reactivation")
 
@@ -57,19 +58,22 @@ export default function VerificationHistoryPage() {
       })
       const approved = monthLogs.filter(l => l.actionType === "approved").length
       const rejected = monthLogs.filter(l => l.actionType === "rejected").length
-      return { month, approved, rejected, total: approved + rejected, logs: monthLogs }
+      const denied = monthLogs.filter(l => l.actionType === "denied").length
+      return { month, approved, rejected, denied, total: approved + rejected + denied, logs: monthLogs }
     }),
     [verifLogs]
   )
 
   const totalApproved = verifLogs.filter(l => l.actionType === "approved").length
   const totalRejected = verifLogs.filter(l => l.actionType === "rejected").length
-  const totalProcessed = totalApproved + totalRejected
+  const totalDenied = verifLogs.filter(l => l.actionType === "denied").length
+  const totalProcessed = totalApproved + totalRejected + totalDenied
   const approvalRate = totalProcessed > 0 ? Math.round((totalApproved / totalProcessed) * 100) : 0
 
   const topReasonsByType = useMemo(() => {
     const breakdown = {
       "registration": [] as string[],
+      "denied-registration": [] as string[],
       "profile-edit": [] as string[],
       "reactivation": [] as string[]
     }
@@ -80,6 +84,13 @@ export default function VerificationHistoryPage() {
         if (v.type === "registration") breakdown["registration"].push(v.rejectionReason)
         if (v.type === "profile-edit") breakdown["profile-edit"].push(v.rejectionReason)
         if (v.type === "reactivation") breakdown["reactivation"].push(v.rejectionReason)
+      }
+    })
+
+    deniedVerifications.forEach(v => {
+      const reason = v.denialReason || (v as any).reason
+      if (reason && (v.submittedDate?.includes(selectedYear) || v.submittedDate === undefined)) {
+        breakdown["denied-registration"].push(reason)
       }
     })
 
@@ -97,11 +108,12 @@ export default function VerificationHistoryPage() {
     }
 
     return [
-      { id: "registration", title: "New Registrations", color: "text-blue-600", bg: "bg-blue-50", data: getTop(breakdown["registration"]) },
+      { id: "registration", title: "Registrations (Rejections)", color: "text-amber-700", bg: "bg-amber-50", data: getTop(breakdown["registration"]) },
+      { id: "denied-registration", title: "Registrations (Permanent Denials)", color: "text-rose-800", bg: "bg-rose-50", data: getTop(breakdown["denied-registration"]) },
       { id: "profile-edit", title: "Profile Edits", color: "text-green-600", bg: "bg-green-50", data: getTop(breakdown["profile-edit"]) },
       { id: "reactivation", title: "Reactivation", color: "text-purple-600", bg: "bg-purple-50", data: getTop(breakdown["reactivation"]) },
     ]
-  }, [rejectedVerifications, selectedYear])
+  }, [rejectedVerifications, deniedVerifications, selectedYear])
 
   if (!mounted) {
     return <AdminPageShell><div className="flex h-full items-center justify-center p-8">Loading history...</div></AdminPageShell>
@@ -129,7 +141,7 @@ export default function VerificationHistoryPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-2">
             <Activity className="w-4 h-4 text-slate-500" />
@@ -150,6 +162,13 @@ export default function VerificationHistoryPage() {
           </div>
           <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Rejected</p>
           <p className="text-2xl font-bold text-red-600">{totalRejected}</p>
+        </Card>
+        <Card className="p-4 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center mb-2">
+            <XCircle className="w-4 h-4 text-rose-600" />
+          </div>
+          <p className="text-2xs font-semibold text-rose-800 dark:text-rose-400 uppercase tracking-wider">Total Denied</p>
+          <p className="text-2xl font-bold text-rose-700">{totalDenied}</p>
         </Card>
         <Card className="p-4 shadow-sm">
           <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mb-2">
@@ -183,7 +202,8 @@ export default function VerificationHistoryPage() {
                 />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
                 <Bar dataKey="approved" name="Approved" fill="#16a34a" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="rejected" name="Rejected" fill="#dc2626" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="rejected" name="Rejected" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="denied" name="Denied" fill="#be123c" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -191,7 +211,7 @@ export default function VerificationHistoryPage() {
 
         {/* Top Rejection Reasons Breakdown */}
         <Card className="col-span-4 p-5 shadow-sm flex flex-col h-[340px]">
-          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Common Rejection Reasons</h2>
+          <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-4">Common Rejection & Denial Reasons</h2>
           <div className="flex-1 overflow-y-auto pr-2 space-y-4">
             {topReasonsByType.map(group => {
               if (group.data.length === 0) return null
@@ -235,11 +255,12 @@ export default function VerificationHistoryPage() {
 
         {/* Table Header */}
         <div className="grid grid-cols-12 gap-2 px-5 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
-          <div className="col-span-4 text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Month</div>
+          <div className="col-span-3 text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Month</div>
           <div className="col-span-2 text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Total</div>
           <div className="col-span-2 text-2xs font-semibold text-emerald-600 uppercase tracking-wider text-center">Approved</div>
-          <div className="col-span-2 text-2xs font-semibold text-red-500 uppercase tracking-wider text-center">Rejected</div>
-          <div className="col-span-2 text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Rate</div>
+          <div className="col-span-2 text-2xs font-semibold text-amber-600 uppercase tracking-wider text-center">Rejected</div>
+          <div className="col-span-2 text-2xs font-semibold text-rose-600 uppercase tracking-wider text-center">Denied</div>
+          <div className="col-span-1 text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Rate</div>
         </div>
 
         {monthlyData.map((row) => {
@@ -254,7 +275,7 @@ export default function VerificationHistoryPage() {
                 } ${isExpanded ? "bg-[#0C2340]/5 dark:bg-slate-800/20" : ""}`}
                 disabled={row.total === 0}
               >
-                <div className="col-span-4 flex items-center gap-2">
+                <div className="col-span-3 flex items-center gap-2">
                   <span className="text-xs font-semibold text-[#0C2340] dark:text-blue-50">{row.month} {selectedYear}</span>
                   {row.total > 0 && <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />}
                 </div>
@@ -265,9 +286,12 @@ export default function VerificationHistoryPage() {
                   <span className="text-xs font-semibold text-emerald-600">{row.approved || "—"}</span>
                 </div>
                 <div className="col-span-2 text-center">
-                  <span className="text-xs font-semibold text-red-500">{row.rejected || "—"}</span>
+                  <span className="text-xs font-semibold text-amber-600">{row.rejected || "—"}</span>
                 </div>
                 <div className="col-span-2 text-center">
+                  <span className="text-xs font-semibold text-rose-600">{row.denied || "—"}</span>
+                </div>
+                <div className="col-span-1 text-center">
                   {rate !== null ? (
                     <span className={`text-xs-plus font-medium px-2 py-0.5 rounded-full ${rate >= 70 ? "bg-emerald-50 text-emerald-700" : rate >= 40 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
                       {rate}%
@@ -284,16 +308,19 @@ export default function VerificationHistoryPage() {
                       <div className="col-span-1 flex items-center justify-center">
                         {log.actionType === "approved"
                           ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                          : <XCircle className="w-3.5 h-3.5 text-red-500" />
+                          : log.actionType === "denied"
+                            ? <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                            : <XCircle className="w-3.5 h-3.5 text-amber-500" />
                         }
                       </div>
                       <div className="col-span-5">
                         <p className="text-xs-plus font-semibold text-[#0C2340] dark:text-blue-50">{log.residentName || "—"}</p>
                         <p className="text-2xs text-slate-400">{log.action}</p>
+                        {log.details && <p className="text-2xs text-slate-500 italic mt-0.5 line-clamp-1">{log.details}</p>}
                       </div>
                       <div className="col-span-3">
-                        <span className={`text-2xs font-medium px-2 py-0.5 rounded ${log.actionType === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
-                          {log.actionType === "approved" ? "Approved" : "Rejected"}
+                        <span className={`text-2xs font-medium px-2 py-0.5 rounded ${log.actionType === "approved" ? "bg-emerald-50 text-emerald-700" : log.actionType === "denied" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-amber-50 text-amber-700"}`}>
+                          {log.actionType === "approved" ? "Approved" : log.actionType === "denied" ? "Permanently Denied" : "Rejected"}
                         </span>
                       </div>
                       <div className="col-span-3 text-right">

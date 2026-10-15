@@ -83,6 +83,9 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
         ])
         if (!residentSnapshot.exists || residentSnapshot.data()?.role !== "resident") throw Object.assign(new Error("Target resident not found"), { status: 404 })
         const resident = residentSnapshot.data() || {}
+        if (resident.status === "Deleted" || resident.registrationDenied) {
+          throw Object.assign(new Error("Cannot approve registration for a permanently denied resident."), { status: 409 })
+        }
 
         const lock = lockSnapshot.exists ? lockSnapshot.data() : null
         const approvalOpId = `verification-${verificationId}`

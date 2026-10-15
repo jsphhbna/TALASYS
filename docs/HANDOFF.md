@@ -1,6 +1,40 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-16 (Final Two Targeted Functional Corrections: F17, F18)
+## Current handoff — 2026-10-16 (Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency)
+
+Working branch: `main`. Audited baseline: `0c18235e8ebf194303957491b713d9a780321c18`.
+
+This pass implements a safe, server-authoritative **Deny Registration** workflow for initial resident registrations to eliminate an orphaned-Pending lifecycle inconsistency, enforce safe resident soft deletion (`users/{uid}.status = "Deleted"`), protect against accidental reactivation, and distinguish correctable document rejection from permanent application denial:
+1. **Two Distinct Registration Decisions**:
+   - **Reject Registration (Correctable)**: Preserved existing workflow where resident remains in `status = "Pending"` with an eligible resubmission path to correct documents.
+   - **Deny Registration (Permanent)**: Dedicated Super Admin workflow permanently denying the application. Resident account transitions to `status = "Deleted"` with lifecycle metadata (`registrationDenied = true`, `deniedAt`, `denialReason`, `deniedBy`, `deniedByUid`). Resident's Firebase Auth identity, Firestore user record, documents, and verification history are preserved (no physical deletion). Denied resident cannot sign in, resubmit, or access resident services.
+2. **Server-Authoritative Denial Operation (`verification.denyRegistration`)**:
+   - Implemented in `app/api/admin/operations/route.ts` requiring active Super Admin authorization.
+   - Atomically updates target verification (`status = "denied"`), resident user record (`status = "Deleted"`, `registrationDenied = true`), clears pending verification flags (`hasPendingVerification = false`, `pendingVerificationId = null`), updates `residentVerificationLocks/{residentId}` (`activeVerificationStatus = "denied"`), and creates authoritative audit record (`actionType = "denied"`).
+   - Prevents race conditions with live approval locks, identity locks, and concurrent status mutations.
+3. **Lifecycle Consistency & Reactivation Prevention**:
+   - Generic `verification.delete` explicitly rejects deletion of pending registration verifications (400), preventing orphaned-Pending state, while preserving deletion for non-registration verifications.
+   - `resident.activate` explicitly rejects activation attempts on permanently denied residents (409).
+   - `app/api/admin/verifications/approve/route.ts` explicitly rejects approvals for permanently denied or soft-deleted residents (409).
+4. **UI, UX & History**:
+   - In `components/admin/verif-review-page.tsx`, renders distinct actions: Approve, Reject Registration (amber, "Return for corrections"), and Deny Registration (Super Admin only, distinct rose styling, "Permanently deny this application and deactivate the resident account").
+   - Confirmation dialog "Deny Resident Registration?" requiring 10-char reason, with duplicate submit guards and preserved form on server failure.
+   - In `app/admin/verifications/history/page.tsx`, displays Total Denied KPI card, month breakdown with Denied column and distinct rose badges, and common rejection & denial reasons breakdown.
+   - In `lib/security/registration-status.ts` and `app/auth/register/page.tsx`, returns truthful permanent denial status.
+
+Evidence is provided by:
+- 198 unit/integration tests (PASS, 31 suites)
+- 71 Auth/Firestore emulator tests (PASS, 6 suites including `test/emulator/registration-denial-lifecycle.test.ts`)
+- 30 authenticated Playwright Chromium E2E tests (PASS)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Timezone matrix across UTC, Asia/Manila, and America/Los_Angeles (PASS)
+- Clean `git diff --check`
+
+No production deployment, Firebase Rules publication, live account/data mutation, or live Cloudinary asset mutation was performed.
+
+## Prior handoff — 2026-10-16 (Final Two Targeted Functional Corrections: F17, F18)
 
 Working branch: `main`. Audited baseline: `a071b7c8dc82b884ef1ab64598c2d479368fe756`.
 

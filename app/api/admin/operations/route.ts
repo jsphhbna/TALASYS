@@ -34,7 +34,7 @@ function operationDocumentId(operationId: string) { return `admin-op-${createHas
 function authorize(role: string, operation: string) {
   if (operation.startsWith("resident.")) return canManageResidentsRole(role)
   if (operation === "verification.reject") return canManageVerificationsRole(role)
-  if (operation === "verification.delete") return isSuperAdminRole(role)
+  if (operation === "verification.delete" || operation === "verification.denyRegistration") return isSuperAdminRole(role)
   if (operation.startsWith("request.")) return canManageRequestsRole(role)
   if (operation.startsWith("notification.")) return canManageResidentsRole(role) || canManageVerificationsRole(role) || canManageRequestsRole(role)
   if (operation.startsWith("admin.") || operation.startsWith("system.")) return isSuperAdminRole(role)
@@ -42,9 +42,10 @@ function authorize(role: string, operation: string) {
 }
 
 function auditEvent(actor: Actor, operation: string, operationId: string, targetId: string | undefined, ipAddress: string, before: unknown, after: unknown, now: number, payloadHash?: string) {
+  const actionType = operation === "verification.denyRegistration" ? "denied" : operation.split(".")[0]
   return {
     actor: { id: actor.uid, name: actor.name, email: actor.email || "unknown", role: actor.role },
-    action: operation, actionType: operation.split(".")[0], targetId: targetId || null,
+    action: operation, actionType, targetId: targetId || null,
     before, after, operationId, ipAddress, timestamp: now, createdAt: now, authoritative: true,
     ...(payloadHash ? { payloadHash } : {})
   }
@@ -61,7 +62,7 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     const auditRef = db.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId(operationId))
     let targetRef: any = null
     if (operation.startsWith("resident.") || operation.startsWith("admin.")) targetRef = targetId ? db.collection(COLLECTION_USERS).doc(targetId) : null
-    else if (operation === "verification.reject" || operation === "verification.delete") targetRef = targetId ? db.collection(COLLECTION_VERIFICATIONS).doc(targetId) : null
+    else if (operation === "verification.reject" || operation === "verification.delete" || operation === "verification.denyRegistration") targetRef = targetId ? db.collection(COLLECTION_VERIFICATIONS).doc(targetId) : null
     else if (operation.startsWith("request.")) targetRef = targetId ? db.collection(COLLECTION_DOCUMENT_REQUESTS).doc(targetId) : null
     else if (operation === "system.alert.dismiss") targetRef = targetId ? db.collection(COLLECTION_SYSTEM_ALERTS).doc(targetId) : null
     else if (operation === "system.config.update") targetRef = db.collection(COLLECTION_SYSTEM_CONFIG).doc(SYSTEM_CONFIG_DOCUMENT_ID)
@@ -99,6 +100,11 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       transaction.update(targetRef, after)
     } else if (["resident.delete", "resident.deactivate", "resident.activate"].includes(operation)) {
       if (before.role !== "resident") throw httpError("Target is not a resident.", 403)
+      if (operation === "resident.activate") {
+        if (before.registrationDenied || before.deniedAt || (!before.isVerified && before.status === "Deleted")) {
+          throw httpError("Cannot activate resident whose registration was permanently denied.", 409)
+        }
+      }
       after = { status: operation === "resident.delete" ? "Deleted" : operation === "resident.deactivate" ? "Expired" : "Active", updatedAt: now }
       transaction.update(targetRef, after)
     } else if (operation === "verification.reject") {
@@ -126,8 +132,100 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
           updatedAt: now,
         }, { merge: true })
       }
+    } else if (operation === "verification.denyRegistration") {
+      if (!isSuperAdminRole(actor.role)) throw httpError("Only Super Admins can permanently deny registrations.", 403)
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : ""
+      if (reason.length < 10) throw httpError("Denial requires a reason of at least 10 characters.", 400)
+      if (before.type !== "registration") throw httpError("Only initial registration verifications can be permanently denied.", 400)
+      if (before.status !== "pending") throw httpError("Verification is no longer pending.", 409)
+
+      const residentId = before.residentId || before.userId
+      if (!residentId) throw httpError("Verification record has no associated resident.", 400)
+
+      const residentUserRef = db.collection(COLLECTION_USERS).doc(residentId)
+      const residentLockRef = db.collection("residentVerificationLocks").doc(residentId)
+      const identityLockRef = db.collection("identityOperationLocks").doc(residentId)
+
+      const [residentSnapshot, residentLockSnapshot, identityLockSnapshot] = await Promise.all([
+        transaction.get(residentUserRef),
+        transaction.get(residentLockRef),
+        transaction.get(identityLockRef),
+      ])
+
+      if (!residentSnapshot.exists) throw httpError("Target resident not found.", 404)
+      const residentData = residentSnapshot.data() || {}
+      if (residentData.role !== "resident") throw httpError("Target account is not a resident.", 403)
+
+      if (residentData.isVerified === true || residentData.status === "Active") {
+        throw httpError("Cannot deny registration for an already verified or active resident.", 409)
+      }
+      if (residentData.status === "Deleted" || residentData.registrationDenied || before.status === "denied") {
+        throw httpError("Resident registration has already been denied.", 409)
+      }
+      if (residentData.status !== "Pending") {
+        throw httpError("Resident account is not in a pending verification state.", 409)
+      }
+
+      // Check active operation ownership
+      const identityLock = identityLockSnapshot.exists ? identityLockSnapshot.data() : null
+      if (identityLock && ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"].includes(identityLock.status)) {
+        throw httpError("Registration approval is currently in progress for this resident.", 409)
+      }
+
+      const residentLock = residentLockSnapshot.exists ? residentLockSnapshot.data() : null
+      if (residentLock && residentLock.activeVerificationStatus === "pending" && residentLock.activeVerificationId && residentLock.activeVerificationId !== targetRef.id) {
+        throw httpError("Another verification operation actively owns this resident's pending state.", 409)
+      }
+
+      after = {
+        status: "denied",
+        denialReason: reason,
+        deniedAt: now,
+        deniedBy: actor.name,
+        deniedByUid: actor.uid,
+        updatedAt: now,
+      }
+      transaction.update(targetRef, after)
+
+      transaction.update(residentUserRef, {
+        status: "Deleted",
+        registrationDenied: true,
+        deniedAt: now,
+        denialReason: reason,
+        deniedBy: actor.name,
+        deniedByUid: actor.uid,
+        hasPendingVerification: false,
+        pendingVerificationId: null,
+        updatedAt: now,
+      })
+
+      transaction.set(residentLockRef, {
+        residentId,
+        activeVerificationId: targetRef.id,
+        activeVerificationStatus: "denied",
+        denialReason: reason,
+        deniedAt: now,
+        updatedAt: now,
+      }, { merge: true })
+
+      notification = {
+        id: `verification-denied-${operationDocumentId(operationId)}`,
+        value: {
+          targetId: residentId,
+          type: "error",
+          title: "Registration Denied",
+          message: `Your registration application has been permanently denied: ${reason}`,
+          timestamp: "Just now",
+          isRead: false,
+          createdAt: now,
+          operationId,
+        },
+      }
     } else if (operation === "verification.delete") {
       if (!isSuperAdminRole(actor.role)) throw httpError("Only Super Admins can delete verifications.", 403)
+      if (before.type === "registration" && before.status === "pending") {
+        throw httpError("Generic deletion of pending registration verifications is not permitted. Use 'verification.denyRegistration' to permanently deny pending registrations.", 400)
+      }
       const residentId = before.residentId || before.userId
       if (residentId && before.status === "pending") {
         const residentLockRef = db.collection("residentVerificationLocks").doc(residentId)

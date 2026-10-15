@@ -30,6 +30,7 @@ export function useAdminData() {
     const [residents, setResidents] = useState<AdminResident[]>([])
     const [verifications, setVerifications] = useState<PendingVerification[]>([])
     const [rejectedVerifications, setRejectedVerifications] = useState<PendingVerification[]>([])
+    const [deniedVerifications, setDeniedVerifications] = useState<PendingVerification[]>([])
     const [documentRequests, setDocumentRequests] = useState<AdminDocumentRequest[]>([])
     const [notifications, setNotifications] = useState<AdminNotification[]>([])
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
@@ -109,6 +110,7 @@ export function useAdminData() {
                     email: userData.email || "",
                     profilePicture: userData.profilePicture || "",
                     createdAt: userData.createdAt?.toDate ? userData.createdAt.toDate().toISOString() : (userData.createdAt || new Date().toISOString()),
+                    registrationDenied: userData.registrationDenied === true,
                 }
             })
             setResidents(residentList)
@@ -138,8 +140,10 @@ export function useAdminData() {
             const allVerifications = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as PendingVerification))
             const pendingVerifications = allVerifications.filter(verification => !verification.status || verification.status === "pending")
             const rejectedVerificationsList = allVerifications.filter(verification => verification.status === "rejected")
+            const deniedVerificationsList = allVerifications.filter(verification => verification.status === "denied")
             setVerifications(pendingVerifications)
             setRejectedVerifications(rejectedVerificationsList)
+            setDeniedVerifications(deniedVerificationsList)
             setStats(prev => ({ ...prev, pendingVerifications: pendingVerifications.length }))
             checkReady("verifications")
         }, (err) => {
@@ -228,6 +232,7 @@ export function useAdminData() {
         residents,
         verifications,
         rejectedVerifications,
+        deniedVerifications,
         documentRequests,
         notifications,
         activityLogs,
@@ -284,6 +289,12 @@ export function useAdminData() {
             }
             await callAdminOperation("verification.reject", { targetId: id, payload: { reason: reason.trim() } })
         }, [verifications]),
+        denyRegistration: useCallback(async (id: string, reason: string) => {
+            if (!reason || reason.trim().length < 10) {
+                throw new Error("Denial requires a reason of at least 10 characters.")
+            }
+            await callAdminOperation("verification.denyRegistration", { targetId: id, payload: { reason: reason.trim() } })
+        }, []),
 
         // Document Requests
         addDocumentRequest: useCallback(async () => {

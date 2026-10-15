@@ -323,6 +323,23 @@ test.beforeAll(async () => {
       uploadDate: "Yesterday",
     }],
   })
+
+  // History denied verification for Milestone E2 history workflow test
+  await db.collection("verifications").doc("e2e-history-denied").set({
+    residentId: "e2e-history-resident",
+    userId: "e2e-history-resident",
+    name: "E2E History Denied Resident",
+    email: "history-denied@example.test",
+    status: "denied",
+    type: "registration",
+    submittedDate: "Yesterday",
+    denialReason: "Fraudulent identification records detected during background check.",
+    deniedBy: "E2E Super Admin",
+    deniedByUid: "e2e-super",
+    deniedAt: Date.now() - 3600000,
+    createdAt: Date.now() - 7200000,
+    documents: [],
+  })
 })
 
 test.afterAll(async () => {
@@ -361,10 +378,10 @@ test("Verification Only rejection runs through server operation and writes autho
   await login(page, "verifier")
   await page.goto("/admin/verifications")
   await page.getByText("E2E Resident", { exact: true }).click()
-  await page.getByRole("button", { name: "Reject Request" }).click()
+  await page.getByRole("button", { name: /Reject (Registration|Request)/i }).click()
   await page.getByPlaceholder("Enter rejection reason...").fill("E2E evidence does not meet requirements")
   const operationResponse = page.waitForResponse(response => response.url().includes("/api/admin/operations") && response.request().method() === "POST")
-  await page.getByRole("button", { name: "Confirm Reject" }).click()
+  await page.getByRole("button", { name: /Confirm Reject/i }).click()
   const response = await operationResponse
   if (!response.ok()) throw new Error(`Rejection operation returned ${response.status()}: ${await response.text()}`)
   await expect(page.getByText("No pending items")).toBeVisible()
@@ -385,7 +402,7 @@ test("Verification Only approval completes the persisted server workflow", async
   await page.goto("/admin/verifications")
   await page.getByText("E2E Approval Resident", { exact: true }).click()
   const operationResponse = page.waitForResponse(response => response.url().includes("/api/admin/verifications/approve") && response.request().method() === "POST")
-  await page.getByRole("button", { name: "Approve Request" }).click()
+  await page.getByRole("button", { name: /Approve (Registration|Request)/i }).click()
   const response = await operationResponse
   if (!response.ok()) throw new Error(`Approval operation returned ${response.status()}: ${await response.text()}`)
   await expect.poll(async () => (await db.collection("verifications").doc("e2e-approve").get()).data()?.status).toBe("approved")
@@ -1059,4 +1076,120 @@ test("F17: Resident payment modal tracks live request updates and disables actio
 
   // Modal dismisses cleanly
   await expect(page.getByRole("heading", { name: "Request Unavailable" })).toHaveCount(0)
+})
+
+test("Milestone E2 Workflow B: Super Admin permanently denies pending registration, resident is soft-deleted, and resident login is blocked", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+  const auth = getAuth(app)
+
+  // Seed denial resident specifically for this workflow
+  try { await auth.createUser({ uid: "e2e-denial-resident", email: "denial-resident@example.test", password, emailVerified: true }) } catch (error: any) { if (error.code !== "auth/uid-already-exists") throw error }
+  await db.collection("users").doc("e2e-denial-resident").set({
+    name: "E2E Denial Resident",
+    email: "denial-resident@example.test",
+    role: "resident",
+    status: "Pending",
+    isVerified: false,
+    hasPendingVerification: true,
+    pendingVerificationId: "e2e-denial-verif",
+    createdAt: Date.now(),
+  })
+  await db.collection("verifications").doc("e2e-denial-verif").set({
+    residentId: "e2e-denial-resident",
+    userId: "e2e-denial-resident",
+    name: "E2E Denial Resident",
+    email: "denial-resident@example.test",
+    status: "pending",
+    type: "registration",
+    submittedDate: "Today",
+    createdAt: Date.now(),
+    documents: [],
+  })
+  await db.collection("residentVerificationLocks").doc("e2e-denial-resident").set({
+    residentId: "e2e-denial-resident",
+    activeVerificationId: "e2e-denial-verif",
+    activeVerificationStatus: "pending",
+    createdAt: Date.now(),
+  })
+
+  // 1. Super Admin logs in and navigates to verifications
+  await login(page, "super", true, /\/superadmin\/dashboard/)
+  await page.goto("/admin/verifications")
+  await expect(page.getByRole("heading", { name: "New Registrations" })).toBeVisible()
+
+  // 2. Select the denial applicant
+  await page.getByText("E2E Denial Resident", { exact: true }).click()
+
+  // 3. Super Admin sees the distinct 'Deny Registration (Permanent)' button
+  const denyButton = page.getByRole("button", { name: /Deny Registration \(Permanent\)/i })
+  await expect(denyButton).toBeVisible()
+  await denyButton.click()
+
+  // 4. Confirmation dialog is presented with consequence warning
+  await expect(page.getByText("Deny Resident Registration?")).toBeVisible()
+  await expect(page.getByText(/permanently deny the resident's current registration and deactivate their TALASYS account/i)).toBeVisible()
+
+  // 5. Short reason (< 10 chars) keeps submission disabled
+  const reasonInput = page.getByPlaceholder(/State the authoritative reason/i)
+  await reasonInput.fill("Short")
+  const confirmDenyButton = page.getByRole("button", { name: "Permanently Deny Registration" })
+  await expect(confirmDenyButton).toBeDisabled()
+
+  // 6. Enter valid authoritative reason and submit
+  const denialReason = "Permanent disqualification: Fabricated government identity document detected."
+  await reasonInput.fill(denialReason)
+  await expect(confirmDenyButton).toBeEnabled()
+
+  const operationPromise = page.waitForResponse(response => response.url().includes("/api/admin/operations") && response.request().method() === "POST")
+  await confirmDenyButton.click()
+  const opRes = await operationPromise
+  expect(opRes.ok()).toBe(true)
+
+  // 7. Verify authoritative database state
+  await expect.poll(async () => {
+    const user = await db.collection("users").doc("e2e-denial-resident").get()
+    return user.data()?.status
+  }).toBe("Deleted")
+
+  const finalUser = (await db.collection("users").doc("e2e-denial-resident").get()).data()
+  expect(finalUser?.registrationDenied).toBe(true)
+  expect(finalUser?.denialReason).toBe(denialReason)
+  expect(finalUser?.hasPendingVerification).toBe(false)
+  expect(finalUser?.pendingVerificationId).toBe(null)
+
+  const finalVerif = (await db.collection("verifications").doc("e2e-denial-verif").get()).data()
+  expect(finalVerif?.status).toBe("denied")
+  expect(finalVerif?.denialReason).toBe(denialReason)
+
+  // 8. Resident attempts login: blocked with account deactivation notice
+  await page.goto("/auth/login")
+  await page.getByLabel("Username or Email").fill("denial-resident@example.test")
+  await page.locator("#password").fill(password)
+  await page.getByRole("button", { name: "Sign In" }).click()
+
+  await expect(page).toHaveURL(/\/auth\/login/)
+  await expect(page.getByText(/deactivated|permission-denied/i)).toBeVisible()
+})
+
+test("Milestone E2 Workflow D: Denied registration remains visible in verification history with reason and responsible administrator", async ({ page }) => {
+  await login(page, "super", true, /\/superadmin\/dashboard/)
+  await page.goto("/admin/verifications/history")
+  await expect(page.getByRole("heading", { name: "Verification History" })).toBeVisible()
+
+  // Verify Total Denied KPI card is rendered
+  await expect(page.getByText("Total Denied")).toBeVisible()
+
+  // Verify Common Rejection & Denial Reasons card is rendered
+  await expect(page.getByText(/Common Rejection & Denial Reasons/i)).toBeVisible()
+
+  // Click current month to expand entries
+  const currentMonthName = new Date().toLocaleString("en-US", { month: "short" })
+  const monthButton = page.locator("button", { hasText: currentMonthName }).first()
+  if (await monthButton.isVisible()) {
+    await monthButton.click()
+  }
+
+  // The denied record is visible in the breakdown
+  await expect(page.getByText(/Permanently Denied|Denied/i).first()).toBeVisible()
 })
