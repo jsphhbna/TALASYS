@@ -105,6 +105,20 @@ export default function CategoryReports() {
     { id: "full", title: "Full Population", count: `${adminStats.totalResidents} residents`, icon: "All", reportTitle: "FULL POPULATION LIST" },
   ]
 
+  const getLastName = (name?: string) => {
+    if (!name) return ""
+    const parts = name.trim().split(/\s+/)
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0]
+  }
+
+  const getFirstName = (name?: string) => {
+    if (!name) return ""
+    const parts = name.trim().split(/\s+/)
+    return parts[0]
+  }
+
+  const [sortBy, setSortBy] = useState("Last Name (A-Z)")
+
   const generatePDFDocument = () => {
     const doc = new jsPDF()
     const title = getCategoryTitle()
@@ -145,6 +159,33 @@ export default function CategoryReports() {
       if (selectedCategories.includes("other-gender") && r.gender === "Other") match = true
       return match
     })
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "Last Name (A-Z)") {
+        const cmp = getLastName(a.name).localeCompare(getLastName(b.name))
+        return cmp !== 0 ? cmp : (a.name || "").localeCompare(b.name || "")
+      }
+      if (sortBy === "Last Name (Z-A)") {
+        const cmp = getLastName(b.name).localeCompare(getLastName(a.name))
+        return cmp !== 0 ? cmp : (b.name || "").localeCompare(a.name || "")
+      }
+      if (sortBy === "First Name (A-Z)") {
+        const cmp = getFirstName(a.name).localeCompare(getFirstName(b.name))
+        return cmp !== 0 ? cmp : (a.name || "").localeCompare(b.name || "")
+      }
+      if (sortBy === "Age (Youngest First)") {
+        return (a.age ?? 0) - (b.age ?? 0)
+      }
+      if (sortBy === "Age (Oldest First)") {
+        return (b.age ?? 0) - (a.age ?? 0)
+      }
+      if (sortBy === "Registration Date") {
+        const aTime = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0
+        const bTime = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0
+        return bTime - aTime
+      }
+      return 0
+    })
     
     // Map columns
     const cols = []
@@ -157,7 +198,7 @@ export default function CategoryReports() {
     if (selectedColumns.expiryDate) cols.push("Expiry Date")
     if (selectedColumns.otherCategories) cols.push("Other Categories")
 
-    const body = filtered.map(r => {
+    const body = sorted.map(r => {
       const row = []
       if (selectedColumns.fullName) row.push(r.name)
       if (selectedColumns.address) row.push(r.address)
@@ -373,11 +414,17 @@ export default function CategoryReports() {
               </div>
               <div>
                 <h4 className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Sort By</h4>
-                <select className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900"
+                >
                   <option>Last Name (A-Z)</option>
                   <option>Last Name (Z-A)</option>
+                  <option>First Name (A-Z)</option>
                   <option>Age (Youngest First)</option>
                   <option>Age (Oldest First)</option>
+                  <option>Registration Date</option>
                 </select>
               </div>
               

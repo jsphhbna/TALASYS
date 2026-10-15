@@ -1,8 +1,45 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-15 (Final Targeted Integration Corrections: R13–R14)
+## Current handoff — 2026-10-15 (Comprehensive Functional Bug Remediation: F01–F16)
 
-Working branch: `main`. Audited baseline: `3658458e4658dfa07331683ef00d50fb8456963b`.
+Working branch: `main`. Audited baseline: `c0bca7b6c71286b28e58b1e7947138aa2d4213a2`.
+
+This pass investigates, reproduces, remediates, self-audits, and verifies all 16 functional findings (F01–F16) across Milestones A, B, and C while strictly preserving prior security, lifecycle, and concurrency hardening:
+1. **Milestone A (Resident and Administrative Workflow Corrections: F01–F08)**:
+   - **F01**: `firestore.rules` updated to allow owner deletion of rejected `profile-edit` verifications (`status in ['pending', 'rejected'] && type == 'profile-edit'`), enabling residents to dismiss rejected profile-edit submissions and revert to their valid documents. `profile-proofs-card.tsx` provides loading state and disabled controls.
+   - **F02**: Removed redundant `updateRequestStatus("On Process")` from `admin-payment-process-modal.tsx`. Server operation `request.confirmPayment` atomically transitions `"Pending"`, `"Approved"`, and `"Awaiting Payment"` requests to `"On Process"`, eliminating 409 transition collisions and false error toasts.
+   - **F03**: In `app/resident/history/page.tsx` and `components/resident/history/payment-modal.tsx`, disabled/hid "Pay Now" and "Resubmit" actions on terminal requests (`Cancelled`, `Rejected`, `Completed`).
+   - **F04**: In `app/admin/requests/payments/page.tsx`, excluded terminal requests (`Cancelled`, `Rejected`, `Completed`) and zero-fee requests from the payment queue and pending count.
+   - **F05**: In `app/superadmin/admins/page.tsx`, awaited `updateAdmin` and `deleteAdmin` operations with `isActionLoading` / `isUpdatingRole` spinners, disabled buttons, and truthful inline error banners.
+   - **F06**: In `app/admin/residents/page.tsx`, awaited `activateResident`, `deactivateResident`, and `deleteResident` before closing dialogs or reporting success, allowing safe retry on failure.
+   - **F07**: Validated format and forwarded `contactNumber` through `useSuperAdminData.addAdmin`, `createAdminAccount` in `app/api/admin/operations/route.ts`, persisted in `users`, allowed in `ADMIN_UPDATE_FIELDS`, and mapped to admin display table.
+   - **F08**: Excluded `Cancelled` requests from active queue in `app/admin/requests/page.tsx` and included them in Document History in `app/admin/requests/history/document-history-content.tsx` with appropriate badge styling and timestamp fallbacks.
+2. **Milestone B (Reports, Filters, Exports and Document Generation: F09–F14)**:
+   - **F09**: In `app/admin/reports/page.tsx`, mapped `selectedColumns.expiry` ("Expiry Date") and `selectedColumns.categories` ("Other Categories") into PDF export column headers and body rows.
+   - **F10**: Connected sort `<select>` controls to deterministic sorting logic in `app/admin/reports/page.tsx` (`sortedResidents`) and `app/superadmin/category-reports/page.tsx` (`sorted`).
+   - **F11**: Added "Non-Voters List" option to Super Admin report type dropdown in `app/superadmin/reports/page.tsx`, filtering strictly by `!r.isVoter`.
+   - **F12**: Request deep-linking in `app/admin/generate/page.tsx` resolves custom document templates against `systemConfig.customDocumentTypes` before falling back to generic template.
+   - **F13**: Date-range reports in `app/superadmin/reports/page.tsx` filter by authoritative issuance timestamp (`getIssuanceTimestamp`: `generatedAt || Ready for Pick Up || Completed || updatedAt || createdAt`) and label column "Date Issued".
+   - **F14**: Honored format and period filters (Year/Month) across all reports in `app/superadmin/reports/page.tsx`, implementing genuine `.xlsx` exports with ExcelJS and proper CSV handling.
+3. **Milestone C (Dashboard Accuracy and User Feedback: F15–F16)**:
+   - **F15**: In `app/superadmin/dashboard/page.tsx`, monthly buckets computed using true calendar months, sparklines populated from real resident and verification counts, turnaround time computed from completed requests (or displaying honest "N/A"), and satisfaction score displays honest "N/A" / "No survey data collected". In `app/superadmin/reports/page.tsx`, fixed chart data keys (`month`, `documents`, `population`, `analytics`) matching XAxis and Area keys.
+   - **F16**: `cancelRequest` and `submitPayment` rethrow actionable error messages (translating Firestore `permission-denied` to clear user messages). Replaced misleading toast presets in `payment-modal.tsx` (`paymentSubmitted`, `cashPaymentConfirmed`) and `profile/page.tsx` (`profileUpdated`).
+
+Evidence is provided by:
+- 180 unit/integration tests (PASS, 31 suites, including 21 new tests across `milestone-a-functional.test.ts`, `milestone-b-functional.test.ts`, `milestone-c-functional.test.ts`)
+- 58 Auth/Firestore emulator tests (PASS, including F01 profile-edit deletion rule)
+- 25 authenticated Playwright Chromium E2E tests (PASS)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 836 warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Timezone matrix (180/180 tests under UTC, Asia/Manila, America/Los_Angeles)
+- Clean `git diff --check`
+
+No production deployment, Firebase Rules publication, live account/data mutation, or live Cloudinary asset mutation was performed.
+
+Deployment order is mandatory: deploy and verify the application/server code first, then publish the tightened Firestore Rules.
+
+## Prior handoff — 2026-10-15 (Final Targeted Integration Corrections: R13–R14)
 
 This targeted pass resolves the two remaining registration integration gaps (R13–R14) while preserving all prior repairs:
 1. **R13 (Frontend upload/resubmission retry & recovery)**:

@@ -10,12 +10,12 @@ type OperationBody = { operation?: string; operationId?: string; targetId?: stri
 
 const INACTIVE = new Set(["Locked", "Deleted", "Deleted by Resident"])
 const RESIDENT_PROFILE_FIELDS = new Set(["name", "dateOfBirth", "contactNumber", "address", "statuses", "profilePicture"])
-const ADMIN_UPDATE_FIELDS = new Set(["name", "role", "status"])
+const ADMIN_UPDATE_FIELDS = new Set(["name", "role", "status", "contactNumber"])
 const SYSTEM_CONFIG_FIELDS = new Set(["barangayName", "barangayCaptainName", "secretaryName", "captainSignatureUrl", "secretarySignatureUrl", "officialSignatureUrl", "contactNumber", "emailAddress", "address", "enabledModules", "documentTypes", "documentFees", "templates", "customDocumentTypes"])
 const SYSTEM_ALERT_FIELDS = new Set(["severity", "title", "description", "metric"])
 const ADMIN_ROLES = new Set(["admin", "Full Access", "Verification Only", "Documents Only", "View Only", "Resident Management", "Verifications", "Document Processing"])
 const REQUEST_STATUSES = new Set(["Approved", "On Process", "Processing", "Awaiting Payment", "Ready for Pick Up", "Completed", "Rejected", "Cancelled"])
-const REQUEST_TRANSITIONS: Record<string, ReadonlySet<string>> = {
+export const REQUEST_TRANSITIONS: Record<string, ReadonlySet<string>> = {
   "Pending": new Set(["Approved", "On Process", "Awaiting Payment", "Rejected", "Cancelled"]),
   "Approved": new Set(["On Process", "Awaiting Payment", "Rejected", "Cancelled"]),
   "On Process": new Set(["Awaiting Payment", "Ready for Pick Up", "Completed", "Rejected", "Cancelled"]),
@@ -167,7 +167,7 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       after = null
       transaction.delete(targetRef)
     } else if (operation === "request.markGenerated") {
-      after = { hasGenerated: true, updatedAt: now }; transaction.update(targetRef, after)
+      after = { hasGenerated: true, generatedAt: now, updatedAt: now }; transaction.update(targetRef, after)
     } else if (operation === "request.confirmPayment") {
       if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
         throw httpError("Cannot confirm payment for a cancelled, rejected, or completed request.", 409)
@@ -176,7 +176,7 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       if (before.paymentStatus === "waived") throw httpError("Payment for this request has been waived and cannot be paid.", 409)
       const method = payload.paymentMethod === "gcash" ? "gcash" : "cash"
       const receiptNumber = `REC-${new Date(now).getFullYear()}-${operationDocumentId(operationId).slice(-8).toUpperCase()}`
-      after = { paymentStatus: "paid", paymentConfirmedAt: now, paymentConfirmedBy: actor.name, receiptNumber, paymentMethod: method, ...(payload.paymentReference ? { [method === "gcash" ? "gcashRefNumber" : "paymentReferenceNumber"]: String(payload.paymentReference) } : {}), ...(["Pending", "Awaiting Payment"].includes(before.status) ? { status: "On Process", "statusTimestamps.On Process": now } : {}) }
+      after = { paymentStatus: "paid", paymentConfirmedAt: now, paymentConfirmedBy: actor.name, receiptNumber, paymentMethod: method, ...(payload.paymentReference ? { [method === "gcash" ? "gcashRefNumber" : "paymentReferenceNumber"]: String(payload.paymentReference) } : {}), ...(["Pending", "Approved", "Awaiting Payment"].includes(before.status) ? { status: "On Process", "statusTimestamps.On Process": now } : {}) }
       transaction.update(targetRef, after)
       if (before.residentId) notification = { id: `payment-confirmed-${operationDocumentId(operationId)}`, value: { targetId: before.residentId, type: "success", title: "Payment Confirmed", message: `Your payment for ${before.documentType || "document"} has been confirmed. Receipt #: ${receiptNumber}`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
     } else if (operation === "request.markPayLater") {
@@ -237,11 +237,13 @@ export async function createAdminAccount(db: any, auth: any, actorUid: string, o
   const password = typeof payload.password === "string" ? payload.password : ""
   const name = typeof payload.name === "string" ? payload.name.trim() : ""
   const role = typeof payload.role === "string" ? payload.role : "admin"
+  const contactNumber = typeof payload.contactNumber === "string" ? payload.contactNumber.trim() : ""
   const attemptId = (typeof payload.attemptId === "string" && payload.attemptId) || randomUUID()
   if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || !ADMIN_ROLES.has(role)) throw httpError("Valid admin name, email, password, and role are required.", 400)
+  if (contactNumber && !/^[0-9+()-\s]{7,20}$/.test(contactNumber)) throw httpError("Invalid contact number format.", 400)
   const operationRef = db.collection("adminAccountOperations").doc(operationDocumentId(operationId))
   const deterministicUid = `adm-${createHash("sha256").update(operationId).digest("hex").slice(0, 28)}`
-  const canonicalPayloadHash = createHash("sha256").update(JSON.stringify({ email, name, role })).digest("hex")
+  const canonicalPayloadHash = createHash("sha256").update(JSON.stringify({ email, name, role, ...(contactNumber ? { contactNumber } : {}) })).digest("hex")
 
   const claimed = await db.runTransaction(async (transaction: any) => {
     const callerRef = db.collection(COLLECTION_USERS).doc(actorUid)
@@ -262,6 +264,7 @@ export async function createAdminAccount(db: any, auth: any, actorUid: string, o
     }
     transaction.set(operationRef, {
       operationId, attemptId, executionId, uid: deterministicUid, email, name, role, actorUid,
+      ...(contactNumber ? { contactNumber } : {}),
       payloadHash: canonicalPayloadHash, status: "auth-pending",
       createdAt: existing?.createdAt || now, updatedAt: now
     })
@@ -305,8 +308,8 @@ export async function createAdminAccount(db: any, auth: any, actorUid: string, o
       if (currentOp?.attemptId !== attemptId) throw httpError("Administrator operation attempt changed; concurrent execution detected.", 409)
       if (currentOp?.executionId !== executionId || currentOp?.status !== "auth-created") throw httpError("Administrator execution fence changed before finalization.", 409)
       transaction.update(operationRef, { status: "finalizing", updatedAt: Date.now() })
-      transaction.set(userRef, { email, name, role, status: "Active", initials: name.slice(0, 2).toUpperCase(), isOnline: false, lastActive: "Never", createdDate: new Date(now).toISOString().slice(0, 10), createdAt: now, isVerified: true })
-      transaction.create(auditRef, auditEvent({ uid: actorUid, name: caller.name || "Super Admin", email: caller.email, role: caller.role }, "admin.create", operationId, deterministicUid, ipAddress, null, { email, name, role }, now, canonicalPayloadHash))
+      transaction.set(userRef, { email, name, role, ...(contactNumber ? { contactNumber } : {}), status: "Active", initials: name.slice(0, 2).toUpperCase(), isOnline: false, lastActive: "Never", createdDate: new Date(now).toISOString().slice(0, 10), createdAt: now, isVerified: true })
+      transaction.create(auditRef, auditEvent({ uid: actorUid, name: caller.name || "Super Admin", email: caller.email, role: caller.role }, "admin.create", operationId, deterministicUid, ipAddress, null, { email, name, role, ...(contactNumber ? { contactNumber } : {}) }, now, canonicalPayloadHash))
       transaction.update(operationRef, { status: "completed", attemptId, executionId, completedAt: now, updatedAt: now })
     })
     await onStage?.("completed")

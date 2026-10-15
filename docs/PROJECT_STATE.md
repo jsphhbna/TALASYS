@@ -1,24 +1,43 @@
 # TALASYS Project State
 
-## Current verified state — 15 October 2026 (R13–R14 Targeted Integration Corrections)
+## Current verified state — 15 October 2026 (Functional Bug Remediation F01–F16 Pass)
 
 - **Working branch**: `main`
-- **Audited baseline**: `3658458e4658dfa07331683ef00d50fb8456963b`
-- **Status**: Final targeted integration corrections (R13–R14) are fully implemented and verified.
-  1. **R13 (Frontend upload/resubmission retry & recovery)**: Pre-upload logical input fingerprinting and attempt caching in `sessionStorage` (`lib/resident/resubmission-operation.ts` & `hooks/resident/use-resident-data.ts`). Preserves original authoritative `operationId` and uploaded Cloudinary documents across lost responses, network timeouts, duplicate clicks, and retries, eliminating duplicate Cloudinary uploads and conflicting operation IDs. Returns active `verificationId` on server 409 `PENDING_VERIFICATION_EXISTS` and recovers pending state across fresh uploads, refreshes, and ambiguous responses. Strictly complies with credential/storage safety (never stores passwords, Firebase tokens, Cloudinary capabilities, or document contents).
-  2. **R14 (Privileged registration verification deletion consistency)**: Firestore Rules updated to strictly deny direct client deletion of `type == "registration"` verifications for all client roles, including Super Admin. Added coordinated server-authoritative `verification.delete` operation in `app/api/admin/operations/route.ts` requiring Super Admin authorization, transactionally clearing `residentVerificationLocks` and `users.hasPendingVerification`, deleting the verification document, and recording an authoritative audit event to prevent stranding resident registration state.
-- **Rules state**: Client deletion of `type == "registration"` verifications is denied for ALL roles including Super Admin; server-authoritative `verification.delete` operation is required; `residentVerificationLocks` remains default-denied; client creation of initial user profiles and notifications remains denied.
+- **Audited baseline**: `c0bca7b6c71286b28e58b1e7947138aa2d4213a2`
+- **Status**: Comprehensive functional bug remediation across Milestones A, B, and C (F01–F16) is fully implemented, self-audited, and verified.
+  1. **Milestone A (F01–F08: Resident and Administrative Workflow Corrections)**:
+     - **F01**: `firestore.rules` updated so residents can dismiss/delete rejected `profile-edit` verifications to revert their view to existing valid documents while keeping registration verifications locked and protected. `profile-proofs-card.tsx` provides loading and disabled states.
+     - **F02**: Removed redundant `updateRequestStatus("On Process")` from `admin-payment-process-modal.tsx`. Server operation `request.confirmPayment` atomically transitions `"Pending"`, `"Approved"`, and `"Awaiting Payment"` to `"On Process"` without 409 transition collision or false error feedback.
+     - **F03**: Hid "Pay Now" and "Resubmit" buttons in resident request history and payment modal when request status is terminal (`Cancelled`, `Rejected`, `Completed`).
+     - **F04**: Excluded terminal status requests (`Cancelled`, `Rejected`, `Completed`) and zero-fee requests from the admin payment queue and pending count.
+     - **F05**: Super Admin account operations (`confirmAction`, `handleSaveRole`) in `app/superadmin/admins/page.tsx` properly await backend operations with `isActionLoading` / `isUpdatingRole` spinners, disabled buttons, and truthful inline error banners.
+     - **F06**: Resident lifecycle actions in `app/admin/residents/page.tsx` (`handleActivate`, `handleDeactivate`, `handleDelete`) await backend operations before closing dialogs or reporting success, allowing safe retry on failure.
+     - **F07**: Super Admin creation form accepts and validates `contactNumber`, forwards through `useSuperAdminData.addAdmin`, persists in `users`, allows in `ADMIN_UPDATE_FIELDS`, and displays in admin table.
+     - **F08**: Cancelled document requests excluded from admin active queue in `app/admin/requests/page.tsx` and included in Document History in `app/admin/requests/history/document-history-content.tsx` with badge styling and timestamp fallbacks.
+  2. **Milestone B (F09–F14: Reports, Filters, Exports and Document Generation)**:
+     - **F09**: Admin PDF generation in `app/admin/reports/page.tsx` includes selected columns for "Expiry Date" (`selectedColumns.expiry`) and "Other Categories" (`selectedColumns.categories`).
+     - **F10**: Deterministic sorting controls implemented and wired to UI dropdowns in `app/admin/reports/page.tsx` (`sortedResidents`) and `app/superadmin/category-reports/page.tsx` (`sorted`).
+     - **F11**: Added "Non-Voters List" option to Super Admin report type dropdown in `app/superadmin/reports/page.tsx`, filtering strictly by `!r.isVoter`.
+     - **F12**: Request deep-linking in `app/admin/generate/page.tsx` resolves custom document templates against `systemConfig.customDocumentTypes` before falling back to generic template.
+     - **F13**: Date-range reports in `app/superadmin/reports/page.tsx` filter by authoritative issuance timestamp (`getIssuanceTimestamp`: `generatedAt || Ready for Pick Up || Completed || updatedAt || createdAt`) and label column "Date Issued".
+     - **F14**: Honored format and period filters (Year/Month) across all reports in `app/superadmin/reports/page.tsx`, implementing genuine `.xlsx` exports with ExcelJS and proper CSV handling.
+  3. **Milestone C (F15–F16: Dashboard Accuracy and User Feedback)**:
+     - **F15**: In `app/superadmin/dashboard/page.tsx`, monthly buckets computed using true calendar months, sparklines populated from real resident and verification counts, turnaround time computed from completed requests (or displaying honest "N/A"), and satisfaction score displays honest "N/A" / "No survey data collected". In `app/superadmin/reports/page.tsx`, fixed chart data keys (`month`, `documents`, `population`, `analytics`) matching XAxis and Area keys.
+     - **F16**: `cancelRequest` and `submitPayment` rethrow actionable error messages (translating Firestore `permission-denied` to clear user messages). Replaced misleading toast presets in `payment-modal.tsx` (`paymentSubmitted`, `cashPaymentConfirmed`) and `profile/page.tsx` (`profileUpdated`).
+- **Rules state**: Residents can delete own rejected/pending `type == "profile-edit"` verifications; client deletion of `type == "registration"` verifications is strictly denied for ALL roles; `residentVerificationLocks` remains default-denied; client creation of initial user profiles and notifications remains denied.
 - **Verification metrics**:
-  - `npm test`: PASS 165/165 across 31 suites (including 2 new unit tests for R13).
-  - `npm run test:rules`: PASS 58/58 against Auth & Firestore emulators (including R13 concurrency/recovery test and R14 server-authoritative deletion test).
-  - `npm run test:e2e:auth`: PASS 25/25 across Chromium authenticated workflows (including Test 25: browser lost response recovery, retry idempotency, and refresh stability).
+  - `npm test`: PASS 180/180 across 31 suites (including 21 new unit tests across `milestone-a-functional.test.ts`, `milestone-b-functional.test.ts`, `milestone-c-functional.test.ts`).
+  - `npm run test:rules`: PASS 58/58 against Auth & Firestore emulators (including F01 profile-edit deletion rule).
+  - `npm run test:e2e:auth`: PASS 25/25 across Chromium authenticated workflows.
   - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
-  - `npm run lint`: PASS (0 errors, 796 warnings).
+  - `npm run lint`: PASS (0 errors, 836 warnings).
   - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
-  - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles (6/6 tests each).
+  - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles (180/180 tests each).
   - `git diff --check`: PASS (clean).
 - **Evidence boundary**: Local emulators and controlled provider adapters only. No production deployment, rules publication, or live Cloudinary mutation performed.
 - **Deployment order**: Deploy and verify application code first; then publish updated Firestore Rules.
+
+## Prior verified state — 15 October 2026 (R13–R14 Targeted Integration Corrections)
 
 ## Prior verified state — 15 October 2026 (R09–R12 Final Remediation Pass)
 

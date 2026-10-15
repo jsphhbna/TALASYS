@@ -16,6 +16,8 @@ import type { ResidentRequest } from "@/lib/resident"
 import { RequestStatusTrackerModal } from "@/components/resident/history/request-status-tracker-modal"
 import { PaymentModal } from "@/components/resident/history/payment-modal"
 import { SecureMediaViewer } from "@/components/media/secure-image"
+import { showToastPreset } from "@/lib/app-toast"
+import { toast } from "sonner"
 
 export default function RequestHistoryPage() {
   const router = useRouter()
@@ -44,17 +46,17 @@ export default function RequestHistoryPage() {
 
     requests.forEach(req => {
       if (!req.dateRequested && !req.createdAt) return
-      
+
       const date = req.dateRequested ? new Date(req.dateRequested) : new Date(req.createdAt)
       if (isNaN(date.getTime())) return
-      
+
       const year = date.getFullYear().toString()
       const month = date.toLocaleString('default', { month: 'long' })
       years.add(year)
 
       if (selectedYear === "All Years" || selectedYear === "All" || year === selectedYear) {
         availableMonthsForYear.add(month)
-        
+
         if (selectedMonth === "All Months" || month === selectedMonth) {
           displayTotal++
           if (req.status === "Approved" || req.status === "Ready for Pick Up" || req.status === "Completed") {
@@ -69,7 +71,7 @@ export default function RequestHistoryPage() {
     if (years.size === 0) {
       years.add(new Date().getFullYear().toString())
     }
-    
+
     // Sort months chronologically
     const monthOrder = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     const sortedMonths = Array.from(availableMonthsForYear).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b))
@@ -94,7 +96,7 @@ export default function RequestHistoryPage() {
       (request.documentType || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (request.refNumber || "").toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "all" || (request.status || "").toLowerCase() === statusFilter.toLowerCase()
-    
+
     let matchesDate = true
     if (request.dateRequested || request.createdAt) {
       const date = request.dateRequested ? new Date(request.dateRequested) : new Date(request.createdAt)
@@ -130,9 +132,18 @@ export default function RequestHistoryPage() {
   const showingFrom = filteredRequests.length === 0 ? 0 : startIndex + 1
   const showingTo = filteredRequests.length === 0 ? 0 : Math.min(startIndex + itemsPerPage, filteredRequests.length)
 
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
+
   const handleCancelRequest = async (id: string) => {
-    if (confirm("Are you sure you want to cancel this request?")) {
-      cancelRequest(id)
+    if (!confirm("Are you sure you want to cancel this request?")) return
+    setCancellingId(id)
+    try {
+      await cancelRequest(id)
+      showToastPreset("requestCancelled")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel request.")
+    } finally {
+      setCancellingId(null)
     }
   }
 
@@ -231,7 +242,7 @@ export default function RequestHistoryPage() {
 
       {/* Content Area */}
       <Card className="shadow-sm overflow-hidden py-0 bg-transparent sm:bg-white sm:dark:bg-slate-900 border-none sm:border-solid">
-        
+
         {/* Mobile Cards (Hidden on Desktop) */}
         <div className="md:hidden flex flex-col gap-3 py-2">
           {paginatedRequests.length === 0 ? (
@@ -245,7 +256,7 @@ export default function RequestHistoryPage() {
                     <p className="text-xs-plus text-slate-500 uppercase tracking-wide">{request.refNumber}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col gap-1">
                   <span
                     className={`self-start inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold uppercase tracking-wide ${
@@ -259,7 +270,7 @@ export default function RequestHistoryPage() {
                   >
                     {request.status}
                   </span>
-                  
+
                   {(request as any).paymentStatus === "pending_verification" && (
                     <span className="self-start inline-flex items-center px-2 py-0.5 rounded text-[9px] font-medium bg-amber-100 text-amber-800">⏳ Payment under review</span>
                   )}
@@ -358,24 +369,28 @@ export default function RequestHistoryPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={cancellingId === request.id}
                             onClick={() => handleCancelRequest(request.id)}
-                            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 text-2xs h-7 px-3 bg-transparent"
+                            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 text-2xs h-7 px-3 bg-transparent disabled:opacity-50"
                           >
-                            Cancel
+                            {cancellingId === request.id ? "Cancelling..." : "Cancel"}
                           </Button>
                         )}
-                        {((request as any).paymentStatus === "unpaid" || (request as any).paymentStatus === "pending_verification") && (request as any).documentFee > 0 && (
+                        {!["Cancelled", "Rejected", "Completed"].includes(request.status) &&
+                         ["Pending", "Approved", "On Process", "Awaiting Payment"].includes(request.status) &&
+                         ((request as any).paymentStatus === "unpaid" || (request as any).paymentStatus === "pending_verification") &&
+                         (request as any).documentFee > 0 && (
                           <Button
                             size="sm"
                             onClick={() => setPaymentRequest(request)}
-                            className={`text-2xs h-7 px-3 font-semibold ${ 
-                              (request as any).paymentStatus === "unpaid" 
-                                ? ((request as any).paymentMethod === "cash" ? "bg-[#0C2340] hover:bg-[#0a1c33] dark:bg-slate-800 dark:hover:bg-slate-700 text-white" : "bg-orange-500 hover:bg-orange-600 text-white") 
-                                : "bg-amber-500 hover:bg-amber-600 text-white" 
+                            className={`text-2xs h-7 px-3 font-semibold ${
+                              (request as any).paymentStatus === "unpaid"
+                                ? ((request as any).paymentMethod === "cash" ? "bg-[#0C2340] hover:bg-[#0a1c33] dark:bg-slate-800 dark:hover:bg-slate-700 text-white" : "bg-orange-500 hover:bg-orange-600 text-white")
+                                : "bg-amber-500 hover:bg-amber-600 text-white"
                             }`}
                           >
-                            {(request as any).paymentStatus === "unpaid" 
-                              ? ((request as any).paymentMethod === "cash" ? "🧾 Receipt" : "💳 Pay Now") 
+                            {(request as any).paymentStatus === "unpaid"
+                              ? ((request as any).paymentMethod === "cash" ? "🧾 Receipt" : "💳 Pay Now")
                               : "🕐 Resubmit"}
                           </Button>
                         )}
@@ -536,7 +551,7 @@ export default function RequestHistoryPage() {
               </div>
             </div>
             <div className="flex gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
-              <Button 
+              <Button
                 onClick={() => {
                   const docType = rejectionModalRequest.documentType
                   const reqId = rejectionModalRequest.id
@@ -555,10 +570,10 @@ export default function RequestHistoryPage() {
         </ModalOverlay>
       )}
       {/* Add active tracking request lookup so it updates in real time */}
-      <RequestStatusTrackerModal 
-        request={requests.find(r => r.id === trackingRequestId) || null} 
-        isOpen={!!trackingRequestId} 
-        onClose={() => setTrackingRequestId(null)} 
+      <RequestStatusTrackerModal
+        request={requests.find(r => r.id === trackingRequestId) || null}
+        isOpen={!!trackingRequestId}
+        onClose={() => setTrackingRequestId(null)}
       />
 
       <PaymentModal
@@ -567,6 +582,7 @@ export default function RequestHistoryPage() {
         request={paymentRequest ? {
           id: paymentRequest.id,
           documentType: paymentRequest.documentType,
+          status: paymentRequest.status,
           documentFee: (paymentRequest as any).documentFee,
           paymentReferenceNumber: (paymentRequest as any).paymentReferenceNumber,
           paymentMethod: (paymentRequest as any).paymentMethod,

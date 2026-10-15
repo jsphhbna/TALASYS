@@ -23,9 +23,15 @@ export default function PaymentProcessPage() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
   const [showViewDialog, setShowViewDialog] = useState(false)
 
-  // Only show requests that are awaiting payment, pending verification, or unpaid (Pay Later)
+  const isTerminal = (status: string) => ["Cancelled", "Rejected", "Completed"].includes(status)
+
+  // Only show non-terminal requests that are awaiting payment, pending verification, or unpaid with a fee due
   const paymentRequests = adminDocumentRequests.filter(r =>
-    r.status === "Awaiting Payment" || (r as any).paymentStatus === "pending_verification" || (r as any).paymentStatus === "unpaid"
+    !isTerminal(r.status) && (
+      r.status === "Awaiting Payment" ||
+      (r as any).paymentStatus === "pending_verification" ||
+      ((r as any).paymentStatus === "unpaid" && (r.documentFee ?? 0) > 0)
+    )
   )
 
   const filteredRequests = paymentRequests.filter(r => {

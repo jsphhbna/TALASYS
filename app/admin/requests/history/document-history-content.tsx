@@ -18,7 +18,7 @@ export function DocumentHistoryContent() {
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear().toString())
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth().toString())
 
-  const historyRequests = documentRequests.filter(r => r.status === "Completed" || r.status === "Rejected")
+  const historyRequests = documentRequests.filter(r => r.status === "Completed" || r.status === "Rejected" || r.status === "Cancelled")
 
   const availableYears = Array.from(new Set(historyRequests.map(r => new Date(r.createdAt).getFullYear().toString()))).sort((a, b) => Number(b) - Number(a))
   if (!availableYears.includes(currentDate.getFullYear().toString())) {
@@ -153,7 +153,7 @@ export function DocumentHistoryContent() {
             {filteredRequests.map((request) => {
                 const ts = request.statusTimestamps || {}
                 const processedTs = ts["On Process"] || ts["Approved"]
-                const completedTs = ts["Completed"] || ts["Rejected"]
+                const completedTs = ts["Completed"] || ts["Rejected"] || ts["Cancelled"] || request.createdAt
                 
                 const residentProfile = residents.find(r => r.id === request.residentId)
                 const profilePic = residentProfile?.profilePicture
@@ -194,9 +194,19 @@ export function DocumentHistoryContent() {
                   <td className="px-6 py-3.5 whitespace-nowrap">
                     <div className="flex items-center">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-2xs font-medium ${
-                            request.status === "Completed" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                      }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${request.status === "Completed" ? "bg-emerald-500" : "bg-red-500"}`}></span>
+                      request.status === "Completed"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : request.status === "Cancelled"
+                          ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                          : "bg-red-50 text-red-700"
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        request.status === "Completed"
+                          ? "bg-emerald-500"
+                          : request.status === "Cancelled"
+                            ? "bg-slate-400"
+                            : "bg-red-500"
+                      }`}></span>
                       {request.status}
                     </span>
                     </div>

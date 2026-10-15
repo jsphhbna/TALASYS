@@ -49,7 +49,7 @@ function DocumentRequestsContent() {
     }
   }
 
-  const activeRequests = adminDocumentRequests.filter(r => r.status !== "Completed" && r.status !== "Rejected")
+  const activeRequests = adminDocumentRequests.filter(r => r.status !== "Completed" && r.status !== "Rejected" && r.status !== "Cancelled")
 
   const defaultDocTypes = systemConfig?.documentTypes || []
   const customDocTypes = (systemConfig?.customDocumentTypes || []).map((c: any) => c.name)

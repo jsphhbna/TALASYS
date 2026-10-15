@@ -61,18 +61,24 @@ export default function SystemReports() {
     return <div className="flex h-full items-center justify-center p-8">Loading reports...</div>
   }
 
-  const now = Date.now()
-  const dayMs = 1000 * 60 * 60 * 24
-  const reportGenerationTrend = Array.from({ length: 7 }).map((_, i) => {
-    const start = now - (6 - i) * dayMs
-    const end = start + dayMs
-    const dayReqs = documentRequests.filter(r => r.createdAt && r.createdAt >= start && r.createdAt < end)
+  const getIssuanceTimestamp = (r: any): number => {
+    return r.generatedAt || r.statusTimestamps?.['Ready for Pick Up'] || r.statusTimestamps?.['Completed'] || r.updatedAt || r.createdAt || 0
+  }
+
+  const currentDate = new Date()
+  const reportGenerationTrend = Array.from({ length: 6 }).map((_, i) => {
+    const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - (5 - i), 1)
+    const start = targetDate.getTime()
+    const nextMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1)
+    const end = nextMonth.getTime()
+    const monthReqs = documentRequests.filter(r => r.createdAt && r.createdAt >= start && r.createdAt < end)
+    const monthGenerated = documentRequests.filter(r => (r as any).hasGenerated === true && getIssuanceTimestamp(r) >= start && getIssuanceTimestamp(r) < end).length
+    const monthPop = residents.filter(r => (r as any).createdAt && (r as any).createdAt >= start && (r as any).createdAt < end).length
     return {
-      day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }),
-      generated: dayReqs.length,
-      documents: dayReqs.filter(r => r.status === 'Approved' || r.status === 'Completed').length,
-      population: 0,
-      analytics: 0,
+      month: targetDate.toLocaleDateString('en-US', { month: 'short' }),
+      documents: monthGenerated,
+      population: monthPop,
+      analytics: monthReqs.length,
     }
   })
 
@@ -91,6 +97,44 @@ export default function SystemReports() {
     ? [...reportTypeBreakdown].sort((a,b) => b.value - a.value)[0]
     : null
 
+  const exportToExcel = async (filename: string, sheetName: string, headers: string[], rows: (string | number)[][]) => {
+    const ExcelJSModule = await import("exceljs")
+    const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule
+    const workbook = new ExcelJS.Workbook()
+    workbook.creator = "TALASYS"
+    workbook.created = new Date()
+    const worksheet = workbook.addWorksheet(sheetName.slice(0, 31))
+    worksheet.columns = headers.map(h => ({ header: h, key: h, width: Math.max(h.length + 3, 14) }))
+    worksheet.getRow(1).font = { bold: true }
+    worksheet.views = [{ state: "frozen", ySplit: 1 }]
+    for (const row of rows) {
+      worksheet.addRow(row)
+    }
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const exportToCsv = (filename: string, headers: string[], rows: (string | number)[][]) => {
+    const csvRows = [
+      headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(","),
+      ...rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(","))
+    ]
+    const csv = csvRows.join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename.endsWith(".csv") ? filename : `${filename}.csv`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
   const handleGenerateDateRangeReport = async () => {
     if (!dateRangeStart || !dateRangeEnd) {
       setDateRangeError("Please select both start and end dates.")
@@ -107,7 +151,7 @@ export default function SystemReports() {
     try {
       const rangedDocs = documentRequests.filter(r => {
         if (!(r as any).hasGenerated) return false
-        const ts = r.createdAt || 0
+        const ts = getIssuanceTimestamp(r)
         return ts >= startMs && ts <= endMs
       })
 
@@ -131,14 +175,17 @@ export default function SystemReports() {
 
       autoTable(doc, {
         startY: 60,
-        head: [['Request ID', 'Resident', 'Document Type', 'Status', 'Date Submitted']],
-        body: rangedDocs.map(r => [
-          r.id.slice(0, 8),
-          r.residentName || 'N/A',
-          r.documentType,
-          r.status,
-          r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'
-        ]),
+        head: [['Request ID', 'Resident', 'Document Type', 'Status', 'Date Issued']],
+        body: rangedDocs.map(r => {
+          const issueTs = getIssuanceTimestamp(r)
+          return [
+            r.id.slice(0, 8),
+            r.residentName || 'N/A',
+            r.documentType,
+            r.status,
+            issueTs ? new Date(issueTs).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'
+          ]
+        }),
         theme: 'striped',
         headStyles: { fillColor: [12, 35, 64] },
       })
@@ -178,22 +225,20 @@ export default function SystemReports() {
 
       if (reportType === "Rejected Requests") {
         const data = documentRequests.filter(r => r.status === "Rejected" && filterByDate(r.createdAt))
-        if (reportFormat === "CSV" || reportFormat === "Excel") {
-          const headers = ["Request ID", "Resident", "Document Type", "Reason", "Date"]
-          const rows = data.map(r => [
-            `"${r.id.slice(0, 8)}"`,
-            `"${(r.residentName || 'N/A').replace(/"/g, '""')}"`,
-            `"${(r.documentType || '').replace(/"/g, '""')}"`,
-            `"${(r.rejectionReason || 'Not specified').replace(/"/g, '""')}"`,
-            `"${r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'N/A'}"`
-          ].join(","))
-          const csv = [headers.join(","), ...rows].join("\n")
-          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement("a")
-          link.href = url
-          link.download = `Rejected_Requests_${periodLabel.replace(/\s+/g, "_")}.csv`
-          link.click()
+        const headers = ["Request ID", "Resident", "Document Type", "Rejection Reason", "Date"]
+        const rows = data.map(r => [
+          r.id.slice(0, 8),
+          r.residentName || 'N/A',
+          r.documentType || '',
+          r.rejectionReason || 'Not specified',
+          r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'
+        ])
+        const filenameBase = `Rejected_Requests_${periodLabel.replace(/\s+/g, "_")}`
+
+        if (reportFormat === "Excel") {
+          await exportToExcel(`${filenameBase}.xlsx`, "Rejected Requests", headers, rows)
+        } else if (reportFormat === "CSV") {
+          exportToCsv(`${filenameBase}.csv`, headers, rows)
         } else {
           const doc = new jsPDF()
           const pageWidth = doc.internal.pageSize.getWidth()
@@ -203,43 +248,54 @@ export default function SystemReports() {
           doc.text(`Period: ${periodLabel}`, pageWidth / 2, 32, { align: "center" })
           autoTable(doc, {
             startY: 40,
-            head: [['Request ID', 'Resident', 'Document Type', 'Rejection Reason', 'Date']],
-            body: data.map(r => [
-              r.id.slice(0, 8),
-              r.residentName || 'N/A',
-              r.documentType,
-              r.rejectionReason || 'Not specified',
-              r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'N/A'
-            ]),
+            head: [headers],
+            body: rows,
             theme: 'striped',
             headStyles: { fillColor: [12, 35, 64] },
           })
-          doc.save(`Rejected_Requests_${periodLabel.replace(/\s+/g, "_")}.pdf`)
+          doc.save(`${filenameBase}.pdf`)
         }
       } else if (reportType === "Full Analytics") {
-        const doc = new jsPDF()
-        const pageWidth = doc.internal.pageSize.getWidth()
-        doc.setFontSize(14)
-        doc.text("SYSTEM ANALYTICS REPORT", pageWidth / 2, 25, { align: "center" })
-        doc.setFontSize(9)
-        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 32, { align: "center" })
-        autoTable(doc, {
-          startY: 40,
-          head: [['Metric', 'Value']],
-          body: [
-            ['Total Residents', adminStats.totalResidents.toString()],
-            ['Registered Voters', adminStats.voterCount.toString()],
-            ['Senior Citizens', adminStats.seniorCount.toString()],
-            ['Adults', adminStats.adultCount.toString()],
-            ['Minors', adminStats.minorCount.toString()],
-            ['Documents Generated', generatedCount.toString()],
-            ['Rejected Requests', rejectedCount.toString()],
-            ['Pending Verifications', adminStats.pendingVerifications.toString()],
-          ],
-          theme: 'striped',
-          headStyles: { fillColor: [12, 35, 64] },
-        })
-        doc.save("TALASYS_Analytics_Report.pdf")
+        const filteredRequestsForPeriod = documentRequests.filter(r => filterByDate(r.createdAt))
+        const periodGenerated = filteredRequestsForPeriod.filter(r => (r as any).hasGenerated === true).length
+        const periodRejected = filteredRequestsForPeriod.filter(r => r.status === "Rejected").length
+        const filteredResidentsForPeriod = residents.filter(r => filterByDate((r as any).createdAt))
+
+        const headers = ["Metric", "Value"]
+        const rows = [
+          ['Total Residents Registered', selectedYear === "All" && selectedMonth === "All" ? adminStats.totalResidents.toString() : filteredResidentsForPeriod.length.toString()],
+          ['Registered Voters', selectedYear === "All" && selectedMonth === "All" ? adminStats.voterCount.toString() : filteredResidentsForPeriod.filter(r => r.isVoter).length.toString()],
+          ['Non-Voters', selectedYear === "All" && selectedMonth === "All" ? (adminStats.totalResidents - adminStats.voterCount).toString() : filteredResidentsForPeriod.filter(r => !r.isVoter).length.toString()],
+          ['Senior Citizens', selectedYear === "All" && selectedMonth === "All" ? adminStats.seniorCount.toString() : filteredResidentsForPeriod.filter(r => (r.age || 0) >= 60).length.toString()],
+          ['Adults', selectedYear === "All" && selectedMonth === "All" ? adminStats.adultCount.toString() : filteredResidentsForPeriod.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60).length.toString()],
+          ['Minors', selectedYear === "All" && selectedMonth === "All" ? adminStats.minorCount.toString() : filteredResidentsForPeriod.filter(r => (r.age || 0) < 18).length.toString()],
+          ['Total Requests Submitted', filteredRequestsForPeriod.length.toString()],
+          ['Documents Generated', periodGenerated.toString()],
+          ['Rejected Requests', periodRejected.toString()],
+          ['Pending Verifications (Current)', adminStats.pendingVerifications.toString()],
+        ]
+        const filenameBase = `TALASYS_Analytics_${periodLabel.replace(/\s+/g, "_")}`
+
+        if (reportFormat === "Excel") {
+          await exportToExcel(`${filenameBase}.xlsx`, "Analytics", headers, rows)
+        } else if (reportFormat === "CSV") {
+          exportToCsv(`${filenameBase}.csv`, headers, rows)
+        } else {
+          const doc = new jsPDF()
+          const pageWidth = doc.internal.pageSize.getWidth()
+          doc.setFontSize(14)
+          doc.text("SYSTEM ANALYTICS REPORT", pageWidth / 2, 25, { align: "center" })
+          doc.setFontSize(9)
+          doc.text(`Period: ${periodLabel}`, pageWidth / 2, 32, { align: "center" })
+          autoTable(doc, {
+            startY: 40,
+            head: [headers],
+            body: rows,
+            theme: 'striped',
+            headStyles: { fillColor: [12, 35, 64] },
+          })
+          doc.save(`${filenameBase}.pdf`)
+        }
       } else {
         // Resident Demographic Reports
         let filteredRes = residents.filter(r => filterByDate((r as any).createdAt))
@@ -251,28 +307,28 @@ export default function SystemReports() {
           filteredRes = filteredRes.filter(r => (r.age || 0) < 18)
         } else if (reportType === "Voters List") {
           filteredRes = filteredRes.filter(r => r.isVoter)
+        } else if (reportType === "Non-Voters List") {
+          filteredRes = filteredRes.filter(r => !r.isVoter)
         } else if (reportType === "Expired Accounts") {
           filteredRes = filteredRes.filter(r => r.status === "Expired")
         }
 
-        if (reportFormat === "CSV" || reportFormat === "Excel") {
-          const headers = ["Full Name", "Age", "Gender", "Address", "Contact", "Status", "Is Voter"]
-          const rows = filteredRes.map(r => [
-            `"${(r.name || '').replace(/"/g, '""')}"`,
-            r.age?.toString() || "N/A",
-            `"${r.gender || 'N/A'}"`,
-            `"${(r.address || '').replace(/"/g, '""')}"`,
-            `"${r.contactNumber || 'N/A'}"`,
-            `"${r.status || 'N/A'}"`,
-            r.isVoter ? "Yes" : "No"
-          ].join(","))
-          const csv = [headers.join(","), ...rows].join("\n")
-          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement("a")
-          link.href = url
-          link.download = `${reportType.replace(/\s+/g, "_")}_${periodLabel.replace(/\s+/g, "_")}.csv`
-          link.click()
+        const headers = ["Full Name", "Age", "Gender", "Address", "Contact", "Status", "Is Voter"]
+        const rows = filteredRes.map(r => [
+          r.name || '',
+          r.age?.toString() || "N/A",
+          r.gender || 'N/A',
+          r.address || '',
+          r.contactNumber || 'N/A',
+          r.status || 'N/A',
+          r.isVoter ? "Yes" : "No"
+        ])
+        const filenameBase = `${reportType.replace(/\s+/g, "_")}_${periodLabel.replace(/\s+/g, "_")}`
+
+        if (reportFormat === "Excel") {
+          await exportToExcel(`${filenameBase}.xlsx`, reportType.slice(0, 31), headers, rows)
+        } else if (reportFormat === "CSV") {
+          exportToCsv(`${filenameBase}.csv`, headers, rows)
         } else {
           const doc = new jsPDF()
           const pageWidth = doc.internal.pageSize.getWidth()
@@ -294,7 +350,7 @@ export default function SystemReports() {
             theme: 'striped',
             headStyles: { fillColor: [12, 35, 64] },
           })
-          doc.save(`${reportType.replace(/\s+/g, "_")}_${periodLabel.replace(/\s+/g, "_")}.pdf`)
+          doc.save(`${filenameBase}.pdf`)
         }
       }
 
@@ -324,7 +380,7 @@ export default function SystemReports() {
   const generatedCount = generatedDocuments.length
 
   const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
-  const thisMonthGenerated = generatedDocuments.filter(r => r.createdAt && r.createdAt >= currentMonthStart).length
+  const thisMonthGenerated = generatedDocuments.filter(r => getIssuanceTimestamp(r) >= currentMonthStart).length
 
   const documentReports = [
     { title: "Documents by Date Range", description: "All generated documents", icon: FileText, color: "#0C2340", hasDatePicker: true },
@@ -388,9 +444,9 @@ export default function SystemReports() {
               <p className="text-xs-plus text-slate-500 dark:text-slate-400 mt-0.5">Monthly breakdown by report category</p>
             </div>
             <div className="flex items-center gap-4 text-2xs">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0C2340] dark:bg-slate-800" />Population</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#2a5080]" />Documents</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#C5A55A]" />Analytics</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0C2340] dark:bg-slate-800" />Population</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#C5A55A]" />Requests</span>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
@@ -409,9 +465,9 @@ export default function SystemReports() {
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} labelStyle={{ fontWeight: 600, color: "#0C2340" }} />
-              <Area type="monotone" dataKey="documents" stroke="#2a5080" strokeWidth={2} fill="url(#gradDoc)" name="Documents" />
-              <Area type="monotone" dataKey="population" stroke="#0C2340" strokeWidth={2} fill="url(#gradPop)" name="Population" />
-              <Area type="monotone" dataKey="analytics" stroke="#C5A55A" strokeWidth={2} fill="none" name="Analytics" />
+              <Area type="monotone" dataKey="documents" stroke="#2a5080" strokeWidth={2} fill="url(#gradDoc)" name="Documents Generated" />
+              <Area type="monotone" dataKey="population" stroke="#0C2340" strokeWidth={2} fill="url(#gradPop)" name="New Residents" />
+              <Area type="monotone" dataKey="analytics" stroke="#C5A55A" strokeWidth={2} fill="none" name="Requests Submitted" />
             </AreaChart>
           </ResponsiveContainer>
         </Card>
@@ -529,6 +585,7 @@ export default function SystemReports() {
               <option value="Adults Summary">Adults Summary</option>
               <option value="Minors Summary">Minors Summary</option>
               <option value="Voters List">Voters List</option>
+              <option value="Non-Voters List">Non-Voters List</option>
               <option value="Expired Accounts">Expired Accounts</option>
               <option value="Rejected Requests">Rejected Requests</option>
               <option value="Full Analytics">Full Analytics</option>

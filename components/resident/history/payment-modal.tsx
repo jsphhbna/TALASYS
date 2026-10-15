@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { useResidentData } from "@/hooks/resident"
 import { uploadProtectedFileToCloudinary } from "@/lib/resident"
 import { showToastPreset } from "@/lib/app-toast"
+import { toast } from "sonner"
 import { Copy, Check, Upload, X, CreditCard, Banknote } from "lucide-react"
 
 interface PaymentModalProps {
@@ -15,6 +16,7 @@ interface PaymentModalProps {
   request: {
     id: string
     documentType: string
+    status?: string
     documentFee?: number
     paymentReferenceNumber?: string
     paymentMethod?: string
@@ -48,6 +50,8 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
 
   if (!request) return null
 
+  const isTerminal = request.status && ["Cancelled", "Rejected", "Completed"].includes(request.status)
+
   const handleCopy = () => {
     if (!request.paymentReferenceNumber) return
     navigator.clipboard.writeText(request.paymentReferenceNumber)
@@ -69,35 +73,52 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
   }
 
   const handleSubmitGCash = async () => {
-    if (!gcashRef.trim()) return
+    if (isTerminal) {
+      toast.error("Payment cannot be submitted for a cancelled, rejected, or completed request.")
+      return
+    }
+    if (!gcashRef.trim()) {
+      toast.error("Please enter a valid GCash reference number.")
+      return
+    }
     setIsSubmitting(true)
     try {
       let screenshotUrl = ""
       if (gcashFile) {
-        screenshotUrl = await uploadProtectedFileToCloudinary(gcashFile, { folder: "talasys/receipts" })
+        try {
+          screenshotUrl = await uploadProtectedFileToCloudinary(gcashFile, { folder: "talasys/receipts" })
+        } catch (uploadErr: any) {
+          toast.error(uploadErr?.message || "Screenshot upload failed. Please try again.")
+          return
+        }
       }
       await submitPayment(request.id, "gcash", {
         gcashRefNumber: gcashRef.trim(),
         gcashScreenshotUrl: screenshotUrl,
       })
-      showToastPreset("profileRequestSubmitted")
+      showToastPreset("paymentSubmitted")
       onClose()
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      showToastPreset("uploadFailedSize")
+      toast.error(err?.message || "Payment submission failed. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleCashConfirm = async () => {
+    if (isTerminal) {
+      toast.error("Payment cannot be submitted for a cancelled, rejected, or completed request.")
+      return
+    }
     setIsSubmitting(true)
     try {
       await submitPayment(request.id, "cash", {})
-      showToastPreset("profileRequestSubmitted")
+      showToastPreset("cashPaymentConfirmed")
       onClose()
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
+      toast.error(err?.message || "Failed to confirm cash payment choice. Please try again.")
     } finally {
       setIsSubmitting(false)
     }

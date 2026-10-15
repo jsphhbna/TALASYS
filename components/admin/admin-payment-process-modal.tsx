@@ -39,9 +39,6 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
     setSubmitType("cash")
     try {
       await confirmPayment(request.id, user?.name || "Admin", user?.email || "admin@system.com", "cash")
-      if (request.status === "Pending" || request.status === "Awaiting Payment") {
-        await updateRequestStatus(request.id, "On Process", undefined, user?.name || "Admin", user?.email || "admin@system.com")
-      }
       toast.success("Cash payment confirmed! Request updated.")
       onClose()
     } catch (err: any) {
@@ -59,9 +56,6 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
     setSubmitType("gcash")
     try {
       await confirmPayment(request.id, user?.name || "Admin", user?.email || "admin@system.com", "gcash", gcashRef.trim())
-      if (request.status === "Pending" || request.status === "Awaiting Payment") {
-        await updateRequestStatus(request.id, "On Process", undefined, user?.name || "Admin", user?.email || "admin@system.com")
-      }
       toast.success("GCash payment confirmed! Request updated.")
       onClose()
     } catch (err: any) {

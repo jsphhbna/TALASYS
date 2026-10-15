@@ -211,4 +211,33 @@
   5. **Server-Authoritative Coordinated `verification.delete` Operation (R14)**: Added `verification.delete` operation in `app/api/admin/operations/route.ts` requiring Super Admin authorization (`isSuperAdminRole(actor.role)`). In a Firestore transaction, it deletes the verification document, sets `users.hasPendingVerification = false` and `users.pendingVerificationId = null`, clears `residentVerificationLocks/{residentId}` with active status `"deleted"`, and writes an authoritative audit event to ensure lifecycle consistency.
 - **Consequences**: Completely resolves frontend upload duplicate resubmission and lost-response recovery without generating conflicting operation IDs; protects resident accounts from stranded lifecycle states caused by uncoordinated direct verification deletion; preserves administrative deletion authority through a coordinated, audited, transactionally consistent server operation.
 
+## ADR-021: Functional Bug Remediation, Workflow Invariants, Accurate Reporting & Dashboard Truthfulness (F01–F16)
 
+- **Status**: Accepted; fully verified across unit, rules/emulator, and authenticated browser Playwright suites; deployment and Rules publication pending
+- **Date**: 15 October 2026
+- **Context**:
+  - Independent repository audit identified 16 functional defects across Resident/Admin workflows, reporting/generation, and dashboards/error feedback (F01–F16).
+  - F01: Residents could not dismiss/revert rejected profile-edit submissions because Firestore Rules restricted client deletion to `status == 'pending'`.
+  - F02: Admin payment confirmation executed `updateRequestStatus("On Process")` immediately after `confirmPayment`, triggering a 409 status error toast even though payment succeeded.
+  - F03: Payment actions ("Pay Now", "Resubmit") were rendered on terminal requests (`Cancelled`, `Rejected`, `Completed`).
+  - F04: Admin payment queue and pending count included terminal requests and zero-fee requests.
+  - F05 & F06: Super Admin account actions and Admin resident lifecycle actions closed modals immediately without awaiting async backend calls, giving false success or premature dismissals.
+  - F07: Super Admin creation form collected `contactNumber` but omitted it from the backend API dispatch and persistence model.
+  - F08: Cancelled requests remained visible in the active document queue and were omitted from Document History.
+  - F09 & F10: Admin report PDF generation omitted selected columns (`expiry`, `categories`), and sorting dropdowns were disconnected from table rendering.
+  - F11: Super Admin reports lacked an explicit "Non-Voters List" option and did not filter by non-voters.
+  - F12: Request deep-linking to document generation defaulted custom templates to generic `custom_blank` rather than matching configured custom document types.
+  - F13 & F14: Issuance date-range reports filtered by request creation date rather than document issuance timestamp, and export format/period controls were ignored on Full Analytics.
+  - F15: Super Admin dashboard displayed fabricated KPIs (hardcoded 24h turnaround, 4.9 satisfaction score, arbitrary sparklines) and mismatched chart data keys (`day` vs `month`).
+  - F16: `cancelRequest` and `submitPayment` swallowed errors or displayed inappropriate toast messages (e.g., profile request toast on document payment).
+- **Decisions**:
+  1. **Rejected Profile-Edit Deletion Rule (F01)**: In `firestore.rules`, updated `/verifications/{verificationId}` delete rule to allow resident owner deletion when `resource.data.type == 'profile-edit' && resource.data.status in ['pending', 'rejected']`, strictly preserving registration verification deletion blocks.
+  2. **Atomic Single-Step Payment Confirmation (F02)**: Removed redundant `updateRequestStatus("On Process")` from `admin-payment-process-modal.tsx`. Server operation `request.confirmPayment` atomically updates both payment status to `"Paid"` and request status to `"On Process"` for eligible states (`"Pending"`, `"Approved"`, `"Awaiting Payment"`).
+  3. **Terminal Request Action Invariants (F03 & F04)**: Filtered out terminal requests (`Cancelled`, `Rejected`, `Completed`) from payment action triggers in resident history, payment modal, admin payment queue, and admin pending counter.
+  4. **Awaited Administrative Dialogs & Operations (F05 & F06)**: Added async loading states (`isActionLoading`, `isUpdatingRole`, `isOperating`), disabled controls during in-flight operations, and displayed inline error alerts in `superadmin/admins/page.tsx` and `admin/residents/page.tsx`, keeping dialogs open for retry upon failure.
+  5. **Admin Contact Number Persistence (F07)**: Added `contactNumber` validation, forwarding in `useSuperAdminData.addAdmin`, allowed field in `ADMIN_UPDATE_FIELDS`, and persistence in `users` during admin account creation transaction.
+  6. **Document History Partitioning (F08)**: Excluded `Cancelled` from `activeRequests` in `admin/requests/page.tsx` and included `Cancelled` in `historyRequests` in `document-history-content.tsx` with proper badges and timestamp fallbacks.
+  7. **Report Column Mapping, Sorting & Non-Voters (F09, F10, F11)**: Mapped `expiry` and `categories` in PDF export, implemented deterministic sorting (`sortedResidents`, `sorted`), added "Non-Voters List" option, and filtered strictly by `!r.isVoter`.
+  8. **Custom Document Deep-Linking & Issuance Timestamps (F12, F13, F14)**: Resolved custom document requests against `systemConfig.customDocumentTypes` in `admin/generate/page.tsx`. Filtered issuance reports by `getIssuanceTimestamp` (`generatedAt || Ready for Pick Up || Completed || updatedAt || createdAt`), and supported ExcelJS `.xlsx` and CSV export honoring year/month periods.
+  9. **Truthful Dashboard Metrics & Transparent User Feedback (F15, F16)**: Replaced fabricated dashboard metrics with authoritative calculations or honest "N/A" states, fixed chart data keys (`month`), rethrew descriptive errors in hooks, and introduced dedicated toast presets for payment submission and cash confirmation.
+- **Consequences**: Completely resolves all 16 audit findings; ensures UI feedback and server operations are fully aligned; eliminates false errors, misleading metrics, and disconnected controls; maintains all prior security, lifecycle, and concurrency invariants.

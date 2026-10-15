@@ -24,6 +24,7 @@ export function ProfileProofsCard({
   onRequestProfileEdit,
 }: ProfileProofsCardProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
   const isRejected = (verification?.status as string) === "rejected"
 
   const handleResubmit = () => {
@@ -32,7 +33,8 @@ export function ProfileProofsCard({
   }
 
   const handleCancelEdit = async () => {
-    if (!verification || verification.type !== "profile-edit") return
+    if (!verification || verification.type !== "profile-edit" || isCancelling) return
+    setIsCancelling(true)
     try {
       const { doc, deleteDoc } = await import("firebase/firestore")
       const db = (await import("@/lib/firebase")).db
@@ -40,8 +42,14 @@ export function ProfileProofsCard({
       // Deleting the rejected profile edit automatically reverts the UI 
       // to show the older valid documents thanks to our aggregation logic!
       await deleteDoc(doc(db, "verifications", verification.id))
-    } catch (error) {
+      const { toast } = await import("sonner")
+      toast.success("Profile edit request dismissed. Reverted to previous documents.")
+    } catch (error: any) {
       console.error("Failed to cancel edit request", error)
+      const { toast } = await import("sonner")
+      toast.error(error?.message || "Failed to cancel edit request. Please try again.")
+    } finally {
+      setIsCancelling(false)
     }
   }
 
@@ -98,8 +106,8 @@ export function ProfileProofsCard({
               Upload New Documents
             </Button>
             {verification?.type === "profile-edit" && (
-              <Button onClick={handleCancelEdit} variant="outline" className="flex-1 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800" size="sm">
-                Cancel Edit (Revert)
+              <Button onClick={handleCancelEdit} disabled={isCancelling} variant="outline" className="flex-1 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800" size="sm">
+                {isCancelling ? "Cancelling..." : "Cancel Edit (Revert)"}
               </Button>
             )}
           </div>

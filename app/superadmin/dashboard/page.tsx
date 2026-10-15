@@ -29,11 +29,12 @@ function Sparkline({ data, color, height = 28 }: { data: number[]; color: string
 }
 
 // --- KPI Card ---
-function KpiCard({ label, value, unit, change, trend, icon: Icon, sparkData, sparkColor }: {
-  label: string; value: string; unit?: string; change: number; trend: "up" | "down"
-  icon: React.ElementType; sparkData: number[]; sparkColor: string
+function KpiCard({ label, value, unit, change, trend, icon: Icon, sparkData, sparkColor, subtext }: {
+  label: string; value: string; unit?: string; change?: number; trend?: "up" | "down"
+  icon: React.ElementType; sparkData: number[]; sparkColor: string; subtext?: string
 }) {
-  const isPositiveChange = (trend === "up" && change > 0) || (trend === "down" && change < 0)
+  const hasChange = change !== undefined && change !== null
+  const isPositiveChange = hasChange && ((trend === "up" && change > 0) || (trend === "down" && change < 0))
   return (
     <Card className="p-5 shadow-sm relative overflow-hidden">
       <div className="flex items-start justify-between mb-3">
@@ -48,15 +49,21 @@ function KpiCard({ label, value, unit, change, trend, icon: Icon, sparkData, spa
         {unit && <span className="text-xs text-slate-500 dark:text-slate-400">{unit}</span>}
       </div>
       <div className="flex items-center gap-1 mt-2">
-        {isPositiveChange ? (
-          <TrendingUp className="w-3 h-3 text-emerald-600" />
+        {hasChange ? (
+          <>
+            {isPositiveChange ? (
+              <TrendingUp className="w-3 h-3 text-emerald-600" />
+            ) : (
+              <TrendingDown className="w-3 h-3 text-red-500" />
+            )}
+            <span className={`text-xs-plus font-medium ${isPositiveChange ? "text-emerald-600" : "text-red-500"}`}>
+              {change > 0 ? "+" : ""}{change}%
+            </span>
+            <span className="text-xs-plus text-slate-400">vs last period</span>
+          </>
         ) : (
-          <TrendingDown className="w-3 h-3 text-red-500" />
+          <span className="text-xs-plus text-slate-400">{subtext || "Authoritative record"}</span>
         )}
-        <span className={`text-xs-plus font-medium ${isPositiveChange ? "text-emerald-600" : "text-red-500"}`}>
-          {change > 0 ? "+" : ""}{change}%
-        </span>
-        <span className="text-xs-plus text-slate-400">vs last period</span>
       </div>
     </Card>
   )
@@ -100,7 +107,7 @@ type TimePeriod = "daily" | "weekly" | "monthly"
 export default function SuperAdminDashboard() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("weekly")
   const { adminAccounts, systemAlerts, auditLogs } = useSuperAdminData()
-  const { documentRequests, stats: adminStats } = useAdminData()
+  const { documentRequests, stats: adminStats, residents, verifications } = useAdminData()
   const mounted = useMounted()
 
   if (!mounted) {
@@ -112,28 +119,32 @@ export default function SuperAdminDashboard() {
   const dayMs = 1000 * 60 * 60 * 24
 
   const dailyRequests = Array.from({ length: 7 }).map((_, i) => {
-    const start = now - (6 - i) * dayMs;
-    const end = start + dayMs;
-    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end);
-    const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status));
+    const start = now - (6 - i) * dayMs
+    const end = start + dayMs
+    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end)
+    const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status))
     return { day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }), requests: reqs.length, approvals: apps.length }
-  });
+  })
 
   const weeklyRequests = Array.from({ length: 8 }).map((_, i) => {
-    const start = now - (7 - i) * 7 * dayMs;
-    const end = start + 7 * dayMs;
-    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end);
-    const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status));
+    const start = now - (7 - i) * 7 * dayMs
+    const end = start + 7 * dayMs
+    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end)
+    const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status))
     return { week: `W${i + 1}`, requests: reqs.length, approvals: apps.length }
-  });
+  })
 
+  // Calendar month intervals (F15: real calendar months instead of fixed 30*dayMs)
+  const currentDate = new Date()
   const monthlyRequests = Array.from({ length: 12 }).map((_, i) => {
-    const start = now - (11 - i) * 30 * dayMs;
-    const end = start + 30 * dayMs;
-    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end);
-    const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status));
-    return { month: new Date(start).toLocaleDateString('en-US', { month: 'short' }), requests: reqs.length, approvals: apps.length }
-  });
+    const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - (11 - i), 1)
+    const start = targetDate.getTime()
+    const nextMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1)
+    const end = nextMonth.getTime()
+    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end)
+    const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status))
+    return { month: targetDate.toLocaleDateString('en-US', { month: 'short' }), requests: reqs.length, approvals: apps.length }
+  })
 
   const chartData = timePeriod === "daily" ? dailyRequests : timePeriod === "weekly" ? weeklyRequests : monthlyRequests
   const xKey = timePeriod === "daily" ? "day" : timePeriod === "weekly" ? "week" : "month"
@@ -143,22 +154,56 @@ export default function SuperAdminDashboard() {
     underReview: documentRequests.filter(r => r.status === "On Process").length,
     approved: documentRequests.filter(r => r.status === "Approved" || r.status === "Ready for Pick Up" || r.status === "Completed").length,
     rejected: documentRequests.filter(r => r.status === "Rejected").length,
-  };
+  }
+
+  // F15: Authoritative turnaround calculation from completed requests with timestamps
+  const completedWithTiming = documentRequests.filter(r => {
+    const endTs = (r as any).completedTs || r.statusTimestamps?.['Completed'] || r.statusTimestamps?.['Ready for Pick Up'] || (r as any).generatedAt
+    return endTs && r.createdAt && endTs > r.createdAt
+  })
+  let avgTurnaroundHours: number | null = null
+  let avgTurnaroundDays: string = "N/A"
+  if (completedWithTiming.length > 0) {
+    const totalDurationHours = completedWithTiming.reduce((acc, r) => {
+      const endTs = (r as any).completedTs || r.statusTimestamps?.['Completed'] || r.statusTimestamps?.['Ready for Pick Up'] || (r as any).generatedAt
+      return acc + (endTs - r.createdAt) / (1000 * 60 * 60)
+    }, 0)
+    avgTurnaroundHours = Math.round((totalDurationHours / completedWithTiming.length) * 10) / 10
+    avgTurnaroundDays = (avgTurnaroundHours / 24).toFixed(1)
+  }
 
   const performanceMetrics = {
     approvalRate: documentRequests.length ? Math.round((processingPipeline.approved / documentRequests.length) * 100) : 0,
-    avgTurnaroundHours: documentRequests.length ? 24 : 0,
+    avgTurnaroundHours,
+    avgTurnaroundDays,
     todayProcessed: dailyRequests[6].approvals,
     todayPending: dailyRequests[6].requests - dailyRequests[6].approvals,
-    satisfactionScore: documentRequests.length ? 4.9 : 0
   }
 
-  // Sparklines mapped from past 7 days logic
-  const populationSparkline = [0, 0, 0, 1, 3, 5, adminStats.totalResidents];
-  const requestsSparkline = dailyRequests.map(d => d.requests);
-  const verificationsSparkline = dailyRequests.map(d => d.requests * 0.5); // Simplified for verifications
-  const processingSparkline = dailyRequests.map(d => d.approvals);
-  const approvalSparkline = dailyRequests.map(d => d.approvals > 0 ? (d.approvals / (d.requests || 1)) * 100 : 0);
+  // F15: Real sparklines mapped from actual residents, requests, and verifications
+  const populationSparkline = Array.from({ length: 7 }).map((_, i) => {
+    const end = now - (6 - i) * dayMs + dayMs
+    const count = residents.filter(r => ((r as any).createdAt || 0) <= end).length
+    return count || adminStats.totalResidents
+  })
+  const requestsSparkline = dailyRequests.map(d => d.requests)
+  const verificationsSparkline = Array.from({ length: 7 }).map((_, i) => {
+    const start = now - (6 - i) * dayMs
+    const end = start + dayMs
+    return verifications.filter(v => {
+      const ts = (v as any).submittedAt || (v as any).createdAt || 0
+      return ts >= start && ts < end
+    }).length
+  })
+  const processingSparkline = dailyRequests.map(d => d.approvals)
+  const approvalSparkline = dailyRequests.map(d => d.approvals > 0 ? (d.approvals / (d.requests || 1)) * 100 : 0)
+
+  // Real requests change vs prior period
+  const recentReqsCount = documentRequests.filter(r => r.createdAt >= now - 7 * dayMs && r.createdAt < now).length
+  const priorReqsCount = documentRequests.filter(r => r.createdAt >= now - 14 * dayMs && r.createdAt < now - 7 * dayMs).length
+  const requestsChange = priorReqsCount > 0
+    ? Math.round(((recentReqsCount - priorReqsCount) / priorReqsCount) * 100)
+    : (recentReqsCount > 0 ? 100 : 0)
 
   // Compute dynamic document type breakdown
   const documentCounts: Record<string, number> = {}
@@ -229,11 +274,11 @@ export default function SuperAdminDashboard() {
 
       {/* KPI Strip */}
       <div className="grid grid-cols-5 gap-4">
-        <KpiCard label="Total Population" value={adminStats.totalResidents.toLocaleString()} change={0} trend={"up"} icon={Users} sparkData={populationSparkline} sparkColor="#0C2340" />
-        <KpiCard label="Active Requests" value={adminStats.pendingRequests.toString()} change={0} trend={"up"} icon={FileText} sparkData={requestsSparkline} sparkColor="#2a5080" />
-        <KpiCard label="Pending Verify" value={adminStats.pendingVerifications.toString()} change={0} trend={"up"} icon={ShieldCheck} sparkData={verificationsSparkline} sparkColor="#C5A55A" />
-        <KpiCard label="Avg Processing" value={"0"} unit="days" change={0} trend={"up"} icon={Clock} sparkData={processingSparkline} sparkColor="#10b981" />
-        <KpiCard label="Approval Rate" value={"0"} unit="%" change={0} trend={"up"} icon={CheckCircle} sparkData={approvalSparkline} sparkColor="#0C2340" />
+        <KpiCard label="Total Population" value={adminStats.totalResidents.toLocaleString()} icon={Users} sparkData={populationSparkline} sparkColor="#0C2340" subtext="Registered residents" />
+        <KpiCard label="Active Requests" value={adminStats.pendingRequests.toString()} change={requestsChange} trend={requestsChange >= 0 ? "up" : "down"} icon={FileText} sparkData={requestsSparkline} sparkColor="#2a5080" />
+        <KpiCard label="Pending Verify" value={adminStats.pendingVerifications.toString()} icon={ShieldCheck} sparkData={verificationsSparkline} sparkColor="#C5A55A" subtext="Pending reviews" />
+        <KpiCard label="Avg Processing" value={avgTurnaroundDays !== "N/A" ? avgTurnaroundDays : "N/A"} unit={avgTurnaroundDays !== "N/A" ? "days" : undefined} icon={Clock} sparkData={processingSparkline} sparkColor="#10b981" subtext={avgTurnaroundHours !== null ? `~${avgTurnaroundHours}h turnaround` : "Insufficient data"} />
+        <KpiCard label="Approval Rate" value={documentRequests.length > 0 ? `${performanceMetrics.approvalRate}` : "N/A"} unit={documentRequests.length > 0 ? "%" : undefined} icon={CheckCircle} sparkData={approvalSparkline} sparkColor="#0C2340" subtext={documentRequests.length > 0 ? `${processingPipeline.approved} of ${documentRequests.length} approved` : "No requests"} />
       </div>
 
       {/* Primary Charts Row */}
@@ -478,8 +523,12 @@ export default function SuperAdminDashboard() {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
               <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Avg Turnaround</p>
-              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{performanceMetrics.avgTurnaroundHours}h</p>
-              <p className="text-2xs text-slate-400">~{(performanceMetrics.avgTurnaroundHours / 24).toFixed(1)} days</p>
+              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">
+                {avgTurnaroundHours !== null ? `${avgTurnaroundHours}h` : "N/A"}
+              </p>
+              <p className="text-2xs text-slate-400">
+                {avgTurnaroundHours !== null ? `~${avgTurnaroundDays} days` : "Insufficient completed data"}
+              </p>
             </div>
             <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
               <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Today Processed</p>
@@ -488,8 +537,8 @@ export default function SuperAdminDashboard() {
             </div>
             <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
               <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Satisfaction</p>
-              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">{performanceMetrics.satisfactionScore.toFixed(1)}/5.0</p>
-              <p className="text-2xs text-slate-400">Resident feedback</p>
+              <p className="text-lg font-bold text-[#0C2340] dark:text-blue-50">N/A</p>
+              <p className="text-2xs text-slate-400">No survey data collected</p>
             </div>
             <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3.5">
               <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Total Admins</p>

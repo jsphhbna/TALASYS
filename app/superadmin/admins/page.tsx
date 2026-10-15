@@ -95,6 +95,10 @@ export default function AdminManagement() {
   const [selectedAdminName, setSelectedAdminName] = useState("")
   const [selectedAdminId, setSelectedAdminId] = useState("")
   const [actionMessage, setActionMessage] = useState("")
+  const [isActionLoading, setIsActionLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false)
+  const [roleError, setRoleError] = useState<string | null>(null)
 
   // Form states for creating admin
   const [newAdminFirstName, setNewAdminFirstName] = useState("")
@@ -126,6 +130,7 @@ export default function AdminManagement() {
 
   const handleEditPrivileges = (adminId: string) => {
     setSelectedAdminForEdit(adminId)
+    setRoleError(null)
     setShowEditPrivilegesModal(true)
     setShowActionsDropdown(null)
   }
@@ -134,7 +139,8 @@ export default function AdminManagement() {
     setSelectedAdminId(adminId)
     setSelectedAdminName(adminName)
     setActionType("reset")
-    setActionMessage(`A temporary password has been sent to ${adminName}'s email.`)
+    setActionError(null)
+    setActionMessage(`Send password reset email to ${adminName}?`)
     setShowActionDialog(true)
     setShowActionsDropdown(null)
   }
@@ -143,6 +149,7 @@ export default function AdminManagement() {
     setSelectedAdminId(adminId)
     setSelectedAdminName(adminName)
     setActionType(isLocked ? "unlock" : "lock")
+    setActionError(null)
     setActionMessage(
       isLocked
         ? `Are you sure you want to unlock ${adminName}'s account?`
@@ -156,43 +163,72 @@ export default function AdminManagement() {
     setSelectedAdminId(adminId)
     setSelectedAdminName(adminName)
     setActionType("delete")
+    setActionError(null)
     setActionMessage(`Are you sure you want to delete ${adminName}'s account? This action is permanent.`)
     setShowActionDialog(true)
     setShowActionsDropdown(null)
   }
 
   const confirmAction = async () => {
-    if (actionType === "reset") {
-      try {
+    setIsActionLoading(true)
+    setActionError(null)
+    try {
+      if (actionType === "reset") {
         const { sendPasswordResetEmail } = await import("firebase/auth")
         const { auth } = await import("@/lib/firebase")
         const adminToReset = adminAccounts.find(a => a.id === selectedAdminId)
         if (adminToReset) {
           await sendPasswordResetEmail(auth, adminToReset.email)
           setActionMessage(`Password reset email sent to ${selectedAdminName}`)
+        } else {
+          throw new Error("Admin account not found")
         }
-      } catch (e) {
-        setActionMessage(`Failed to send password reset email.`)
+      } else if (actionType === "lock") {
+        await updateAdmin(selectedAdminId, { status: "Locked" })
+        setActionMessage(`Account locked successfully for ${selectedAdminName}`)
+      } else if (actionType === "unlock") {
+        await updateAdmin(selectedAdminId, { status: "Active" })
+        setActionMessage(`Account unlocked successfully for ${selectedAdminName}`)
+      } else if (actionType === "delete") {
+        await deleteAdmin(selectedAdminId)
+        setActionMessage(`Account deleted successfully for ${selectedAdminName}`)
       }
-    } else if (actionType === "lock") {
-      updateAdmin(selectedAdminId, { status: "Locked" })
-      setActionMessage(`Account locked successfully for ${selectedAdminName}`)
-    } else if (actionType === "unlock") {
-      updateAdmin(selectedAdminId, { status: "Active" })
-      setActionMessage(`Account unlocked successfully for ${selectedAdminName}`)
-    } else if (actionType === "delete") {
-      deleteAdmin(selectedAdminId)
-      setActionMessage(`Account deleted successfully for ${selectedAdminName}`)
+      setTimeout(() => {
+        setShowActionDialog(false)
+        setActionType(null)
+        setActionError(null)
+      }, 1500)
+    } catch (e: any) {
+      setActionError(e?.message || "Operation failed. Please try again.")
+    } finally {
+      setIsActionLoading(false)
     }
-    setTimeout(() => {
-      setShowActionDialog(false)
-      setActionType(null)
-    }, 1500)
+  }
+
+  const handleSaveRole = async (newRole: string) => {
+    if (!selectedAdminForEdit) return
+    setIsUpdatingRole(true)
+    setRoleError(null)
+    try {
+      await updateAdmin(selectedAdminForEdit, { role: newRole as any })
+      setShowEditPrivilegesModal(false)
+      setSelectedAdminForEdit(null)
+    } catch (e: any) {
+      setRoleError(e?.message || "Failed to update privileges. Please try again.")
+    } finally {
+      setIsUpdatingRole(false)
+    }
   }
 
   const handleCreateAdmin = async () => {
     if (!newAdminFirstName || !newAdminLastName || !newAdminEmail || !newAdminContact || !newAdminPassword || selectedRole === "Select role...") {
       setFormError("Please fill in all required fields and select a role.")
+      return
+    }
+
+    const phoneRegex = /^[0-9+()-\s]{7,20}$/
+    if (!phoneRegex.test(newAdminContact.trim())) {
+      setFormError("Please enter a valid contact number (7-20 digits or symbols).")
       return
     }
     
@@ -205,7 +241,7 @@ export default function AdminManagement() {
         name: fullName,
         email: newAdminEmail,
         password: newAdminPassword,
-        contactNumber: newAdminContact,
+        contactNumber: newAdminContact.trim(),
         role: selectedRole as any,
         status: "Active"
       })
@@ -401,7 +437,12 @@ export default function AdminManagement() {
                     <p className="text-2xs text-slate-500 dark:text-slate-400">Since {admin.createdDate}</p>
                   </div>
                 </div>
-                <div className="col-span-4"><p className="text-sm text-slate-700 dark:text-slate-300">{admin.email}</p></div>
+                <div className="col-span-4">
+                  <p className="text-sm text-slate-700 dark:text-slate-300">{admin.email}</p>
+                  {admin.contactNumber && (
+                    <p className="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">{admin.contactNumber}</p>
+                  )}
+                </div>
                 <div className="col-span-3">
                   <span className="inline-flex items-center gap-1 text-xs-plus font-medium text-slate-700 dark:text-slate-300">
                     {admin.role === "Full Access" && <ShieldCheck className="w-3 h-3 text-[#0C2340] dark:text-blue-50" />}
@@ -514,17 +555,27 @@ export default function AdminManagement() {
       </ModalOverlay>
 
       {/* Edit Privileges Modal */}
-      <ModalOverlay isOpen={showEditPrivilegesModal} onClose={() => setShowEditPrivilegesModal(false)}>
+      <ModalOverlay isOpen={showEditPrivilegesModal} onClose={() => !isUpdatingRole && setShowEditPrivilegesModal(false)}>
         <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md shadow-2xl">
           <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
             <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">Edit Admin Privileges</h2>
-            <button onClick={() => setShowEditPrivilegesModal(false)} className="text-2xl text-slate-400 hover:text-slate-600 dark:text-slate-400">×</button>
+            <button onClick={() => !isUpdatingRole && setShowEditPrivilegesModal(false)} className="text-2xl text-slate-400 hover:text-slate-600 dark:text-slate-400" disabled={isUpdatingRole}>×</button>
           </div>
-          <div className="p-6">
-            <label className="block text-xs text-slate-600 dark:text-slate-400 mb-3 font-semibold">SELECT ROLE</label>
+          <div className="p-6 space-y-4">
+            {roleError && (
+              <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
+                {roleError}
+              </div>
+            )}
+            <label className="block text-xs text-slate-600 dark:text-slate-400 font-semibold">SELECT ROLE</label>
             <div className="space-y-2">
               {roles.map((role) => (
-                <button key={role.label} onClick={() => { updateAdmin(selectedAdminForEdit!, { role: role.label as any }); setShowEditPrivilegesModal(false) }} className="w-full text-left px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:bg-slate-950 text-sm">
+                <button
+                  key={role.label}
+                  disabled={isUpdatingRole}
+                  onClick={() => handleSaveRole(role.label)}
+                  className="w-full text-left px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:bg-slate-950 text-sm disabled:opacity-50 transition-colors"
+                >
                   <p className="font-medium text-slate-900 dark:text-slate-100">{role.label}</p>
                   <p className="text-xs text-slate-600 dark:text-slate-400">{role.description}</p>
                 </button>
@@ -532,27 +583,37 @@ export default function AdminManagement() {
             </div>
           </div>
           <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setShowEditPrivilegesModal(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setShowEditPrivilegesModal(false)} disabled={isUpdatingRole}>Cancel</Button>
           </div>
         </div>
       </ModalOverlay>
 
       {/* Action Dialog */}
-      <ModalOverlay isOpen={showActionDialog} onClose={() => setShowActionDialog(false)}>
+      <ModalOverlay isOpen={showActionDialog} onClose={() => !isActionLoading && setShowActionDialog(false)}>
         <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md shadow-2xl">
           <div className="p-6 border-b border-slate-200 dark:border-slate-700">
             <h2 className="text-xl font-bold text-[#0C2340] dark:text-blue-50">
               {actionType === "reset" ? "Reset Password" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
             </h2>
           </div>
-          <div className="p-6"><p className="text-sm text-slate-700 dark:text-slate-300">{actionMessage}</p></div>
+          <div className="p-6 space-y-3">
+            {actionError && (
+              <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
+                {actionError}
+              </div>
+            )}
+            <p className="text-sm text-slate-700 dark:text-slate-300">{actionMessage}</p>
+          </div>
           <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setShowActionDialog(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setShowActionDialog(false)} disabled={isActionLoading}>Cancel</Button>
             <Button
               className={actionType === "lock" || actionType === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"}
+              disabled={isActionLoading}
               onClick={() => { confirmAction() }}
             >
-              {actionType === "reset" ? "Confirm Reset" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account"}
+              {isActionLoading
+                ? "Processing..."
+                : (actionType === "reset" ? "Confirm Reset" : actionType === "lock" ? "Lock Account" : actionType === "unlock" ? "Unlock Account" : "Delete Account")}
             </Button>
           </div>
         </div>

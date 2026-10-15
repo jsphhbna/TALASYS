@@ -34,8 +34,55 @@ export default function ResidentManagement() {
   const [showActivateDialog, setShowActivateDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [selectedResident, setSelectedResident] = useState<ResidentRecord | null>(null)
+  const [isOperating, setIsOperating] = useState(false)
+  const [operationError, setOperationError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 10
+
+  const handleDeactivate = async () => {
+    if (!selectedResident) return
+    setIsOperating(true)
+    setOperationError(null)
+    try {
+      await deactivateResident(selectedResident.id, user?.name || "Admin", selectedResident.name)
+      setShowDeactivateDialog(false)
+      setSelectedResident(null)
+    } catch (e: any) {
+      setOperationError(e?.message || "Failed to deactivate account. Please try again.")
+    } finally {
+      setIsOperating(false)
+    }
+  }
+
+  const handleActivate = async () => {
+    if (!selectedResident) return
+    setIsOperating(true)
+    setOperationError(null)
+    try {
+      await activateResident(selectedResident.id, user?.name || "Admin", selectedResident.name)
+      setShowActivateDialog(false)
+      setSelectedResident(null)
+    } catch (e: any) {
+      setOperationError(e?.message || "Failed to activate account. Please try again.")
+    } finally {
+      setIsOperating(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!selectedResident) return
+    setIsOperating(true)
+    setOperationError(null)
+    try {
+      await deleteResident(selectedResident.id, user?.name || "Admin", selectedResident.name)
+      setShowDeleteDialog(false)
+      setSelectedResident(null)
+    } catch (e: any) {
+      setOperationError(e?.message || "Failed to delete resident. Please try again.")
+    } finally {
+      setIsOperating(false)
+    }
+  }
 
   const filteredResidents = allResidents.filter((r) => {
     const matchesCategory = selectedCategory === "all" || r.categories.some(c => c.toLowerCase().includes(selectedCategory.toLowerCase()))
@@ -242,12 +289,12 @@ export default function ResidentManagement() {
                         {showActionsMenu === resident.id && (
                           <div className="absolute right-0 top-8 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10">
                             {resident.status === "Expired" ? (
-                              <button onClick={() => { setSelectedResident(resident); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-emerald-600">Activate Account</button>
+                              <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-emerald-600">Activate Account</button>
                             ) : (
-                              <button onClick={() => { setSelectedResident(resident); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-amber-600">Deactivate Account</button>
+                              <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-amber-600">Deactivate Account</button>
                             )}
                             <div className="border-t border-slate-200 dark:border-slate-700" />
-                            <button onClick={() => { setSelectedResident(resident); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-red-600">Delete Resident</button>
+                            <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-red-600">Delete Resident</button>
                           </div>
                         )}
                       </>
@@ -314,17 +361,24 @@ export default function ResidentManagement() {
 
       {/* Deactivate Dialog */}
       {showDeactivateDialog && selectedResident && (
-        <ModalOverlay isOpen={true} onClose={() => setShowDeactivateDialog(false)}>
+        <ModalOverlay isOpen={true} onClose={() => !isOperating && setShowDeactivateDialog(false)}>
           <Card className="w-full max-w-md p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Deactivate Account</h3>
-              <button onClick={() => setShowDeactivateDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
+              <button onClick={() => !isOperating && setShowDeactivateDialog(false)} disabled={isOperating} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl disabled:opacity-50">✕</button>
             </div>
             <div className="p-6">
+              {operationError && (
+                <div className="p-3 mb-4 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
+                  {operationError}
+                </div>
+              )}
               <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Are you sure you want to deactivate <strong>{selectedResident.name}</strong>&apos;s account? This action can be reversed later.</p>
               <div className="flex gap-4">
-                <Button onClick={() => { deactivateResident(selectedResident.id, user?.name || "Admin", selectedResident.name); setShowDeactivateDialog(false) }} className="flex-1 h-11 bg-red-600 hover:bg-red-700">Deactivate</Button>
-                <Button variant="outline" onClick={() => setShowDeactivateDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
+                <Button onClick={handleDeactivate} disabled={isOperating} className="flex-1 h-11 bg-red-600 hover:bg-red-700">
+                  {isOperating ? "Deactivating..." : "Deactivate"}
+                </Button>
+                <Button variant="outline" onClick={() => setShowDeactivateDialog(false)} disabled={isOperating} className="flex-1 h-11 bg-transparent">Cancel</Button>
               </div>
             </div>
           </Card>
@@ -333,36 +387,47 @@ export default function ResidentManagement() {
 
       {/* Activate Dialog */}
       {showActivateDialog && selectedResident && (
-        <ModalOverlay isOpen={true} onClose={() => setShowActivateDialog(false)}>
+        <ModalOverlay isOpen={true} onClose={() => !isOperating && setShowActivateDialog(false)}>
           <Card className="w-full max-w-md p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Activate Account</h3>
-              <button onClick={() => setShowActivateDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
+              <button onClick={() => !isOperating && setShowActivateDialog(false)} disabled={isOperating} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl disabled:opacity-50">✕</button>
             </div>
             <div className="p-6">
+              {operationError && (
+                <div className="p-3 mb-4 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
+                  {operationError}
+                </div>
+              )}
               <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Are you sure you want to activate <strong>{selectedResident.name}</strong>&apos;s account? They will regain access to the system.</p>
               <div className="flex gap-4">
-                <Button onClick={() => { activateResident(selectedResident.id, user?.name || "Admin", selectedResident.name); setShowActivateDialog(false) }} className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 text-white">Activate</Button>
-                <Button variant="outline" onClick={() => setShowActivateDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
+                <Button onClick={handleActivate} disabled={isOperating} className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 text-white">
+                  {isOperating ? "Activating..." : "Activate"}
+                </Button>
+                <Button variant="outline" onClick={() => setShowActivateDialog(false)} disabled={isOperating} className="flex-1 h-11 bg-transparent">Cancel</Button>
               </div>
             </div>
           </Card>
         </ModalOverlay>
       )}
 
-
       {/* Delete Dialog */}
       {showDeleteDialog && selectedResident && (
-        <ModalOverlay isOpen={true} onClose={() => setShowDeleteDialog(false)}>
+        <ModalOverlay isOpen={true} onClose={() => !isOperating && setShowDeleteDialog(false)}>
           <Card className="w-full max-w-md p-0 shadow-2xl border-red-200">
             <div className="flex items-center justify-between px-6 py-4 border-b border-red-100 bg-red-50">
               <h3 className="text-lg font-bold text-red-700 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5" />
                 Delete Resident
               </h3>
-              <button onClick={() => setShowDeleteDialog(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl">✕</button>
+              <button onClick={() => !isOperating && setShowDeleteDialog(false)} disabled={isOperating} className="text-slate-400 hover:text-slate-600 dark:text-slate-400 text-xl disabled:opacity-50">✕</button>
             </div>
             <div className="p-6">
+              {operationError && (
+                <div className="p-3 mb-4 bg-red-50 text-red-600 rounded-md text-sm border border-red-100">
+                  {operationError}
+                </div>
+              )}
               <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
                 This will remove a resident from your baranggay and will be logged. It will be seen by your head of baranggay.
               </p>
@@ -371,15 +436,13 @@ export default function ResidentManagement() {
               </p>
               <div className="flex gap-4">
                 <Button 
-                  onClick={() => { 
-                    deleteResident(selectedResident.id, user?.name || "Admin", selectedResident.name); 
-                    setShowDeleteDialog(false) 
-                  }} 
+                  onClick={handleDelete}
+                  disabled={isOperating}
                   className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white"
                 >
-                  Yes, Delete Resident
+                  {isOperating ? "Deleting..." : "Yes, Delete Resident"}
                 </Button>
-                <Button variant="outline" onClick={() => setShowDeleteDialog(false)} className="flex-1 h-11 bg-transparent">Cancel</Button>
+                <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isOperating} className="flex-1 h-11 bg-transparent">Cancel</Button>
               </div>
             </div>
           </Card>

@@ -129,6 +129,20 @@ export default function CategoryReports() {
       .map(([key]) => ({ id: key, label: labels[key] }))
   }
 
+  const getLastName = (name?: string) => {
+    if (!name) return ""
+    const parts = name.trim().split(/\s+/)
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0]
+  }
+
+  const getFirstName = (name?: string) => {
+    if (!name) return ""
+    const parts = name.trim().split(/\s+/)
+    return parts[0]
+  }
+
+  const [sortBy, setSortBy] = useState("Last Name (A-Z)")
+
   const previewColumns = getPreviewColumns()
   const filteredResidents = residents.filter(r => {
     if (selectedCategories.includes("all")) return true
@@ -143,6 +157,33 @@ export default function CategoryReports() {
     if (selectedCategories.includes("female") && r.gender === "Female") match = true
     if (selectedCategories.includes("other-gender") && r.gender === "Other") match = true
     return match
+  })
+
+  const sortedResidents = [...filteredResidents].sort((a, b) => {
+    if (sortBy === "Last Name (A-Z)") {
+      const cmp = getLastName(a.name).localeCompare(getLastName(b.name))
+      return cmp !== 0 ? cmp : (a.name || "").localeCompare(b.name || "")
+    }
+    if (sortBy === "Last Name (Z-A)") {
+      const cmp = getLastName(b.name).localeCompare(getLastName(a.name))
+      return cmp !== 0 ? cmp : (b.name || "").localeCompare(a.name || "")
+    }
+    if (sortBy === "First Name (A-Z)") {
+      const cmp = getFirstName(a.name).localeCompare(getFirstName(b.name))
+      return cmp !== 0 ? cmp : (a.name || "").localeCompare(b.name || "")
+    }
+    if (sortBy === "Age (Ascending)") {
+      return (a.age ?? 0) - (b.age ?? 0)
+    }
+    if (sortBy === "Age (Descending)") {
+      return (b.age ?? 0) - (a.age ?? 0)
+    }
+    if (sortBy === "Registration Date") {
+      const aTime = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0
+      const bTime = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0
+      return bTime - aTime
+    }
+    return 0
   })
 
   const generatePDFDocument = () => {
@@ -178,8 +219,10 @@ export default function CategoryReports() {
     if (selectedColumns.contact) cols.push("Contact")
     if (selectedColumns.registration) cols.push("Reg. Date")
     if (selectedColumns.status) cols.push("Status")
+    if (selectedColumns.expiry) cols.push("Expiry Date")
+    if (selectedColumns.categories) cols.push("Other Categories")
 
-    const body = filteredResidents.map(r => {
+    const body = sortedResidents.map(r => {
       const row = []
       if (selectedColumns.name) row.push(r.name)
       if (selectedColumns.address) row.push(r.address)
@@ -187,6 +230,8 @@ export default function CategoryReports() {
       if (selectedColumns.contact) row.push(r.contactNumber || "N/A")
       if (selectedColumns.registration) row.push((r as any).createdAt ? new Date((r as any).createdAt).toLocaleDateString() : "N/A")
       if (selectedColumns.status) row.push(r.status)
+      if (selectedColumns.expiry) row.push(r.expiryDate || "N/A")
+      if (selectedColumns.categories) row.push(r.categories && r.categories.length > 0 ? r.categories.join(", ") : "None")
       return row
     })
 
@@ -341,10 +386,16 @@ export default function CategoryReports() {
               </div>
               <div>
                 <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Sort By</label>
-                <select className="w-48 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-48 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-900 focus:outline-none focus:border-[#0C2340]"
+                >
                   <option>Last Name (A-Z)</option>
+                  <option>Last Name (Z-A)</option>
                   <option>First Name (A-Z)</option>
                   <option>Age (Ascending)</option>
+                  <option>Age (Descending)</option>
                   <option>Registration Date</option>
                 </select>
               </div>

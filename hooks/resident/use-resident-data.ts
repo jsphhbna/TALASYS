@@ -157,8 +157,12 @@ export function useResidentData() {
           status: "Cancelled",
           cancelledAt: Date.now()
         })
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error cancelling document request (id:", requestId, "):", error)
+        if (error?.code === "permission-denied") {
+          throw new Error("This request can no longer be cancelled because processing has already begun or it is in a terminal status.")
+        }
+        throw new Error(error?.message || "Failed to cancel document request.")
       }
     },
     []
@@ -215,27 +219,35 @@ export function useResidentData() {
 
   const submitPayment = useCallback(
     async (requestId: string, method: "gcash" | "cash", data: { gcashRefNumber?: string; gcashScreenshotUrl?: string }) => {
-      if (!residentId) return
-      await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, requestId), {
-        paymentStatus: "pending_verification",
-        paymentMethod: method,
-        ...(method === "gcash" ? {
-          gcashRefNumber: data.gcashRefNumber || "",
-          gcashScreenshotUrl: data.gcashScreenshotUrl || "",
-        } : {}),
-        paymentSubmittedAt: Date.now()
-      })
-      await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
-        targetId: "admin",
-        type: "info",
-        title: "Payment Submitted",
-        message: `${user?.name} submitted a ${method === "gcash" ? "GCash" : "Cash"} payment for review.`,
-        timestamp: "Just now",
-        isRead: false,
-        createdAt: Date.now(),
-        residentName: user?.name,
-        actionUrl: "/admin/requests/payments"
-      })
+      if (!residentId) throw new Error("Resident authentication required.")
+      try {
+        await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, requestId), {
+          paymentStatus: "pending_verification",
+          paymentMethod: method,
+          ...(method === "gcash" ? {
+            gcashRefNumber: data.gcashRefNumber || "",
+            gcashScreenshotUrl: data.gcashScreenshotUrl || "",
+          } : {}),
+          paymentSubmittedAt: Date.now()
+        })
+        await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
+          targetId: "admin",
+          type: "info",
+          title: "Payment Submitted",
+          message: `${user?.name || "A resident"} submitted a ${method === "gcash" ? "GCash" : "Cash"} payment for review.`,
+          timestamp: "Just now",
+          isRead: false,
+          createdAt: Date.now(),
+          residentName: user?.name,
+          actionUrl: "/admin/requests/payments"
+        })
+      } catch (error: any) {
+        console.error("Error submitting payment for request (id:", requestId, "):", error)
+        if (error?.code === "permission-denied") {
+          throw new Error("Payment submission not allowed for this request status.")
+        }
+        throw new Error(error?.message || "Failed to submit payment.")
+      }
     },
     [residentId, user]
   )

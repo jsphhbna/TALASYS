@@ -1,6 +1,37 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18 & R01–R14)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, & F01–F16)
 
-## Final Targeted Integration Corrections (R13–R14) — current pass
+## Comprehensive Functional Bug Remediation & Regression Prevention (F01–F16) — current pass
+
+- **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from audited baseline `c0bca7b6c71286b28e58b1e7947138aa2d4213a2`.
+- **Target findings**:
+  - **Milestone A (Resident and Administrative Workflow Corrections: F01–F08)**:
+    - **F01 (Rejected profile-edit "Cancel Edit (Revert)" blocked)**: Residents can dismiss/delete their rejected profile-edit verification to revert UI to valid documents. Updated `firestore.rules` to allow owner deletion of `profile-edit` verifications with `status in ['pending', 'rejected']` while strictly preserving `type != 'registration'` lockout and registration verification integrity. Added loading feedback and disabled states in `profile-proofs-card.tsx`.
+    - **F02 (Admin payment confirmation redundant status transition error)**: In `components/admin/admin-payment-process-modal.tsx`, removed redundant `updateRequestStatus("On Process")` call that caused 409 transition errors and misleading error toasts, relying on authoritative atomic transition in `app/api/admin/operations/route.ts` (`request.confirmPayment`).
+    - **F03 (Resident payment actions on ineligible requests)**: In `app/resident/history/page.tsx` and `components/resident/history/payment-modal.tsx`, hid "Pay Now" and "Resubmit" buttons when request status is terminal (`Cancelled`, `Rejected`, `Completed`).
+    - **F04 (Admin payment queue includes ineligible requests)**: In `app/admin/requests/payments/page.tsx`, excluded requests in terminal states (`Cancelled`, `Rejected`, `Completed`) and zero-fee requests from the actionable payment queue and pending count.
+    - **F05 (Super Admin account operations unawaited)**: In `app/superadmin/admins/page.tsx`, awaited `updateAdmin` and `deleteAdmin`, added loading states (`isActionLoading`, `isUpdatingRole`), disabled duplicate clicks, preserved modals on error, and displayed truthful error alerts.
+    - **F06 (Admin resident actions close dialogs prematurely)**: In `app/admin/residents/page.tsx`, awaited `activateResident`, `deactivateResident`, and `deleteResident` before closing dialogs or reporting success, allowing safe retry on failure.
+    - **F07 (Super Admin creation form discards contact number)**: Validated format and forwarded `contactNumber` through `useSuperAdminData.addAdmin`, `createAdminAccount` in `app/api/admin/operations/route.ts`, persisted in `users`, allowed in `ADMIN_UPDATE_FIELDS`, and rendered in admin table.
+    - **F08 (Cancelled document requests remain in active queue)**: In `app/admin/requests/page.tsx`, excluded `Cancelled` requests from `activeRequests`. In `app/admin/requests/history/document-history-content.tsx`, included `Cancelled` requests in Document History with appropriate badge and timestamp fallback.
+  - **Milestone B (Reports, Filters, Exports and Document Generation: F09–F14)**:
+    - **F09 (Admin PDF column selections do not match output)**: In `app/admin/reports/page.tsx`, included `expiry` ("Expiry Date") and `categories` ("Other Categories") in PDF export column mapping and body rows.
+    - **F10 (Report sorting controls have no functional effect)**: Connected sort `<select>` elements to state and implemented deterministic sorting in `app/admin/reports/page.tsx` (`sortedResidents`) and `app/superadmin/category-reports/page.tsx` (`sorted`).
+    - **F11 (Super Admin Non-Voters List includes registered voters)**: In `app/superadmin/reports/page.tsx`, added "Non-Voters List" option to report type `<select>` dropdown and filtered residents strictly by `!r.isVoter`.
+    - **F12 (Custom document requests open wrong template)**: In `app/admin/generate/page.tsx`, matched requested document type against `systemConfig.customDocumentTypes`, set `matchedId` and `customDocTitle`, used `customDoc.template` in `getTemplateContent()`, and added `systemConfig` to `useEffect` dependency array.
+    - **F13 (Issuance date-range reports use request creation dates)**: Defined authoritative `getIssuanceTimestamp` (`r.generatedAt || r.statusTimestamps?.['Ready for Pick Up'] || r.statusTimestamps?.['Completed'] || r.updatedAt || r.createdAt`). Filtered date-range reports by issuance timestamp and labeled column "Date Issued".
+    - **F14 (Report format and reporting period ignored)**: In `app/superadmin/reports/page.tsx`, honored format and period filters (Year/Month) across all reports including Full Analytics, using ExcelJS for genuine `.xlsx` exports and CSV appropriately.
+  - **Milestone C (Dashboard Accuracy and User Feedback: F15–F16)**:
+    - **F15 (Dashboard KPIs and charts misleading or disconnected)**: In `app/superadmin/dashboard/page.tsx`, computed real monthly buckets using true calendar months, replaced sparkline placeholders with real data from `residents` and `verifications`, replaced hardcoded turnaround time and satisfaction scores with authoritative calculations or truthful "N/A" / "Insufficient completed data" states. In `app/superadmin/reports/page.tsx`, fixed chart data key mismatch (`month`, `documents`, `population`, `analytics`) matching XAxis and Area keys.
+    - **F16 (Failure messages swallowed or unrelated)**: In `hooks/resident/use-resident-data.ts`, rethrow errors from `cancelRequest` and `submitPayment` translating Firestore `permission-denied` to actionable user messages. In `app/resident/history/page.tsx`, added `cancellingId` state and error toast display. In `components/resident/history/payment-modal.tsx`, added dedicated `paymentSubmitted` and `cashPaymentConfirmed` presets instead of misleading profile request toast. In `app/resident/profile/page.tsx`, used `profileUpdated` on picture save and restricted file size toast to actual size errors.
+
+| Milestone | Status | Verified Evidence |
+|---|---|---|
+| M-A: Resident & Administrative Workflow (F01–F08) | VERIFIED | Unit tests in `test/milestone-a-functional.test.ts` PASS (8/8); emulator rules tests in `test/emulator/firestore-rules.test.ts` PASS (58/58); async dialog and queue invariants verified. |
+| M-B: Reports, Filters, Exports & Generation (F09–F14) | VERIFIED | Unit tests in `test/milestone-b-functional.test.ts` PASS (6/6); deterministic sorting, column alignment, non-voter filtering, template resolution, issuance timestamp, and XLSX/CSV generation verified. |
+| M-C: Dashboard Accuracy & User Feedback (F15–F16) | VERIFIED | Unit tests in `test/milestone-c-functional.test.ts` PASS (7/7); calendar month buckets, truthful KPI/sparkline calculations, chart data keys alignment, error rethrow, and toast presets verified. |
+| M-Audit: Continuous Self-Audit & Full Verification | VERIFIED | 180/180 unit/integration tests PASS across 31 suites; 58/58 emulator rules tests PASS; 25/25 authenticated Playwright E2E workflows PASS; typecheck (0 errors); typecheck:test (0 errors); lint (0 errors); build (51/51 routes PASS); timezone matrix (UTC, Asia/Manila, America/Los_Angeles PASS); clean git diff. |
+
+## Final Targeted Integration Corrections (R13–R14) — prior pass
 
 - **Status**: IMPLEMENTED, FULLY VERIFIED on `main`.
 - **Target findings**:

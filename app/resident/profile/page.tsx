@@ -179,11 +179,19 @@ export default function ProfilePage() {
         handleFormChange("newProfilePicture", url)
       } else {
         await saveProfilePicture(url)
-        showToastPreset("registrationCompleted")
+        showToastPreset("profileUpdated")
       }
-    } catch (err) {
-      console.error(err)
-      showToastPreset("uploadFailedSize")
+    } catch (err: any) {
+      console.error("Failed to upload/save profile picture:", err)
+      if (err?.message?.toLowerCase().includes("size") || err?.message?.toLowerCase().includes("5mb")) {
+        showToastPreset("uploadFailedSize")
+      } else {
+        toast({
+          title: "Upload Failed",
+          description: err?.message || "Failed to update profile picture. Please try again.",
+          variant: "destructive"
+        })
+      }
     } finally {
       setIsUploadingPicture(false)
     }

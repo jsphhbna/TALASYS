@@ -211,15 +211,18 @@ service cloud.firestore {
       //   Administrative deletion of registration verifications must use coordinated server-authoritative operation
       //   (POST /api/admin/operations with operation 'verification.delete') to maintain transactional consistency across
       //   residentVerificationLocks, users.hasPendingVerification, and audit logs.
-      // - Residents can ONLY withdraw unreviewed 'pending' verifications of type 'profile-edit' or 'reactivation' (#57, R09).
+      // - Residents can withdraw unreviewed 'pending' verifications of type 'profile-edit' or 'reactivation' (#57, R09),
+      //   and dismiss 'rejected' verifications of type 'profile-edit' to revert to previously valid documents (F01).
       // - Super Admins may directly delete non-registration verifications (e.g., profile-edit or reactivation).
       allow delete: if (
         resource.data.type != 'registration' && (
           isSuperAdmin() || (
             isAuthenticated() &&
             (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid) &&
-            resource.data.status == 'pending' &&
-            resource.data.type in ['profile-edit', 'reactivation']
+            (
+              (resource.data.status == 'pending' && resource.data.type in ['profile-edit', 'reactivation']) ||
+              (resource.data.status == 'rejected' && resource.data.type == 'profile-edit')
+            )
           )
         )
       );

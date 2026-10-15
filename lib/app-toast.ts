@@ -58,6 +58,18 @@ const presets = {
     title: "Request submitted",
     description: "You will receive a notification when your document is ready.",
   },
+  paymentSubmitted: {
+    title: "Payment submitted",
+    description: "Your payment reference has been submitted for review.",
+  },
+  cashPaymentConfirmed: {
+    title: "Payment choice recorded",
+    description: "Please prepare the exact cash payment upon document pick up.",
+  },
+  requestCancelled: {
+    title: "Request cancelled",
+    description: "Your document request has been cancelled.",
+  },
   reactivationStarted: {
     title: "Reactivation started",
     description: "You will be redirected to complete face verification and document upload.",

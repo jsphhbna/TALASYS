@@ -222,6 +222,29 @@ test("R09: resident cannot delete pending registration verifications, while prof
 
   // 8. SuperAdmin can directly delete non-registration verifications if needed
   await assertSucceeds(deleteDoc(doc(superAdminDb, "verifications", "profile-edit-verif-admin")))
+
+  // 9. F01: Resident owner can delete their own rejected profile-edit verification to revert
+  await environment.withSecurityRulesDisabled(async context => {
+    const db = context.firestore()
+    await setDoc(doc(db, "verifications", "rejected-profile-edit"), {
+      residentId: "resident",
+      userId: "resident",
+      type: "profile-edit",
+      status: "rejected",
+    })
+    await setDoc(doc(db, "verifications", "rejected-registration"), {
+      residentId: "resident",
+      userId: "resident",
+      type: "registration",
+      status: "rejected",
+    })
+  })
+  // Another resident cannot delete it
+  await assertFails(deleteDoc(doc(expiredDb, "verifications", "rejected-profile-edit")))
+  // Resident cannot delete rejected registration verification
+  await assertFails(deleteDoc(doc(otherResidentDb, "verifications", "rejected-registration")))
+  // Resident owner CAN delete rejected profile-edit verification
+  await assertSucceeds(deleteDoc(doc(otherResidentDb, "verifications", "rejected-profile-edit")))
 })
 
 test("A07 resident payment submission preserves paid, waived, and terminal request states", async () => {

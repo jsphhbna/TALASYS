@@ -78,6 +78,7 @@ export function useSuperAdminData() {
                 name: adminUser.name || "Admin",
                 email: adminUser.email || "",
                 password: adminUser.password || "",
+                contactNumber: adminUser.contactNumber || "",
                 role: adminUser.role,
                 status: adminUser.status || "Active",
                 initials: adminUser.initials || "A",
@@ -270,7 +271,7 @@ export function useSuperAdminData() {
 
         // Admin Accounts
         addAdmin: useCallback(async (input: Omit<AdminAccount, "id" | "initials" | "isOnline" | "lastActive" | "createdDate">) => {
-            await callAdminOperation("admin.create", { payload: { name: input.name, email: input.email, password: input.password, role: input.role } })
+            await callAdminOperation("admin.create", { payload: { name: input.name, email: input.email, password: input.password, contactNumber: input.contactNumber, role: input.role } })
         }, []),
         updateAdmin: useCallback(async (id: string, updates: Partial<AdminAccount>) => {
             const { password: _password, email: _email, id: _id, ...allowed } = updates as any

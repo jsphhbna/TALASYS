@@ -50,34 +50,45 @@ function GenerateDocumentsContent() {
           setSelectedResident(res)
           setSearchQuery(res.name)
         }
-        
+
         let matchedId = "custom_blank";
-        const builtInLabels: Record<string, string> = {
-          "Funeral Certification": "funeral",
-          "PWD Certification (Adult)": "pwd_adult",
-          "PWD Certification (Minor)": "pwd_minor",
-          "Certificate of Indigency": "indigency",
-          "Proof of Residency": "residency",
-          "Business Clearance": "business",
-          "Business Clearance (Homeowner)": "business_homeowner",
-          "Business Clearance (Contractor)": "business_contractor",
-          "OSCA Certification": "osca"
+        const customDoc = (systemConfig?.customDocumentTypes || []).find(
+          (c: any) => (c.name && c.name.toLowerCase() === req.documentType.toLowerCase()) || c.id === req.documentType
+        )
+
+        if (customDoc) {
+          matchedId = customDoc.id
+          if (customDoc.header) {
+            setCustomDocTitle(customDoc.header)
+          }
+        } else {
+          const builtInLabels: Record<string, string> = {
+            "Funeral Certification": "funeral",
+            "PWD Certification (Adult)": "pwd_adult",
+            "PWD Certification (Minor)": "pwd_minor",
+            "Certificate of Indigency": "indigency",
+            "Proof of Residency": "residency",
+            "Business Clearance": "business",
+            "Business Clearance (Homeowner)": "business_homeowner",
+            "Business Clearance (Contractor)": "business_contractor",
+            "OSCA Certification": "osca"
+          }
+
+          if (builtInLabels[req.documentType]) {
+            matchedId = builtInLabels[req.documentType]
+          } else if (req.documentType.toLowerCase().includes("clearance")) {
+            matchedId = "business"
+          } else if (req.documentType.toLowerCase().includes("residency")) {
+            matchedId = "residency"
+          } else if (req.documentType.toLowerCase().includes("indigency")) {
+            matchedId = "indigency"
+          }
         }
-        
-        if (builtInLabels[req.documentType]) {
-          matchedId = builtInLabels[req.documentType]
-        } else if (req.documentType.toLowerCase().includes("clearance")) {
-          matchedId = "business"
-        } else if (req.documentType.toLowerCase().includes("residency")) {
-          matchedId = "residency"
-        } else if (req.documentType.toLowerCase().includes("indigency")) {
-          matchedId = "indigency"
-        }
-        
+
         setSelectedDocType(matchedId)
       }
     }
-  }, [searchParams, allResidents, adminDocumentRequests])
+  }, [searchParams, allResidents, adminDocumentRequests, systemConfig])
 
   const getTemplateContent = () => {
     if (!selectedResident || !selectedDocType) return ""
@@ -93,10 +104,12 @@ function GenerateDocumentsContent() {
     if (selectedDocType === "business_contractor") template = templates.business_contractor || "This is to certify that {{name}} is hereby issued Barangay Clearance for \"__________________\" entity located along {{address}} Under the territorial jurisdiction of {{barangay_name}}.\n\nThis certification is issued upon the request of the above-cited name for whatever legal purpose this is intended.\n\nCity of Manila, {{date_issued}}."
     if (selectedDocType === "osca") template = templates.osca || "This is to certify that {{name}} is bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above cited person for <strong>OSCA ID application</strong> purposes.\n\nCity of Manila, {{date_issued}}."
     if (selectedDocType === "custom_blank") template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\n[TYPE YOUR CUSTOM CONTENT HERE]\n\nCity of Manila, {{date_issued}}."
-    
+
     if (!template && templates[selectedDocType]) template = templates[selectedDocType]
+    const customDoc = (systemConfig?.customDocumentTypes || []).find((c: any) => c.id === selectedDocType)
+    if (!template && customDoc?.template) template = customDoc.template
     if (!template) template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}."
-    
+
     const docLabelMap: Record<string, string> = {
       funeral: "Funeral Certification",
       pwd_adult: "PWD Certification (Adult)",
@@ -108,14 +121,14 @@ function GenerateDocumentsContent() {
       business_contractor: "Business Clearance (Contractor)",
       osca: "OSCA Certification"
     }
-    const docLabel = docLabelMap[selectedDocType] || selectedDocType
-    const matchedReq = processingRequestId 
+    const docLabel = customDoc?.name || docLabelMap[selectedDocType] || selectedDocType
+    const matchedReq = processingRequestId
       ? adminDocumentRequests.find(r => r.id === processingRequestId)
       : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
-    
+
     const purpose = matchedReq?.purpose || "_____________"
     const age = selectedResident.age?.toString() || "___"
-    
+
     const d = new Date()
     const formatter = new Intl.DateTimeFormat('en', { day: 'numeric' })
     const day = formatter.format(d)
@@ -150,7 +163,7 @@ function GenerateDocumentsContent() {
     resolved = resolved.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     resolved = resolved.replace(/\bon\w+\s*=/gi, "data-blocked-handler=")
     resolved = resolved.replace(/javascript:/gi, "blocked-scheme:")
-    
+
     return resolved
   }
 
@@ -160,7 +173,7 @@ function GenerateDocumentsContent() {
     return s === "locked" || s === "deleted" || s === "deleted by resident"
   }
 
-  const searchResults = searchQuery.length > 1 
+  const searchResults = searchQuery.length > 1
     ? allResidents.filter(r => !isInactiveResident(r.status) && !isInactiveResident((r as any).accountStatus) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5)
     : []
 
@@ -186,13 +199,13 @@ function GenerateDocumentsContent() {
   }))
 
   const allDocTypes = [
-    ...builtInDocTypes, 
+    ...builtInDocTypes,
     ...customDocTypes
   ]
 
   const enabledDocTypes = systemConfig?.documentTypes || [
-    "Funeral Certification", "PWD Certification (Adult)", "PWD Certification (Minor)", 
-    "Certificate of Indigency", "Proof of Residency", "Business Clearance", 
+    "Funeral Certification", "PWD Certification (Adult)", "PWD Certification (Minor)",
+    "Certificate of Indigency", "Proof of Residency", "Business Clearance",
     "Business Clearance (Homeowner)", "Business Clearance (Contractor)", "OSCA Certification"
   ]
   const docTypes = allDocTypes.map(doc => ({
@@ -205,7 +218,7 @@ function GenerateDocumentsContent() {
   useEffect(() => {
     if (editorRef.current && selectedResident && selectedDocType) {
       const resolved = getTemplateContent()
-      const paragraphs = resolved.split('\n\n').map(p => 
+      const paragraphs = resolved.split('\n\n').map(p =>
         `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
       ).join('')
       editorRef.current.innerHTML = paragraphs
@@ -264,13 +277,13 @@ function GenerateDocumentsContent() {
             <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">2. Select Document Type</h3>
             <div className="space-y-2">
               {docTypes.map((doc) => (
-                <button 
-                  key={doc.id} 
+                <button
+                  key={doc.id}
                   disabled={!!processingRequestId}
-                  onClick={() => doc.enabled && setSelectedDocType(doc.id)} 
-                  className={`w-full p-3 rounded-lg text-left transition-colors border 
-                  ${doc.enabled && !processingRequestId ? 'hover:bg-slate-50 dark:bg-slate-950' : ''} 
-                  ${!doc.enabled || processingRequestId ? 'opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-950' : ''} 
+                  onClick={() => doc.enabled && setSelectedDocType(doc.id)}
+                  className={`w-full p-3 rounded-lg text-left transition-colors border
+                  ${doc.enabled && !processingRequestId ? 'hover:bg-slate-50 dark:bg-slate-950' : ''}
+                  ${!doc.enabled || processingRequestId ? 'opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-950' : ''}
                   ${selectedDocType === doc.id ? "border-[#0C2340] bg-[#0C2340]/[0.04] dark:bg-slate-800/[0.04]" : "border-slate-200 dark:border-slate-700"}`}
                 >
                   <div className="flex items-center gap-3">
@@ -319,7 +332,7 @@ function GenerateDocumentsContent() {
                     }}
                     className="px-2.5 py-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 shadow-sm ml-1"
                   >↺ Reset</button>
-                  
+
                 </div>
 
                 <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-8 shadow-sm flex flex-col min-h-[600px] overflow-hidden">
@@ -392,7 +405,7 @@ function GenerateDocumentsContent() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2 pt-2">
                   <Button
                     onClick={async () => {
@@ -442,7 +455,7 @@ function GenerateDocumentsContent() {
                         }
                         const docTitle = docTitleMap[selectedDocType] || selectedDocType
                         pdf.save(`${docTitle}_${selectedResident.name.replace(/\s+/g, "_")}.pdf`)
-                        
+
                         const docLabelMap: Record<string, string> = {
                           funeral: "Funeral Certification",
                           pwd_adult: "PWD Certification (Adult)",
@@ -455,10 +468,10 @@ function GenerateDocumentsContent() {
                           osca: "OSCA Certification"
                         }
                         const docLabel = docLabelMap[selectedDocType] || selectedDocType
-                        const pendingReq = processingRequestId 
+                        const pendingReq = processingRequestId
                           ? adminDocumentRequests.find(r => r.id === processingRequestId)
                           : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
-                        
+
                         if (pendingReq) {
                            await updateRequestGenerated(pendingReq.id)
                            toast.success("Document downloaded successfully.")
@@ -500,7 +513,7 @@ function GenerateDocumentsContent() {
                         </html>
                       `)
                       printWindow?.document.close()
-                      
+
                       const docLabelMap: Record<string, string> = {
                         funeral: "Funeral Certification",
                         pwd_adult: "PWD Certification (Adult)",
@@ -513,11 +526,11 @@ function GenerateDocumentsContent() {
                         osca: "OSCA Certification"
                       }
                       const docLabel = docLabelMap[selectedDocType] || selectedDocType
-                      
-                      const pendingReq = processingRequestId 
+
+                      const pendingReq = processingRequestId
                         ? adminDocumentRequests.find(r => r.id === processingRequestId)
                         : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
-                      
+
                       if (pendingReq) {
                          updateRequestGenerated(pendingReq.id)
                           .then(() => {
