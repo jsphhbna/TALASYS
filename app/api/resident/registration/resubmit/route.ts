@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server.js"
 import { adminAuth, adminDb } from "../../../../../lib/firebase-admin.ts"
-import { processRegistrationResubmission } from "../../../../../lib/security/registration-resubmission.ts"
+import { createCloudinaryAssetVerifier } from "../../../media/claim/route.ts"
+import {
+  processRegistrationResubmission,
+  type RegistrationResubmissionDependencies,
+} from "../../../../../lib/security/registration-resubmission.ts"
 
-export function createRegistrationResubmissionHandler(injected?: { auth?: any; db?: any }) {
+type HandlerDependencies = Partial<RegistrationResubmissionDependencies> & {
+  auth?: any
+}
+
+export function createRegistrationResubmissionHandler(injected?: HandlerDependencies) {
   return async function POST(request: Request) {
     try {
       const auth = injected?.auth || adminAuth
       const db = injected?.db || adminDb
+      const cloudName = injected?.cloudName || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || ""
 
       if (!auth || !db) {
         return NextResponse.json(
@@ -42,7 +51,21 @@ export function createRegistrationResubmissionHandler(injected?: { auth?: any; d
       }
 
       const body = await request.json().catch(() => ({}))
-      const result = await processRegistrationResubmission(body, decoded.uid, { db })
+      let verifyAsset = injected?.verifyAsset
+      if (!verifyAsset) {
+        try {
+          verifyAsset = createCloudinaryAssetVerifier()
+        } catch {
+          // If Cloudinary verification is not configured or in test mode without env keys, verifyAsset can be omitted
+        }
+      }
+
+      const result = await processRegistrationResubmission(body, decoded.uid, {
+        db,
+        cloudName,
+        now: injected?.now || Date.now,
+        verifyAsset,
+      })
 
       return NextResponse.json(result)
     } catch (error: any) {

@@ -1,4 +1,4 @@
-# TALASYS Architecture & Remediation Decisions (ADR)
+﻿# TALASYS Architecture & Remediation Decisions (ADR)
 
 ## ADR-001: Canonical Administrative Role Matrix
 - **Context**: Discrepancy existed between UI role options (`Full Access`, `Resident Management`, `Verifications`, `Document Processing`, `View Only`, `Admin`, `Super Admin`) and backend `firestore.rules` checking only a small subset, causing newly created admins to lose permissions or disappear.
@@ -155,5 +155,29 @@
   4. **Server-Gated Registration Resubmission Lifecycle**: Removed client creation of `registration` verifications and notifications from `firestore.rules`. Established `POST /api/resident/registration/resubmit` enforcing resident ownership, unverified status, existence of a prior rejected registration, and absence of active pending verifications before atomic creation of a new verification and notification. Client profile edits and reactivations remain directly allowed.
   5. **Asia/Manila Calendar Day Age Calculation**: Centralized age calculation in `resident-status.ts` using `calculateAge`, evaluating age using Asia/Manila calendar day components (UTC+8 offset) across Manila midnight, boundary dates, and Feb 29 leap years independent of server/browser host timezone.
 - **Consequences**: Eliminates orphan registrations and speculative Auth destruction; provides coherent restart/continuation after refresh/crash; closes duplicate resubmission spam; aligns age classification across client and server.
+
+## ADR-018: Protected Registration Resubmission Proof Verification, Concurrency Mutual Exclusion, and State Machine Lockdown
+
+- **Status**: Accepted; locally verified; deployment and Rules publication pending
+- **Date**: 15 October 2026
+- **Context**:
+  - The initial resubmission implementation accepted arbitrary non-empty URLs (such as `https://example.test/...`) without validating Cloudinary authenticity, authenticated delivery type, or owner namespace (R01).
+  - Checking pending verifications via query outside the transaction permitted concurrent resubmissions to race and simultaneously create duplicate pending verification records (R02).
+  - Completed resubmission operations reused `registrationOperations` without binding to `operationType`, `targetId`, and a canonical payload hash, permitting modified-payload replays or cross-operation collisions (R03).
+  - Initial check of `auth.currentUser` on mount failed to handle async session restoration from IndexedDB on refresh, causing recovery checks to silently bail out (R04).
+  - Recovered registrations falsely claimed a verification email had just been sent while displaying an empty email (R05).
+  - An unobservable `in-flight` status was advertised by the registration status endpoint (R06).
+  - Active and Expired accounts were not strictly excluded from registration resubmission (R07).
+  - `residentVerificationLocks` needed an explicit default-deny rule in `firestore.rules` (R08).
+- **Decisions**:
+  1. **Enforce Authentic Cloudinary Proofs in Resubmission**: `processRegistrationResubmission` parses each proof with `parseCloudinaryAsset`, requires `deliveryType === "authenticated"`, matches cloud identity, restricts `publicId` to `talasys/proofs/${callerUid}/` or `talasys/proofs/registration/`, checks `mediaRegistry` ownership, and enforces that all required documents from `getRequiredDocuments` matching the resident's classification are satisfied.
+  2. **Transactional Concurrency Protection via `residentVerificationLocks`**: Contend on `residentVerificationLocks/{residentId}` inside `db.runTransaction`. Two concurrent requests contend on the same lock document; exactly one succeeds, and the retried transaction sees `activeVerificationStatus === "pending"` and aborts with 409 `PENDING_VERIFICATION_EXISTS`. Approval and rejection operations update the lock status accordingly.
+  3. **Exact Canonical Idempotency Binding**: Compute `canonicalResubmissionPayloadHash(callerUid, proofs, reason)` and bind `operationType: "registration-resubmission"`, `targetId: callerUid`, and `payloadHash` in `registrationOperations`. Replaying exact payload returns 200 idempotent; changed payload returns 409 conflict.
+  4. **Async Auth Session Restoration via `onAuthStateChanged`**: Subscribe to `onAuthStateChanged` in `app/auth/register/page.tsx` to reliably recover sessions after browser refresh once IndexedDB persistence restores `currentUser`.
+  5. **Truthful Recovery UI & Populated Email**: Populate `formData.email` from `currentUser.email || data.details?.email` on recovery, and render dedicated pending-review copy without falsely claiming a new verification email was dispatched.
+  6. **Eliminate Dead `in-flight` State**: Remove `in-flight` from status types and queries in `lib/security/registration-status.ts`.
+  7. **Strict State Machine Enforcement**: Limit resubmission strictly to `status === "Pending"` and `isVerified !== true`, explicitly rejecting `Active`, `Expired`, `Locked`, and `Deleted` accounts with specific error codes.
+  8. **Firestore Rules Lockdown**: Add `match /residentVerificationLocks/{residentId} { allow read, write: if false; }` in `firestore.rules`.
+- **Consequences**: Completely stops proof spoofing and cross-user proof theft; guarantees mutual exclusion under concurrent load; provides dependable browser refresh recovery; eliminates false UI assertions.
 
 

@@ -1,15 +1,22 @@
 # TALASYS Project State
 
-## Current verified state — 15 October 2026
+## Current verified state — 15 October 2026 (R01–R08 Pass)
 
 - **Working branch**: `main`
-- **Audited baseline**: `42d41e9ac543e2e24aa0586a61bc6528d57e768e`
-- **Status**: registration recovery, auth preservation, and resubmission lifecycle hardening are fully verified. Speculative client Auth deletion is eliminated; all non-definitive errors return `committed: "unknown"` and preserve Auth. A durable, server-authoritative recovery endpoint (`GET /api/resident/registration/status`) classifies completed, incomplete, in-flight, and rejected states across browser refresh/crash. Incomplete applicants signing uploads in `/api/cloudinary/sign` are strictly confined to `talasys/proofs` and `registration/` public IDs with reserved registry records. Direct client creation of `registration` verifications/notifications is denied in `firestore.rules` and replaced with atomic server endpoint `POST /api/resident/registration/resubmit` enforcing prior rejection and single pending verification. Asia/Manila calendar day age calculation is verified across midnight, boundary days, and Feb 29 leap years.
-- **Rules state**: client creation of initial user profiles is denied; client creation of registration verifications and notifications is denied; Auth-only identities cannot forge registration verifications/notifications; existing unverified registration resubmission is routed through `/api/resident/registration/resubmit`; client profile-edit, reactivation, payment, and owner-update behavior remains emulator-verified.
-- **Verification**: unit 159/159; Auth/Firestore emulator command exit 0 with 46 declared tests (increased from 38); authenticated Chromium 24/24; both TypeScript checks pass (0 errors); lint 0 errors/779 warnings; Next.js 16.4 production build 51/51 routes; timezone suites 29/29 under UTC, Asia/Manila, and America/Los_Angeles; `git diff --check` passes cleanly.
+- **Audited baseline**: `242835a6d1aba8a31f582776f72a793ee8af23ac`
+- **Status**: Comprehensive registration and identity lifecycle audit, security hardening, and final remediation (R01–R08) are fully implemented and verified.
+  1. Proof validation in `registration-resubmission.ts` requires authentic Cloudinary assets (`talasys/proofs/${callerUid}/` or `registration/`), authenticated delivery, valid `mediaRegistry` ownership, and matches classification requirements (R01).
+  2. Transactional mutual exclusion on `residentVerificationLocks/{residentId}` prevents duplicate concurrent resubmissions (R02).
+  3. `registrationOperations` enforces `operationType: "registration-resubmission"`, `targetId`, and canonical payload hash idempotency (R03).
+  4. Client registration recovery listens to `onAuthStateChanged` rather than one-shot mount evaluation, restoring accounts smoothly after browser refresh (R04).
+  5. Recovery UI renders accurate pending-review status and accurate resident email without falsely claiming a verification email was dispatched (R05).
+  6. Dead `in-flight` status removed from `registration-status.ts` (R06).
+  7. Strict lifecycle enforcement allows only `status === "Pending"` and `isVerified !== true` to resubmit, rejecting Active, Expired, Locked, and Deleted accounts (R07).
+  8. `firestore.rules` enforces default-deny for `residentVerificationLocks/{residentId}` (R08).
+- **Rules state**: client creation of initial user profiles, registration verifications, and notifications is denied; `residentVerificationLocks` is server-only (deny all client read/write); existing unverified registration resubmission is routed through `/api/resident/registration/resubmit`.
+- **Verification metrics**: unit 159/159; Auth/Firestore emulator exit 0 with 51 declared tests (including 5 new deterministic concurrency/idempotency/lifecycle tests); authenticated Chromium 24/24; both TypeScript checks pass (0 errors); lint 0 errors/784 warnings; Next.js 16.4 production build 51/51 routes; timezone suites pass under UTC, Asia/Manila, and America/Los_Angeles; `git diff --check` passes cleanly.
 - **Evidence boundary**: local emulators and controlled provider behavior only. No production deployment, rules publication, historical migration, live account/data change, or live Cloudinary asset mutation was performed.
 - **Deployment order**: deploy and verify the application/server finalizer, recovery, and resubmission endpoints first; only then publish the tightened Firestore Rules. Neither action was performed here.
-- **Known qualification**: runtime warnings remain for typeless Node test modules, Firebase metadata lookup in the network-restricted environment, Next image LCP/scroll behavior, and Node's deprecated `module.register()`. These did not change exit status. Provider existence was tested with a controlled adapter; no live Cloudinary mutation or production-path deployment probe was run.
 
 The dated material below is historical and applies only to the revision and counts stated there.
 

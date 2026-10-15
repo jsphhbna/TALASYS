@@ -239,7 +239,19 @@ export function createFirestoreApprovalDependencies(): ApprovalCoordinatorDepend
         }
 
         const actionPrefix = operation.verificationType === "profile-edit" ? "Profile Edit" : operation.verificationType === "reactivation" ? "Reactivation" : "Verification"
-        transaction.update(residentRef, operation.profileUpdates)
+        transaction.update(residentRef, {
+          ...operation.profileUpdates,
+          hasPendingVerification: false,
+          pendingVerificationId: null,
+        })
+        const verificationLockRef = adminDb.collection("residentVerificationLocks").doc(operation.residentId)
+        transaction.set(verificationLockRef, {
+          residentId: operation.residentId,
+          activeVerificationId: operation.verificationId,
+          activeVerificationStatus: "approved",
+          approvedAt: now,
+          updatedAt: now,
+        }, { merge: true })
         transaction.update(verificationRef, {
           status: "approved",
           approvedAt: now,

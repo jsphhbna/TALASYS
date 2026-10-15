@@ -1,22 +1,33 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-15 (Registration Recovery, Auth Safety & Lifecycle Hardening)
+## Current handoff — 2026-10-15 (Comprehensive Registration & Identity Lifecycle Hardening: R01–R08)
 
-Working branch: `main`. Audited baseline: `42d41e9ac543e2e24aa0586a61bc6528d57e768e`. The delivered revision is the final synchronized `main` HEAD reported with the Git handoff; this document intentionally avoids a self-referential commit SHA.
+Working branch: `main`. Audited baseline: `242835a6d1aba8a31f582776f72a793ee8af23ac`.
 
-This repair pass addresses the remaining registration consistency, recovery, and security defects:
-1. **Unsafe Auth Deletion Eliminated**: Removed speculative client-side deletion of Firebase Auth accounts upon registration errors. HTTP errors (e.g. 400, 401, 403, 409, 503), token failures, and operation conflicts return `committed: "unknown"`, preserving the Auth identity whenever there is uncertainty.
-2. **Server-Authoritative Recovery Endpoint**: Added `GET /api/resident/registration/status` (`inspectRegistrationStatus`) to authoritatively inspect and return minimal registration classification (`completed`, `incomplete`, `in-flight`, `rejected`, `existing-resident`). Incomplete Auth identities can safely resume registration and re-upload proofs without duplicate account errors (`auth/email-already-in-use`).
-3. **Scoped Proof Signing for Incomplete Applicants**: Restricted unfinalized applicants in `/api/cloudinary/sign` strictly to `talasys/proofs` and `publicId` prefixed with `registration/` with `status: "reserved"` in `mediaRegistry`, preventing arbitrary folder uploads or broader resident upload access prior to authoritative finalization.
-4. **Hardened Registration Resubmission**: Removed direct client creation of `registration` verifications and notifications from `firestore.rules`. Established atomic server endpoint `POST /api/resident/registration/resubmit` enforcing resident ownership, unverified status, existence of a prior rejected registration, and absence of active pending verifications before creating one verification and admin notification. Client profile-edit and reactivation workflows remain intact.
-5. **Asia/Manila Calendar Day Age Calculation**: Updated `calculateAge` in `resident-status.ts` and `registration-finalization.ts` to compute resident age based on the Asia/Manila calendar day (UTC+8), ensuring identical classification at Manila midnight, the day before/after, and Feb 29 leap years regardless of the server/browser host timezone.
-6. **Registration UI/UX**: Updated `app/auth/register/page.tsx` to automatically recover registration status on mount, prevent duplicate submissions, handle email-already-in-use by prompting recovery/login, and present clear actionable status notifications without leaking sensitive server error traces.
+This comprehensive hardening and remediation pass addresses the full registration, identity, and resubmission lifecycle:
+1. **R01 (Proof Verification)**: Completely eliminated unverified proof submission in `lib/security/registration-resubmission.ts`. Enforced Cloudinary authenticated delivery type, cloud identity matching, caller publicId namespace (`talasys/proofs/${callerUid}/` or `talasys/proofs/registration/`), reservation/claim ownership in `mediaRegistry`, and strict classification-required document validation using `getRequiredDocuments`. Arbitrary URLs, foreign user assets, and mismatched classifications are strictly denied.
+2. **R02 (Concurrency Protection)**: Implemented transactionally protected mutual exclusion for concurrent resubmissions using `residentVerificationLocks/{residentId}` and `users/{residentId}`. Two concurrent submissions contend on the same lock document; exactly one commits, and the retried competitor immediately aborts with 409 `PENDING_VERIFICATION_EXISTS`.
+3. **R03 (Idempotency Binding)**: Bound `registrationOperations` records for resubmission to `(callerUid, operationId, operationType: "registration-resubmission", targetId: callerUid, payloadHash)`. Replaying exact operations returns idempotent success; replays with modified documents, reasons, or targets fail with 409 `IDEMPOTENCY_CONFLICT`.
+4. **R04 (Auth Session Restoration)**: Fixed registration recovery in `app/auth/register/page.tsx` by subscribing via `onAuthStateChanged` rather than evaluating `auth.currentUser` synchronously on mount, eliminating silent recovery failure during async IndexedDB session restoration on browser refresh.
+5. **R05 (Accurate Recovery UI)**: Replaced false claims of verification email dispatch on recovered registrations with dedicated recovery UI ("Registration Pending Review"), displaying the resident's accurate email populated from Auth/Firestore.
+6. **R06 (Status Classification)**: Removed fabricated, unobservable `in-flight` state from `lib/security/registration-status.ts`, ensuring all advertised states correspond to genuine authoritative persistence.
+7. **R07 (Lifecycle State Machine)**: Strictly gated resubmission to accounts in `status === "Pending"` with `isVerified !== true`. Explicitly rejected `Active`, `Expired`, `Locked`, and `Deleted` accounts with specific error codes.
+8. **R08 (Rules Lockdown)**: Added explicit server-only default-deny security rule for `match /residentVerificationLocks/{residentId} { allow read, write: if false; }` in `firestore.rules`.
+9. Added dedicated deterministic concurrency, idempotency, lifecycle, and proof security test suite in `test/emulator/registration-resubmission-concurrency.test.ts`.
 
-Evidence is provided by 159 unit/integration tests, 46 declared Auth/Firestore emulator tests (exit 0), 24 authenticated Chromium workflows, both TypeScript checks (0 errors), ESLint (0 errors; 779 warnings), a 51-route production build, and 29 timezone tests in each of UTC, Asia/Manila, and America/Los_Angeles. Named production-path regressions are recorded in `docs/EVIDENCE_LEDGER.md` (E51).
+Evidence is provided by:
+- 159 unit tests (PASS)
+- 51 Auth/Firestore emulator tests (PASS, exit 0, up from 46)
+- 24 authenticated Playwright Chromium E2E tests (PASS)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 784 warnings)
+- Production build (51/51 routes successfully generated)
+- Timezone matrix (3 x 159 tests under UTC, Asia/Manila, America/Los_Angeles)
+- Clean `git diff --check`
 
-No deployment, Firebase Rules publication, historical migration, live account/data change, or live Cloudinary asset mutation was performed. `.env.local` values were neither printed nor staged. Controlled adapters and local emulators are not evidence of live-provider availability.
+No production deployment, Firebase Rules publication, live account/data mutation, or live Cloudinary asset mutation was performed.
 
-Deployment order is mandatory: deploy and verify the application/server finalizer, recovery, and resubmission endpoints first, then publish the tightened Firestore Rules. Publishing Rules first would block the resubmission path before the server endpoint is deployed.
+Deployment order is mandatory: deploy and verify the application/server finalizer, recovery, and resubmission endpoints first, then publish the tightened Firestore Rules.
 
 The prior handoff below is retained as historical context and must not be used for current test counts.
 

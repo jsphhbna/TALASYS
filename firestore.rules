@@ -264,6 +264,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /residentVerificationLocks/{residentId} {
+      allow read, write: if false;
+    }
+
     // ==============================================================
     // SYSTEM ALERTS & SYSTEM CONFIG
     // ==============================================================

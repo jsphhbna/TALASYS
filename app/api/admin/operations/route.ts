@@ -107,7 +107,24 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       after = { status: "rejected", rejectionReason: reason, rejectedAt: now, rejectedBy: actor.name, rejectedByUid: actor.uid }
       transaction.update(targetRef, after)
       const residentId = before.residentId || before.userId
-      if (residentId) notification = { id: `verification-rejected-${operationDocumentId(operationId)}`, value: { targetId: residentId, type: "error", title: "Verification Rejected", message: `Your verification was rejected: ${reason}`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
+      if (residentId) {
+        notification = { id: `verification-rejected-${operationDocumentId(operationId)}`, value: { targetId: residentId, type: "error", title: "Verification Rejected", message: `Your verification was rejected: ${reason}`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
+        const residentLockRef = db.collection("residentVerificationLocks").doc(residentId)
+        transaction.set(residentLockRef, {
+          residentId,
+          activeVerificationId: targetRef.id,
+          activeVerificationStatus: "rejected",
+          rejectionReason: reason,
+          rejectedAt: now,
+          updatedAt: now,
+        }, { merge: true })
+        const residentUserRef = db.collection(COLLECTION_USERS).doc(residentId)
+        transaction.set(residentUserRef, {
+          hasPendingVerification: false,
+          pendingVerificationId: null,
+          updatedAt: now,
+        }, { merge: true })
+      }
     } else if (operation === "request.updateStatus") {
       if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
         throw httpError(`Cannot transition request out of terminal state '${before.status}'.`, 409)

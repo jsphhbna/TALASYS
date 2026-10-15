@@ -1,27 +1,29 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18 & R01–R08)
 
-## Registration Recovery, Auth Safety & Security Hardening — current pass
+## Comprehensive Registration & Identity Lifecycle Hardening — current pass (R01–R08)
 
-- **Status**: COMPLETED on `main` from synchronized baseline `42d41e9ac543e2e24aa0586a61bc6528d57e768e`.
+- **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from baseline `242835a6d1aba8a31f582776f72a793ee8af23ac`.
 - **Delivered scope**:
-  1. Closed critical defect where `committed:false` was equated with permission to delete Auth. Eliminated speculative client-side Auth deletion across `registration-finalization-client.ts` and `local-storage-store.ts`. Auth is preserved whenever uncertainty exists (`committed: "unknown"`).
-  2. Implemented durable, server-authoritative registration recovery workflow surviving browser refresh/crash via `GET /api/resident/registration/status` (`inspectRegistrationStatus`), supporting incomplete Auth-only continuation, and strictly scoping incomplete authenticated proof uploads in `/api/cloudinary/sign` to `talasys/proofs` prefixed with `registration/`.
-  3. Hardened registration-resubmission authorization via server-controlled endpoint `POST /api/resident/registration/resubmit` enforcing exact lifecycle transitions (unverified, resident owner, prior rejected registration, no active pending verification, atomic verification + notification creation); tightened `firestore.rules` by removing client creation of registration verifications and notifications while preserving profile-edit, reactivation, and payment workflows.
-  4. Fixed Asia/Manila birthday and age classification across server finalizer and client status helpers (`calculateAge` in `resident-status.ts` and `ageAt` in `registration-finalization.ts`), evaluating against Asia/Manila calendar days independent of host timezone.
-  5. Refined registration UI and recovery UX (`app/auth/register/page.tsx`) to check existing registration status on mount, prevent duplicate submissions, handle email-already-in-use and ambiguous commit errors, and guide users actionably.
-  6. Added comprehensive regression suite in `test/emulator/registration-recovery-and-resubmission.test.ts` (46 declared emulator tests, up from 38) and updated client tests; executed full verification suite (159 unit tests, 46 emulator tests, 24 authenticated Chromium E2E, both typechecks, lint, 51-route production build, and 3-timezone test matrix).
-- **Explicit exclusions**: no deployment, Firebase Rules publication, historical migration, production account/data mutation, live Cloudinary asset mutation/deletion, branch creation, rebase/reset, or force push.
-- **Core invariant**: no request may delete a Firebase Auth user whose registration has already committed or may still commit; interrupted registrations retain a secure, coherent recovery route; registration resubmission is strictly lifecycle-gated.
-- **Rollback boundary**: reversible source, test, and document changes only. Application deployment must precede later Rules publication; neither occurs in this task.
+  1. **R01 (Proof Verification)**: Completely eliminated unverified proof submission in `lib/security/registration-resubmission.ts`. Enforced Cloudinary authenticated delivery type, cloud identity matching, caller publicId namespace (`talasys/proofs/${callerUid}/` or `talasys/proofs/registration/`), reservation/claim ownership in `mediaRegistry`, and strict classification-required document validation using `getRequiredDocuments`.
+  2. **R02 (Concurrency Protection)**: Implemented transactionally protected mutual exclusion for concurrent resubmissions using `residentVerificationLocks/{residentId}` and `users/{residentId}`. Two concurrent submissions contend on the same lock document; exactly one commits, and the retried competitor immediately aborts with 409 `PENDING_VERIFICATION_EXISTS`.
+  3. **R03 (Idempotency Binding)**: Bound `registrationOperations` records for resubmission to `(callerUid, operationId, operationType: "registration-resubmission", targetId: callerUid, payloadHash)`. Replaying exact operations returns idempotent success; replays with modified documents, reasons, or targets fail with 409 `IDEMPOTENCY_CONFLICT`.
+  4. **R04 (Auth Session Restoration)**: Fixed registration recovery in `app/auth/register/page.tsx` by subscribing via `onAuthStateChanged` rather than evaluating `auth.currentUser` synchronously on mount, eliminating silent recovery failure during async IndexedDB session restoration on browser refresh.
+  5. **R05 (Accurate Recovery UI)**: Replaced false claims of verification email dispatch on recovered registrations with dedicated recovery UI ("Registration Pending Review"), displaying the resident's accurate email populated from Auth/Firestore.
+  6. **R06 (Status Classification)**: Removed fabricated, unobservable `in-flight` state from `lib/security/registration-status.ts`, ensuring all advertised states correspond to genuine authoritative persistence.
+  7. **R07 (Lifecycle State Machine)**: Strictly gated resubmission to accounts in `status === "Pending"` with `isVerified !== true`. Explicitly rejected `Active`, `Expired`, `Locked`, and `Deleted` accounts with specific error codes.
+  8. **R08 (Rules Lockdown)**: Added explicit server-only default-deny security rule for `match /residentVerificationLocks/{residentId} { allow read, write: if false; }` in `firestore.rules`.
+  9. Added comprehensive deterministic concurrency, idempotency, lifecycle, and proof security test suite in `test/emulator/registration-resubmission-concurrency.test.ts`.
 
-| Milestone | Current status | Required evidence |
+| Milestone | Status | Verified Evidence |
 |---|---|---|
-| RR1: Auth preservation & safe error contract | COMPLETED | Route and client regressions proving Auth is preserved on lookup failure, token failure, idempotency conflict, provider failure, and preflight denial (`committed: "unknown"`) |
-| RR2: Registration status & recovery endpoint | COMPLETED | Authenticated `/api/resident/registration/status` endpoint, `/api/cloudinary/sign` scoped incomplete upload authorization, refresh/crash recovery tests |
-| RR3: Hardened registration resubmission | COMPLETED | Server resubmission route `POST /api/resident/registration/resubmit`, `firestore.rules` client denial for registration verifications/notifications, lifecycle transition tests |
-| RR4: Asia/Manila birthday classification | COMPLETED | Manila calendar day age calculation in `resident-status.ts` and `registration-finalization.ts`, Manila midnight and Feb 29 tests, three-timezone test matrix |
-| RR5: Registration UI & recovery UX | COMPLETED | Actionable recovery UI in `app/auth/register/page.tsx`, error classification, duplicate submission prevention |
-| RR6: Full verification, evidence & sync | COMPLETED | Unit (159/159), emulator (46/46), E2E (24/24), typechecks (0 errors), lint (0 errors), build (51/51 routes), three-timezone matrix (29/29), clean git diff check, push to `main` |
+| M-R01: Protected Proof Validation | VERIFIED | `parseCloudinaryAsset`, `mediaRegistry` ownership, and document requirements enforced; arbitrary URLs, foreign assets, and unauthenticated delivery rejected in emulator tests. |
+| M-R02: Resubmission Mutual Exclusion | VERIFIED | Firestore transaction contention on `residentVerificationLocks` and `users`; verified with controlled `Promise.all` concurrency race (exactly one 200 winner, competitor 409). |
+| M-R03: Exact Canonical Idempotency | VERIFIED | `canonicalResubmissionPayloadHash`, `operationType` binding, exact replay returns 200 idempotent; changed payload returns 409 conflict. |
+| M-R04 & M-R05: Auth Recovery & Truthful UI | VERIFIED | `onAuthStateChanged` session restoration, email populated on recovery, truthful pending-review state rendered without false email dispatch claims. |
+| M-R06 & M-R07: State Machine & Rules Lockdown | VERIFIED | Dead `in-flight` status eliminated; `residentVerificationLocks` default-denied in `firestore.rules`; lifecycle rejection matrix verified in emulator tests. |
+| M-R08: Complete Verification Suite | VERIFIED | Unit (159/159), Emulator/Rules (51/51), E2E Authenticated Chromium (24/24), TypeScript app/test (0 errors), ESLint (0 errors), Build (51/51 routes), Timezone matrix (3 x 159 tests). |
+
+## Registration Recovery, Auth Safety & Security Hardening — historical pass
 
 ### Initial-registration atomicity hardening — historical pass (42d41e9)
 

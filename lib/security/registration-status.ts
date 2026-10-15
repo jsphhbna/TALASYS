@@ -3,7 +3,6 @@ import { registrationOperationDocumentId } from "./registration-finalization.ts"
 export type RegistrationStatusType =
   | "completed"
   | "incomplete"
-  | "in-flight"
   | "rejected"
   | "existing-resident"
 
@@ -43,15 +42,6 @@ export async function inspectRegistrationStatus(
       if (opData.status === "completed") {
         return {
           status: "completed",
-          uid: callerUid,
-          email: authEmail,
-          emailVerified,
-          operationId,
-        }
-      }
-      if (opData.status === "in-progress" || opData.status === "pending") {
-        return {
-          status: "in-flight",
           uid: callerUid,
           email: authEmail,
           emailVerified,
@@ -164,15 +154,6 @@ export async function inspectRegistrationStatus(
     if (opData.status === "completed") {
       return {
         status: "completed",
-        uid: callerUid,
-        email: authEmail,
-        emailVerified,
-        operationId: opData.operationId,
-      }
-    }
-    if (opData.status === "in-progress" || opData.status === "pending") {
-      return {
-        status: "in-flight",
         uid: callerUid,
         email: authEmail,
         emailVerified,

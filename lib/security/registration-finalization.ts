@@ -198,7 +198,12 @@ export async function finalizeResidentRegistration(
   const existingOperation = await operationRef.get()
   if (existingOperation.exists) {
     const existing = existingOperation.data() || {}
-    if (existing.uid !== callerUid || existing.operationId !== operationId || existing.payloadHash !== payloadHash) {
+    if (
+      existing.uid !== callerUid ||
+      existing.operationId !== operationId ||
+      existing.payloadHash !== payloadHash ||
+      (existing.operationType && existing.operationType !== "registration-finalization")
+    ) {
       throw registrationHttpError("This registration operation was already used with different data.", 409, "IDEMPOTENCY_CONFLICT", "unknown")
     }
     if (existing.status !== "completed") {
@@ -234,7 +239,12 @@ export async function finalizeResidentRegistration(
     const operationSnapshot = await transaction.get(operationRef)
     if (operationSnapshot.exists) {
       const existing = operationSnapshot.data() || {}
-      if (existing.uid !== callerUid || existing.operationId !== operationId || existing.payloadHash !== payloadHash) {
+      if (
+        existing.uid !== callerUid ||
+        existing.operationId !== operationId ||
+        existing.payloadHash !== payloadHash ||
+        (existing.operationType && existing.operationType !== "registration-finalization")
+      ) {
         throw registrationHttpError("This registration operation was already used with different data.", 409, "IDEMPOTENCY_CONFLICT", "unknown")
       }
       if (existing.status !== "completed") {
@@ -277,6 +287,8 @@ export async function finalizeResidentRegistration(
       accountExpiry: "",
       isVerified: false,
       profilePicture: "",
+      pendingVerificationId: verificationRef.id,
+      hasPendingVerification: true,
       createdAt: now,
       firstName: resident.firstName,
       lastName: resident.lastName,
@@ -320,6 +332,8 @@ export async function finalizeResidentRegistration(
     transaction.create(operationRef, {
       uid: callerUid,
       operationId,
+      operationType: "registration-finalization",
+      targetId: callerUid,
       payloadHash,
       status: "completed",
       userId: callerUid,
@@ -328,6 +342,15 @@ export async function finalizeResidentRegistration(
       proofRegistryIds: assets.map(asset => asset.registryId),
       createdAt: now,
       completedAt: now,
+    })
+    const lockRef = dependencies.db.collection("residentVerificationLocks").doc(callerUid)
+    transaction.set(lockRef, {
+      residentId: callerUid,
+      activeVerificationId: verificationRef.id,
+      activeVerificationStatus: "pending",
+      lastOperationId: operationId,
+      createdAt: now,
+      updatedAt: now,
     })
     return { idempotent: false }
     })

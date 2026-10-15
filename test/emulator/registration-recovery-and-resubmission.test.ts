@@ -120,8 +120,31 @@ function statusHandler(overrides: {
   })
 }
 
+function residentProofUrl(uid: string, id: string, cloud = cloudName) {
+  return `https://res.cloudinary.com/${cloud}/image/authenticated/v1/talasys/proofs/${uid}/${id}.jpg`
+}
+
+function residentRegistryId(uid: string, id: string, cloud = cloudName) {
+  return mediaRegistryDocumentId(cloud, "image", `talasys/proofs/${uid}/${id}`)
+}
+
+async function reserveResidentProof(uid: string, id: string, overrides: Record<string, unknown> = {}) {
+  await adminDb.collection("mediaRegistry").doc(residentRegistryId(uid, id)).set({
+    cloudName,
+    resourceType: "image",
+    deliveryType: "authenticated",
+    publicId: `talasys/proofs/${uid}/${id}`,
+    ownerUid: uid,
+    status: "claimed",
+    createdAt: Date.now(),
+    testSuite: "recovery-resubmission",
+    ...overrides,
+  })
+}
+
 function resubmitHandler(overrides: {
   verifyIdToken?: (token: string, checkRevoked: boolean) => Promise<any>
+  verifyAsset?: (asset: any) => Promise<void>
 } = {}) {
   return createRegistrationResubmissionHandler({
     auth: {
@@ -132,6 +155,9 @@ function resubmitHandler(overrides: {
       }),
     },
     db: adminDb,
+    cloudName,
+    now: Date.now,
+    verifyAsset: overrides.verifyAsset || (async () => {}),
   })
 }
 
@@ -391,12 +417,17 @@ test("Issue 2: Cloudinary sign route grants incomplete registration applicants s
 
 test("Issue 3: POST /api/resident/registration/resubmit enforces lifecycle rules and prevents duplicate pending requests", async () => {
   const identity = await createIdentity("resubmit-test")
+  const proofId = randomUUID()
+  await reserveResidentProof(identity.uid, proofId)
+  const validProof = { name: "Valid Government ID", url: residentProofUrl(identity.uid, proofId) }
+
   await adminDb.collection("users").doc(identity.uid).set({
     name: "Maria Santos",
     initials: "MS",
     email: identity.email,
     role: "resident",
     status: "Pending",
+    statuses: ["Adult"],
     isVerified: false,
     dateOfBirth: "1995-05-15",
   })
@@ -406,10 +437,12 @@ test("Issue 3: POST /api/resident/registration/resubmit enforces lifecycle rules
     method: "POST",
     headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      proofs: [{ name: "Valid ID", url: "https://example.test/id.jpg" }],
+      proofs: [validProof],
     }),
   }))
   assert.equal(noRejectRes.status, 400)
+  const noRejectJson = await noRejectRes.json()
+  assert.equal(noRejectJson.code, "NOT_ELIGIBLE_FOR_RESUBMISSION")
 
   // 2. Set prior rejected verification
   const priorVRef = adminDb.collection("verifications").doc(`rejected-${identity.uid}`)
@@ -422,12 +455,34 @@ test("Issue 3: POST /api/resident/registration/resubmit enforces lifecycle rules
     createdAt: Date.now() - 10000,
   })
 
-  // 3. Resubmission succeeds
+  // 2b. Attempt resubmission with arbitrary external URL -> rejected with 403
+  const fakeUrlRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      proofs: [{ name: "Valid Government ID", url: "https://example.test/id.jpg" }],
+    }),
+  }))
+  assert.equal(fakeUrlRes.status, 403)
+
+  // 2c. Attempt resubmission with another user's proof -> rejected with 403
+  const foreignProofId = randomUUID()
+  const foreignUrl = `https://res.cloudinary.com/${cloudName}/image/authenticated/v1/talasys/proofs/victim-user-123/${foreignProofId}.jpg`
+  const foreignRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      proofs: [{ name: "Valid Government ID", url: foreignUrl }],
+    }),
+  }))
+  assert.equal(foreignRes.status, 403)
+
+  // 3. Resubmission succeeds with valid owned Cloudinary proof
   const successRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
     method: "POST",
     headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      proofs: [{ name: "Valid ID", url: "https://example.test/new-id.jpg" }],
+      proofs: [validProof],
       reason: "Uploaded clearer photo",
     }),
   }))
@@ -443,22 +498,24 @@ test("Issue 3: POST /api/resident/registration/resubmit enforces lifecycle rules
   assert.equal(newV.data()?.type, "registration")
 
   // 4. Attempt duplicate resubmission while pending -> rejected with 409
+  const duplicateProofId = randomUUID()
+  await reserveResidentProof(identity.uid, duplicateProofId)
   const duplicateRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
     method: "POST",
     headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      proofs: [{ name: "Valid ID", url: "https://example.test/another-id.jpg" }],
+      proofs: [{ name: "Valid Government ID", url: residentProofUrl(identity.uid, duplicateProofId) }],
     }),
   }))
   assert.equal(duplicateRes.status, 409)
 
   // 5. Approved resident cannot resubmit registration
-  await adminDb.collection("users").doc(identity.uid).update({ isVerified: true })
+  await adminDb.collection("users").doc(identity.uid).update({ isVerified: true, status: "Active" })
   const approvedRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
     method: "POST",
     headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      proofs: [{ name: "Valid ID", url: "https://example.test/new-id.jpg" }],
+      proofs: [validProof],
     }),
   }))
   assert.equal(approvedRes.status, 400)

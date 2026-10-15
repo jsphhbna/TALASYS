@@ -85,6 +85,7 @@ export default function RegisterPage() {
   const [isCompleting, setIsCompleting] = useState(false)
   const [uploadedProofs, setUploadedProofs] = useState<ResidentProofDocument[]>([])
   const [verificationEmailSent, setVerificationEmailSent] = useState(true)
+  const [isRecoveredRegistration, setIsRecoveredRegistration] = useState(false)
   const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null)
   const registrationOperationId = useRef<string | null>(
     typeof window !== "undefined" ? sessionStorage.getItem("talasys_reg_op_id") : null,
@@ -93,39 +94,54 @@ export default function RegisterPage() {
 
   useEffect(() => {
     let isMounted = true
-    const checkRecovery = async () => {
+    let unsubscribe: (() => void) | undefined
+
+    const initAuthRecovery = async () => {
       try {
         const { auth } = await import("@/lib/firebase")
-        const currentUser = auth.currentUser
-        if (!currentUser) return
-        const token = await currentUser.getIdToken()
-        const storedOpId = typeof window !== "undefined" ? sessionStorage.getItem("talasys_reg_op_id") : null
-        const res = await fetch(`/api/resident/registration/status${storedOpId ? `?operationId=${storedOpId}` : ""}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        if (!isMounted) return
-        if (data.status === "completed") {
-          setStep(3)
-          setVerificationEmailSent(true)
-        } else if (data.status === "incomplete") {
-          if (currentUser.email) {
-            setFormData((prev) => ({ ...prev, email: currentUser.email || prev.email }))
+        const { onAuthStateChanged } = await import("firebase/auth")
+
+        unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+          if (!currentUser || !isMounted) return
+          try {
+            const token = await currentUser.getIdToken()
+            const storedOpId = typeof window !== "undefined" ? sessionStorage.getItem("talasys_reg_op_id") : null
+            const res = await fetch(`/api/resident/registration/status${storedOpId ? `?operationId=${storedOpId}` : ""}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!res.ok || !isMounted) return
+            const data = await res.json()
+            if (!isMounted) return
+
+            const resolvedEmail = currentUser.email || data.details?.email || ""
+            if (resolvedEmail) {
+              setFormData((prev) => ({ ...prev, email: resolvedEmail }))
+            }
+
+            if (data.status === "completed") {
+              setIsRecoveredRegistration(true)
+              setVerificationEmailSent(Boolean(currentUser.emailVerified))
+              setStep(3)
+            } else if (data.status === "incomplete") {
+              setRecoveryNotice("Incomplete registration detected. You can resume uploading your documents to complete your account.")
+            } else if (data.status === "rejected") {
+              setRecoveryNotice(
+                `Your previous registration was rejected: ${data.details?.rejectionReason || "Please review requirements"}. Please log in to resubmit with updated documents.`,
+              )
+            }
+          } catch {
+            // Silently ignore background recovery check failures
           }
-          setRecoveryNotice("Incomplete registration detected. You can resume uploading your documents to complete your account.")
-        } else if (data.status === "rejected") {
-          setRecoveryNotice(
-            `Your previous registration was rejected: ${data.details?.rejectionReason || "Please review requirements"}. Please log in to resubmit with updated documents.`,
-          )
-        }
+        })
       } catch {
-        // Silently ignore background recovery check failures on mount
+        // Silently ignore auth initialization errors
       }
     }
-    checkRecovery()
+
+    initAuthRecovery()
     return () => {
       isMounted = false
+      if (unsubscribe) unsubscribe()
     }
   }, [])
 
@@ -384,6 +400,7 @@ export default function RegisterPage() {
             })
             const data = await res.json().catch(() => ({}))
             if (data.status === "completed") {
+              setIsRecoveredRegistration(true)
               setStep(3)
               return
             } else if (data.status === "incomplete") {
@@ -403,6 +420,7 @@ export default function RegisterPage() {
       return
     }
 
+    setIsRecoveredRegistration(false)
     showToastPreset("registrationCompleted")
     setIsCompleting(false)
     setStep(3)
@@ -480,18 +498,28 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-3">
                 <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200">
-                  Verify Your Account
+                  {isRecoveredRegistration ? "Registration Pending Review" : "Verify Your Account"}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-                  {verificationEmailSent ? "We've sent" : "We couldn't send"} a verification link to <span className="font-semibold text-slate-900 dark:text-white break-all">{formData.email}</span>.
-                  <br /><br />
-                  {verificationEmailSent
-                    ? "Please click the link in the email to verify your account before logging in."
-                    : "Your account and documents are safely registered. Sign in from the login page to trigger a new verification email."}
-                  <br /><br />
-                  <span className="text-xs italic text-slate-500 dark:text-slate-500">
-                    If you don't see the email, please check your spam or junk folder.
-                  </span>
+                  {isRecoveredRegistration ? (
+                    <>
+                      Your registration for <span className="font-semibold text-slate-900 dark:text-white break-all">{formData.email}</span> has already been submitted and is currently pending administrator verification.
+                      <br /><br />
+                      If you haven't verified your email yet, please check your inbox for the verification link. You can sign in once your account is reviewed.
+                    </>
+                  ) : (
+                    <>
+                      {verificationEmailSent ? "We've sent" : "We couldn't send"} a verification link to <span className="font-semibold text-slate-900 dark:text-white break-all">{formData.email}</span>.
+                      <br /><br />
+                      {verificationEmailSent
+                        ? "Please click the link in the email to verify your account before logging in."
+                        : "Your account and documents are safely registered. Sign in from the login page to trigger a new verification email."}
+                      <br /><br />
+                      <span className="text-xs italic text-slate-500 dark:text-slate-500">
+                        If you don't see the email, please check your spam or junk folder.
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
               
