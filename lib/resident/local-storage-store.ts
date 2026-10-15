@@ -13,7 +13,12 @@ import {
   type ResidentProofDocument,
   type MasterStorage,
 } from "../master-store"
-import { RESIDENT_SESSION_STORAGE_KEY, ACCOUNT_EXPIRY_DAYS } from "../constants"
+import { RESIDENT_SESSION_STORAGE_KEY } from "../constants"
+import {
+  callRegistrationFinalizer,
+  completeFreshRegistration,
+  type RegistrationFinalizationPayload,
+} from "./registration-finalization-client"
 
 // ─── Re-exported Types for Backwards Compatibility ───
 
@@ -39,6 +44,7 @@ export interface CreateResidentAccountInput {
   street?: string
   barangay?: string
   city?: string
+  operationId?: string
 }
 
 export interface CreateResidentRequestInput {
@@ -130,31 +136,67 @@ export const findResidentByEmail = (email: string) => {
  * to fire and attempt to load their profile before Firestore writes finish,
  * resulting in permission-denied race condition errors.
  */
+const freshRegistrationUids = new Set<string>()
+
 export const registerResidentAccount = async (input: CreateResidentAccountInput) => {
-  const { auth, db } = await import("@/lib/firebase")
-  const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth")
-  const { doc, setDoc, addDoc, collection } = await import("firebase/firestore")
-
+  const { auth } = await import("@/lib/firebase")
+  const { createUserWithEmailAndPassword, updateProfile, sendEmailVerification, signOut } = await import("firebase/auth")
+  const { preRegistrationClaimTokens } = await import("./cloudinary")
   const normalizedEmail = input.email.trim().toLowerCase()
+  const existingFreshUser = auth.currentUser &&
+    auth.currentUser.email?.trim().toLowerCase() === normalizedEmail &&
+    freshRegistrationUids.has(auth.currentUser.uid)
+      ? auth.currentUser
+      : null
+  const user = existingFreshUser || (await createUserWithEmailAndPassword(auth, normalizedEmail, input.password)).user
+  freshRegistrationUids.add(user.uid)
 
-  const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, input.password)
-  await updateProfile(userCredential.user, { displayName: input.name.trim() })
-  
-  const { sendEmailVerification } = await import("firebase/auth")
   try {
-    await sendEmailVerification(userCredential.user)
-  } catch (verificationEmailError) {
-    console.error("Failed to send verification email during registration (uid:", userCredential.user.uid, "):", verificationEmailError)
-  }
-
-  const newUserId = userCredential.user.uid
-  
-  try {
-    const { writeBatch } = await import("firebase/firestore")
-    const batch = writeBatch(db)
+    if (!existingFreshUser) await updateProfile(user, { displayName: input.name.trim() })
+    const proofs = input.proofs.filter(proof => typeof proof.url === "string" && proof.url)
+    const finalizationProofs = proofs.map(proof => {
+      const claimToken = preRegistrationClaimTokens.get(proof.url as string)
+      if (!claimToken) throw new Error(`The upload capability for ${proof.name} is missing. Upload the document again.`)
+      return {
+        name: proof.name,
+        filename: proof.filename,
+        url: proof.url as string,
+        uploadDate: proof.uploadDate,
+        claimToken,
+      }
+    })
+    const payload: RegistrationFinalizationPayload = {
+      operationId: input.operationId || crypto.randomUUID(),
+      resident: {
+        firstName: input.firstName || "",
+        lastName: input.lastName || "",
+        middleInitial: input.middleInitial || "",
+        email: normalizedEmail,
+        gender: input.gender,
+        dateOfBirth: input.dateOfBirth,
+        contactNumber: input.contactNumber,
+        street: input.street || "",
+        barangay: input.barangay || "",
+        city: input.city || "",
+        statuses: input.statuses,
+      },
+      proofs: finalizationProofs,
+    }
+    const idToken = await user.getIdToken()
+    const completion = await completeFreshRegistration({
+      finalize: () => callRegistrationFinalizer(fetch, idToken, payload),
+      deleteFreshAuth: async () => {
+        await user.delete()
+        freshRegistrationUids.delete(user.uid)
+      },
+      sendVerificationEmail: () => sendEmailVerification(user),
+      signOut: () => signOut(auth),
+    })
+    for (const proof of proofs) preRegistrationClaimTokens.delete(proof.url as string)
+    freshRegistrationUids.delete(user.uid)
 
     const residentUser: AuthUser = {
-      id: newUserId,
+      id: user.uid,
       name: input.name.trim(),
       email: normalizedEmail,
       initials: getInitials(input.name),
@@ -167,7 +209,7 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
       address: input.address,
       accountExpiry: "",
       isVerified: false,
-      profilePicture: input.profilePicture || "",
+      profilePicture: "",
       createdAt: Date.now(),
       firstName: input.firstName,
       lastName: input.lastName,
@@ -176,80 +218,13 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
       barangay: input.barangay,
       city: input.city,
     }
-
-    const userDocRef = doc(db, "users", newUserId)
-    batch.set(userDocRef, residentUser)
-
-    // Cross-module sync: push verification record to admin queue atomically (#61, A01, A04)
-    batch.set(doc(db, "verifications", newUserId), {
-      residentId: newUserId,
-      userId: newUserId,
-      name: input.name.trim(),
-      initials: getInitials(input.name),
-      type: "registration",
-      submittedDate: formatDateDisplay(new Date()),
-      categories: input.statuses,
-      gender: input.gender,
-      age: input.dateOfBirth ? Math.floor((new Date().getTime() - new Date(input.dateOfBirth).getTime()) / 31557600000) : 0,
-      address: input.address,
-      contactNumber: input.contactNumber,
-      email: normalizedEmail,
-      dateOfBirth: input.dateOfBirth,
-      documents: input.proofs.map(proof => ({ name: proof.name, status: "pending", uploadDate: proof.uploadDate, url: proof.url || "" })),
-      status: "pending",
-      createdAt: Date.now()
-    })
-
-    const adminNotifRef = doc(db, "notifications", `reg-${newUserId}`)
-    batch.set(adminNotifRef, {
-      targetId: "admin",
-      type: "registration",
-      title: "New Resident Registration",
-      message: `${input.name.trim()} has registered and requires verification.`,
-      timestamp: "Just now",
-      isRead: false,
-      createdAt: Date.now(),
-      residentName: input.name.trim(),
-      actionUrl: "/admin/verifications"
-    })
-
-    // Commit all records atomically (#61)
-    await batch.commit()
-
-    const { sendEmailVerification, signOut } = await import("firebase/auth")
-    try {
-      await sendEmailVerification(userCredential.user)
-    } catch (verificationEmailError) {
-      console.error("Failed to send verification email during registration (uid:", userCredential.user.uid, "):", verificationEmailError)
-    }
-
-    // Claim every uploaded proof before reporting registration completion. A
-    // missing/expired reservation is an incomplete registration, not a warning.
-    const uploadedProofs = input.proofs.filter(proof => !!proof.url)
-    if (uploadedProofs.length > 0) {
-      const idToken = await userCredential.user.getIdToken()
-      const { preRegistrationClaimTokens } = await import("./cloudinary")
-      const claims = uploadedProofs.map(proof => ({
-        mediaUrl: proof.url,
-        claimToken: preRegistrationClaimTokens.get(proof.url as string)
-      }))
-      const { claimRegistrationMedia } = await import("./media-claim-client")
-      await claimRegistrationMedia(fetch, idToken, claims)
-      for (const proof of uploadedProofs) preRegistrationClaimTokens.delete(proof.url as string)
-    }
-
-    // Sign out after all writes complete
-    await signOut(auth)
-
-    return residentUser
-  } catch (firestoreError) {
-    console.error("Resident registration did not complete; attempting compensating cleanup:", firestoreError)
-    try {
-      await userCredential.user.delete()
-    } catch (deleteError) {
-      console.error("Failed to rollback created Firebase Auth user:", deleteError)
-    }
-    throw firestoreError
+    return { ...residentUser, verificationEmailSent: completion.verificationEmailSent }
+  } catch (error) {
+    if (!freshRegistrationUids.has(user.uid)) throw error
+    if (error instanceof Error && error.name === "RegistrationFinalizationError") throw error
+    try { await user.delete() } catch { /* the caller still receives the original pre-request failure */ }
+    freshRegistrationUids.delete(user.uid)
+    throw error
   }
 }
 

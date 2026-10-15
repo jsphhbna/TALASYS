@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -84,6 +84,8 @@ export default function RegisterPage() {
   const [isContinuing, setIsContinuing] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const [uploadedProofs, setUploadedProofs] = useState<ResidentProofDocument[]>([])
+  const [verificationEmailSent, setVerificationEmailSent] = useState(true)
+  const registrationOperationId = useRef<string | null>(null)
   const [countdown, setCountdown] = useState(10)
 
   useEffect(() => {
@@ -195,6 +197,8 @@ export default function RegisterPage() {
       contactValid &&
       formData.contactNumber.trim() !== "" &&
       formData.street.trim() !== "" &&
+      formData.barangay.trim() !== "" &&
+      formData.city.trim() !== "" &&
       formData.statuses.length > 0 &&
       emailValid &&
       passwordValid &&
@@ -250,10 +254,10 @@ export default function RegisterPage() {
     await delay(800)
 
     // #47: Upload documents to Cloudinary — required proofs must have durable URLs
-    const finalProofs: ResidentProofDocument[] = []
+    const finalProofs: ResidentProofDocument[] = uploadedProofs.length > 0 ? uploadedProofs : []
     const failedUploads: string[] = []
 
-    for (const [index, [field, file]] of Object.entries(uploadedFiles).filter(([, file]) => Boolean(file)).entries()) {
+    for (const [index, [field, file]] of (uploadedProofs.length > 0 ? [] : Object.entries(uploadedFiles).filter(([, file]) => Boolean(file))).entries()) {
       const documentName =
         field === "validId"
           ? "Valid Government ID"
@@ -292,9 +296,11 @@ export default function RegisterPage() {
       alert(`Failed to upload required document(s): ${failedUploads.join(", ")}. Please check your file size and connection, then try again.`)
       return
     }
+    if (uploadedProofs.length === 0) setUploadedProofs(finalProofs)
+    if (!registrationOperationId.current) registrationOperationId.current = crypto.randomUUID()
 
     try {
-      await registerResidentAccount({
+      const registration = await registerResidentAccount({
         name: computedFullName,
         email: formData.email,
         password: formData.password,
@@ -311,7 +317,9 @@ export default function RegisterPage() {
         street: formData.street,
         barangay: formData.barangay,
         city: formData.city,
+        operationId: registrationOperationId.current,
       })
+      setVerificationEmailSent(registration.verificationEmailSent)
     } catch (err: any) {
       console.error("Registration Error:", err)
       setIsCompleting(false)
@@ -356,7 +364,9 @@ export default function RegisterPage() {
                 ? "Register to access barangay digital services"
                 : step === 2
                 ? `Based on your status: ${formData.statuses.length > 0 ? formData.statuses.join(", ") : "None selected"}`
-                : "Please verify your email address to continue."}
+                : verificationEmailSent
+                  ? "Please verify your email address to continue."
+                  : "Your registration is complete. Send a new verification email from the login page."}
             </p>
           </div>
 
@@ -399,9 +409,11 @@ export default function RegisterPage() {
                   Verify Your Account
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-                  We've sent a verification link to <span className="font-semibold text-slate-900 dark:text-white break-all">{formData.email}</span>. 
+                  {verificationEmailSent ? "We've sent" : "We couldn't send"} a verification link to <span className="font-semibold text-slate-900 dark:text-white break-all">{formData.email}</span>.
                   <br /><br />
-                  Please click the link in the email to verify your account before logging in.
+                  {verificationEmailSent
+                    ? "Please click the link in the email to verify your account before logging in."
+                    : "Your account and documents are safely registered. Sign in from the login page to trigger a new verification email."}
                   <br /><br />
                   <span className="text-xs italic text-slate-500 dark:text-slate-500">
                     If you don't see the email, please check your spam or junk folder.

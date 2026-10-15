@@ -3,11 +3,13 @@
 ## Current verified state — 15 October 2026
 
 - **Working branch**: `main`
-- **Audited baseline**: `cbd01f759b3ca12030e8250c81c4dcc520d17e70`
-- **Status**: remaining media-claim, approval-eligibility, provisioning-fence, A07, A11, A12, A14, A16, and A18 repairs are implemented and locally verified; final commit/push is pending at the time of this checkpoint.
-- **Verification**: unit 155/155; Auth/Firestore emulator 28/28 declared tests (exit 0); authenticated Chromium 24/24; both TypeScript checks pass; lint 0 errors/741 warnings; production build 48/48 pages; timezone suites 29/29 under UTC, Asia/Manila, and America/Los_Angeles.
+- **Audited baseline**: `c631b37f29c0a8c7f097c667c440ee268909b9fa`
+- **Status**: initial registration is now finalized by a revocation-checked server endpoint. Proof claims, the pending resident profile, canonical initial verification, canonical admin notification, and immutable payload-bound operation record commit atomically. Ambiguous browser or Firestore commit acknowledgements retry the same operation and never authorize speculative Auth deletion. Implementation/evidence status is recorded here; exact final Git synchronization is reported in the handoff/final execution report.
+- **Rules state**: client creation of initial user profiles is denied; Auth-only identities are not active accounts and cannot forge initial registration verifications/notifications; existing unverified registration resubmission plus profile-edit, reactivation, payment, and owner-update behavior remains emulator-verified.
+- **Verification**: unit 159/159; Auth/Firestore emulator command exit 0 with 38 declared tests; focused finalizer 7/7, client recovery 4/4, shared media claim 3/3, focused Rules 13/13; authenticated Chromium 24/24; both TypeScript checks pass; lint 0 errors/748 warnings; production build 49/49 routes; timezone suites 29/29 under UTC, Asia/Manila, and America/Los_Angeles.
 - **Evidence boundary**: local emulators and controlled provider behavior only. No production deployment, rules publication, historical migration, live account/data change, or live Cloudinary asset mutation was performed.
-- **Known qualification**: runtime warnings remain for typeless Node test modules, Firebase metadata lookup in the network-restricted environment, Next image LCP/scroll behavior, and Node's deprecated `module.register()`. These did not change exit status. A18 permission-denial/recovery is proven through the real Firestore adapter plus UI error-state tests; a live network outage was not induced.
+- **Deployment order**: deploy and verify the application/server finalizer first; only then publish the tightened Firestore Rules. Neither action was performed here.
+- **Known qualification**: runtime warnings remain for typeless Node test modules, Firebase metadata lookup in the network-restricted environment, Next image LCP/scroll behavior, and Node's deprecated `module.register()`. These did not change exit status. Provider existence was tested with a controlled adapter; no live Cloudinary mutation or production-path deployment probe was run.
 
 The dated material below is historical and applies only to the revision and counts stated there.
 

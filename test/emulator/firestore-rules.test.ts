@@ -100,6 +100,54 @@ test("resident retains only explicit self-service profile and request transition
   await assertSucceeds(updateDoc(doc(db, "documentRequests", "existing"), { status: "Cancelled", cancelledAt: 1, statusTimestamps: { Cancelled: 1 } }))
 })
 
+test("Auth-only identities cannot author initial registration state", async () => {
+  const db = environment.authenticatedContext("auth-only").firestore()
+  await assertFails(setDoc(doc(db, "users", "auth-only"), {
+    role: "resident", status: "Pending", isVerified: false, accountExpiry: "",
+  }))
+  await assertFails(setDoc(doc(db, "verifications", "auth-only"), {
+    residentId: "auth-only", userId: "auth-only", type: "registration", status: "pending",
+  }))
+  await assertFails(setDoc(doc(db, "notifications", "reg-auth-only"), {
+    targetId: "admin", type: "registration", title: "forged",
+  }))
+  await assertFails(setDoc(doc(db, "registrationOperations", "forged"), { status: "completed" }))
+})
+
+test("existing unverified resident resubmission remains allowed", async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), "users", "unverified-resident"), {
+      role: "resident", status: "Pending", isVerified: false,
+    })
+  })
+  const db = environment.authenticatedContext("unverified-resident").firestore()
+  await assertSucceeds(setDoc(doc(db, "verifications", "registration-resubmission"), {
+    residentId: "unverified-resident", userId: "unverified-resident", type: "registration", status: "pending",
+  }))
+  await assertSucceeds(setDoc(doc(db, "notifications", "registration-resubmission"), {
+    targetId: "admin", type: "registration", title: "Registration Verification Resubmission",
+  }))
+})
+
+test("profile-edit and reactivation client workflows remain allowed for existing residents", async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), "users", "expired-resident"), {
+      role: "resident", status: "Expired", isVerified: true,
+    })
+  })
+  const residentDb = environment.authenticatedContext("resident").firestore()
+  await assertSucceeds(setDoc(doc(residentDb, "verifications", "profile-edit-new"), {
+    residentId: "resident", userId: "resident", type: "profile-edit", status: "pending",
+  }))
+  const expiredDb = environment.authenticatedContext("expired-resident").firestore()
+  await assertSucceeds(setDoc(doc(expiredDb, "verifications", "reactivation-new"), {
+    residentId: "expired-resident", userId: "expired-resident", type: "reactivation", status: "pending",
+  }))
+  await assertSucceeds(setDoc(doc(expiredDb, "notifications", "reactivation-new"), {
+    targetId: "admin", type: "reactivation", title: "Reactivation",
+  }))
+})
+
 test("A07 resident payment submission preserves paid, waived, and terminal request states", async () => {
   await environment.withSecurityRulesDisabled(async context => {
     const db = context.firestore()

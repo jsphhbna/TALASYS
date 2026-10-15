@@ -2,11 +2,17 @@
 
 ## Current handoff — 2026-10-15
 
-Working branch: `main`. Audited baseline: `cbd01f759b3ca12030e8250c81c4dcc520d17e70`. The delivered revision is the final synchronized `main` HEAD reported with the Git handoff; this document intentionally avoids a self-referential commit SHA.
+Working branch: `main`. Audited baseline: `c631b37f29c0a8c7f097c667c440ee268909b9fa`. The delivered revision is the final synchronized `main` HEAD reported with the Git handoff; this document intentionally avoids a self-referential commit SHA.
 
-The current repair closes the reproduced arbitrary media-claim ownership path, restores verification eligibility, adds exact execution/compensation fencing to administrator provisioning, and completes A07/A11/A12/A14/A16/A18 production wiring. Evidence is provided by 155 unit/integration tests, 28 declared Auth/Firestore emulator tests, 24 authenticated Chromium workflows, both TypeScript checks, lint (0 errors; 741 warnings), a 48-page production build, and 29 timezone tests in each of UTC, Asia/Manila, and America/Los_Angeles.
+The current repair replaces the browser-authored initial registration batch and later media claim with `POST /api/resident/registration/finalize`. The endpoint derives UID/email and lifecycle fields authoritatively, validates the allowlisted registration/proof payload, verifies the provider outside transaction retries, and atomically claims every proof while creating one resident, verification, admin notification, and immutable payload-bound operation record. Exact-operation replay is successful, changed replay is 409, and an unknown/lost response retries without deleting Auth. Verification email is attempted once after confirmed completion; mail failure preserves the finalized account and directs the user to the existing login resend path.
+
+Firestore Rules now require an authoritative user profile for active-account privileges, deny client creation of initial profiles and all client access to `registrationOperations`, and distinguish server-only initial registration from the supported existing-unverified-resident resubmission. Profile edit, reactivation, payment, and owner update behavior remains passing.
+
+Evidence is provided by 159 unit/integration tests, 38 declared Auth/Firestore emulator tests (standard command exit 0), 24 authenticated Chromium workflows, both TypeScript checks, lint (0 errors; 748 warnings), a 49-route production build, and 29 timezone tests in each of UTC, Asia/Manila, and America/Los_Angeles. Named production-path regressions are recorded in `docs/EVIDENCE_LEDGER.md`, including the mandatory committed-transaction/lost-response replay.
 
 No deployment, Firebase Rules publication, historical migration, live account/data change, or live Cloudinary asset mutation was performed. `.env.local` values were neither printed nor staged. Controlled adapters and local emulators are not evidence of live-provider availability. A18 permission failure and recovery are adapter-backed; no live network outage was induced.
+
+Deployment order is mandatory: deploy and verify the application/server finalizer first, then publish the tightened Firestore Rules. Publishing Rules first would block the legacy client registration path before the server endpoint is available.
 
 The prior handoff below is retained as historical context and must not be used for current test counts.
 

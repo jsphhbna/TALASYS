@@ -1,8 +1,46 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18)
 
+## Initial-registration atomicity hardening — current pass
+
+- **Status**: IN PROGRESS on `main` from synchronized baseline `c631b37f29c0a8c7f097c667c440ee268909b9fa`.
+- **Requested scope**: replace client-authored initial registration writes with one authenticated, server-authoritative, payload-bound and idempotent Firestore finalization transaction; resolve ambiguous responses through same-operation retry; send one post-finalization verification email; tighten client Rules without breaking existing resident resubmission/profile-edit/reactivation/payment workflows; add production-path regressions and update evidence.
+- **Explicit exclusions**: no deployment, Firebase Rules publication, historical migration, production account/data mutation, live Cloudinary asset mutation/deletion, unrelated A01–A18 reopening, general cleanup, branch creation, rebase/reset, or force push.
+- **Core invariant**: proof reservations, the pending resident profile, canonical initial verification, canonical admin notification, and immutable finalization operation either commit together or do not commit; a lost HTTP response is retried with the same UID, operation ID, and payload and never triggers speculative Auth deletion.
+- **Trust boundary**: Firebase Auth (revocation-checked ID token and authoritative Auth user email) supplies identity; the server allowlists resident inputs and derives ownership/lifecycle fields; Cloudinary identity verification completes before the retrying transaction; Firestore transaction reads precede writes.
+- **Rollback boundary**: this pass changes source, tests, Rules source, and documents only. Application deployment must precede later Rules publication; neither occurs in this task.
+- **Recovery note**: the repository is clean and local/remote `main` match the baseline. The `scripts/v9_recovery_audit.py` utility named by project policy is absent, so recovery was reconciled directly from Git plus `BUILD_PLAN.md`, `docs/PROJECT_STATE.md`, `docs/HANDOFF.md`, `docs/EVIDENCE_LEDGER.md`, and `docs/DECISIONS.md`.
+- **Authority note**: the project-referenced RC4/RC5 overlay files are absent. Current Firebase primary documentation was consulted for revocation checking, Firestore transaction retry/atomicity/read-before-write behavior, and Rules `exists/get` semantics; application behavior still requires executed tests.
+
+| Milestone | Current status | Required evidence |
+|---|---|---|
+| R1: reusable media claim validation + atomic finalizer | IMPLEMENTED; TARGETED VERIFIED | Route/emulator tests for success, provider/preflight failures, concurrency, replay, mismatch, and zero partial writes |
+| R2: recoverable client state machine + single email | IMPLEMENTED; TARGETED VERIFIED | Client orchestration tests including mandatory lost-response replay, definitive cleanup, and mail failure after commit |
+| R3: Rules hardening with resubmission compatibility | IMPLEMENTED; TARGETED VERIFIED | Real Rules emulator tests for Auth-only denial and existing owner/resubmission/profile-edit/reactivation/payment behavior |
+| R4: complete journey, full verification, evidence, Git synchronization | VERIFIED LOCALLY; GIT SYNCHRONIZATION PENDING | Targeted E2E plus full requested command set, staged security review, normal push, exact local/remote equality |
+
+Implementation/evidence status is recorded here; exact final Git synchronization is reported in the handoff/final execution report.
+
+### R1–R3 checkpoint — 15 October 2026
+
+- **Files changed**: added the `/api/resident/registration/finalize` handler, reusable registration/media claim and client-finalization modules, focused unit/emulator tests; refactored the existing media claim route and registration client/page; tightened `firestore.rules` and expanded its real-emulator suite.
+- **Production behavior changed**: initial registration identity/lifecycle fields and all Firestore effects are server-authored in one payload-bound transaction; Cloudinary checks remain outside transaction retries; browser response loss and unknown commit acknowledgement retry the same operation without deleting Auth; one verification-email attempt occurs only after confirmed/idempotent completion; initial client profile creation is denied while existing unverified resubmission remains permitted.
+- **Checks executed**: both TypeScript checks PASS; focused client tests PASS 4/4; registration finalizer emulator tests PASS 7/7 after correcting the deterministic test clock; shared media-claim emulator tests PASS 3/3; focused Rules/compatibility tests PASS 13/13. Full requested suites and authenticated journey remain pending R4.
+- **Unresolved at checkpoint**: full unit/Rules/E2E/lint/build verification, final security/staged review, documentation evidence closure, and Git synchronization remain pending. Rules source is not published and application code is not deployed.
+- **Environment/configuration**: no source configuration or secret changes. Local Firebase Auth/Firestore emulators and a controlled provider adapter only; no live provider, data, account, asset, migration, deployment, or Rules publication action.
+- **Next work**: complete production-path journey coverage/security review, run the entire requested verification matrix, update durable evidence/handoff/decision records, then commit and synchronize `main`.
+
+### R4 local verification checkpoint — 15 October 2026
+
+- **Files changed**: durable state/evidence/ADR records updated in addition to the R1–R3 production and regression files; no environment or dependency manifest changed.
+- **Production behavior**: unchanged from the R1–R3 checkpoint. Deployment sequencing is documented as application/server finalizer first, operational verification second, tightened Rules publication third.
+- **Checks executed**: `npm test` PASS 159/159; `npm run test:rules` PASS (exit 0, 38 declared emulator tests); `npm run test:e2e:auth` PASS 24/24 Chromium workflows; app/test TypeScript PASS; lint PASS with 0 errors and 748 warnings; build PASS with 49/49 routes; timezone matrix PASS 29/29 in each of UTC, Asia/Manila, and America/Los_Angeles; `git diff --check` PASS.
+- **Unresolved**: normal commit/push and exact local/origin equality proof remain. No production deployment, Rules publication, migration, live account/data mutation, or live Cloudinary mutation was performed.
+- **Environment/configuration**: local emulator/server processes only; no configuration, secret, dependency, or environment-value changes. Existing typeless-module, metadata lookup, browser LCP/scroll, and Node deprecation warnings remain non-blocking and are not expanded into cleanup scope.
+- **Next work**: inspect/stage the exact diff, perform credential/secret review, commit and push `main`, fetch, prove SHA equality/ahead-behind zero, confirm a clean tree, and stop any leftover project-local processes.
+
 ## Reopened repair pass — confirmed failures after `cbd01f759b3ca12030e8250c81c4dcc520d17e70`
 
-- **Status**: IMPLEMENTED AND LOCALLY VERIFIED on `main`; commit/push synchronization is the only remaining step. Earlier summaries below remain historical evidence for their stated revisions.
+- **Status**: IMPLEMENTED, LOCALLY VERIFIED, AND SYNCHRONIZED on `main` as commit `c631b37f29c0a8c7f097c667c440ee268909b9fa`. Earlier summaries below remain historical evidence for their stated revisions.
 - **Requested scope**: repair the three reproduced blockers, complete A07/A11/A12/A14/A16/A18, add production-path regressions, correct evidence, commit and push `main`.
 - **Explicit exclusions**: no deployment, rules publication, historical migration, production account/data/asset mutation, branch creation, force push, or general cleanup.
 - **Security invariant**: attacker-controlled tokens, identifiers, states, retries, and timestamps cannot create or overwrite authoritative ownership, identity, payment, audit, or protected-media state.
@@ -12,14 +50,14 @@
 |---|---|---|
 | M1: media claim, approval eligibility, provisioning fencing | VERIFIED LOCALLY | Actual route handlers plus Firestore/Auth emulator adapters; forged/expired/conflicting/concurrent/failure cases |
 | M2: A07/A11/A12/A14/A16/A18 | VERIFIED LOCALLY | Rules and server transition graph; canonical audit consumers; uncapped pagination/report queries; protected preview/export; three-timezone tests; visible retryable UI failure paths |
-| M3: full verification and evidence correction | VERIFIED; PUSH PENDING | Unit, emulator, authenticated Playwright, both type checks, lint, build, timezone matrix, and corrected recovery evidence |
+| M3: full verification and evidence correction | VERIFIED AND SYNCHRONIZED AT `c631b37` | Unit, emulator, authenticated Playwright, both type checks, lint, build, timezone matrix, and corrected recovery evidence |
 
 ### Evidence state at reopen
 
 - Repository baseline: clean `main` at `cbd01f759b3ca12030e8250c81c4dcc520d17e70`, matching `origin/main` when inspected 2026-10-14.
 - Confirmed by code inspection: `app/api/media/claim/route.ts` creates absent registry ownership from any string token; approval claim lacks an explicit rejected/unsupported-state guard; admin provisioning permits same-attempt overlap and checks compensation ownership outside a protected transaction stage.
 - Environment changes: none. `.env.local` values remain unread and unreported.
-- Current working tree: verified repair changes based on `cbd01f759b3ca12030e8250c81c4dcc520d17e70`; final commit and remote synchronization are pending.
+- Historical delivery result: the verified repair based on `cbd01f759b3ca12030e8250c81c4dcc520d17e70` was committed and synchronized as `c631b37f29c0a8c7f097c667c440ee268909b9fa`. The current initial-registration pass is tracked separately above.
 
 ### M1 checkpoint
 

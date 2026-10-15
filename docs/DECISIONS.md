@@ -124,4 +124,18 @@
      - Updated `ExistingLockState` and `evaluateRecoveryEligibility` in `lib/admin/identity-coordination-policy.ts` to allow `expectedOperationId` and `expectedAttemptId` to match `targetOperationId` / `previousOperationId` on quiesced locks, ensuring subsequent recoveries can cleanly target the original operation.
 - **Consequences**: Eliminates permanent lock stranding in `reconciling`; all Phase 2 and owned Phase 3 failure paths leave durable, actionable `reconciliation-required` locks that can be claimed by subsequent recovery attempts; preserves strict anti-stomp protections and normal writer blocking.
 
+## ADR-016: Server-Authoritative Atomic Initial Registration and Ambiguous-Commit Recovery
+
+- **Status**: Accepted; locally verified; deployment and Rules publication pending
+- **Date**: 15 October 2026
+- **Context**: Initial registration previously created Auth, sent email, wrote the resident/verification/notification in a client batch, sent email again, and then claimed proofs. A claim failure or lost claim response could delete Auth after Firestore committed, orphan records, or split proof ownership from the registration.
+- **Decision**:
+  1. A revocation-checked `POST /api/resident/registration/finalize` endpoint accepts a freshly authenticated user without requiring a pre-existing profile. Auth supplies UID/email; the server allowlists resident/proof fields and derives IDs, resident role, Pending/unverified lifecycle, empty expiry, and timestamps.
+  2. Cloudinary identity/existence verification occurs before Firestore transaction execution. The transaction re-reads every reservation before any write, then atomically claims all reservations and creates the resident, canonical initial verification, canonical admin notification, and completed `registrationOperations` record.
+  3. The operation document is scoped by a SHA-256 digest of UID plus caller-stable operation ID. A canonical SHA-256 payload hash binds normalized resident data and proof identities/metadata but excludes plaintext claim capabilities. Same-payload replay is success; changed replay is 409; completed state is never overwritten.
+  4. Only explicit server responses with `committed: false` permit cleanup of the fresh Auth identity. Browser transport loss and generic Firestore commit-acknowledgement errors are `committed: unknown`, retry the exact operation/payload, preserve Auth, and never guess backward compensation.
+  5. Verification email is outside the Firestore transaction and is attempted once after confirmed/idempotent finalization. Mail failure preserves registration and points users to the login resend path.
+  6. Firestore Rules deny direct initial profile creation, require an existing authoritative profile for active-account privileges, and keep initial registration writes server-only while preserving existing unverified registration resubmission plus profile-edit/reactivation/payment/owner workflows.
+- **Consequences**: Initial Firestore registration state and proof ownership cannot split across commits; a lost response converges through replay; Auth-only identities have no active resident privileges. Application deployment must be verified before tightened Rules are published. No deployment or Rules publication is part of this decision record.
+
 
