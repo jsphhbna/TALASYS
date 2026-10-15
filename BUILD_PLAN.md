@@ -1,42 +1,33 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18)
 
-## Initial-registration atomicity hardening — current pass
+## Registration Recovery, Auth Safety & Security Hardening — current pass
 
-- **Status**: IN PROGRESS on `main` from synchronized baseline `c631b37f29c0a8c7f097c667c440ee268909b9fa`.
-- **Requested scope**: replace client-authored initial registration writes with one authenticated, server-authoritative, payload-bound and idempotent Firestore finalization transaction; resolve ambiguous responses through same-operation retry; send one post-finalization verification email; tighten client Rules without breaking existing resident resubmission/profile-edit/reactivation/payment workflows; add production-path regressions and update evidence.
-- **Explicit exclusions**: no deployment, Firebase Rules publication, historical migration, production account/data mutation, live Cloudinary asset mutation/deletion, unrelated A01–A18 reopening, general cleanup, branch creation, rebase/reset, or force push.
-- **Core invariant**: proof reservations, the pending resident profile, canonical initial verification, canonical admin notification, and immutable finalization operation either commit together or do not commit; a lost HTTP response is retried with the same UID, operation ID, and payload and never triggers speculative Auth deletion.
-- **Trust boundary**: Firebase Auth (revocation-checked ID token and authoritative Auth user email) supplies identity; the server allowlists resident inputs and derives ownership/lifecycle fields; Cloudinary identity verification completes before the retrying transaction; Firestore transaction reads precede writes.
-- **Rollback boundary**: this pass changes source, tests, Rules source, and documents only. Application deployment must precede later Rules publication; neither occurs in this task.
-- **Recovery note**: the repository is clean and local/remote `main` match the baseline. The `scripts/v9_recovery_audit.py` utility named by project policy is absent, so recovery was reconciled directly from Git plus `BUILD_PLAN.md`, `docs/PROJECT_STATE.md`, `docs/HANDOFF.md`, `docs/EVIDENCE_LEDGER.md`, and `docs/DECISIONS.md`.
-- **Authority note**: the project-referenced RC4/RC5 overlay files are absent. Current Firebase primary documentation was consulted for revocation checking, Firestore transaction retry/atomicity/read-before-write behavior, and Rules `exists/get` semantics; application behavior still requires executed tests.
+- **Status**: COMPLETED on `main` from synchronized baseline `42d41e9ac543e2e24aa0586a61bc6528d57e768e`.
+- **Delivered scope**:
+  1. Closed critical defect where `committed:false` was equated with permission to delete Auth. Eliminated speculative client-side Auth deletion across `registration-finalization-client.ts` and `local-storage-store.ts`. Auth is preserved whenever uncertainty exists (`committed: "unknown"`).
+  2. Implemented durable, server-authoritative registration recovery workflow surviving browser refresh/crash via `GET /api/resident/registration/status` (`inspectRegistrationStatus`), supporting incomplete Auth-only continuation, and strictly scoping incomplete authenticated proof uploads in `/api/cloudinary/sign` to `talasys/proofs` prefixed with `registration/`.
+  3. Hardened registration-resubmission authorization via server-controlled endpoint `POST /api/resident/registration/resubmit` enforcing exact lifecycle transitions (unverified, resident owner, prior rejected registration, no active pending verification, atomic verification + notification creation); tightened `firestore.rules` by removing client creation of registration verifications and notifications while preserving profile-edit, reactivation, and payment workflows.
+  4. Fixed Asia/Manila birthday and age classification across server finalizer and client status helpers (`calculateAge` in `resident-status.ts` and `ageAt` in `registration-finalization.ts`), evaluating against Asia/Manila calendar days independent of host timezone.
+  5. Refined registration UI and recovery UX (`app/auth/register/page.tsx`) to check existing registration status on mount, prevent duplicate submissions, handle email-already-in-use and ambiguous commit errors, and guide users actionably.
+  6. Added comprehensive regression suite in `test/emulator/registration-recovery-and-resubmission.test.ts` (46 declared emulator tests, up from 38) and updated client tests; executed full verification suite (159 unit tests, 46 emulator tests, 24 authenticated Chromium E2E, both typechecks, lint, 51-route production build, and 3-timezone test matrix).
+- **Explicit exclusions**: no deployment, Firebase Rules publication, historical migration, production account/data mutation, live Cloudinary asset mutation/deletion, branch creation, rebase/reset, or force push.
+- **Core invariant**: no request may delete a Firebase Auth user whose registration has already committed or may still commit; interrupted registrations retain a secure, coherent recovery route; registration resubmission is strictly lifecycle-gated.
+- **Rollback boundary**: reversible source, test, and document changes only. Application deployment must precede later Rules publication; neither occurs in this task.
 
 | Milestone | Current status | Required evidence |
 |---|---|---|
-| R1: reusable media claim validation + atomic finalizer | IMPLEMENTED; TARGETED VERIFIED | Route/emulator tests for success, provider/preflight failures, concurrency, replay, mismatch, and zero partial writes |
-| R2: recoverable client state machine + single email | IMPLEMENTED; TARGETED VERIFIED | Client orchestration tests including mandatory lost-response replay, definitive cleanup, and mail failure after commit |
-| R3: Rules hardening with resubmission compatibility | IMPLEMENTED; TARGETED VERIFIED | Real Rules emulator tests for Auth-only denial and existing owner/resubmission/profile-edit/reactivation/payment behavior |
-| R4: complete journey, full verification, evidence, Git synchronization | VERIFIED LOCALLY; GIT SYNCHRONIZATION PENDING | Targeted E2E plus full requested command set, staged security review, normal push, exact local/remote equality |
+| RR1: Auth preservation & safe error contract | COMPLETED | Route and client regressions proving Auth is preserved on lookup failure, token failure, idempotency conflict, provider failure, and preflight denial (`committed: "unknown"`) |
+| RR2: Registration status & recovery endpoint | COMPLETED | Authenticated `/api/resident/registration/status` endpoint, `/api/cloudinary/sign` scoped incomplete upload authorization, refresh/crash recovery tests |
+| RR3: Hardened registration resubmission | COMPLETED | Server resubmission route `POST /api/resident/registration/resubmit`, `firestore.rules` client denial for registration verifications/notifications, lifecycle transition tests |
+| RR4: Asia/Manila birthday classification | COMPLETED | Manila calendar day age calculation in `resident-status.ts` and `registration-finalization.ts`, Manila midnight and Feb 29 tests, three-timezone test matrix |
+| RR5: Registration UI & recovery UX | COMPLETED | Actionable recovery UI in `app/auth/register/page.tsx`, error classification, duplicate submission prevention |
+| RR6: Full verification, evidence & sync | COMPLETED | Unit (159/159), emulator (46/46), E2E (24/24), typechecks (0 errors), lint (0 errors), build (51/51 routes), three-timezone matrix (29/29), clean git diff check, push to `main` |
 
-Implementation/evidence status is recorded here; exact final Git synchronization is reported in the handoff/final execution report.
+### Initial-registration atomicity hardening — historical pass (42d41e9)
 
-### R1–R3 checkpoint — 15 October 2026
-
-- **Files changed**: added the `/api/resident/registration/finalize` handler, reusable registration/media claim and client-finalization modules, focused unit/emulator tests; refactored the existing media claim route and registration client/page; tightened `firestore.rules` and expanded its real-emulator suite.
-- **Production behavior changed**: initial registration identity/lifecycle fields and all Firestore effects are server-authored in one payload-bound transaction; Cloudinary checks remain outside transaction retries; browser response loss and unknown commit acknowledgement retry the same operation without deleting Auth; one verification-email attempt occurs only after confirmed/idempotent completion; initial client profile creation is denied while existing unverified resubmission remains permitted.
-- **Checks executed**: both TypeScript checks PASS; focused client tests PASS 4/4; registration finalizer emulator tests PASS 7/7 after correcting the deterministic test clock; shared media-claim emulator tests PASS 3/3; focused Rules/compatibility tests PASS 13/13. Full requested suites and authenticated journey remain pending R4.
-- **Unresolved at checkpoint**: full unit/Rules/E2E/lint/build verification, final security/staged review, documentation evidence closure, and Git synchronization remain pending. Rules source is not published and application code is not deployed.
-- **Environment/configuration**: no source configuration or secret changes. Local Firebase Auth/Firestore emulators and a controlled provider adapter only; no live provider, data, account, asset, migration, deployment, or Rules publication action.
-- **Next work**: complete production-path journey coverage/security review, run the entire requested verification matrix, update durable evidence/handoff/decision records, then commit and synchronize `main`.
-
-### R4 local verification checkpoint — 15 October 2026
-
-- **Files changed**: durable state/evidence/ADR records updated in addition to the R1–R3 production and regression files; no environment or dependency manifest changed.
-- **Production behavior**: unchanged from the R1–R3 checkpoint. Deployment sequencing is documented as application/server finalizer first, operational verification second, tightened Rules publication third.
-- **Checks executed**: `npm test` PASS 159/159; `npm run test:rules` PASS (exit 0, 38 declared emulator tests); `npm run test:e2e:auth` PASS 24/24 Chromium workflows; app/test TypeScript PASS; lint PASS with 0 errors and 748 warnings; build PASS with 49/49 routes; timezone matrix PASS 29/29 in each of UTC, Asia/Manila, and America/Los_Angeles; `git diff --check` PASS.
-- **Unresolved**: normal commit/push and exact local/origin equality proof remain. No production deployment, Rules publication, migration, live account/data mutation, or live Cloudinary mutation was performed.
-- **Environment/configuration**: local emulator/server processes only; no configuration, secret, dependency, or environment-value changes. Existing typeless-module, metadata lookup, browser LCP/scroll, and Node deprecation warnings remain non-blocking and are not expanded into cleanup scope.
-- **Next work**: inspect/stage the exact diff, perform credential/secret review, commit and push `main`, fetch, prove SHA equality/ahead-behind zero, confirm a clean tree, and stop any leftover project-local processes.
+- **Status**: IMPLEMENTED, LOCALLY VERIFIED, AND SYNCHRONIZED on `main` at `42d41e9ac543e2e24aa0586a61bc6528d57e768e`.
+- **Delivered scope**: replaced client-authored initial registration writes with one authenticated, server-authoritative, payload-bound and idempotent Firestore finalization transaction (`/api/resident/registration/finalize`); proof reservations, pending profile, verification, notification, and operation committed atomically.
+- **Checks executed**: `npm test` PASS 159/159; `npm run test:rules` PASS 38/38; `npm run test:e2e:auth` PASS 24/24; both TypeScript checks PASS; lint PASS (0 errors, 748 warnings); build PASS (49/49 routes); timezone matrix PASS (29/29 per zone). Fully pushed to `origin/main`.
 
 ## Reopened repair pass — confirmed failures after `cbd01f759b3ca12030e8250c81c4dcc520d17e70`
 

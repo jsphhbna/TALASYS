@@ -16,26 +16,26 @@ export function createRegistrationFinalizationHandler(injected?: HandlerDependen
       const db = injected?.db || adminDb
       const cloudName = injected?.cloudName || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || ""
       if (!auth || !db || !cloudName) {
-        throw registrationHttpError("Server registration finalization is unavailable.", 503, "FINALIZATION_UNAVAILABLE")
+        throw registrationHttpError("Server registration finalization is unavailable.", 503, "FINALIZATION_UNAVAILABLE", "unknown")
       }
       const authorization = request.headers.get("authorization") || request.headers.get("Authorization")
       if (!authorization?.startsWith("Bearer ")) {
-        throw registrationHttpError("A valid authentication token is required.", 401, "AUTH_REQUIRED")
+        throw registrationHttpError("A valid authentication token is required.", 401, "AUTH_REQUIRED", "unknown")
       }
       let decoded: any
       try {
         decoded = await auth.verifyIdToken(authorization.slice(7).trim(), true)
       } catch {
-        throw registrationHttpError("The authentication session is invalid or revoked.", 401, "AUTH_INVALID")
+        throw registrationHttpError("The authentication session is invalid or revoked.", 401, "AUTH_INVALID", "unknown")
       }
       if (typeof decoded?.uid !== "string" || !decoded.uid) {
-        throw registrationHttpError("The authentication session has no user identity.", 401, "AUTH_INVALID")
+        throw registrationHttpError("The authentication session has no user identity.", 401, "AUTH_INVALID", "unknown")
       }
       let authUser: any
       try { authUser = await auth.getUser(decoded.uid) }
-      catch { throw registrationHttpError("The authenticated account could not be verified.", 503, "AUTH_LOOKUP_FAILED") }
+      catch { throw registrationHttpError("The authenticated account could not be verified.", 503, "AUTH_LOOKUP_FAILED", "unknown") }
       const authEmail = typeof authUser?.email === "string" ? authUser.email.trim().toLowerCase() : ""
-      if (!authEmail) throw registrationHttpError("The authenticated account has no email address.", 400, "AUTH_EMAIL_REQUIRED")
+      if (!authEmail) throw registrationHttpError("The authenticated account has no email address.", 400, "AUTH_EMAIL_REQUIRED", "unknown")
 
       const body = await request.json().catch(() => ({}))
       const result = await finalizeResidentRegistration(body, decoded.uid, authEmail, {

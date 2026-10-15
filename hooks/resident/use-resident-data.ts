@@ -281,15 +281,38 @@ export function useResidentData() {
         return verification.id
       }
 
-      // Finding #48: If resident was never verified or explicit registration type, use "registration"
-      const effectiveType = (!user.isVerified || verificationType === "registration") ? "registration" : "profile-edit"
+      // Finding #48 / Issue #3: If resident was never verified or explicit registration type,
+      // route through the server-authoritative resubmission endpoint.
+      if (!user.isVerified || verificationType === "registration") {
+        const { auth } = await import("@/lib/firebase")
+        const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : ""
+        if (!idToken) throw new Error("Authentication session is required to resubmit registration.")
+
+        const response = await fetch("/api/resident/registration/resubmit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            proofs: uploadedDocuments,
+            reason: reason || "Registration verification resubmission with updated documents",
+          }),
+        })
+
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || "Failed to resubmit registration verification.")
+        }
+        return result.verificationId
+      }
 
       const verificationPayload = {
         residentId,
         userId: residentId,
         name: user.name,
         initials: user.initials,
-        type: effectiveType,
+        type: "profile-edit",
         submittedDate: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date()),
         status: "pending",
         categories: user.statuses || ["Resident"],
@@ -306,9 +329,9 @@ export function useResidentData() {
       batch.set(verifDocRef, verificationPayload)
       batch.set(notifDocRef, {
         targetId: "admin",
-        type: effectiveType === "registration" ? "registration" : "info",
-        title: effectiveType === "registration" ? "Registration Verification Resubmission" : "Profile Edit Request",
-        message: `${user.name} submitted a ${effectiveType === "registration" ? "registration verification" : "profile edit"} request.`,
+        type: "info",
+        title: "Profile Edit Request",
+        message: `${user.name} submitted a profile edit request.`,
         timestamp: "Just now",
         isRead: false,
         createdAt: Date.now(),

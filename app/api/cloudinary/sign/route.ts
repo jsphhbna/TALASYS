@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
-import { consumeRegistrationTicket } from "@/lib/security/upload-ticket"
-import { extractClientIp } from "@/lib/security/request-ip"
-import { rateLimit } from "@/lib/rate-limit"
-import { isSuperAdminRole, isFullAdminRole } from "@/lib/auth/auth-types"
+import { NextResponse } from "next/server.js"
+import { adminAuth, adminDb } from "../../../../lib/firebase-admin.ts"
+import { consumeRegistrationTicket } from "../../../../lib/security/upload-ticket.ts"
+import { extractClientIp } from "../../../../lib/security/request-ip.ts"
+import { rateLimit } from "../../../../lib/rate-limit.ts"
+import { isSuperAdminRole, isFullAdminRole } from "../../../../lib/auth/auth-types.ts"
 import crypto from "crypto"
-import { mediaRegistryDocumentId } from "@/lib/security/media-auth"
+import { mediaRegistryDocumentId } from "../../../../lib/security/media-auth.ts"
 
 const ALLOWED_FOLDERS = [
   "talasys/residents",
@@ -27,7 +27,8 @@ const SENSITIVE_FOLDERS = new Set<AllowedFolder>([
 
 const REGISTRATION_RESERVATION_TTL_MS = 60 * 60 * 1000
 
-export async function POST(req: Request) {
+export function createCloudinarySignHandler(injected?: { auth?: any; db?: any }) {
+  return async function POST(req: Request) {
   try {
     const secret = process.env.CLOUDINARY_API_SECRET
     if (!secret) {
@@ -55,7 +56,9 @@ export async function POST(req: Request) {
 
     // 1. Authenticate via Firebase Auth ID token if provided (#51)
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      if (!adminAuth || !adminDb) {
+      const auth = injected?.auth || adminAuth
+      const db = injected?.db || adminDb
+      if (!auth || !db) {
         return NextResponse.json(
           { error: "Server authentication service is unavailable. Missing Firebase Admin configuration." },
           { status: 503 }
@@ -65,7 +68,7 @@ export async function POST(req: Request) {
       const idToken = authHeader.replace("Bearer ", "").trim()
       let decodedToken: any
       try {
-        decodedToken = await adminAuth.verifyIdToken(idToken, true)
+        decodedToken = await auth.verifyIdToken(idToken, true)
       } catch (err) {
         return NextResponse.json({ error: "Unauthorized: Invalid or revoked session token." }, { status: 401 })
       }
@@ -73,20 +76,22 @@ export async function POST(req: Request) {
       callerUid = decodedToken.uid
 
       // Authoritative account verification in `users` collection (#28, #30)
-      const callerDoc = await adminDb.collection("users").doc(callerUid).get()
+      const callerDoc = await db.collection("users").doc(callerUid).get()
       if (!callerDoc.exists) {
-        return NextResponse.json({ error: "Caller account record not found in system." }, { status: 403 })
+        // Authenticated user with no user document is an incomplete registration applicant (#2).
+        // They receive strictly registration-scoped proof upload authorization without broader privileges.
+        callerType = "registration-applicant"
+      } else {
+        const callerData = callerDoc.data() || {}
+        const callerStatus = callerData.status as string | undefined
+        callerRole = (callerData.role as string | undefined) || "resident"
+
+        if (callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerRole === "Deleted") {
+          return NextResponse.json({ error: "Account is inactive or locked. Upload signing forbidden." }, { status: 403 })
+        }
+
+        callerType = callerRole === "resident" ? "resident" : "admin"
       }
-
-      const callerData = callerDoc.data() || {}
-      const callerStatus = callerData.status as string | undefined
-      callerRole = (callerData.role as string | undefined) || "resident"
-
-      if (callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerRole === "Deleted") {
-        return NextResponse.json({ error: "Account is inactive or locked. Upload signing forbidden." }, { status: 403 })
-      }
-
-      callerType = callerRole === "resident" ? "resident" : "admin"
     } 
     // 2. Alternatively, authenticate via single-use registration ticket for new residents (#51)
     else if (registrationTicket) {
@@ -161,9 +166,13 @@ export async function POST(req: Request) {
     const isProtected = SENSITIVE_FOLDERS.has(targetFolder)
     const type = isProtected ? "authenticated" : undefined
 
-    // 5. Bind the asset identity to the authenticated owner. This prevents a
-    // resident from attaching another resident's copied URL as new evidence.
-    const publicId = `${callerUid || "registration"}/${crypto.randomUUID()}`
+    // 5. Bind the asset identity to the authenticated owner. For registration applicants
+    // (whether unfinalized Auth users or ticket holders), publicId must reside strictly
+    // in the registration namespace for finalization claim verification.
+    const isRegistrationApplicant = callerType === "registration-applicant"
+    const publicId = isRegistrationApplicant
+      ? `registration/${crypto.randomUUID()}`
+      : `${callerUid || "registration"}/${crypto.randomUUID()}`
 
     // 6. Server-generated timestamp
     const timestamp = Math.floor(Date.now() / 1000)
@@ -177,10 +186,11 @@ export async function POST(req: Request) {
     }
 
     const signature = crypto.createHash("sha1").update(signatureString).digest("hex")
-    const claimToken = callerType === "registration-applicant" ? crypto.randomBytes(32).toString("base64url") : undefined
+    const claimToken = isRegistrationApplicant ? crypto.randomBytes(32).toString("base64url") : undefined
 
     // 8. Server-controlled asset registry: record ownership or pre-registration claim requirement (A02)
-    if (!adminDb) {
+    const db = injected?.db || adminDb
+    if (!db) {
       return NextResponse.json({ error: "Server media registry is unavailable." }, { status: 503 })
     }
     try {
@@ -190,14 +200,14 @@ export async function POST(req: Request) {
       const resourceType = "image"
       const assetRegistryKey = mediaRegistryDocumentId(cloudName, resourceType, fullPublicId)
       const reservationExpiresAt = Date.now() + REGISTRATION_RESERVATION_TTL_MS
-      await adminDb.collection("mediaRegistry").doc(assetRegistryKey).create({
+      await db.collection("mediaRegistry").doc(assetRegistryKey).create({
         cloudName,
         publicId: fullPublicId,
         folder: targetFolder,
         resourceType,
         deliveryType: type || "upload",
-        ownerUid: callerUid || null,
-        status: callerUid ? "claimed" : "reserved",
+        ownerUid: isRegistrationApplicant ? null : callerUid,
+        status: isRegistrationApplicant ? "reserved" : "claimed",
         capabilityHash: claimToken ? crypto.createHash("sha256").update(claimToken).digest("hex") : null,
         ticketNonce: registrationTicketNonce,
         expiresAt: claimToken ? reservationExpiresAt : null,
@@ -222,3 +232,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 })
   }
 }
+}
+
+export const POST = createCloudinarySignHandler()

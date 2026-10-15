@@ -134,22 +134,18 @@ export const findResidentByEmail = (email: string) => {
  * The user is signed out after all writes complete because they must verify their
  * email before logging in. Leaving them signed in would cause `onAuthStateChanged`
  * to fire and attempt to load their profile before Firestore writes finish,
- * resulting in permission-denied race condition errors.
+ * resulting in permission errors.
  */
-const freshRegistrationUids = new Set<string>()
-
 export const registerResidentAccount = async (input: CreateResidentAccountInput) => {
   const { auth } = await import("@/lib/firebase")
   const { createUserWithEmailAndPassword, updateProfile, sendEmailVerification, signOut } = await import("firebase/auth")
   const { preRegistrationClaimTokens } = await import("./cloudinary")
   const normalizedEmail = input.email.trim().toLowerCase()
   const existingFreshUser = auth.currentUser &&
-    auth.currentUser.email?.trim().toLowerCase() === normalizedEmail &&
-    freshRegistrationUids.has(auth.currentUser.uid)
+    auth.currentUser.email?.trim().toLowerCase() === normalizedEmail
       ? auth.currentUser
       : null
   const user = existingFreshUser || (await createUserWithEmailAndPassword(auth, normalizedEmail, input.password)).user
-  freshRegistrationUids.add(user.uid)
 
   try {
     if (!existingFreshUser) await updateProfile(user, { displayName: input.name.trim() })
@@ -185,15 +181,10 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     const idToken = await user.getIdToken()
     const completion = await completeFreshRegistration({
       finalize: () => callRegistrationFinalizer(fetch, idToken, payload),
-      deleteFreshAuth: async () => {
-        await user.delete()
-        freshRegistrationUids.delete(user.uid)
-      },
       sendVerificationEmail: () => sendEmailVerification(user),
       signOut: () => signOut(auth),
     })
     for (const proof of proofs) preRegistrationClaimTokens.delete(proof.url as string)
-    freshRegistrationUids.delete(user.uid)
 
     const residentUser: AuthUser = {
       id: user.uid,
@@ -220,10 +211,7 @@ export const registerResidentAccount = async (input: CreateResidentAccountInput)
     }
     return { ...residentUser, verificationEmailSent: completion.verificationEmailSent }
   } catch (error) {
-    if (!freshRegistrationUids.has(user.uid)) throw error
-    if (error instanceof Error && error.name === "RegistrationFinalizationError") throw error
-    try { await user.delete() } catch { /* the caller still receives the original pre-request failure */ }
-    freshRegistrationUids.delete(user.uid)
+    // Preserve Auth identity. Speculative deletion is removed so accounts are never orphaned.
     throw error
   }
 }

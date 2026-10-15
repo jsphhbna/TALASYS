@@ -87,16 +87,16 @@ export async function callRegistrationFinalizer(
 
 export async function completeFreshRegistration(options: {
   finalize: () => Promise<unknown>
-  deleteFreshAuth: () => Promise<void>
+  deleteFreshAuth?: () => Promise<void>
   sendVerificationEmail: () => Promise<void>
   signOut: () => Promise<void>
 }) {
   try {
     await options.finalize()
   } catch (error) {
-    if (error instanceof RegistrationFinalizationError && error.outcome === "definitive") {
-      try { await options.deleteFreshAuth() } catch { /* preserve the authoritative rejection */ }
-    }
+    // Critical invariant: Never equate an ordinary HTTP error with proof that deleting Auth is safe.
+    // Speculative client-side Auth deletion is removed. The Auth identity is preserved so that
+    // no committed, in-flight, or recoverable account is ever orphaned.
     throw error
   }
 

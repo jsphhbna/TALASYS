@@ -114,17 +114,17 @@ test("Auth-only identities cannot author initial registration state", async () =
   await assertFails(setDoc(doc(db, "registrationOperations", "forged"), { status: "completed" }))
 })
 
-test("existing unverified resident resubmission remains allowed", async () => {
+test("direct client registration resubmission is denied in favor of server-authoritative route", async () => {
   await environment.withSecurityRulesDisabled(async context => {
     await setDoc(doc(context.firestore(), "users", "unverified-resident"), {
       role: "resident", status: "Pending", isVerified: false,
     })
   })
   const db = environment.authenticatedContext("unverified-resident").firestore()
-  await assertSucceeds(setDoc(doc(db, "verifications", "registration-resubmission"), {
+  await assertFails(setDoc(doc(db, "verifications", "registration-resubmission"), {
     residentId: "unverified-resident", userId: "unverified-resident", type: "registration", status: "pending",
   }))
-  await assertSucceeds(setDoc(doc(db, "notifications", "registration-resubmission"), {
+  await assertFails(setDoc(doc(db, "notifications", "registration-resubmission"), {
     targetId: "admin", type: "registration", title: "Registration Verification Resubmission",
   }))
 })

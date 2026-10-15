@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { getRequiredDocuments } from "../resident/resident-documents.ts"
-import { deriveStatusesFromAge } from "../resident/resident-status.ts"
+import { calculateAge, deriveStatusesFromAge } from "../resident/resident-status.ts"
 import {
   applyRegistrationClaims,
   parseRegistrationMediaClaim,
@@ -73,21 +73,10 @@ function requiredText(value: unknown, label: string, maxLength: number): string 
 }
 
 function ageAt(dateOfBirth: string, now: number): number {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+  const age = calculateAge(dateOfBirth, now)
+  if (age === null) {
     throw registrationHttpError("Date of birth is invalid.", 400, "INVALID_REGISTRATION_PAYLOAD")
   }
-  const [year, month, day] = dateOfBirth.split("-").map(Number)
-  const birth = new Date(Date.UTC(year, month - 1, day))
-  if (
-    birth.getUTCFullYear() !== year || birth.getUTCMonth() !== month - 1 || birth.getUTCDate() !== day ||
-    birth.getTime() > now
-  ) {
-    throw registrationHttpError("Date of birth is invalid.", 400, "INVALID_REGISTRATION_PAYLOAD")
-  }
-  const current = new Date(now)
-  let age = current.getUTCFullYear() - year
-  if (current.getUTCMonth() < month - 1 || (current.getUTCMonth() === month - 1 && current.getUTCDate() < day)) age--
-  if (age < 0 || age > 130) throw registrationHttpError("Date of birth is invalid.", 400, "INVALID_REGISTRATION_PAYLOAD")
   return age
 }
 
@@ -210,10 +199,10 @@ export async function finalizeResidentRegistration(
   if (existingOperation.exists) {
     const existing = existingOperation.data() || {}
     if (existing.uid !== callerUid || existing.operationId !== operationId || existing.payloadHash !== payloadHash) {
-      throw registrationHttpError("This registration operation was already used with different data.", 409, "IDEMPOTENCY_CONFLICT")
+      throw registrationHttpError("This registration operation was already used with different data.", 409, "IDEMPOTENCY_CONFLICT", "unknown")
     }
     if (existing.status !== "completed") {
-      throw registrationHttpError("Registration finalization is not in a completed state.", 409, "OPERATION_STATE_CONFLICT")
+      throw registrationHttpError("Registration finalization is not in a completed state.", 409, "OPERATION_STATE_CONFLICT", "unknown")
     }
     return { idempotent: true, operationId, residentId: callerUid }
   }
@@ -246,10 +235,10 @@ export async function finalizeResidentRegistration(
     if (operationSnapshot.exists) {
       const existing = operationSnapshot.data() || {}
       if (existing.uid !== callerUid || existing.operationId !== operationId || existing.payloadHash !== payloadHash) {
-        throw registrationHttpError("This registration operation was already used with different data.", 409, "IDEMPOTENCY_CONFLICT")
+        throw registrationHttpError("This registration operation was already used with different data.", 409, "IDEMPOTENCY_CONFLICT", "unknown")
       }
       if (existing.status !== "completed") {
-        throw registrationHttpError("Registration finalization is not in a completed state.", 409, "OPERATION_STATE_CONFLICT")
+        throw registrationHttpError("Registration finalization is not in a completed state.", 409, "OPERATION_STATE_CONFLICT", "unknown")
       }
       return { idempotent: true }
     }
@@ -261,7 +250,7 @@ export async function finalizeResidentRegistration(
       ...reservationRefs.map(ref => transaction.get(ref)),
     ])
     if (userSnapshot.exists || verificationSnapshot.exists || notificationSnapshot.exists) {
-      throw registrationHttpError("Authoritative registration records already exist without this operation.", 409, "REGISTRATION_STATE_CONFLICT")
+      throw registrationHttpError("Authoritative registration records already exist without this operation.", 409, "REGISTRATION_STATE_CONFLICT", "unknown")
     }
 
     applyRegistrationClaims({

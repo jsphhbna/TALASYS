@@ -186,14 +186,14 @@ service cloud.firestore {
       );
       
       // Creation:
-      // - Residents can create verification for themselves, BUT status MUST be 'pending' (#57).
+      // - Residents can create verification for profile-edit or reactivation for themselves; status MUST be 'pending' (#57).
+      // - Initial registration and registration resubmissions are created ONLY by trusted server operations (/api/resident/registration/finalize and /api/resident/registration/resubmit).
       // - Single canonical owner (A01): reject conflicting residentId/userId fields and submissions targeting another resident.
       allow create: if (
         isAuthenticated() &&
         isActiveAccount() &&
         request.resource.data.status == 'pending' &&
-        request.resource.data.type in ['registration', 'profile-edit', 'reactivation'] &&
-        (request.resource.data.type != 'registration' || isUnverifiedResident()) &&
+        request.resource.data.type in ['profile-edit', 'reactivation'] &&
         (
           (!('residentId' in request.resource.data) || request.resource.data.residentId == request.auth.uid) &&
           (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
@@ -228,12 +228,11 @@ service cloud.firestore {
       // Creation:
       // - Admins can notify anyone.
       // - Residents can ONLY create notification with targetId == 'admin' (#58 impersonation defense).
-      // - Allow registration and reactivation notification types to admin (A10).
+      // - Registration notifications are emitted solely by trusted server registration operations.
       allow create: if (
         isAuthenticated() &&
         request.resource.data.targetId == 'admin' &&
-        request.resource.data.type in ['info', 'alert', 'registration', 'reactivation'] &&
-        (request.resource.data.type != 'registration' || isUnverifiedResident())
+        request.resource.data.type in ['info', 'alert', 'reactivation']
       );
       
       allow update, delete: if isAuthenticated() && (

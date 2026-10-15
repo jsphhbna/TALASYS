@@ -47,7 +47,7 @@ test("lost finalization response retries the exact operation and never triggers 
   assert.equal(result.verificationEmailSent, true)
 })
 
-test("definitive pre-commit rejection permits fresh Auth cleanup", async () => {
+test("definitive pre-commit rejection preserves Auth without speculative deletion", async () => {
   let deletes = 0
   await assert.rejects(
     () => completeFreshRegistration({
@@ -63,7 +63,7 @@ test("definitive pre-commit rejection permits fresh Auth cleanup", async () => {
     }),
     (error: unknown) => error instanceof RegistrationFinalizationError && error.outcome === "definitive",
   )
-  assert.equal(deletes, 1)
+  assert.equal(deletes, 0)
 })
 
 test("ambiguous exhaustion preserves Auth and email failure does not undo finalized registration", async () => {

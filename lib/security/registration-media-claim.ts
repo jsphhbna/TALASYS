@@ -16,8 +16,13 @@ export type RegistrationAssetIdentity = {
   capability?: string
 }
 
-export function registrationHttpError(message: string, status: number, code = "REGISTRATION_REJECTED") {
-  return Object.assign(new Error(message), { status, code, committed: false })
+export function registrationHttpError(
+  message: string,
+  status: number,
+  code = "REGISTRATION_REJECTED",
+  committed: boolean | "unknown" = false,
+) {
+  return Object.assign(new Error(message), { status, code, committed })
 }
 
 export function registrationCapabilityMatches(capability: string, expectedHash: string): boolean {

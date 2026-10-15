@@ -138,4 +138,22 @@
   6. Firestore Rules deny direct initial profile creation, require an existing authoritative profile for active-account privileges, and keep initial registration writes server-only while preserving existing unverified registration resubmission plus profile-edit/reactivation/payment/owner workflows.
 - **Consequences**: Initial Firestore registration state and proof ownership cannot split across commits; a lost response converges through replay; Auth-only identities have no active resident privileges. Application deployment must be verified before tightened Rules are published. No deployment or Rules publication is part of this decision record.
 
+## ADR-017: Server-Authoritative Registration Recovery, Strict Auth Preservation, and Gated Resubmission Lifecycle
+
+- **Status**: Accepted; locally verified; deployment and Rules publication pending
+- **Date**: 15 October 2026
+- **Context**:
+  - `committed: false` on transient Auth lookup or token errors, payload conflicts, or preflight failures allowed the client to delete Firebase Auth even when the registration had already committed or could commit.
+  - In-memory refs and sets did not survive page refresh or browser crashes, leaving incomplete Auth identities unable to restart due to `auth/email-already-in-use`.
+  - Unfinalized authenticated sign requests could potentially request arbitrary upload folders or receive broader resident upload permissions.
+  - Client-side direct creation of `registration` type in `verifications` and `notifications` in `firestore.rules` allowed duplicate pending verifications to be spammed without proving a prior rejection.
+  - UTC date getters in age calculations caused misalignment between midnight and 08:00 Manila time for residents turning 18 or 60.
+- **Decisions**:
+  1. **Strict Auth Preservation on Uncertain Commit Outcomes**: Removed speculative client-side deletion of Firebase Auth accounts. HTTP errors (400, 401, 403, 409, 503) and state conflicts return `committed: "unknown"` rather than false proof of non-commit. Auth is preserved unconditionally whenever there is uncertainty.
+  2. **Server-Authoritative Registration Status & Recovery**: Added `GET /api/resident/registration/status` (`inspectRegistrationStatus`) verifying ID tokens, deriving identity from Auth, and categorizing into `completed`, `incomplete`, `in-flight`, `rejected`, or `existing-resident`. Incomplete identities can resume proof upload without restarting Auth creation.
+  3. **Scoped Proof Signing for Incomplete Applicants**: In `/api/cloudinary/sign`, callers without a user profile are recognized as `registration-applicant`, restricted exclusively to folder `talasys/proofs` and publicId prefixed with `registration/`, and entries are reserved in `mediaRegistry` with an expiring claim token.
+  4. **Server-Gated Registration Resubmission Lifecycle**: Removed client creation of `registration` verifications and notifications from `firestore.rules`. Established `POST /api/resident/registration/resubmit` enforcing resident ownership, unverified status, existence of a prior rejected registration, and absence of active pending verifications before atomic creation of a new verification and notification. Client profile edits and reactivations remain directly allowed.
+  5. **Asia/Manila Calendar Day Age Calculation**: Centralized age calculation in `resident-status.ts` using `calculateAge`, evaluating age using Asia/Manila calendar day components (UTC+8 offset) across Manila midnight, boundary dates, and Feb 29 leap years independent of server/browser host timezone.
+- **Consequences**: Eliminates orphan registrations and speculative Auth destruction; provides coherent restart/continuation after refresh/crash; closes duplicate resubmission spam; aligns age classification across client and server.
+
 

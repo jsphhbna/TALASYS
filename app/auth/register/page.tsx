@@ -85,8 +85,49 @@ export default function RegisterPage() {
   const [isCompleting, setIsCompleting] = useState(false)
   const [uploadedProofs, setUploadedProofs] = useState<ResidentProofDocument[]>([])
   const [verificationEmailSent, setVerificationEmailSent] = useState(true)
-  const registrationOperationId = useRef<string | null>(null)
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null)
+  const registrationOperationId = useRef<string | null>(
+    typeof window !== "undefined" ? sessionStorage.getItem("talasys_reg_op_id") : null,
+  )
   const [countdown, setCountdown] = useState(10)
+
+  useEffect(() => {
+    let isMounted = true
+    const checkRecovery = async () => {
+      try {
+        const { auth } = await import("@/lib/firebase")
+        const currentUser = auth.currentUser
+        if (!currentUser) return
+        const token = await currentUser.getIdToken()
+        const storedOpId = typeof window !== "undefined" ? sessionStorage.getItem("talasys_reg_op_id") : null
+        const res = await fetch(`/api/resident/registration/status${storedOpId ? `?operationId=${storedOpId}` : ""}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!isMounted) return
+        if (data.status === "completed") {
+          setStep(3)
+          setVerificationEmailSent(true)
+        } else if (data.status === "incomplete") {
+          if (currentUser.email) {
+            setFormData((prev) => ({ ...prev, email: currentUser.email || prev.email }))
+          }
+          setRecoveryNotice("Incomplete registration detected. You can resume uploading your documents to complete your account.")
+        } else if (data.status === "rejected") {
+          setRecoveryNotice(
+            `Your previous registration was rejected: ${data.details?.rejectionReason || "Please review requirements"}. Please log in to resubmit with updated documents.`,
+          )
+        }
+      } catch {
+        // Silently ignore background recovery check failures on mount
+      }
+    }
+    checkRecovery()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   useEffect(() => {
     if (step === 3) {
@@ -297,7 +338,12 @@ export default function RegisterPage() {
       return
     }
     if (uploadedProofs.length === 0) setUploadedProofs(finalProofs)
-    if (!registrationOperationId.current) registrationOperationId.current = crypto.randomUUID()
+    if (!registrationOperationId.current) {
+      registrationOperationId.current = crypto.randomUUID()
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("talasys_reg_op_id", registrationOperationId.current)
+      }
+    }
 
     try {
       const registration = await registerResidentAccount({
@@ -319,17 +365,40 @@ export default function RegisterPage() {
         city: formData.city,
         operationId: registrationOperationId.current,
       })
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("talasys_reg_op_id")
+      }
       setVerificationEmailSent(registration.verificationEmailSent)
     } catch (err: any) {
       console.error("Registration Error:", err)
       setIsCompleting(false)
-      // Check if it's a weak password error from Firebase
       if (err?.code === "auth/weak-password") {
-         alert("Password is too weak. Please use at least 6 characters.")
+        alert("Password is too weak. Please use at least 6 characters.")
       } else if (err?.code === "auth/email-already-in-use") {
-         showToastPreset("accountExists")
+        try {
+          const { auth } = await import("@/lib/firebase")
+          if (auth.currentUser && auth.currentUser.email?.toLowerCase() === formData.email.trim().toLowerCase()) {
+            const token = await auth.currentUser.getIdToken()
+            const res = await fetch("/api/resident/registration/status", {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            const data = await res.json().catch(() => ({}))
+            if (data.status === "completed") {
+              setStep(3)
+              return
+            } else if (data.status === "incomplete") {
+              alert("An in-progress account was found. Please ensure all required documents are selected, then try again.")
+              return
+            }
+          }
+        } catch {
+          // Fall through to account exists toast
+        }
+        showToastPreset("accountExists")
+      } else if (err?.outcome === "ambiguous") {
+        alert("Registration completion could not be confirmed due to a connection issue. Your account has been preserved. Please keep this page open and click Register again to retry.")
       } else {
-         alert(`Error: ${err?.message || "Failed to create account"}`)
+        alert(err?.message || "Failed to create account. Please check your details and try again.")
       }
       return
     }
@@ -368,6 +437,11 @@ export default function RegisterPage() {
                   ? "Please verify your email address to continue."
                   : "Your registration is complete. Send a new verification email from the login page."}
             </p>
+            {recoveryNotice && (
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs rounded-lg text-left">
+                {recoveryNotice}
+              </div>
+            )}
           </div>
 
           {step < 3 && <RegisterStepIndicator step={step} />}

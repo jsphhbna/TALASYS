@@ -5,26 +5,52 @@ export type AutoResidentStatus = "Senior Citizen" | "Adult" | "Underage"
 const AUTO_DERIVED_STATUSES: AutoResidentStatus[] = ["Senior Citizen", "Adult", "Underage"]
 
 /**
- * Calculates a resident's age from their date of birth string.
+ * Calculates a resident's age from their date of birth string using the Asia/Manila calendar day.
+ * Asia/Manila is UTC+8 with no Daylight Saving Time. The calculation evaluates calendar day
+ * boundaries independently of the host machine's timezone.
  *
+ * @param dateOfBirth Date string in YYYY-MM-DD or standard parseable format.
+ * @param referenceTimeMs Epoch millisecond reference timestamp (defaults to Date.now()).
  * @returns The age in whole years, or `null` if the date string is missing or invalid.
  */
-export function calculateAge(dateOfBirth: string): number | null {
+export function calculateAge(dateOfBirth: string, referenceTimeMs: number = Date.now()): number | null {
   if (!dateOfBirth) {
     return null
   }
 
-  const birthDate = new Date(dateOfBirth)
-  if (Number.isNaN(birthDate.getTime())) {
-    return null
+  // Parse YYYY-MM-DD if formatted, or fallback to Date parsing
+  let year: number
+  let month: number
+  let day: number
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+    ;[year, month, day] = dateOfBirth.split("-").map(Number)
+    const birth = new Date(Date.UTC(year, month - 1, day))
+    if (birth.getUTCFullYear() !== year || birth.getUTCMonth() !== month - 1 || birth.getUTCDate() !== day) {
+      return null
+    }
+  } else {
+    const parsed = new Date(dateOfBirth)
+    if (Number.isNaN(parsed.getTime())) {
+      return null
+    }
+    year = parsed.getUTCFullYear()
+    month = parsed.getUTCMonth() + 1
+    day = parsed.getUTCDate()
   }
 
-  const today = new Date()
-  let age = today.getFullYear() - birthDate.getFullYear()
-  const monthDiff = today.getMonth() - birthDate.getMonth()
+  // Shift to Asia/Manila calendar day (UTC+08:00)
+  const manilaDate = new Date(referenceTimeMs + 8 * 60 * 60 * 1000)
+  const currentYear = manilaDate.getUTCFullYear()
+  const currentMonth = manilaDate.getUTCMonth() + 1
+  const currentDay = manilaDate.getUTCDate()
 
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+  let age = currentYear - year
+  if (currentMonth < month || (currentMonth === month && currentDay < day)) {
     age--
+  }
+
+  if (age < 0 || age > 130) {
+    return null
   }
 
   return age
