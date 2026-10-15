@@ -1,6 +1,47 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-16 (Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency)
+## Current handoff — 2026-10-16 (Final Registration Lifecycle Hardening & Regression Closure: D01–D05)
+
+Working branch: `main`. Audited baseline: `ca5308e9d51d7ec95a9db9942765bd397f2457ce`.
+
+This pass performs the final targeted remediation of the five independently identified functional inconsistencies (D01–D05) and adjacent lifecycle invariants:
+1. **D01 (Permanent Denial Must Not Be Reversible Through Generic Status Operations)**:
+   - `app/api/admin/operations/route.ts`: `resident.deactivate`, `resident.activate`, `resident.delete`, and `resident.update` strictly reject accounts where `registrationDenied === true`, `deniedAt` is set, or `(!isVerified && status === "Deleted")` with HTTP 409 Conflict.
+   - Generic operations cannot activate or deactivate unverified `Pending` applicants (HTTP 409).
+   - `lib/auth/auth-context.tsx`: Snapshot listener immediately signs out and revokes active sessions for denied residents (`registrationDenied === true || Boolean(deniedAt)`). `login` function immediately blocks login attempts.
+   - `hooks/auth/use-auth-guard.ts`: `isLockedOrDeleted` check treats `registrationDenied === true` as disqualifying.
+   - `firestore.rules`: `isActiveAccount()` strictly requires `user.get('registrationDenied', false) != true`.
+2. **D02 (Registration-Status Recovery Must Prioritize Authoritative Current State)**:
+   - `lib/security/registration-status.ts`: Reordered evaluation to inspect authoritative `users/{callerUid}` first. Immediately returns `status: "denied"` with `denialReason` for permanently denied or soft-deleted accounts, preventing misleading `completed` states from historical operations.
+3. **D03 (Consistent Identity Lock Coordination)**:
+   - `app/api/admin/operations/route.ts`: Imported and applied canonical `ACTIVE_LOCKED_STAGES` from `lib/admin/identity-coordination-policy.ts` (including `reconciling`, `auth-mutating`, `auth-completed`, `compensating`, `reconciliation-required`).
+   - `verification.denyRegistration` checks lock state against canonical active stages and rejects with HTTP 409 Conflict if active coordination is in progress. Also validates `residentVerificationLocks.activeVerificationStatus !== "approved"`.
+4. **D04 (Preserve Initial Registration Verification History)**:
+   - `app/api/admin/operations/route.ts`: `verification.delete` rejects generic physical deletion for all verification records with `type === "registration"` (HTTP 400).
+   - Preserves rejected records (required for resubmission eligibility), denied records (required for evidence/audit), and approved records. Non-registration verifications (`profile-edit`, `reactivation`) remain deletable.
+5. **D05 (Verification History Decision Date Accuracy)**:
+   - Created `lib/security/verification-history-policy.ts` resolving authoritative decision timestamps (`deniedAt`, `rejectedAt`, `approvedAt`), Manila calendar months, available years, and decision-year-attributed reason rankings.
+   - In `app/admin/verifications/history/page.tsx`, wired monthly charts and top reasons to the decision year policy.
+6. **Milestone 6 (Adjacent Lifecycle Hardening)**:
+   - Verification operations enforce single ownership: `residentId !== userId` throws HTTP 400.
+   - `app/api/admin/update-resident-email/route.ts` rejects email updates for permanently denied accounts (HTTP 409).
+   - `app/api/resident/requests/create/route.ts` rejects request creation for denied accounts (HTTP 403).
+   - `app/api/media/view/route.ts` and `lib/security/media-auth.ts` reject media delivery for denied accounts (HTTP 403).
+   - `lib/security/registration-resubmission.ts` rejects resubmission from denied accounts (HTTP 403).
+
+Evidence is provided by:
+- 205 unit/integration tests (PASS, 31 suites including `test/verification-history-date-attribution.test.ts`)
+- 83 Auth/Firestore emulator tests (PASS, 6 suites including all 27 items of Milestone E1 in `test/emulator/registration-denial-lifecycle.test.ts`)
+- 30 authenticated Playwright Chromium E2E tests (PASS)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 882 legacy warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Timezone matrix across UTC, Asia/Manila, and America/Los_Angeles (205/205 PASS per zone)
+- Clean `git diff --check`
+
+No production deployment, Firebase Rules publication, live account/data mutation, or live Cloudinary asset mutation was performed.
+
+## Prior handoff — 2026-10-16 (Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency)
 
 Working branch: `main`. Audited baseline: `0c18235e8ebf194303957491b713d9a780321c18`.
 

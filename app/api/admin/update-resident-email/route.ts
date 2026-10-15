@@ -50,6 +50,10 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
         const authorized = isSuperAdminRole(caller.role) || isFullAdminRole(caller.role) || caller.role === "Resident Management"
         if (!authorized || ["Locked", "Deleted", "Deleted by Resident"].includes(caller.status)) throw Object.assign(new Error("Caller is not authorized to modify resident identities."), { status: 403 })
         if (!residentSnapshot.exists || residentSnapshot.data()?.role !== "resident") throw Object.assign(new Error("Target resident record not found."), { status: 404 })
+        const targetResident = residentSnapshot.data() || {}
+        if (targetResident.registrationDenied || Boolean(targetResident.deniedAt) || (!targetResident.isVerified && targetResident.status === "Deleted")) {
+          throw Object.assign(new Error("Cannot modify email for a permanently denied resident."), { status: 409 })
+        }
         const existing = operationSnapshot.exists ? operationSnapshot.data() : null
         const lock = lockSnapshot.exists ? lockSnapshot.data() : null
 

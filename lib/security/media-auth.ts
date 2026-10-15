@@ -42,6 +42,7 @@ export interface MediaAccessRequest {
   callerUid?: string
   callerRole?: string
   callerStatus?: string
+  callerRegistrationDenied?: boolean
   ownerUid?: string
   assetPurpose?: "proof" | "receipt" | "signature" | "letter" | "profile" | "general"
 }
@@ -139,14 +140,15 @@ export function canAccessMedia(params: MediaAccessRequest): { authorized: boolea
     return { authorized: false, reason: "Unauthenticated: Missing caller identity" }
   }
 
-  // Reject locked or deleted accounts immediately (#30, #52)
+  // Reject locked, deleted, or permanently denied accounts immediately (#30, #52, D01)
   if (
     callerStatus === "Locked" ||
     callerStatus === "Deleted" ||
     callerStatus === "Deleted by Resident" ||
-    callerRole === "Deleted"
+    callerRole === "Deleted" ||
+    params.callerRegistrationDenied === true
   ) {
-    return { authorized: false, reason: "Forbidden: Caller account is locked or inactive." }
+    return { authorized: false, reason: "Forbidden: Caller account is locked, inactive, or registration was permanently denied." }
   }
 
   const assetPath = parseCloudinaryAsset(publicId || mediaUrl).publicId

@@ -9,6 +9,12 @@ import { useMounted } from "@/hooks/use-mounted"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts"
 import { CheckCircle2, XCircle, Activity, ChevronDown } from "lucide-react"
 import { extractValidYear } from "@/lib/security/audit-utils"
+import {
+  VERIFICATION_MONTHS,
+  getAvailableVerificationYears,
+  getTopReasonsByDecisionYear,
+  getManilaEventMonth,
+} from "@/lib/security/verification-history-policy"
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -17,18 +23,11 @@ export default function VerificationHistoryPage() {
   const mounted = useMounted()
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
 
-  // Parse valid year from log date or timestamp (#3, #18)
-  const allYears = useMemo(() => {
-    const years = new Set<string>()
-    activityLogs.forEach(log => {
-      if (log.actionType === "approved" || log.actionType === "rejected" || log.actionType === "denied") {
-        const y = extractValidYear(log.timestamp || log.date)
-        if (y) years.add(y)
-      }
-    })
-    if (years.size === 0) years.add(new Date().getFullYear().toString())
-    return Array.from(years).sort((a, b) => Number(b) - Number(a))
-  }, [activityLogs])
+  // Authoritative decision years from logs and verifications (D05)
+  const allYears = useMemo(() =>
+    getAvailableVerificationYears(activityLogs, rejectedVerifications, deniedVerifications),
+    [activityLogs, rejectedVerifications, deniedVerifications]
+  )
 
   const [selectedYear, setSelectedYear] = useState(allYears[0] || new Date().getFullYear().toString())
 
@@ -51,8 +50,10 @@ export default function VerificationHistoryPage() {
   )
 
   const monthlyData = useMemo(() =>
-    MONTHS.map((month, idx) => {
+    VERIFICATION_MONTHS.map((month) => {
       const monthLogs = verifLogs.filter(log => {
+        const eventMonth = getManilaEventMonth(log.timestamp)
+        if (eventMonth) return eventMonth === month
         const match = log.date?.match(/^([A-Za-z]+)/)
         return match && match[1].slice(0, 3) === month
       })
@@ -70,50 +71,11 @@ export default function VerificationHistoryPage() {
   const totalProcessed = totalApproved + totalRejected + totalDenied
   const approvalRate = totalProcessed > 0 ? Math.round((totalApproved / totalProcessed) * 100) : 0
 
-  const topReasonsByType = useMemo(() => {
-    const breakdown = {
-      "registration": [] as string[],
-      "denied-registration": [] as string[],
-      "profile-edit": [] as string[],
-      "reactivation": [] as string[]
-    }
-    
-    rejectedVerifications.forEach(v => {
-      // Check if it belongs to selected year
-      if (v.rejectionReason && (v.submittedDate?.includes(selectedYear) || v.submittedDate === undefined)) {
-        if (v.type === "registration") breakdown["registration"].push(v.rejectionReason)
-        if (v.type === "profile-edit") breakdown["profile-edit"].push(v.rejectionReason)
-        if (v.type === "reactivation") breakdown["reactivation"].push(v.rejectionReason)
-      }
-    })
-
-    deniedVerifications.forEach(v => {
-      const reason = v.denialReason || (v as any).reason
-      if (reason && (v.submittedDate?.includes(selectedYear) || v.submittedDate === undefined)) {
-        breakdown["denied-registration"].push(reason)
-      }
-    })
-
-    const getTop = (reasons: string[]) => {
-      const counts = reasons.reduce((acc, r) => {
-        const key = r.trim()
-        acc[key] = (acc[key] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-      
-      return Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([reason, count]) => ({ reason, count, total: reasons.length }))
-    }
-
-    return [
-      { id: "registration", title: "Registrations (Rejections)", color: "text-amber-700", bg: "bg-amber-50", data: getTop(breakdown["registration"]) },
-      { id: "denied-registration", title: "Registrations (Permanent Denials)", color: "text-rose-800", bg: "bg-rose-50", data: getTop(breakdown["denied-registration"]) },
-      { id: "profile-edit", title: "Profile Edits", color: "text-green-600", bg: "bg-green-50", data: getTop(breakdown["profile-edit"]) },
-      { id: "reactivation", title: "Reactivation", color: "text-purple-600", bg: "bg-purple-50", data: getTop(breakdown["reactivation"]) },
-    ]
-  }, [rejectedVerifications, deniedVerifications, selectedYear])
+  // Authoritative rejection and denial reasons grouped strictly by decision year (D05)
+  const topReasonsByType = useMemo(() =>
+    getTopReasonsByDecisionYear(rejectedVerifications, deniedVerifications, selectedYear),
+    [rejectedVerifications, deniedVerifications, selectedYear]
+  )
 
   if (!mounted) {
     return <AdminPageShell><div className="flex h-full items-center justify-center p-8">Loading history...</div></AdminPageShell>

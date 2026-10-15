@@ -183,8 +183,8 @@ export async function processRegistrationResubmission(
   if (status === "Expired") {
     throw registrationHttpError("Expired accounts must submit a reactivation request, not initial registration resubmission.", 400, "EXPIRED_ACCOUNT")
   }
-  if (status === "Locked" || status === "Deleted" || status === "Deleted by Resident") {
-    throw registrationHttpError("Account is inactive or locked.", 403, "ACCOUNT_INACTIVE")
+  if (userData.registrationDenied || Boolean(userData.deniedAt) || status === "Locked" || status === "Deleted" || status === "Deleted by Resident") {
+    throw registrationHttpError("Registration application was permanently denied or account is inactive.", 403, "ACCOUNT_INACTIVE")
   }
   if (status !== "Pending") {
     throw registrationHttpError("Account is not in a pending verification state.", 400, "INVALID_LIFECYCLE_STATE")

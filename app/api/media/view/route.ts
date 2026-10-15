@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
-import crypto from "crypto"
+import { NextResponse } from "next/server.js"
+import { adminAuth, adminDb } from "../../../../lib/firebase-admin.ts"
+import crypto from "node:crypto"
 import {
   isSensitiveMedia,
   canAccessMedia,
@@ -8,7 +8,7 @@ import {
   mediaRegistryDocumentId,
   parseCloudinaryAsset,
   sameCloudinaryAsset
-} from "@/lib/security/media-auth"
+} from "../../../../lib/security/media-auth.ts"
 
 function matches(value: unknown, target: string): boolean {
   return typeof value === "string" && sameCloudinaryAsset(value, target)
@@ -25,47 +25,50 @@ function requestContains(data: Record<string, any>, target: string): boolean {
   return [data.receiptUrl, data.gcashScreenshotUrl, data.authorizationLetterUrl, data.authorizationLetter].some(value => matches(value, target))
 }
 
-export async function POST(req: Request) {
-  try {
-    // Fail closed if Firebase Admin is unconfigured on the server (#52)
-    if (!adminAuth || !adminDb) {
-      return NextResponse.json(
-        { error: "Server authentication service is unavailable. Missing Firebase Admin configuration." },
-        { status: 503 }
-      )
-    }
-
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
-    const apiSecret = process.env.CLOUDINARY_API_SECRET
-
-    // Fail closed if Cloudinary signing secrets are unconfigured; NEVER use fallback secrets (#52)
-    if (!cloudName || !apiSecret) {
-      return NextResponse.json(
-        { error: "Server media delivery service is unconfigured. Missing Cloudinary secrets." },
-        { status: 500 }
-      )
-    }
-
-    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized: Missing authentication token for media delivery (#52)" },
-        { status: 401 }
-      )
-    }
-
-    const token = authHeader.replace("Bearer ", "").trim()
-    let decoded: any
+export function createMediaViewHandler(injected?: { auth?: any; db?: any }) {
+  return async function POST(req: Request) {
+    const auth = injected?.auth || adminAuth
+    const db = injected?.db || adminDb
     try {
-      decoded = await adminAuth.verifyIdToken(token, true)
-    } catch {
-      return NextResponse.json({ error: "Unauthorized: Invalid or revoked session token" }, { status: 401 })
-    }
+      // Fail closed if Firebase Admin is unconfigured on the server (#52)
+      if (!auth || !db) {
+        return NextResponse.json(
+          { error: "Server authentication service is unavailable. Missing Firebase Admin configuration." },
+          { status: 503 }
+        )
+      }
 
-    const callerUid = decoded.uid
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+      const apiSecret = process.env.CLOUDINARY_API_SECRET
 
-    // Authoritative caller account lookup in Firestore `users` collection (#28, #30)
-    const callerDoc = await adminDb.collection("users").doc(callerUid).get()
+      // Fail closed if Cloudinary signing secrets are unconfigured; NEVER use fallback secrets (#52)
+      if (!cloudName || !apiSecret) {
+        return NextResponse.json(
+          { error: "Server media delivery service is unconfigured. Missing Cloudinary secrets." },
+          { status: 500 }
+        )
+      }
+
+      const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { error: "Unauthorized: Missing authentication token for media delivery (#52)" },
+          { status: 401 }
+        )
+      }
+
+      const token = authHeader.replace("Bearer ", "").trim()
+      let decoded: any
+      try {
+        decoded = await auth.verifyIdToken(token, true)
+      } catch {
+        return NextResponse.json({ error: "Unauthorized: Invalid or revoked session token" }, { status: 401 })
+      }
+
+      const callerUid = decoded.uid
+
+      // Authoritative caller account lookup in Firestore `users` collection (#28, #30)
+      const callerDoc = await db.collection("users").doc(callerUid).get()
     if (!callerDoc.exists) {
       return NextResponse.json({ error: "Caller account not found in system." }, { status: 403 })
     }
@@ -74,8 +77,8 @@ export async function POST(req: Request) {
     const callerRole = (callerData.role as string | undefined) || "resident"
     const callerStatus = callerData.status as string | undefined
 
-    if (callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerRole === "Deleted") {
-      return NextResponse.json({ error: "Account is inactive or locked. Media access forbidden." }, { status: 403 })
+    if (callerData.registrationDenied || Boolean(callerData.deniedAt) || callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerRole === "Deleted") {
+      return NextResponse.json({ error: "Account is inactive, locked, or registration was denied. Media access forbidden." }, { status: 403 })
     }
 
     const body = await req.json().catch(() => ({}))
@@ -216,6 +219,7 @@ export async function POST(req: Request) {
         callerUid,
         callerRole,
         callerStatus,
+        callerRegistrationDenied: Boolean(callerData.registrationDenied || callerData.deniedAt),
         ownerUid: authoritativeOwnerUid,
       })
 
@@ -247,3 +251,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 })
   }
 }
+}
+
+export const POST = createMediaViewHandler()

@@ -1,6 +1,45 @@
 # TALASYS Project State
 
-## Current Verified State — 16 October 2026 (Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency)
+## Current Verified State — 16 October 2026 (Final Registration Lifecycle Hardening & Regression Closure: D01–D05)
+
+- **Working branch**: `main`
+- **Audited baseline**: `ca5308e9d51d7ec95a9db9942765bd397f2457ce`
+- **Status**: The five functional inconsistencies (D01–D05) and adjacent lifecycle invariants are fully remediated, verified, and self-audited.
+  1. **D01 (Permanent Denial Invariant & Generic Status Protection)**:
+     - `app/api/admin/operations/route.ts`: `resident.deactivate`, `resident.activate`, `resident.delete`, and `resident.update` reject permanently denied residents (`registrationDenied === true`, `deniedAt`, or `(!isVerified && status === "Deleted")`) with HTTP 409 Conflict.
+     - Unverified `Pending` applicants cannot be activated or deactivated via generic operations (HTTP 409).
+     - `lib/auth/auth-context.tsx`: Snapshot listener immediately signs out and revokes active sessions for denied residents (`registrationDenied === true || Boolean(deniedAt)`). `login` immediately blocks login for denied accounts.
+     - `hooks/auth/use-auth-guard.ts`: `isLockedOrDeleted` includes `user?.registrationDenied === true || Boolean(user?.deniedAt)`.
+     - `firestore.rules`: `isActiveAccount()` strictly checks `user.get('registrationDenied', false) != true`.
+  2. **D02 (Registration-Status Recovery Precedence)**:
+     - `lib/security/registration-status.ts`: Reordered evaluation to inspect authoritative `users/{callerUid}` first. Immediately returns `status: "denied"` with `denialReason` for permanently denied or soft-deleted accounts. Historical completed operations in `registrationOperations` are checked only when no user document exists or profile finalization was interrupted.
+  3. **D03 (Consistent Canonical Identity Lock Coordination)**:
+     - `app/api/admin/operations/route.ts`: Reused canonical `ACTIVE_LOCKED_STAGES` from `lib/admin/identity-coordination-policy.ts` (including `reconciling`, `auth-mutating`, `auth-completed`, `compensating`, `reconciliation-required`).
+     - `verification.denyRegistration` rejects with HTTP 409 Conflict if active identity coordination is underway. Also validates `residentVerificationLocks.activeVerificationStatus !== "approved"`.
+  4. **D04 (Registration Verification History Preservation)**:
+     - `app/api/admin/operations/route.ts`: `verification.delete` rejects generic physical deletion for all initial registration verifications (`type === "registration"`) with HTTP 400.
+     - Preserves rejected records (required for resubmission eligibility), denied records (required for evidence/audit), and approved records. Non-registration verifications (`profile-edit`, `reactivation`) remain deletable.
+  5. **D05 (Verification History Decision Date Accuracy)**:
+     - Created `lib/security/verification-history-policy.ts` resolving authoritative decision timestamps (`deniedAt`, `rejectedAt`, `approvedAt`), Manila calendar months, available years, and decision-year-attributed reason rankings.
+     - `app/admin/verifications/history/page.tsx` uses the policy for monthly chart groupings and top reasons breakdown.
+  6. **Milestone 6 (Adjacent Lifecycle Hardening)**:
+     - `app/api/admin/operations/route.ts`: Verification operations reject conflicting owner identities (`residentId !== userId`) with HTTP 400.
+     - `app/api/admin/update-resident-email/route.ts`: Rejects email updates for permanently denied residents (HTTP 409).
+     - `app/api/resident/requests/create/route.ts`: Rejects request creation for permanently denied accounts (HTTP 403).
+     - `app/api/media/view/route.ts` and `lib/security/media-auth.ts`: Rejects media delivery for permanently denied accounts (HTTP 403).
+     - `lib/security/registration-resubmission.ts`: Rejects resubmission attempts from permanently denied accounts (HTTP 403).
+  7. **Verification Metrics**:
+     - `npm test`: PASS 205/205 across 31 suites (including new unit tests in `test/verification-history-date-attribution.test.ts`).
+     - `npm run test:rules`: PASS 83/83 against Auth & Firestore emulators (including all 27 items of Milestone E1 in `test/emulator/registration-denial-lifecycle.test.ts`).
+     - `npm run test:e2e:auth`: PASS 30/30 across Chromium authenticated workflows.
+     - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+     - `npm run lint`: PASS (0 errors, 882 legacy warnings).
+     - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
+     - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles (205/205 per zone).
+     - `git diff --check`: PASS (clean).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No unauthorized production deployment or live rules publication performed.
+
+## Prior verified state — 16 October 2026 (Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency)
 
 - **Working branch**: `main`
 - **Audited baseline**: `0c18235e8ebf194303957491b713d9a780321c18`

@@ -18,7 +18,9 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
     user?.status === "Locked" || 
     user?.status === "Deleted" || 
     user?.status === "Deleted by Resident" ||
-    user?.role === "Deleted"
+    user?.role === "Deleted" ||
+    user?.registrationDenied === true ||
+    Boolean(user?.deniedAt)
   )
 
   const isAuthorized = Boolean(

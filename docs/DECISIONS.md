@@ -357,3 +357,53 @@
   - Safe soft deletion preserves all evidence, audit history, and uploaded documents without physical deletion.
   - Denied residents cannot authenticate, resubmit, or access any resident services.
   - Normal administrators cannot accidentally activate permanently denied accounts.
+
+## ADR-025: Registration Lifecycle Hardening, Authoritative Account Precedence, and Coordination Closure (D01–D05)
+
+- **Status**: Accepted / Verified
+- **Date**: 16 October 2026
+- **Context**:
+  - Following the introduction of separate registration approval, correctable rejection, and permanent denial workflows, five functional inconsistencies were identified:
+    1. **D01 (Critical)**: `resident.deactivate` lacked a permanent denial invariant, enabling a denied resident with `status: "Deleted"` to transition to `status: "Expired"`. Furthermore, authentication observers and route guards previously blocked only `Deleted` and `Locked`, meaning an expired denied resident could potentially regain application access.
+    2. **D02 (High)**: `lib/security/registration-status.ts` checked historical completed operations in `registrationOperations` before inspecting the authoritative user record in `users/{uid}`, causing permanently denied applicants to receive a misleading "completed" registration status during recovery.
+    3. **D03 (High)**: The permanent denial operation in `app/api/admin/operations/route.ts` maintained an ad-hoc list of active lock stages that omitted `reconciling`, an active coordination state defined in canonical `identity-coordination-policy.ts`.
+    4. **D04 (Medium)**: Generic verification deletion (`verification.delete`) only blocked pending initial registration verifications, permitting physical deletion of rejected, denied, or approved registration verifications, destroying resubmission eligibility and evidence.
+    5. **D05 (Low–Medium)**: `app/admin/verifications/history/page.tsx` filtered reasons by registration submission date rather than authoritative decision date (`rejectedAt`, `deniedAt`, `approvedAt`).
+- **Decisions**:
+  1. **Permanent Denial as an Independent Account Invariant (D01)**:
+     - `app/api/admin/operations/route.ts`: `resident.deactivate`, `resident.activate`, `resident.delete`, and `resident.update` strictly reject accounts where `registrationDenied === true`, `deniedAt` is set, or `(!isVerified && status === "Deleted")` with HTTP 409 Conflict.
+     - Generic operations cannot activate or deactivate unverified `Pending` applicants (HTTP 409).
+     - `lib/auth/auth-context.tsx`: Snapshot listener immediately signs out and revokes sessions when `userData.registrationDenied === true || Boolean(userData.deniedAt)`. `login` function rejects sign-in attempts immediately.
+     - `hooks/auth/use-auth-guard.ts`: `isLockedOrDeleted` check treats `user?.registrationDenied === true || Boolean(user?.deniedAt)` as disqualifying.
+     - `firestore.rules`: `isActiveAccount()` strictly requires `user.get('registrationDenied', false) != true`.
+  2. **Authoritative Current Account State Precedence in Registration Recovery (D02)**:
+     - In `lib/security/registration-status.ts`, reordered evaluation order:
+       1. Validate caller identity and token.
+       2. Inspect authoritative Firestore document `users/{callerUid}` first.
+       3. If `registrationDenied`, `deniedAt`, or soft-deleted, immediately return `{ status: "denied", denialReason: ... }`.
+       4. If active or verified resident, return `{ status: "existing-resident" }`.
+       5. If pending verifications exist, return `{ status: "completed" }` (or `"rejected"`).
+       6. Only inspect `registrationOperations` when user profile does not exist or profile finalization is incomplete.
+  3. **Canonical Identity Lock Coordination Alignment (D03)**:
+     - In `app/api/admin/operations/route.ts`, imported and reused `ACTIVE_LOCKED_STAGES` from `lib/admin/identity-coordination-policy.ts` (including `reconciling`, `auth-mutating`, `auth-completed`, `compensating`, `reconciliation-required`).
+     - `verification.denyRegistration` checks lock state against canonical active stages and rejects with HTTP 409 Conflict if active coordination is in progress. Also validates that `residentVerificationLocks.activeVerificationStatus !== "approved"`.
+  4. **Preservation of All Registration Verification Records (D04)**:
+     - In `app/api/admin/operations/route.ts`, `verification.delete` rejects generic physical deletion for all verification records with `type === "registration"` (HTTP 400).
+     - Preserves rejected records (required for resubmission eligibility), denied records (required for evidence/audit), and approved records.
+     - Legitimate non-registration verifications (`profile-edit`, `reactivation`) remain deletable.
+  5. **Authoritative Decision Event Attribution in Verification History (D05)**:
+     - Created `lib/security/verification-history-policy.ts` with `getAuthoritativeVerificationDecisionTimestamp`, `isVerificationInDecisionYear`, `getManilaEventMonth`, `getAvailableVerificationYears`, and `getTopReasonsByDecisionYear`.
+     - Inspects `deniedAt`, `rejectedAt`, and `approvedAt` (never falling back to submission dates). Evaluates dates in Asia/Manila (+08:00) calendar time.
+     - In `app/admin/verifications/history/page.tsx`, wired monthly charts and top reasons to the decision year policy.
+  6. **Adjacent Lifecycle Hardening (Milestone 6)**:
+     - Verification operations enforce single ownership: `residentId !== userId` throws HTTP 400.
+     - `app/api/admin/update-resident-email/route.ts` rejects email updates for permanently denied accounts (HTTP 409).
+     - `app/api/resident/requests/create/route.ts` rejects request creation for denied accounts (HTTP 403).
+     - `app/api/media/view/route.ts` and `lib/security/media-auth.ts` reject media delivery for denied accounts (HTTP 403).
+     - `lib/security/registration-resubmission.ts` rejects resubmission from denied accounts (HTTP 403).
+- **Consequences**:
+  - Permanently denied accounts can never be reactivated, converted to Expired, or regain access to services.
+  - Registration recovery truthfully reports permanent denial regardless of historical operations.
+  - Identity coordination locks prevent race conditions between registration denial and background reconciliation or approvals.
+  - Verification history and audit trails remain permanently intact.
+  - Verification reports accurately attribute reasons and actions to their decision periods.

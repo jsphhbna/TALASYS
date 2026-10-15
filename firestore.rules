@@ -26,10 +26,15 @@ service cloud.firestore {
       return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Account is valid and active (not locked, not deleted)
+    // Account is valid and active (not locked, not deleted, not registration-denied)
     function isActiveAccount() {
       let status = getUserStatus();
-      return hasAuthoritativeUserProfile() && status != 'Locked' && status != 'Deleted' && status != 'Deleted by Resident';
+      let user = getUserData();
+      return hasAuthoritativeUserProfile() &&
+        status != 'Locked' &&
+        status != 'Deleted' &&
+        status != 'Deleted by Resident' &&
+        user.get('registrationDenied', false) != true;
     }
 
     function isUnverifiedResident() {

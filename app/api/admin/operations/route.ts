@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { NextResponse } from "next/server.js"
 import { adminAuth, adminDb } from "../../../../lib/firebase-admin.ts"
 import { canManageRequestsRole, canManageResidentsRole, canManageVerificationsRole, isSuperAdminRole } from "../../../../lib/auth/auth-types.ts"
+import { ACTIVE_LOCKED_STAGES } from "../../../../lib/admin/identity-coordination-policy.ts"
 import { extractClientIp } from "../../../../lib/security/request-ip.ts"
 import { COLLECTION_ACTIVITY_LOGS, COLLECTION_DOCUMENT_REQUESTS, COLLECTION_NOTIFICATIONS, COLLECTION_SYSTEM_ALERTS, COLLECTION_SYSTEM_CONFIG, COLLECTION_USERS, COLLECTION_VERIFICATIONS, SYSTEM_CONFIG_DOCUMENT_ID } from "../../../../lib/constants.ts"
 
@@ -93,6 +94,9 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
 
     if (operation === "resident.update") {
       if (before.role !== "resident") throw httpError("Target is not a resident.", 403)
+      if (before.registrationDenied || before.deniedAt || (!before.isVerified && before.status === "Deleted")) {
+        throw httpError("Cannot update resident whose registration was permanently denied.", 409)
+      }
       const updates = exactFields(safeObject(payload.updates), RESIDENT_PROFILE_FIELDS)
       if (!Object.keys(updates).length) throw httpError("No supported resident fields were supplied.", 400)
       after = { ...updates, updatedAt: now }
@@ -100,14 +104,31 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       transaction.update(targetRef, after)
     } else if (["resident.delete", "resident.deactivate", "resident.activate"].includes(operation)) {
       if (before.role !== "resident") throw httpError("Target is not a resident.", 403)
-      if (operation === "resident.activate") {
-        if (before.registrationDenied || before.deniedAt || (!before.isVerified && before.status === "Deleted")) {
+      if (before.registrationDenied || before.deniedAt || (!before.isVerified && before.status === "Deleted")) {
+        if (operation === "resident.activate") {
           throw httpError("Cannot activate resident whose registration was permanently denied.", 409)
+        }
+        if (operation === "resident.deactivate") {
+          throw httpError("Cannot deactivate resident whose registration was permanently denied.", 409)
+        }
+        if (operation === "resident.delete") {
+          throw httpError("Resident registration is already permanently denied.", 409)
+        }
+      }
+      if (!before.isVerified && before.status === "Pending") {
+        if (operation === "resident.activate") {
+          throw httpError("Cannot activate an unverified pending resident. Application must be reviewed through the verification workflow.", 409)
+        }
+        if (operation === "resident.deactivate") {
+          throw httpError("Cannot deactivate an unverified pending applicant.", 409)
         }
       }
       after = { status: operation === "resident.delete" ? "Deleted" : operation === "resident.deactivate" ? "Expired" : "Active", updatedAt: now }
       transaction.update(targetRef, after)
     } else if (operation === "verification.reject") {
+      if (before.residentId && before.userId && before.residentId !== before.userId) {
+        throw httpError("Conflicting owner identities in verification record.", 400)
+      }
       const reason = typeof payload.reason === "string" ? payload.reason.trim() : ""
       if (reason.length < 10) throw httpError("Rejection requires a reason of at least 10 characters.", 400)
       if (before.status !== "pending") throw httpError("Verification is no longer pending.", 409)
@@ -134,6 +155,9 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       }
     } else if (operation === "verification.denyRegistration") {
       if (!isSuperAdminRole(actor.role)) throw httpError("Only Super Admins can permanently deny registrations.", 403)
+      if (before.residentId && before.userId && before.residentId !== before.userId) {
+        throw httpError("Conflicting owner identities in verification record.", 400)
+      }
       const reason = typeof payload.reason === "string" ? payload.reason.trim() : ""
       if (reason.length < 10) throw httpError("Denial requires a reason of at least 10 characters.", 400)
       if (before.type !== "registration") throw httpError("Only initial registration verifications can be permanently denied.", 400)
@@ -166,15 +190,20 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
         throw httpError("Resident account is not in a pending verification state.", 409)
       }
 
-      // Check active operation ownership
+      // Check active operation ownership using canonical policy stages (including 'reconciling')
       const identityLock = identityLockSnapshot.exists ? identityLockSnapshot.data() : null
-      if (identityLock && ["claimed", "auth-pending", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"].includes(identityLock.status)) {
-        throw httpError("Registration approval is currently in progress for this resident.", 409)
+      if (identityLock && (ACTIVE_LOCKED_STAGES as readonly string[]).includes(identityLock.status)) {
+        throw httpError(`Registration approval or identity coordination is currently in progress for this resident (stage: '${identityLock.status}').`, 409)
       }
 
       const residentLock = residentLockSnapshot.exists ? residentLockSnapshot.data() : null
-      if (residentLock && residentLock.activeVerificationStatus === "pending" && residentLock.activeVerificationId && residentLock.activeVerificationId !== targetRef.id) {
-        throw httpError("Another verification operation actively owns this resident's pending state.", 409)
+      if (residentLock) {
+        if (residentLock.activeVerificationStatus === "pending" && residentLock.activeVerificationId && residentLock.activeVerificationId !== targetRef.id) {
+          throw httpError("Another verification operation actively owns this resident's pending state.", 409)
+        }
+        if (residentLock.activeVerificationStatus === "approved") {
+          throw httpError("Cannot deny registration for an already approved resident verification.", 409)
+        }
       }
 
       after = {
@@ -223,8 +252,14 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       }
     } else if (operation === "verification.delete") {
       if (!isSuperAdminRole(actor.role)) throw httpError("Only Super Admins can delete verifications.", 403)
-      if (before.type === "registration" && before.status === "pending") {
-        throw httpError("Generic deletion of pending registration verifications is not permitted. Use 'verification.denyRegistration' to permanently deny pending registrations.", 400)
+      if (before.residentId && before.userId && before.residentId !== before.userId) {
+        throw httpError("Conflicting owner identities in verification record.", 400)
+      }
+      if (before.type === "registration") {
+        if (before.status === "pending") {
+          throw httpError("Generic deletion of pending registration verifications is not permitted. Use 'verification.denyRegistration' to permanently deny pending registrations.", 400)
+        }
+        throw httpError(`Initial registration verification records cannot be deleted (status: '${before.status}'). Registration history must be preserved for audit and lifecycle eligibility.`, 400)
       }
       const residentId = before.residentId || before.userId
       if (residentId && before.status === "pending") {

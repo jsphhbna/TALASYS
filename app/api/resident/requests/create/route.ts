@@ -27,33 +27,36 @@ export function resolveConfiguredDocument(config: Record<string, any>, documentT
   return { id, name: documentType, fee }
 }
 
-export async function POST(req: Request) {
-  try {
-    // Fail closed if Firebase Admin is unconfigured on the server (#56)
-    if (!adminAuth || !adminDb) {
-      return NextResponse.json(
-        { error: "Server request processing service is unavailable. Missing Firebase Admin configuration." },
-        { status: 503 }
-      )
-    }
-
-    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Missing or invalid authorization token." }, { status: 401 })
-    }
-
-    const token = authHeader.replace("Bearer ", "").trim()
-    let decodedToken: any
+export function createResidentRequestHandler(injected?: { auth?: any; db?: any }) {
+  return async function POST(req: Request) {
+    const auth = injected?.auth || adminAuth
+    const db = injected?.db || adminDb
     try {
-      decodedToken = await adminAuth.verifyIdToken(token, true)
-    } catch {
-      return NextResponse.json({ error: "Session invalid or expired. Please sign in again." }, { status: 401 })
-    }
+      // Fail closed if Firebase Admin is unconfigured on the server (#56)
+      if (!auth || !db) {
+        return NextResponse.json(
+          { error: "Server request processing service is unavailable. Missing Firebase Admin configuration." },
+          { status: 503 }
+        )
+      }
 
-    const callerUid = decodedToken.uid
+      const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return NextResponse.json({ error: "Missing or invalid authorization token." }, { status: 401 })
+      }
 
-    // Authoritative caller account lookup in Firestore `users` collection (#56)
-    const callerDoc = await adminDb.collection("users").doc(callerUid).get()
+      const token = authHeader.replace("Bearer ", "").trim()
+      let decodedToken: any
+      try {
+        decodedToken = await auth.verifyIdToken(token, true)
+      } catch {
+        return NextResponse.json({ error: "Session invalid or expired. Please sign in again." }, { status: 401 })
+      }
+
+      const callerUid = decodedToken.uid
+
+      // Authoritative caller account lookup in Firestore `users` collection (#56)
+      const callerDoc = await db.collection("users").doc(callerUid).get()
     if (!callerDoc.exists) {
       return NextResponse.json({ error: "Resident account record not found in system." }, { status: 403 })
     }
@@ -68,8 +71,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Only residents may submit document requests." }, { status: 403 })
     }
 
-    if (callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerStatus === "Expired") {
-      return NextResponse.json({ error: "Account is inactive, expired, or locked. Document requests forbidden." }, { status: 403 })
+    if (callerData.registrationDenied || Boolean(callerData.deniedAt) || callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerStatus === "Expired") {
+      return NextResponse.json({ error: "Account is inactive, expired, locked, or registration was denied. Document requests forbidden." }, { status: 403 })
     }
 
     const body = await req.json().catch(() => ({}))
@@ -238,3 +241,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || "Failed to submit document request" }, { status: error.status || 500 })
   }
 }
+}
+
+export const POST = createResidentRequestHandler()

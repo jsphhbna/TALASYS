@@ -1,6 +1,45 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, & Registration Denial Lifecycle)
 
-## Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency — CURRENT PASS
+## Final Registration Lifecycle Hardening & Functional Regression Closure (D01–D05) — CURRENT PASS
+
+- **Status**: VERIFIED
+- **Branch**: `main`
+- **Audited baseline**: `ca5308e9d51d7ec95a9db9942765bd397f2457ce`
+- **Target findings & remediations**:
+  1. **D01 (Permanent Denial Irreversibility & Generic Status Operation Invariants)**:
+     - `resident.deactivate` previously allowed transitioning a permanently denied resident (`registrationDenied === true`, `status: "Deleted"`) to `status: "Expired"`.
+     - Authentication (`lib/auth/auth-context.tsx`) and route guards (`hooks/auth/use-auth-guard.ts`) only checked `Deleted` and `Locked`, rather than treating `registrationDenied` as an independent disqualifying invariant.
+     - Remediation: Enforce `registrationDenied` as an independent blocking invariant across `app/api/admin/operations/route.ts` (`resident.deactivate`, `resident.activate`, `resident.delete`, `resident.update`), `lib/auth/auth-context.tsx` (immediate session revocation and login rejection), `hooks/auth/use-auth-guard.ts`, `firestore.rules` (`isActiveAccount()`), and server request/media routes.
+  2. **D02 (Registration Recovery Prioritizing Current Authoritative State)**:
+     - In `lib/security/registration-status.ts`, historical completed `registrationOperations` records were checked before inspecting the current `users/{callerUid}` document, causing permanently denied residents to receive misleading `status: "completed"` when refreshing or presenting a saved `operationId`.
+     - Remediation: Reorder evaluation to inspect authoritative `users/{callerUid}` record first. Immediately return `status: "denied"` if `registrationDenied` or `status === "Deleted"`. Use `registrationOperations` records only for incomplete registrations or unfinalized Auth profiles.
+  3. **D03 (Consistent Identity Lock Policy & Concurrency Invariants)**:
+     - In `app/api/admin/operations/route.ts` (`verification.denyRegistration`), active identity lock stages were manually checked using an incomplete list omitting `reconciling`.
+     - Remediation: Import and reuse canonical `ACTIVE_LOCKED_STAGES` from `lib/admin/identity-coordination-policy.ts`. Reject denial when the resident's identity is locked in any active stage (`claimed`, `auth-pending`, `auth-mutating`, `auth-completed`, `compensating`, `reconciling`, `reconciliation-required`).
+  4. **D04 (Preserve Initial Registration Verification History)**:
+     - In `app/api/admin/operations/route.ts` (`verification.delete`), generic deletion only blocked `type === "registration" && status === "pending"`. Permanently denied, rejected, and approved registration verifications could be physically deleted, destroying denial evidence and resubmission eligibility.
+     - Remediation: Explicitly reject generic deletion of all `type === "registration"` verifications. Initial registration verification records must be preserved for audit and lifecycle eligibility. Preserve legitimate deletion of non-registration verifications (`profile-edit`, `reactivation`).
+  5. **D05 (Verification History Decision-Date Accuracy & Timestamp Normalization)**:
+     - In `app/admin/verifications/history/page.tsx`, reasons breakdown filtered by registration `submittedDate` rather than authoritative decision dates (`rejectedAt`, `deniedAt`), causing cross-year decisions (e.g. submitted Dec 2026, denied Jan 2027) to misattribute reasons to the submission year.
+     - Remediation: Create dedicated shared helper `lib/security/verification-history-policy.ts` utilizing `normalizeTimestamp` and `getManilaCalendarDate`. Filter reasons strictly by authoritative decision timestamps (`rejectedAt` for rejections, `deniedAt` for denials), align monthly data to Manila calendar dates, exclude undated records from specific periods, and ensure complete parity across KPI cards, charts, and reasons breakdown.
+  6. **Adjacent Lifecycle Review**:
+     - Reject verification decisions when `residentId && userId && residentId !== userId`.
+     - Defend media delivery (`app/api/media/view/route.ts`) and document requests (`app/api/resident/requests/create/route.ts`) against denied accounts.
+     - Block email modification (`app/api/admin/update-resident-email/route.ts`) on denied accounts.
+
+| Milestone | Status | Verified Evidence |
+|---|---|---|
+| M1: D01 Permanent Denial Invariant & Status Protections | VERIFIED | `resident.deactivate`, `resident.activate`, `resident.delete`, and `resident.update` reject permanently denied residents (409) and unverified pending applicants (409); `lib/auth/auth-context.tsx` immediately revokes sessions and blocks login; `hooks/auth/use-auth-guard.ts` treats denial as disqualifying; `firestore.rules` requires `registrationDenied != true`. |
+| M2: D02 Registration Recovery Evaluation Order | VERIFIED | In `lib/security/registration-status.ts`, inspects authoritative `users/{callerUid}` first; permanently denied returns `status: "denied"` with `denialReason` even when given completed historical operationId; incomplete auth-only recovery preserved. |
+| M3: D03 Canonical Identity Lock Policy | VERIFIED | Reused canonical `ACTIVE_LOCKED_STAGES` (including `reconciling`); `verification.denyRegistration` rejects with 409 if identity coordination is active; rejects if `residentVerificationLocks.activeVerificationStatus === "approved"`. |
+| M4: D04 Registration Verification History Preservation | VERIFIED | In `app/api/admin/operations/route.ts`, `verification.delete` rejects generic deletion of all `type === "registration"` verifications (400), preserving rejected, denied, and approved records; non-registration verifications remain deletable. |
+| M5: D05 Verification History Decision-Date Accuracy | VERIFIED | Created `lib/security/verification-history-policy.ts`; attribution strictly by decision timestamps (`deniedAt`, `rejectedAt`, `approvedAt`) in Asia/Manila (+08:00); wired into `app/admin/verifications/history/page.tsx`. |
+| M6: Adjacent Lifecycle Review & Defense-in-Depth | VERIFIED | Conflicting ownership (`residentId !== userId`) rejected with 400; email update, document request creation, and media access guarded against permanently denied accounts. |
+| M7: Production-Path Regressions & Emulator/Browser Tests | VERIFIED | New unit suite `test/verification-history-date-attribution.test.ts` (6/6); expanded emulator suite `test/emulator/registration-denial-lifecycle.test.ts` (27/27); Playwright authenticated E2E tests (30/30). |
+| M8: Full Verification Suite Execution | VERIFIED | `npm test` (205/205); `npm run test:rules` (83/83); `npm run test:e2e:auth` (30/30); both typechecks (0 errors); `npm run lint` (0 errors); `npm run build` (51/51 routes); timezone matrix (UTC, Asia/Manila, America/Los_Angeles: 205/205); `git diff --check` (clean). |
+| M9: Continuous Self-Audit & Documentation | VERIFIED | Updated `BUILD_PLAN.md`, `docs/PROJECT_STATE.md`, `docs/HANDOFF.md`, `docs/DECISIONS.md` (ADR-025), and `docs/EVIDENCE_LEDGER.md` (E59). |
+
+## Permanent Registration Denial, Safe Soft Deletion & Lifecycle Consistency — PRIOR PASS
 
 - **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from audited baseline `0c18235e8ebf194303957491b713d9a780321c18`.
 - **Target findings & remediations**:

@@ -13,6 +13,7 @@ export type RegistrationStatusResponse = {
   email: string
   emailVerified: boolean
   operationId?: string
+  denialReason?: string
   details?: {
     isVerified?: boolean
     accountStatus?: string
@@ -34,27 +35,7 @@ export async function inspectRegistrationStatus(
 ): Promise<RegistrationStatusResponse> {
   const { db, operationId } = dependencies
 
-  // 1. Check operation document if operationId was provided
-  if (operationId && /^[A-Za-z0-9_-]{16,80}$/.test(operationId)) {
-    const opDoc = await db
-      .collection("registrationOperations")
-      .doc(registrationOperationDocumentId(callerUid, operationId))
-      .get()
-    if (opDoc.exists) {
-      const opData = opDoc.data() || {}
-      if (opData.status === "completed") {
-        return {
-          status: "completed",
-          uid: callerUid,
-          email: authEmail,
-          emailVerified,
-          operationId,
-        }
-      }
-    }
-  }
-
-  // 2. Inspect authoritative users/{callerUid} record
+  // 1. Inspect authoritative users/{callerUid} record FIRST (D02)
   const userDoc = await db.collection("users").doc(callerUid).get()
   if (userDoc.exists) {
     const userData = userDoc.data() || {}
@@ -63,12 +44,13 @@ export async function inspectRegistrationStatus(
     const isVerified = userData.isVerified === true
 
     // Check if user account was permanently denied or soft-deleted
-    if (userData.registrationDenied || accountStatus === "Deleted") {
+    if (userData.registrationDenied || Boolean(userData.deniedAt) || accountStatus === "Deleted") {
       return {
         status: "denied",
         uid: callerUid,
         email: authEmail,
         emailVerified,
+        denialReason: userData.denialReason || "",
         details: {
           isVerified: false,
           accountStatus,
@@ -139,6 +121,7 @@ export async function inspectRegistrationStatus(
           uid: callerUid,
           email: authEmail,
           emailVerified,
+          ...(operationId ? { operationId } : {}),
           details: {
             isVerified: false,
             accountStatus,
@@ -169,6 +152,7 @@ export async function inspectRegistrationStatus(
       uid: callerUid,
       email: authEmail,
       emailVerified,
+      ...(operationId ? { operationId } : {}),
       details: {
         isVerified: false,
         accountStatus,
@@ -176,8 +160,28 @@ export async function inspectRegistrationStatus(
     }
   }
 
-  // 3. User document does NOT exist.
-  // Check if any registration operations exist for this caller
+  // 2. User document does NOT exist.
+  // Check operation document if operationId was provided (recovery before Firestore profile finalization)
+  if (operationId && /^[A-Za-z0-9_-]{16,80}$/.test(operationId)) {
+    const opDoc = await db
+      .collection("registrationOperations")
+      .doc(registrationOperationDocumentId(callerUid, operationId))
+      .get()
+    if (opDoc.exists) {
+      const opData = opDoc.data() || {}
+      if (opData.status === "completed") {
+        return {
+          status: "completed",
+          uid: callerUid,
+          email: authEmail,
+          emailVerified,
+          operationId,
+        }
+      }
+    }
+  }
+
+  // Check if any completed registration operations exist for this caller
   const anyOpsSnapshot = await db
     .collection("registrationOperations")
     .where("uid", "==", callerUid)
@@ -197,7 +201,7 @@ export async function inspectRegistrationStatus(
     }
   }
 
-  // 4. Incomplete registration: Auth account exists, but no user or verification profile committed
+  // 3. Incomplete registration: Auth account exists, but no user or verification profile committed
   return {
     status: "incomplete",
     uid: callerUid,

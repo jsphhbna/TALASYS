@@ -6,7 +6,13 @@ import { createAdminOperationsHandler } from "../../app/api/admin/operations/rou
 import { createApproveVerificationHandler } from "../../app/api/admin/verifications/approve/route.ts"
 import { createRegistrationResubmissionHandler } from "../../app/api/resident/registration/resubmit/route.ts"
 import { mediaRegistryDocumentId } from "../../lib/security/media-auth.ts"
+import { createRegistrationStatusHandler } from "../../app/api/resident/registration/status/route.ts"
+import { createUpdateResidentEmailHandler } from "../../app/api/admin/update-resident-email/route.ts"
+import { createResidentRequestHandler } from "../../app/api/resident/requests/create/route.ts"
+import { createMediaViewHandler } from "../../app/api/media/view/route.ts"
 
+process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = "denial-lifecycle-cloud"
+process.env.CLOUDINARY_API_SECRET = "denial-lifecycle-secret"
 const cloudName = "denial-lifecycle-cloud"
 const createdUids = new Set<string>()
 
@@ -38,6 +44,60 @@ function approveHandler(callerUid: string) {
     auth: {
       verifyIdToken: async () => ({ uid: callerUid }),
     } as any,
+  })
+}
+
+function regStatusHandler(callerUid: string) {
+  return createRegistrationStatusHandler({
+    auth: {
+      verifyIdToken: async (token: string, checkRevoked: boolean) => {
+        assert.equal(checkRevoked, true)
+        return { uid: callerUid }
+      },
+      getUser: async (uid: string) => {
+        try {
+          return await adminAuth.getUser(uid)
+        } catch {
+          return { uid, email: `${uid}@example.test`, emailVerified: true }
+        }
+      },
+    },
+    db: adminDb,
+  })
+}
+
+function updateEmailHandler(callerUid: string) {
+  return createUpdateResidentEmailHandler({
+    auth: {
+      verifyIdToken: async (token: string, checkRevoked: boolean) => {
+        assert.equal(checkRevoked, true)
+        return { uid: callerUid }
+      },
+    } as any,
+  })
+}
+
+function residentRequestHandler(callerUid: string) {
+  return createResidentRequestHandler({
+    auth: {
+      verifyIdToken: async (token: string, checkRevoked: boolean) => {
+        assert.equal(checkRevoked, true)
+        return { uid: callerUid }
+      },
+    },
+    db: adminDb,
+  })
+}
+
+function mediaViewHandler(callerUid: string) {
+  return createMediaViewHandler({
+    auth: {
+      verifyIdToken: async (token: string, checkRevoked: boolean) => {
+        assert.equal(checkRevoked, true)
+        return { uid: callerUid }
+      },
+    },
+    db: adminDb,
   })
 }
 
@@ -85,6 +145,10 @@ test("Milestone E1: Comprehensive Registration Denial Lifecycle and Governance",
   const verifOnlyAdmin = await createIdentity("verif-only")
   const docsOnlyAdmin = await createIdentity("docs-only")
   const residentApplicant = await createIdentity("applicant")
+  let correctableResident: { uid: string; email: string }
+  let rejectVerifId = ""
+  let approvedResident: { uid: string; email: string }
+  let appVerifId = ""
 
   await adminDb.collection("users").doc(superAdmin.uid).set({
     role: "superadmin",
@@ -366,8 +430,8 @@ test("Milestone E1: Comprehensive Registration Denial Lifecycle and Governance",
 
   // 15. Correctable rejection still permits registration resubmission
   await t.test("15. Correctable rejection still permits registration resubmission", async () => {
-    const correctableResident = await createIdentity("correctable")
-    const rejectVerifId = `verif-rej-${randomUUID()}`
+    correctableResident = await createIdentity("correctable")
+    rejectVerifId = `verif-rej-${randomUUID()}`
 
     await adminDb.collection("users").doc(correctableResident.uid).set({
       role: "resident",
@@ -445,8 +509,8 @@ test("Milestone E1: Comprehensive Registration Denial Lifecycle and Governance",
 
   // 17. Existing verification approval remains functional
   await t.test("17. Existing verification approval remains functional", async () => {
-    const approvedResident = await createIdentity("approved")
-    const appVerifId = `verif-app-${randomUUID()}`
+    approvedResident = await createIdentity("approved")
+    appVerifId = `verif-app-${randomUUID()}`
 
     await adminDb.collection("users").doc(approvedResident.uid).set({
       role: "resident",
@@ -489,5 +553,390 @@ test("Milestone E1: Comprehensive Registration Denial Lifecycle and Governance",
     assert.equal(finalUser.data()?.status, "Active")
     assert.equal(finalUser.data()?.isVerified, true)
     assert.equal(finalUser.data()?.hasPendingVerification, false)
+  })
+
+  // D01: Permanently denied resident cannot be deactivated, deleted, or updated
+  await t.test("D01: resident.deactivate cannot change permanently denied resident to Expired (409)", async () => {
+    const res = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "resident.deactivate",
+        operationId: `op-deact-denied-${randomUUID()}`,
+        targetId: residentApplicant.uid,
+      }),
+    }))
+    assert.equal(res.status, 409)
+    const data = await res.json()
+    assert.match(data.error, /permanently denied/i)
+
+    // State remains Deleted
+    const currentDoc = await adminDb.collection("users").doc(residentApplicant.uid).get()
+    assert.equal(currentDoc.data()?.status, "Deleted")
+    assert.equal(currentDoc.data()?.registrationDenied, true)
+  })
+
+  await t.test("D01: resident.delete and resident.update reject permanently denied residents (409)", async () => {
+    const delRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "resident.delete",
+        operationId: `op-del-denied-${randomUUID()}`,
+        targetId: residentApplicant.uid,
+      }),
+    }))
+    assert.equal(delRes.status, 409)
+    const delData = await delRes.json()
+    assert.match(delData.error, /permanently denied/i)
+
+    const updRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "resident.update",
+        operationId: `op-upd-denied-${randomUUID()}`,
+        targetId: residentApplicant.uid,
+        payload: { name: "Tampered Name" },
+      }),
+    }))
+    assert.equal(updRes.status, 409)
+    const updData = await updRes.json()
+    assert.match(updData.error, /permanently denied/i)
+  })
+
+  await t.test("D01: Unverified Pending applicants cannot be activated or deactivated via generic operations (409)", async () => {
+    const pendingResident = await createIdentity("pending-applicant")
+    await adminDb.collection("users").doc(pendingResident.uid).set({
+      role: "resident",
+      status: "Pending",
+      isVerified: false,
+      name: "Pending Applicant",
+      email: pendingResident.email,
+    })
+
+    const actRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "resident.activate",
+        operationId: `op-act-pending-${randomUUID()}`,
+        targetId: pendingResident.uid,
+      }),
+    }))
+    assert.equal(actRes.status, 409)
+    assert.match((await actRes.json()).error, /Cannot activate an unverified pending resident/i)
+
+    const deactRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "resident.deactivate",
+        operationId: `op-deact-pending-${randomUUID()}`,
+        targetId: pendingResident.uid,
+      }),
+    }))
+    assert.equal(deactRes.status, 409)
+    assert.match((await deactRes.json()).error, /Cannot deactivate an unverified pending applicant/i)
+  })
+
+  await t.test("D01: Legitimate verified resident activation and deactivation continue to work", async () => {
+    // approvedResident is currently Active and verified
+    const deactRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "resident.deactivate",
+        operationId: `op-deact-app-${randomUUID()}`,
+        targetId: approvedResident.uid,
+      }),
+    }))
+    assert.equal(deactRes.status, 200)
+    assert.equal((await adminDb.collection("users").doc(approvedResident.uid).get()).data()?.status, "Expired")
+
+    const actRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "resident.activate",
+        operationId: `op-act-app-${randomUUID()}`,
+        targetId: approvedResident.uid,
+      }),
+    }))
+    assert.equal(actRes.status, 200)
+    assert.equal((await adminDb.collection("users").doc(approvedResident.uid).get()).data()?.status, "Active")
+  })
+
+  // D02: Registration status recovery prioritizes current authoritative account state
+  await t.test("D02: Registration status returns denied even when supplied with completed operationId", async () => {
+    // Record a completed operation in registrationOperations for the denied resident
+    await adminDb.collection("registrationOperations").doc(denyOpId).set({
+      operationId: denyOpId,
+      uid: residentApplicant.uid,
+      status: "completed",
+      updatedAt: Date.now() - 50000,
+    })
+
+    const req = new Request(`http://localhost/api/resident/registration/status?operationId=${denyOpId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${residentApplicant.uid}` },
+    })
+    const res = await regStatusHandler(residentApplicant.uid)(req)
+    assert.equal(res.status, 200)
+    const json = await res.json()
+    assert.equal(json.success, true)
+    assert.equal(json.status, "denied")
+    assert.equal(json.denialReason, denialReasonText)
+  })
+
+  await t.test("D02: Auth-only incomplete applicant recovers pending status via registration operation", async () => {
+    const incompleteIdentity = await createIdentity("incomplete-app")
+    const incOpId = `op-inc-${randomUUID()}`
+
+    await adminDb.collection("registrationOperations").doc(incOpId).set({
+      operationId: incOpId,
+      uid: incompleteIdentity.uid,
+      status: "pending",
+      updatedAt: Date.now(),
+    })
+
+    const req = new Request(`http://localhost/api/resident/registration/status?operationId=${incOpId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${incompleteIdentity.uid}` },
+    })
+    const res = await regStatusHandler(incompleteIdentity.uid)(req)
+    assert.equal(res.status, 200)
+    const json = await res.json()
+    assert.equal(json.success, true)
+    assert.equal(json.status, "incomplete")
+  })
+
+  // D03: Identity lock coordination during registration denial
+  await t.test("D03: Denial is rejected when identity lock is in reconciling or active stages (409)", async () => {
+    const activeStages = ["reconciling", "auth-mutating", "auth-completed", "compensating", "reconciliation-required"]
+    const pendingDeniedVerifId = `verif-lock-check-${randomUUID()}`
+    const lockResident = await createIdentity("lock-resident")
+
+    await adminDb.collection("users").doc(lockResident.uid).set({
+      role: "resident",
+      status: "Pending",
+      isVerified: false,
+      hasPendingVerification: true,
+      pendingVerificationId: pendingDeniedVerifId,
+      name: "Lock Resident",
+      email: lockResident.email,
+    })
+
+    await adminDb.collection("verifications").doc(pendingDeniedVerifId).set({
+      residentId: lockResident.uid,
+      userId: lockResident.uid,
+      type: "registration",
+      status: "pending",
+      name: "Lock Resident",
+      email: lockResident.email,
+      createdAt: Date.now(),
+    })
+
+    for (const stage of activeStages) {
+      await adminDb.collection("identityOperationLocks").doc(lockResident.uid).set({
+        operationId: `op-${stage}`,
+        attemptId: `att-${stage}`,
+        status: stage,
+        leaseUntil: Date.now() + 60000,
+        updatedAt: Date.now(),
+      })
+
+      const res = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "verification.denyRegistration",
+          operationId: `op-deny-lock-${stage}-${randomUUID()}`,
+          targetId: pendingDeniedVerifId,
+          payload: { reason: "Permanent disqualification test for lock stage" },
+        }),
+      }))
+      assert.equal(res.status, 409)
+      const data = await res.json()
+      assert.match(data.error, /identity coordination is currently in progress/i)
+    }
+
+    // Release the lock (status: completed, leaseUntil: 0)
+    await adminDb.collection("identityOperationLocks").doc(lockResident.uid).set({
+      operationId: "op-completed",
+      attemptId: "att-completed",
+      status: "completed",
+      leaseUntil: 0,
+      updatedAt: Date.now(),
+    })
+
+    // Now denial succeeds
+    const releaseRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.denyRegistration",
+        operationId: `op-deny-released-${randomUUID()}`,
+        targetId: pendingDeniedVerifId,
+        payload: { reason: "Permanent disqualification after coordination completed" },
+      }),
+    }))
+    assert.equal(releaseRes.status, 200)
+    assert.equal((await releaseRes.json()).success, true)
+  })
+
+  // D04: Preserve initial registration verification history
+  await t.test("D04: Generic deletion is rejected for rejected, denied, and approved registration verifications (400)", async () => {
+    // 1. Rejected registration verification
+    const delRejRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.delete",
+        operationId: `op-del-rej-${randomUUID()}`,
+        targetId: rejectVerifId,
+      }),
+    }))
+    assert.equal(delRejRes.status, 400)
+    assert.match((await delRejRes.json()).error, /Initial registration verification records cannot be deleted/i)
+    assert.equal((await adminDb.collection("verifications").doc(rejectVerifId).get()).exists, true)
+
+    // 2. Denied registration verification
+    const delDenRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.delete",
+        operationId: `op-del-den-${randomUUID()}`,
+        targetId: verifId,
+      }),
+    }))
+    assert.equal(delDenRes.status, 400)
+    assert.match((await delDenRes.json()).error, /Initial registration verification records cannot be deleted/i)
+    assert.equal((await adminDb.collection("verifications").doc(verifId).get()).exists, true)
+
+    // 3. Approved registration verification
+    const delAppRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.delete",
+        operationId: `op-del-app-${randomUUID()}`,
+        targetId: appVerifId,
+      }),
+    }))
+    assert.equal(delAppRes.status, 400)
+    assert.match((await delAppRes.json()).error, /Initial registration verification records cannot be deleted/i)
+    assert.equal((await adminDb.collection("verifications").doc(appVerifId).get()).exists, true)
+
+    // 4. Non-registration verification (profile-edit) can still be legitimately deleted
+    const profileEditVerifId = `verif-profile-edit-${randomUUID()}`
+    await adminDb.collection("verifications").doc(profileEditVerifId).set({
+      residentId: approvedResident.uid,
+      userId: approvedResident.uid,
+      type: "profile-edit",
+      status: "pending",
+      createdAt: Date.now(),
+    })
+
+    const delProfileRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.delete",
+        operationId: `op-del-prof-${randomUUID()}`,
+        targetId: profileEditVerifId,
+      }),
+    }))
+    assert.equal(delProfileRes.status, 200)
+    assert.equal((await adminDb.collection("verifications").doc(profileEditVerifId).get()).exists, false)
+  })
+
+  // Milestone 6: Conflicting owner identity and adjacent endpoints
+  await t.test("M6: Verification operations reject conflicting owner identities (400)", async () => {
+    const mismatchVerifId = `verif-mismatch-${randomUUID()}`
+    await adminDb.collection("verifications").doc(mismatchVerifId).set({
+      residentId: "user-alpha",
+      userId: "user-beta",
+      type: "registration",
+      status: "pending",
+      createdAt: Date.now(),
+    })
+
+    // Deny attempt
+    const denyRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.denyRegistration",
+        operationId: `op-mismatch-deny-${randomUUID()}`,
+        targetId: mismatchVerifId,
+        payload: { reason: "Permanent disqualification mismatch test" },
+      }),
+    }))
+    assert.equal(denyRes.status, 400)
+    assert.match((await denyRes.json()).error, /Conflicting owner identities/i)
+
+    // Reject attempt
+    const rejectRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.reject",
+        operationId: `op-mismatch-rej-${randomUUID()}`,
+        targetId: mismatchVerifId,
+        payload: { reason: "Correctable rejection mismatch test" },
+      }),
+    }))
+    assert.equal(rejectRes.status, 400)
+    assert.match((await rejectRes.json()).error, /Conflicting owner identities/i)
+
+    // Delete attempt
+    const delRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.delete",
+        operationId: `op-mismatch-del-${randomUUID()}`,
+        targetId: mismatchVerifId,
+      }),
+    }))
+    assert.equal(delRes.status, 400)
+    assert.match((await delRes.json()).error, /Conflicting owner identities/i)
+  })
+
+  await t.test("M6: Denied resident cannot update email (409)", async () => {
+    const emailRes = await updateEmailHandler(superAdmin.uid)(new Request("http://localhost/api/admin/update-resident-email", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        residentId: residentApplicant.uid,
+        newEmail: "new-email-denied@example.test",
+      }),
+    }))
+    assert.equal(emailRes.status, 409)
+    assert.match((await emailRes.json()).error, /permanently denied/i)
+  })
+
+  await t.test("M6: Denied resident cannot create document request (403)", async () => {
+    const reqRes = await residentRequestHandler(residentApplicant.uid)(new Request("http://localhost/api/resident/requests/create", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${residentApplicant.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType: "Barangay Clearance" }),
+    }))
+    assert.equal(reqRes.status, 403)
+    assert.match((await reqRes.json()).error, /denied/i)
+  })
+
+  await t.test("M6: Denied resident cannot access protected media (403)", async () => {
+    const mediaRes = await mediaViewHandler(residentApplicant.uid)(new Request("http://localhost/api/media/view", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${residentApplicant.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        publicId: `talasys/proofs/${residentApplicant.uid}/id1`,
+      }),
+    }))
+    assert.equal(mediaRes.status, 403)
+    assert.match((await mediaRes.json()).error, /denied/i)
   })
 })

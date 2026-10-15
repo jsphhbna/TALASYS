@@ -77,12 +77,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (snapshot.exists()) {
               const userData = { id: snapshot.id, ...snapshot.data() } as AuthUser
               
-              // Immediately revoke active session if locked or deleted (#30)
+              // Immediately revoke active session if locked, deleted, or permanently denied (#30, D01)
               if (
                 userData.role === "Deleted" ||
                 userData.status === "Deleted" ||
                 userData.status === "Deleted by Resident" ||
-                userData.status === "Locked"
+                userData.status === "Locked" ||
+                userData.registrationDenied === true ||
+                Boolean(userData.deniedAt)
               ) {
                 await firebaseSignOut(auth)
                 setUser(null)
@@ -144,6 +146,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const userData = { id: userDoc.id, ...(userDoc.data() as any) } as AuthUser
       
+      // Block login immediately for permanently denied accounts (D01)
+      if (userData.registrationDenied === true || Boolean(userData.deniedAt)) {
+        await firebaseSignOut(auth)
+        return { _error: "This registration application has been permanently denied. Please contact administration." } as any
+      }
+
       // Block login immediately for soft-deleted accounts
       if (userData.role === "Deleted" || userData.status === "Deleted" || userData.status === "Deleted by Resident") {
         await firebaseSignOut(auth)
