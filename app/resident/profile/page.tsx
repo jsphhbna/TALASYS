@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import dynamic from "next/dynamic"
 import { useSearchParams } from "next/navigation"
 import { useAuthGuard } from "@/hooks/auth"
@@ -95,9 +95,11 @@ export default function ProfilePage() {
   const [reactivationFile, setReactivationFile] = useState<File | null>(null)
   const [isSubmittingReactivation, setIsSubmittingReactivation] = useState(false)
 
+  const prevDialogOpenRef = useRef(false)
+
   // Finding #43: Initialize from complete user.statuses array so voter category is preserved
   useEffect(() => {
-    if (user && isDialogOpen) {
+    if (user && isDialogOpen && !prevDialogOpenRef.current) {
       let initialStatuses: string[] = []
       if (Array.isArray(user.statuses) && user.statuses.length > 0) {
         initialStatuses = [...user.statuses]
@@ -123,6 +125,7 @@ export default function ProfilePage() {
         reason: "",
       })
     }
+    prevDialogOpenRef.current = isDialogOpen
   }, [user, isDialogOpen])
 
   useEffect(() => {

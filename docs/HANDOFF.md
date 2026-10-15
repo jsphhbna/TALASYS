@@ -1,6 +1,39 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-15 (Final Registration Lifecycle Remediation: R09–R12)
+## Current handoff — 2026-10-15 (Final Targeted Integration Corrections: R13–R14)
+
+Working branch: `main`. Audited baseline: `3658458e4658dfa07331683ef00d50fb8456963b`.
+
+This targeted pass resolves the two remaining registration integration gaps (R13–R14) while preserving all prior repairs:
+1. **R13 (Frontend upload/resubmission retry & recovery)**:
+   - Added pre-upload logical input fingerprinting (`computeInputFilesFingerprint`) and attempt caching in `sessionStorage` (`talasys_resubmit_op_${residentId}`).
+   - Caches uploaded Cloudinary documents in the attempt so that network timeouts, lost responses, and user retries reuse the already-uploaded assets and the original authoritative `operationId` rather than re-uploading and generating conflicting operations.
+   - Server attaches the authoritative `verificationId` in the JSON response of 409 `PENDING_VERIFICATION_EXISTS` (`app/api/resident/registration/resubmit/route.ts`).
+   - Frontend `useResidentData.requestProfileEdit` recovers the pending verification cleanly from 409 responses, clears stored attempts upon terminal completion, and preserves attempts during network interruptions.
+   - Prevents profile edit dialog from resetting user input across real-time Firestore background snapshot refreshes (`prevDialogOpenRef` in `app/resident/profile/page.tsx`).
+   - Strictly conforms to credential and privacy boundaries: never persists passwords, tokens, Cloudinary capabilities, or raw document contents in browser storage.
+   - Validated via Playwright Test 25 simulating browser-level lost network response, subsequent retry, 409 authoritative recovery, and refresh idempotency.
+2. **R14 (Privileged registration verification deletion consistency)**:
+   - Updated `firestore.rules` to deny direct client deletion of `type == "registration"` verifications for ALL client roles, including Super Admin (`resource.data.type != 'registration'`).
+   - Implemented coordinated server-authoritative `verification.delete` operation in `app/api/admin/operations/route.ts` requiring Super Admin authorization.
+   - Operation runs in a Firestore transaction: deletes the verification document, resets `users.hasPendingVerification` to `false` and `pendingVerificationId` to `null`, clears `residentVerificationLocks/{residentId}` with active status `"deleted"`, and writes an authoritative audit event to prevent stranding resident pending flags or locks.
+   - Verified via unit, rules, and emulator integration tests.
+
+Evidence is provided by:
+- 165 unit tests (PASS, up from 163 across 31 suites)
+- 58 Auth/Firestore emulator tests (PASS, up from 56)
+- 25 authenticated Playwright Chromium E2E tests (PASS, up from 24)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 796 warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Timezone matrix (3 x 6 tests under UTC, Asia/Manila, America/Los_Angeles)
+- Clean `git diff --check`
+
+No production deployment, Firebase Rules publication, live account/data mutation, or live Cloudinary asset mutation was performed.
+
+Deployment order is mandatory: deploy and verify the application/server code first, then publish the tightened Firestore Rules.
+
+## Prior handoff — 2026-10-15 (Final Registration Lifecycle Remediation: R09–R12)
 
 Working branch: `main`. Audited baseline: `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`.
 

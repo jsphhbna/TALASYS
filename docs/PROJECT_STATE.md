@@ -1,6 +1,26 @@
 # TALASYS Project State
 
-## Current verified state — 15 October 2026 (R09–R12 Final Remediation Pass)
+## Current verified state — 15 October 2026 (R13–R14 Targeted Integration Corrections)
+
+- **Working branch**: `main`
+- **Audited baseline**: `3658458e4658dfa07331683ef00d50fb8456963b`
+- **Status**: Final targeted integration corrections (R13–R14) are fully implemented and verified.
+  1. **R13 (Frontend upload/resubmission retry & recovery)**: Pre-upload logical input fingerprinting and attempt caching in `sessionStorage` (`lib/resident/resubmission-operation.ts` & `hooks/resident/use-resident-data.ts`). Preserves original authoritative `operationId` and uploaded Cloudinary documents across lost responses, network timeouts, duplicate clicks, and retries, eliminating duplicate Cloudinary uploads and conflicting operation IDs. Returns active `verificationId` on server 409 `PENDING_VERIFICATION_EXISTS` and recovers pending state across fresh uploads, refreshes, and ambiguous responses. Strictly complies with credential/storage safety (never stores passwords, Firebase tokens, Cloudinary capabilities, or document contents).
+  2. **R14 (Privileged registration verification deletion consistency)**: Firestore Rules updated to strictly deny direct client deletion of `type == "registration"` verifications for all client roles, including Super Admin. Added coordinated server-authoritative `verification.delete` operation in `app/api/admin/operations/route.ts` requiring Super Admin authorization, transactionally clearing `residentVerificationLocks` and `users.hasPendingVerification`, deleting the verification document, and recording an authoritative audit event to prevent stranding resident registration state.
+- **Rules state**: Client deletion of `type == "registration"` verifications is denied for ALL roles including Super Admin; server-authoritative `verification.delete` operation is required; `residentVerificationLocks` remains default-denied; client creation of initial user profiles and notifications remains denied.
+- **Verification metrics**:
+  - `npm test`: PASS 165/165 across 31 suites (including 2 new unit tests for R13).
+  - `npm run test:rules`: PASS 58/58 against Auth & Firestore emulators (including R13 concurrency/recovery test and R14 server-authoritative deletion test).
+  - `npm run test:e2e:auth`: PASS 25/25 across Chromium authenticated workflows (including Test 25: browser lost response recovery, retry idempotency, and refresh stability).
+  - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+  - `npm run lint`: PASS (0 errors, 796 warnings).
+  - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
+  - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles (6/6 tests each).
+  - `git diff --check`: PASS (clean).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No production deployment, rules publication, or live Cloudinary mutation performed.
+- **Deployment order**: Deploy and verify application code first; then publish updated Firestore Rules.
+
+## Prior verified state — 15 October 2026 (R09–R12 Final Remediation Pass)
 
 - **Working branch**: `main`
 - **Audited baseline**: `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`

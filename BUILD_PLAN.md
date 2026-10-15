@@ -1,6 +1,19 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18 & R01–R12)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18 & R01–R14)
 
-## Final Registration Lifecycle Remediation & Self-Audit (R09–R12) — active pass
+## Final Targeted Integration Corrections (R13–R14) — current pass
+
+- **Status**: IMPLEMENTED, FULLY VERIFIED on `main`.
+- **Target findings**:
+  1. **R13 (Frontend upload/resubmission retry & recovery)**: Pre-upload logical input fingerprinting and attempt caching in `sessionStorage` (`lib/resident/resubmission-operation.ts` & `hooks/resident/use-resident-data.ts`). Preserves original authoritative `operationId` and uploaded Cloudinary documents across lost responses, network timeouts, duplicate clicks, and retries, eliminating duplicate Cloudinary uploads and conflicting operation IDs. Returns active `verificationId` on server 409 `PENDING_VERIFICATION_EXISTS` and recovers pending state across fresh uploads, refreshes, and ambiguous responses. Strictly complies with credential/storage safety (never stores passwords, Firebase tokens, Cloudinary capabilities, or document contents).
+  2. **R14 (Privileged registration verification deletion consistency)**: Firestore Rules updated to strictly deny direct client deletion of `type == "registration"` verifications for all client roles, including Super Admin. Added coordinated server-authoritative `verification.delete` operation in `app/api/admin/operations/route.ts` requiring Super Admin authorization, transactionally clearing `residentVerificationLocks` and `users.hasPendingVerification`, deleting the verification document, and recording an authoritative audit event to prevent stranding resident registration state.
+
+| Milestone | Status | Verified Evidence |
+|---|---|---|
+| M-R13: Frontend Resubmission Retry & Recovery | VERIFIED | Pre-upload fingerprinting and attempt caching in `sessionStorage`; Cloudinary uploads and operation ID reused across retries; 409 `PENDING_VERIFICATION_EXISTS` returns and recovers authoritative `verificationId`; browser lost response recovery and refresh idempotency verified via Playwright Test 25. |
+| M-R14: Verification Deletion Consistency & Rules | VERIFIED | `firestore.rules` updated to deny direct client deletion of registration verifications for all roles; server-authoritative `verification.delete` operation in `app/api/admin/operations/route.ts` requiring Super Admin authorization transactionally deletes verification, clears `residentVerificationLocks` and `users.hasPendingVerification`, and writes audit record; verified via emulator and rules tests. |
+| M-R-Audit: Complete Regression Gate & Self-Audit | VERIFIED | Unit tests PASS (165/165), Emulator/Rules tests PASS (58/58), Authenticated Playwright E2E PASS (25/25), TypeScript app/test (0 errors), ESLint (0 errors, 796 warnings), Next.js Build (51/51 routes PASS), Timezone tests across Manila/UTC/US Pacific (PASS), `git diff --check` clean. |
+
+## Final Registration Lifecycle Remediation & Self-Audit (R09–R12) — prior pass
 
 - **Status**: IN PROGRESS on `main` from baseline `26f067bc1939dd3c2b2a86bdcea9efe2329ed8ba`.
 - **Target findings**:

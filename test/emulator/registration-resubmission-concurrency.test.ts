@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { adminAuth, adminDb } from "../../lib/firebase-admin.ts"
 import { createRegistrationResubmissionHandler } from "../../app/api/resident/registration/resubmit/route.ts"
+import { createAdminOperationsHandler } from "../../app/api/admin/operations/route.ts"
 import { mediaRegistryDocumentId } from "../../lib/security/media-auth.ts"
 import { registrationOperationDocumentId } from "../../lib/security/registration-finalization.ts"
 import { processRegistrationResubmission } from "../../lib/security/registration-resubmission.ts"
@@ -727,4 +728,215 @@ test("R11: Lost HTTP response followed by same-operation retry recovers original
     .get()
   assert.equal(verifications.docs.length, 1)
   assert.equal(verifications.docs[0].id, originalVerificationId)
+})
+
+test("R13: Lost response with fresh retry receives 409 PENDING_VERIFICATION_EXISTS with authoritative verification ID", async () => {
+  const identity = await createIdentity("r13-fresh-recovery")
+  const proofId1 = randomUUID()
+  const proofId2 = randomUUID()
+  await reserveProof(identity.uid, proofId1)
+  await reserveProof(identity.uid, proofId2)
+
+  await adminDb.collection("users").doc(identity.uid).set({
+    role: "resident",
+    name: "R13 Resident",
+    initials: "RR",
+    email: identity.email,
+    status: "Pending",
+    statuses: ["Adult"],
+    isVerified: false,
+    dateOfBirth: "1994-03-22",
+  })
+
+  // Prior rejected verification
+  await adminDb.collection("verifications").doc(`rejected-${identity.uid}`).set({
+    residentId: identity.uid,
+    status: "rejected",
+    type: "registration",
+    rejectionReason: "Photo blurry",
+    createdAt: Date.now() - 5000,
+  })
+
+  // 1. Initial attempt commits on server
+  const opId1 = `op-r13-${randomUUID()}`
+  const initialRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operationId: opId1,
+      proofs: [{ name: "Valid Government ID", url: proofUrl(identity.uid, proofId1) }],
+      reason: "Initial clearer photo",
+    }),
+  }))
+  assert.equal(initialRes.status, 200)
+  const initialJson = await initialRes.json()
+  const authoritativeVerificationId = initialJson.verificationId
+  assert.ok(authoritativeVerificationId)
+
+  // 2. Client loses response, and retries with a fresh upload (new operation ID, new URL)
+  // Server detects pending verification and returns 409 PENDING_VERIFICATION_EXISTS
+  // containing the authoritative verificationId so client can recover it without duplicate submission!
+  const opId2 = `op-r13-fresh-${randomUUID()}`
+  const freshRetryRes = await resubmitHandler()(new Request("http://localhost/api/resident/registration/resubmit", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${identity.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operationId: opId2,
+      proofs: [{ name: "Valid Government ID", url: proofUrl(identity.uid, proofId2) }],
+      reason: "Fresh upload attempt",
+    }),
+  }))
+  assert.equal(freshRetryRes.status, 409)
+  const freshRetryJson = await freshRetryRes.json()
+  assert.equal(freshRetryJson.success, false)
+  assert.equal(freshRetryJson.code, "PENDING_VERIFICATION_EXISTS")
+  assert.equal(freshRetryJson.verificationId, authoritativeVerificationId)
+
+  // 3. Exactly one pending verification exists in database
+  const verifications = await adminDb.collection("verifications")
+    .where("residentId", "==", identity.uid)
+    .where("status", "==", "pending")
+    .get()
+  assert.equal(verifications.docs.length, 1)
+  assert.equal(verifications.docs[0].id, authoritativeVerificationId)
+})
+
+test("R14: Server-authoritative verification.delete clears pending state, unlocks resident, and writes audit", async () => {
+  const superAdmin = await createIdentity("r14-superadmin")
+  const regularResident = await createIdentity("r14-regular-resident")
+  const targetResident = await createIdentity("r14-target-resident")
+
+  await adminDb.collection("users").doc(superAdmin.uid).set({
+    role: "superadmin",
+    status: "Active",
+    isVerified: true,
+    name: "Super Admin User",
+    email: superAdmin.email,
+  })
+
+  await adminDb.collection("users").doc(regularResident.uid).set({
+    role: "resident",
+    status: "Active",
+    isVerified: true,
+    name: "Regular Resident User",
+    email: regularResident.email,
+  })
+
+  const verifId = `reg-verif-r14-${randomUUID()}`
+  await adminDb.collection("users").doc(targetResident.uid).set({
+    role: "resident",
+    status: "Pending",
+    isVerified: false,
+    hasPendingVerification: true,
+    pendingVerificationId: verifId,
+    name: "Target Resident",
+    email: targetResident.email,
+    statuses: ["Adult"],
+  })
+
+  await adminDb.collection("verifications").doc(verifId).set({
+    residentId: targetResident.uid,
+    userId: targetResident.uid,
+    type: "registration",
+    status: "pending",
+    name: "Target Resident",
+    email: targetResident.email,
+    createdAt: Date.now(),
+  })
+
+  await adminDb.collection("residentVerificationLocks").doc(targetResident.uid).set({
+    residentId: targetResident.uid,
+    activeVerificationId: verifId,
+    activeVerificationStatus: "pending",
+    createdAt: Date.now(),
+  })
+
+  const adminOps = (callerUid: string) => createAdminOperationsHandler({
+    auth: {
+      verifyIdToken: async () => ({ uid: callerUid }),
+    } as any,
+    db: adminDb,
+  })
+
+  // 1. Non-superadmin cannot execute verification.delete (403)
+  const deniedRes = await adminOps(regularResident.uid)(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${regularResident.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "verification.delete",
+      operationId: `op-del-denied-${randomUUID()}`,
+      targetId: verifId,
+    }),
+  }))
+  assert.equal(deniedRes.status, 403)
+
+  // Verification and locks still intact
+  assert.equal((await adminDb.collection("verifications").doc(verifId).get()).exists, true)
+  assert.equal((await adminDb.collection("users").doc(targetResident.uid).get()).data()?.hasPendingVerification, true)
+
+  // 2. Super Admin executes verification.delete successfully
+  const deleteOpId = `op-del-success-${randomUUID()}`
+  const deleteRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "verification.delete",
+      operationId: deleteOpId,
+      targetId: verifId,
+    }),
+  }))
+  assert.equal(deleteRes.status, 200)
+  const deleteJson = await deleteRes.json()
+  assert.equal(deleteJson.success, true)
+  assert.equal(deleteJson.idempotent, false)
+
+  // 3. Verification document is deleted
+  assert.equal((await adminDb.collection("verifications").doc(verifId).get()).exists, false)
+
+  // 4. Resident user record has pending flags cleared
+  const userSnap = await adminDb.collection("users").doc(targetResident.uid).get()
+  assert.equal(userSnap.data()?.hasPendingVerification, false)
+  assert.equal(userSnap.data()?.pendingVerificationId, null)
+
+  // 5. Verification lock is cleared/unlocked
+  const lockSnap = await adminDb.collection("residentVerificationLocks").doc(targetResident.uid).get()
+  assert.equal(lockSnap.data()?.activeVerificationStatus, "deleted")
+  assert.equal(lockSnap.data()?.activeVerificationId, null)
+
+  // 6. Authoritative audit log was created
+  const auditLogs = await adminDb.collection("activityLogs").where("targetId", "==", verifId).get()
+  assert.equal(auditLogs.docs.length, 1)
+  const auditData = auditLogs.docs[0].data()
+  assert.equal(auditData.action, "verification.delete")
+  assert.equal(auditData.actor.id, superAdmin.uid)
+  assert.equal(auditData.authoritative, true)
+  assert.equal(auditData.before.type, "registration")
+  assert.equal(auditData.after, null)
+
+  // 7. Idempotent replay succeeds without modification
+  const replayRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "verification.delete",
+      operationId: deleteOpId,
+      targetId: verifId,
+    }),
+  }))
+  assert.equal(replayRes.status, 200)
+  const replayJson = await replayRes.json()
+  assert.equal(replayJson.success, true)
+  assert.equal(replayJson.idempotent, true)
+
+  // 8. Super Admin deleting nonexistent verification produces 404
+  const notFoundRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "verification.delete",
+      operationId: `op-del-404-${randomUUID()}`,
+      targetId: "nonexistent-verif-id",
+    }),
+  }))
+  assert.equal(notFoundRes.status, 404)
 })

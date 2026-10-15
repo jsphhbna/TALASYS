@@ -34,6 +34,7 @@ function operationDocumentId(operationId: string) { return `admin-op-${createHas
 function authorize(role: string, operation: string) {
   if (operation.startsWith("resident.")) return canManageResidentsRole(role)
   if (operation === "verification.reject") return canManageVerificationsRole(role)
+  if (operation === "verification.delete") return isSuperAdminRole(role)
   if (operation.startsWith("request.")) return canManageRequestsRole(role)
   if (operation.startsWith("notification.")) return canManageResidentsRole(role) || canManageVerificationsRole(role) || canManageRequestsRole(role)
   if (operation.startsWith("admin.") || operation.startsWith("system.")) return isSuperAdminRole(role)
@@ -60,7 +61,7 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     const auditRef = db.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId(operationId))
     let targetRef: any = null
     if (operation.startsWith("resident.") || operation.startsWith("admin.")) targetRef = targetId ? db.collection(COLLECTION_USERS).doc(targetId) : null
-    else if (operation === "verification.reject") targetRef = targetId ? db.collection(COLLECTION_VERIFICATIONS).doc(targetId) : null
+    else if (operation === "verification.reject" || operation === "verification.delete") targetRef = targetId ? db.collection(COLLECTION_VERIFICATIONS).doc(targetId) : null
     else if (operation.startsWith("request.")) targetRef = targetId ? db.collection(COLLECTION_DOCUMENT_REQUESTS).doc(targetId) : null
     else if (operation === "system.alert.dismiss") targetRef = targetId ? db.collection(COLLECTION_SYSTEM_ALERTS).doc(targetId) : null
     else if (operation === "system.config.update") targetRef = db.collection(COLLECTION_SYSTEM_CONFIG).doc(SYSTEM_CONFIG_DOCUMENT_ID)
@@ -125,6 +126,27 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
           updatedAt: now,
         }, { merge: true })
       }
+    } else if (operation === "verification.delete") {
+      if (!isSuperAdminRole(actor.role)) throw httpError("Only Super Admins can delete verifications.", 403)
+      const residentId = before.residentId || before.userId
+      if (residentId && before.status === "pending") {
+        const residentLockRef = db.collection("residentVerificationLocks").doc(residentId)
+        transaction.set(residentLockRef, {
+          residentId,
+          activeVerificationId: null,
+          activeVerificationStatus: "deleted",
+          deletedAt: now,
+          updatedAt: now,
+        }, { merge: true })
+        const residentUserRef = db.collection(COLLECTION_USERS).doc(residentId)
+        transaction.set(residentUserRef, {
+          hasPendingVerification: false,
+          pendingVerificationId: null,
+          updatedAt: now,
+        }, { merge: true })
+      }
+      transaction.delete(targetRef)
+      after = null
     } else if (operation === "request.updateStatus") {
       if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
         throw httpError(`Cannot transition request out of terminal state '${before.status}'.`, 409)

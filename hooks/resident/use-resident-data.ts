@@ -11,7 +11,8 @@ import {
   type ResidentRequest,
 } from "@/lib/resident"
 import {
-  getOrGenerateResubmissionOperationId,
+  getOrPrepareResubmissionAttempt,
+  storeResubmissionAttempt,
   clearResubmissionOperationId,
 } from "@/lib/resident/resubmission-operation"
 import { uploadFileToCloudinary } from "@/lib/resident/cloudinary"
@@ -256,70 +257,129 @@ export function useResidentData() {
       isSubmittingProfileEditRef.current = true
 
       try {
-        const uploadedDocuments: any[] = []
+        const isRegistrationResubmit = !user.isVerified || verificationType === "registration"
+        let uploadedDocuments: any[] = []
+        let operationId: string = ""
+        let inputFingerprint: string = ""
+        const resubmitReason = reason || "Registration verification resubmission with updated documents"
 
-        const uploadAndCollectDocument = async (file: File | null, documentName: string) => {
-          if (!file) return
-          const uploadedUrl = await uploadFileToCloudinary(file, { folder: "talasys/proofs" })
-          if (!uploadedUrl) {
-            throw new Error(`Failed to upload ${documentName}`)
+        if (isRegistrationResubmit) {
+          const inputFiles = [
+            uploadedFiles?.validId ? { field: "validId", name: uploadedFiles.validId.name, size: uploadedFiles.validId.size, lastModified: uploadedFiles.validId.lastModified } : null,
+            uploadedFiles?.parentId ? { field: "parentId", name: uploadedFiles.parentId.name, size: uploadedFiles.parentId.size, lastModified: uploadedFiles.parentId.lastModified } : null,
+            uploadedFiles?.seniorId ? { field: "seniorId", name: uploadedFiles.seniorId.name, size: uploadedFiles.seniorId.size, lastModified: uploadedFiles.seniorId.lastModified } : null,
+            uploadedFiles?.votersId ? { field: "votersId", name: uploadedFiles.votersId.name, size: uploadedFiles.votersId.size, lastModified: uploadedFiles.votersId.lastModified } : null,
+          ].filter(Boolean)
+
+          const attempt = getOrPrepareResubmissionAttempt(residentId, inputFiles, resubmitReason)
+          operationId = attempt.operationId
+          inputFingerprint = attempt.inputFingerprint
+
+          if (attempt.uploadedDocuments && attempt.uploadedDocuments.length > 0) {
+            // Replay from cached uploaded documents to preserve payloadHash and avoid redundant Cloudinary writes
+            uploadedDocuments = attempt.uploadedDocuments
           }
-          uploadedDocuments.push({
-            name: documentName,
-            url: uploadedUrl,
-            status: "pending",
-            uploadDate: new Date().toLocaleDateString('en-US')
-          })
         }
 
-        await Promise.all([
-          uploadAndCollectDocument(uploadedFiles.validId, "Valid ID"),
-          uploadAndCollectDocument(uploadedFiles.parentId, "Parent's ID"),
-          uploadAndCollectDocument(uploadedFiles.seniorId, "Senior Citizen ID"),
-          uploadAndCollectDocument(uploadedFiles.votersId, "Voter's ID"),
-        ])
+        if (uploadedDocuments.length === 0) {
+          const uploadAndCollectDocument = async (file: File | null, documentName: string) => {
+            if (!file) return
+            const uploadedUrl = await uploadFileToCloudinary(file, { folder: "talasys/proofs" })
+            if (!uploadedUrl) {
+              throw new Error(`Failed to upload ${documentName}`)
+            }
+            uploadedDocuments.push({
+              name: documentName,
+              url: uploadedUrl,
+              filename: file.name,
+              status: "pending",
+              uploadDate: new Date().toLocaleDateString('en-US')
+            })
+          }
 
-        if (newProfilePicture) {
-          uploadedDocuments.push({
-            name: "New Profile Picture",
-            url: newProfilePicture,
-            status: "pending",
-            uploadDate: new Date().toLocaleDateString('en-US')
-          })
+          await Promise.all([
+            uploadAndCollectDocument(uploadedFiles?.validId, "Valid ID"),
+            uploadAndCollectDocument(uploadedFiles?.parentId, "Parent's ID"),
+            uploadAndCollectDocument(uploadedFiles?.seniorId, "Senior Citizen ID"),
+            uploadAndCollectDocument(uploadedFiles?.votersId, "Voter's ID"),
+          ])
+
+          if (newProfilePicture) {
+            uploadedDocuments.push({
+              name: "New Profile Picture",
+              url: newProfilePicture,
+              filename: "profile_picture.jpg",
+              status: "pending",
+              uploadDate: new Date().toLocaleDateString('en-US')
+            })
+          }
+
+          if (isRegistrationResubmit && operationId) {
+            storeResubmissionAttempt(residentId, {
+              operationId,
+              inputFingerprint,
+              uploadedDocuments,
+              reason: resubmitReason,
+            })
+          }
         }
 
-        if (verification && verification.status === "pending") {
+        if (!isRegistrationResubmit && verification && verification.status === "pending") {
           clearResubmissionOperationId(residentId)
           return verification.id
         }
 
-        // Finding #48 / Issue #3 / R12: If resident was never verified or explicit registration type,
+        // Finding #48 / Issue #3 / R12 / R13: If resident was never verified or explicit registration type,
         // route through the server-authoritative resubmission endpoint with stable operation ID.
-        if (!user.isVerified || verificationType === "registration") {
+        if (isRegistrationResubmit) {
           const { auth } = await import("@/lib/firebase")
           const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : ""
           if (!idToken) throw new Error("Authentication session is required to resubmit registration.")
 
-          const resubmitReason = reason || "Registration verification resubmission with updated documents"
-          const { operationId } = getOrGenerateResubmissionOperationId(residentId, uploadedDocuments, resubmitReason)
+          let response: Response
+          let networkError: any = null
+          try {
+            response = await fetch("/api/resident/registration/resubmit", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({
+                operationId,
+                proofs: uploadedDocuments,
+                reason: resubmitReason,
+              }),
+            })
+          } catch (err) {
+            networkError = err
+          }
 
-          const response = await fetch("/api/resident/registration/resubmit", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({
-              operationId,
-              proofs: uploadedDocuments,
-              reason: resubmitReason,
-            }),
-          })
+          if (networkError || !response!) {
+            // Preserves attempt in sessionStorage so a subsequent retry uses the exact same operationId and proofs
+            throw new Error("Network interruption during resubmission. Please retry to complete verification.")
+          }
 
           const result = await response.json().catch(() => ({}))
           if (!response.ok || !result.success) {
             if (result.code === "PENDING_VERIFICATION_EXISTS") {
               clearResubmissionOperationId(residentId)
+              const existingVerifId = result.verificationId || (verification && verification.status === "pending" ? verification.id : null)
+              if (existingVerifId) {
+                return existingVerifId
+              }
+              // If not immediately available in response or hook state, recover from server status
+              try {
+                const statusRes = await fetch("/api/resident/registration/status", {
+                  headers: { Authorization: `Bearer ${idToken}` }
+                })
+                const statusData = await statusRes.json().catch(() => ({}))
+                if (statusData?.details?.verificationStatus === "pending") {
+                  return statusData.details.verificationId || verification?.id || "pending"
+                }
+              } catch {
+                // non-blocking fallback
+              }
               if (verification && verification.status === "pending") {
                 return verification.id
               }

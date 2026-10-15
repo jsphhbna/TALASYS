@@ -207,14 +207,21 @@ service cloud.firestore {
       allow update: if false;
 
       // Deletions:
-      // - Super Admin can delete.
+      // - Direct client deletion of 'registration' verifications is STRICTLY FORBIDDEN for all roles (including Super Admin).
+      //   Administrative deletion of registration verifications must use coordinated server-authoritative operation
+      //   (POST /api/admin/operations with operation 'verification.delete') to maintain transactional consistency across
+      //   residentVerificationLocks, users.hasPendingVerification, and audit logs.
       // - Residents can ONLY withdraw unreviewed 'pending' verifications of type 'profile-edit' or 'reactivation' (#57, R09).
-      // - Registration verifications are strictly server-managed and cannot be deleted by residents.
-      allow delete: if isSuperAdmin() || (
-        isAuthenticated() &&
-        (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid) &&
-        resource.data.status == 'pending' &&
-        resource.data.type in ['profile-edit', 'reactivation']
+      // - Super Admins may directly delete non-registration verifications (e.g., profile-edit or reactivation).
+      allow delete: if (
+        resource.data.type != 'registration' && (
+          isSuperAdmin() || (
+            isAuthenticated() &&
+            (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid) &&
+            resource.data.status == 'pending' &&
+            resource.data.type in ['profile-edit', 'reactivation']
+          )
+        )
       );
     }
 

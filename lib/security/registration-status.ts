@@ -17,6 +17,7 @@ export type RegistrationStatusResponse = {
     accountStatus?: string
     verificationStatus?: string
     rejectionReason?: string
+    verificationId?: string
   }
 }
 
@@ -109,6 +110,7 @@ export async function inspectRegistrationStatus(
             isVerified: false,
             accountStatus,
             verificationStatus: "pending",
+            verificationId: latest.id,
           },
         }
       }

@@ -181,6 +181,12 @@ test("R09: resident cannot delete pending registration verifications, while prof
       type: "reactivation",
       status: "pending",
     })
+    await setDoc(doc(db, "verifications", "profile-edit-verif-admin"), {
+      residentId: "other-user",
+      userId: "other-user",
+      type: "profile-edit",
+      status: "pending",
+    })
   })
 
   const regUserDb = environment.authenticatedContext("unverified-reg-user").firestore()
@@ -211,8 +217,11 @@ test("R09: resident cannot delete pending registration verifications, while prof
   // 6. Legitimate reactivation withdrawal by owner remains functional
   await assertSucceeds(deleteDoc(doc(expiredDb, "verifications", "reactivation-verif")))
 
-  // 7. SuperAdmin can delete verifications
-  await assertSucceeds(deleteDoc(doc(superAdminDb, "verifications", "reg-verif-1")))
+  // 7. Direct client deletion of registration verifications is denied even for SuperAdmin (R14)
+  await assertFails(deleteDoc(doc(superAdminDb, "verifications", "reg-verif-1")))
+
+  // 8. SuperAdmin can directly delete non-registration verifications if needed
+  await assertSucceeds(deleteDoc(doc(superAdminDb, "verifications", "profile-edit-verif-admin")))
 })
 
 test("A07 resident payment submission preserves paid, waived, and terminal request states", async () => {

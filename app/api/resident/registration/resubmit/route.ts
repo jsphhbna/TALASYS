@@ -82,6 +82,7 @@ export function createRegistrationResubmissionHandler(injected?: HandlerDependen
           success: false,
           code: error?.code || "RESUBMISSION_FAILED",
           error: error?.message || "Registration resubmission failed.",
+          ...(error?.verificationId ? { verificationId: error.verificationId } : {}),
         },
         { status },
       )

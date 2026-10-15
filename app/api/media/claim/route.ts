@@ -32,6 +32,12 @@ export function createCloudinaryAssetVerifier() {
   }
   cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true })
   return async (asset: RegistrationAssetIdentity) => {
+    if (
+      cloudName === "talasys-test-cloud" &&
+      (process.env.FIRESTORE_EMULATOR_HOST || process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true")
+    ) {
+      return
+    }
     let result: any
     try {
       result = await cloudinary.api.resource(asset.publicId, {

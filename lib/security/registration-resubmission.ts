@@ -210,9 +210,11 @@ export async function processRegistrationResubmission(
   verifications.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
 
   // Reject if a verification is already pending
-  const hasPending = verifications.some((v: any) => v.status === "pending")
-  if (hasPending) {
-    throw registrationHttpError("A verification request is already pending review.", 409, "PENDING_VERIFICATION_EXISTS")
+  const pendingVerification = verifications.find((v: any) => v.status === "pending")
+  if (pendingVerification) {
+    const err = registrationHttpError("A verification request is already pending review.", 409, "PENDING_VERIFICATION_EXISTS")
+    ;(err as any).verificationId = pendingVerification.id
+    throw err
   }
 
   // Require that at least one previous registration verification was rejected
@@ -320,7 +322,9 @@ export async function processRegistrationResubmission(
       if (txLockSnap.exists) {
         const lockData = txLockSnap.data() || {}
         if (lockData.activeVerificationStatus === "pending") {
-          throw registrationHttpError("A verification request is already pending review.", 409, "PENDING_VERIFICATION_EXISTS", "unknown")
+          const err = registrationHttpError("A verification request is already pending review.", 409, "PENDING_VERIFICATION_EXISTS", "unknown")
+          ;(err as any).verificationId = lockData.activeVerificationId
+          throw err
         }
       }
 
@@ -332,7 +336,9 @@ export async function processRegistrationResubmission(
         throw registrationHttpError("Resident status changed during submission.", 409, "CONCURRENT_MODIFICATION", "unknown")
       }
       if (txUserData.hasPendingVerification === true) {
-        throw registrationHttpError("A verification request is already pending review.", 409, "PENDING_VERIFICATION_EXISTS", "unknown")
+        const err = registrationHttpError("A verification request is already pending review.", 409, "PENDING_VERIFICATION_EXISTS", "unknown")
+        ;(err as any).verificationId = txUserData.pendingVerificationId || txLockSnap?.data()?.activeVerificationId
+        throw err
       }
 
       // Claim any unowned reserved assets in transaction
@@ -361,8 +367,8 @@ export async function processRegistrationResubmission(
       transaction.create(newVerificationRef, {
         residentId: callerUid,
         userId: callerUid,
-        name: txUserData.name,
-        initials: txUserData.initials,
+        name: txUserData.name || "Resident",
+        initials: txUserData.initials || "",
         type: "registration",
         submittedDate,
         categories: txUserData.statuses || ["Resident"],
@@ -370,7 +376,7 @@ export async function processRegistrationResubmission(
         age: txUserData.dateOfBirth ? (calculateAge(txUserData.dateOfBirth, now) ?? 0) : 0,
         address: txUserData.address || "",
         contactNumber: txUserData.contactNumber || "",
-        email: txUserData.email,
+        email: txUserData.email || "",
         dateOfBirth: txUserData.dateOfBirth || "",
         documents: normalizedProofs.map((p) => ({
           name: normalizeDocumentTitle(p.name),

@@ -211,6 +211,43 @@ test.beforeAll(async () => {
     authorizationLetterUrl: authLetterUrl,
     createdAt: Date.now(),
   })
+
+  // Resubmission lost-response resident & rejected initial registration verification
+  try { await auth.createUser({ uid: "e2e-resubmit-resident", email: "resubmit-resident@example.test", password, emailVerified: true }) } catch (error: any) { if (error.code !== "auth/uid-already-exists") throw error }
+  await db.collection("users").doc("e2e-resubmit-resident").set({
+    name: "E2E Resubmit Resident",
+    firstName: "E2E",
+    lastName: "Resubmit",
+    email: "resubmit-resident@example.test",
+    role: "resident",
+    status: "Pending",
+    isVerified: false,
+    statuses: ["Adult"],
+    dateOfBirth: "1995-05-15",
+    contactNumber: "09123456789",
+    address: "123 Barangay Street",
+    hasPendingVerification: false,
+    createdAt: Date.now(),
+  })
+  await db.collection("verifications").doc("e2e-resubmit-rejected").set({
+    residentId: "e2e-resubmit-resident",
+    name: "E2E Resubmit Resident",
+    email: "resubmit-resident@example.test",
+    status: "rejected",
+    type: "registration",
+    rejectionReason: "Initial document unclear. Please upload a clear valid ID.",
+    submittedDate: "Today",
+    createdAt: Date.now() - 3600000,
+    documents: [{
+      id: "doc-1",
+      name: "Valid Government ID",
+      type: "validId",
+      url: claimedRegistrationProofUrl,
+      status: "Rejected",
+      rejectionReason: "Unclear photo",
+      uploadDate: "Yesterday",
+    }],
+  })
 })
 
 test.afterAll(async () => {
@@ -718,4 +755,120 @@ test("document export waits for protected signatures and fails visibly without m
   const app = getApps().find(candidate => candidate.name === "e2e-seed")!
   const requestDocument = await getFirestore(app).collection("documentRequests").doc("e2e-request-media").get()
   expect(requestDocument.data()?.hasGenerated).not.toBe(true)
+})
+
+test("R13 browser-level lost resubmission response recovery and refresh idempotency", async ({ page }) => {
+  // 1. Mock Cloudinary uploads to avoid external network dependencies while returning valid authenticated asset paths
+  await page.route(/image\/upload/, async route => {
+    const postData = route.request().postData() || ""
+    const folderMatch = postData.match(/name="folder"\r?\n\r?\n([^\r\n]+)/)
+    const publicIdMatch = postData.match(/name="public_id"\r?\n\r?\n([^\r\n]+)/)
+    const folder = folderMatch ? folderMatch[1] : "talasys/proofs"
+    const publicId = publicIdMatch ? publicIdMatch[1] : "e2e-resubmit-resident/proof-001"
+    const fullPublicId = `${folder}/${publicId}`
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        secure_url: `https://res.cloudinary.com/${testCloudName}/image/authenticated/s--dummy--/${fullPublicId}.jpg`,
+        public_id: fullPublicId,
+        resource_type: "image",
+      }),
+    })
+  })
+
+  // 2. Intercept registration resubmit: first attempt commits on server but network aborts response (lost response scenario)
+  let resubmitAttempts = 0
+  let capturedOperationId: string | null = null
+
+  await page.route("**/api/resident/registration/resubmit", async route => {
+    resubmitAttempts++
+    const body = JSON.parse(route.request().postData() || "{}")
+    if (!capturedOperationId) {
+      capturedOperationId = body.operationId
+    } else {
+      // Must replay the identical operationId across retries
+      expect(body.operationId).toBe(capturedOperationId)
+    }
+
+    if (resubmitAttempts === 1) {
+      // Server actually processes and commits the resubmission
+      const serverResponse = await route.fetch()
+      expect(serverResponse.status()).toBe(200)
+      const data = await serverResponse.json()
+      expect(data.success).toBe(true)
+      expect(data.verificationId).toBeTruthy()
+
+      // Abort connection to simulate network interruption / lost response
+      await route.abort("failed")
+    } else {
+      // Second attempt goes through; server detects pending verification and returns 409 PENDING_VERIFICATION_EXISTS with verificationId
+      await route.continue()
+    }
+  })
+
+  // 3. Login as the rejected resident and navigate to profile
+  await login(page, "resubmit-resident", true, /\/resident\/dashboard/)
+  await page.goto("/resident/profile")
+  await expect(page.getByRole("heading", { name: "My Profile" })).toBeVisible()
+
+  // 4. Verify rejection notice and click Upload New Documents
+  await expect(page.getByText("Verification Rejected")).toBeVisible()
+  await expect(page.getByText(/Initial document unclear/i)).toBeVisible()
+  await page.getByRole("button", { name: "Upload New Documents" }).click()
+
+  // 5. Fill reason and select required document
+  await expect(page.getByRole("heading", { name: "Request Profile Edit" })).toBeVisible()
+  await page.locator("#reason").fill("Resubmitting high resolution valid ID document.")
+  await page.locator("#profile-validId").setInputFiles({
+    name: "clear-valid-id.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("clear-valid-id-sample-content"),
+  })
+  await expect(page.getByText("✓ clear-valid-id.jpg")).toBeVisible()
+
+  // 6. Submit first attempt (lost response triggered)
+  await page.getByRole("button", { name: "Submit Request" }).click()
+
+  // Expect network error toast; dialog remains open and resubmission attempt preserved in sessionStorage
+  await expect(page.getByText(/Network interruption during resubmission/i).first()).toBeVisible()
+  expect(resubmitAttempts).toBe(1)
+
+  // 7. Retry submission (second attempt reuses cached attempt and handles 409 authoritative recovery)
+  await page.getByRole("button", { name: "Submit Request" }).click()
+
+  // Verify successful recovery toast and dialog closure
+  await expect(page.getByText("Registration Resubmitted").first()).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Request Profile Edit" })).toBeHidden()
+  expect(resubmitAttempts).toBe(2)
+
+  // 8. Authoritative Firestore state verification: exactly ONE pending verification, correct user state & lock
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+  const pendingVerifs = await db.collection("verifications")
+    .where("residentId", "==", "e2e-resubmit-resident")
+    .where("status", "==", "pending")
+    .get()
+  expect(pendingVerifs.size).toBe(1)
+  const authoritativeVerifId = pendingVerifs.docs[0].id
+
+  const userDoc = await db.collection("users").doc("e2e-resubmit-resident").get()
+  expect(userDoc.data()?.hasPendingVerification).toBe(true)
+  expect(userDoc.data()?.pendingVerificationId).toBe(authoritativeVerifId)
+
+  const lockDoc = await db.collection("residentVerificationLocks").doc("e2e-resubmit-resident").get()
+  expect(lockDoc.exists).toBe(true)
+  expect(lockDoc.data()?.activeVerificationId).toBe(authoritativeVerifId)
+
+  // 9. Browser refresh must not duplicate registration verification or strand state
+  await page.reload()
+  await expect(page.getByRole("heading", { name: "My Profile" })).toBeVisible()
+  await expect(page.getByText("Verification Rejected")).toBeHidden()
+
+  const pendingVerifsAfterReload = await db.collection("verifications")
+    .where("residentId", "==", "e2e-resubmit-resident")
+    .where("status", "==", "pending")
+    .get()
+  expect(pendingVerifsAfterReload.size).toBe(1)
+  expect(pendingVerifsAfterReload.docs[0].id).toBe(authoritativeVerifId)
 })
