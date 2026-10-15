@@ -50,3 +50,9 @@ export {
   getOrGenerateResubmissionOperationId,
   clearResubmissionOperationId,
 } from "./resubmission-operation"
+
+export {
+  isResidentPaymentActionEligible,
+  RESIDENT_PAYMENT_ELIGIBLE_STATUSES,
+} from "./payment-policy"
+export type { PaymentActionCandidate } from "./payment-policy"

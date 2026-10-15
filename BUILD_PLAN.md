@@ -1,6 +1,33 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, & F01–F16)
 
-## Comprehensive Functional Bug Remediation & Regression Prevention (F01–F16) — current pass
+## Final Functional Integration Corrections & Production-Path Regression Verification (F03, F04, F14, F15, F13, Test Quality) — CURRENT PASS
+
+- **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from audited baseline `c5cf2ba9794c4c4c14b74ebbe918bfff35994c21`.
+- **Target findings & remediations**:
+  1. **F03 (Mobile Resident Payment Controls on Terminal Requests)**:
+     - Root cause: Mobile request cards in `app/resident/history/page.tsx` evaluated payment action buttons primarily from `paymentStatus` and `documentFee`, lacking the terminal status lifecycle checks present on desktop.
+     - Remediation: Created shared production policy `isResidentPaymentActionEligible(request)` in `lib/resident/payment-policy.ts` (re-exported in `lib/resident/index.ts`). Strictly allows only `['Pending', 'Approved', 'On Process']` with `documentFee > 0` and `paymentStatus !== 'paid' && paymentStatus !== 'waived'`. Aligned with `firestore.rules` (excludes client mutation of `Awaiting Payment`). Applied consistently to mobile cards, desktop table, and `PaymentModal` guards.
+  2. **F04 (Admin Payment Queue Ineligible & Zero-Fee Requests)**:
+     - Root cause: Filter in `app/admin/requests/payments/page.tsx` allowed `status === "Awaiting Payment"` or `paymentStatus === "pending_verification"` without checking `documentFee > 0`, admitting zero-fee requests.
+     - Remediation: Created shared production helper `isAdminPaymentQueueEligible(request)` in `lib/admin/payment-queue-policy.ts` (re-exported in `lib/admin/index.ts`). Excludes terminal requests (`Cancelled`, `Rejected`, `Completed`), fully paid, waived, and requests with `documentFee <= 0`. Applied to queue table, header counter badge, and `AdminPaymentProcessModal`.
+  3. **F14 (Report Date-Filter Accuracy for Missing Dates)**:
+     - Root cause: Date filter in `app/superadmin/reports/page.tsx` returned `true` when `createdAt` was missing (`if (!createdAt) return true`), erroneously including undated records in period-filtered reports.
+     - Remediation: Implemented `isRecordInPeriod` and `getManilaCalendarDate` in `lib/timestamp-normalizer.ts`. All Time includes all records; specific year/month strictly requires a valid timestamp in `Asia/Manila` (UTC+8) and excludes missing/undated records. Wired to all reports in `app/superadmin/reports/page.tsx`.
+  4. **F15 (Dashboard Timestamp Normalization & Sparkline Fallback)**:
+     - Root cause: Resident `createdAt` is exposed as an ISO string (`toISOString()`), which compared incorrectly against numeric epoch milliseconds (`r.createdAt <= end` evaluated to `NaN <= number -> false`). Additionally, sparklines used fallback `count || adminStats.totalResidents`, overwriting genuine historical zeros with today's population.
+     - Remediation: Created `normalizeTimestamp` in `lib/timestamp-normalizer.ts` supporting ISO strings, Unix ms, seconds, Date objects, and Firestore Timestamps. Updated daily, weekly, and monthly trends and turnaround time in `app/superadmin/dashboard/page.tsx` and `app/superadmin/reports/page.tsx`. Preserved genuine historical 0 counts in population sparklines.
+  5. **F13 (Authoritative Document Issuance Timestamps)**:
+     - Root cause: Issuance fallback in `app/superadmin/reports/page.tsx` used `r.updatedAt || r.createdAt`, falsely attributing unrelated updates or initial submissions as issuance dates.
+     - Remediation: Implemented `getAuthoritativeIssuanceTimestamp` in `lib/timestamp-normalizer.ts`. Strictly prioritizes recorded generation/issuance timestamps (`issuedAt`, `generatedAt`, `statusTimestamps['Ready for Pick Up']`, `statusTimestamps['Completed']`). Returns `null` when no authoritative issuance timestamp exists, never falling back to creation or update dates.
+  6. **Test Quality Improvement**:
+     - Root cause: Previous unit test files duplicated simplified mock logic inline rather than exercising production code.
+     - Remediation: Refactored `test/milestone-a-functional.test.ts`, `test/milestone-b-functional.test.ts`, and `test/milestone-c-functional.test.ts` to import production policies directly. Added adversarial fixtures (zero-fee `Awaiting Payment`, cancelled requests with fees, ISO timestamps). Added 2 real Playwright E2E browser tests in `test/e2e/authenticated-workflows.spec.ts` covering F03 across desktop (1280x800) and mobile (375x667) viewports, and F04 in the live admin payment queue.
+
+| Milestone | Status | Verified Evidence |
+|---|---|---|
+| Final Remediation (F03, F04, F14, F15, F13, Test Quality) | VERIFIED | Unit tests PASS (183/183) across 31 suites; Rules tests PASS (58/58); E2E Playwright tests PASS (27/27); Typecheck app/test (0 errors); ESLint (0 errors); Next.js Build (51/51 routes PASS); Timezone matrix across UTC, Asia/Manila, America/Los_Angeles PASS; clean git diff. |
+
+## Comprehensive Functional Bug Remediation & Regression Prevention (F01–F16) — prior pass
 
 - **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from audited baseline `c0bca7b6c71286b28e58b1e7947138aa2d4213a2`.
 - **Target findings**:

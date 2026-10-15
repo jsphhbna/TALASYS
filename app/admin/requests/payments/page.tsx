@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/admin"
 import { useAuth } from "@/lib/auth"
+import { isAdminPaymentQueueEligible } from "@/lib/admin/payment-queue-policy"
 import { Search, CreditCard } from "lucide-react"
 import dynamic from 'next/dynamic'
 import { ModalOverlay } from "@/components/ui/modal-overlay"
@@ -23,16 +24,8 @@ export default function PaymentProcessPage() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
   const [showViewDialog, setShowViewDialog] = useState(false)
 
-  const isTerminal = (status: string) => ["Cancelled", "Rejected", "Completed"].includes(status)
-
-  // Only show non-terminal requests that are awaiting payment, pending verification, or unpaid with a fee due
-  const paymentRequests = adminDocumentRequests.filter(r =>
-    !isTerminal(r.status) && (
-      r.status === "Awaiting Payment" ||
-      (r as any).paymentStatus === "pending_verification" ||
-      ((r as any).paymentStatus === "unpaid" && (r.documentFee ?? 0) > 0)
-    )
-  )
+  // Authoritative payment queue eligibility helper (F04)
+  const paymentRequests = adminDocumentRequests.filter(isAdminPaymentQueueEligible)
 
   const filteredRequests = paymentRequests.filter(r => {
     const q = searchQuery.toLowerCase()

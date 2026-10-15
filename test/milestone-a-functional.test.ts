@@ -24,41 +24,68 @@ test("F02: REQUEST_TRANSITIONS validates allowed status transitions and payment 
   assert.ok(REQUEST_TRANSITIONS["On Process"].has("Completed"))
 })
 
-test("F03: Terminal requests are ineligible for resident payment actions", () => {
-  const isPaymentActionEligible = (status: string, paymentStatus?: string, fee?: number) => {
-    const isTerminal = status === "Cancelled" || status === "Rejected" || status === "Completed"
-    if (isTerminal) return false
-    const isStatusEligible = ['Pending', 'Approved', 'On Process', 'Awaiting Payment'].includes(status)
-    if (!isStatusEligible) return false
-    return (fee || 0) > 0 && paymentStatus !== "paid" && paymentStatus !== "waived"
-  }
+import { isResidentPaymentActionEligible } from "../lib/resident/payment-policy.ts"
+import { isAdminPaymentQueueEligible } from "../lib/admin/payment-queue-policy.ts"
 
-  // Eligible
-  assert.equal(isPaymentActionEligible("Pending", "unpaid", 50), true)
-  assert.equal(isPaymentActionEligible("Approved", "unpaid", 50), true)
-  assert.equal(isPaymentActionEligible("On Process", "unpaid", 50), true)
-  assert.equal(isPaymentActionEligible("Awaiting Payment", "unpaid", 50), true)
+test("F03: Terminal requests and ineligible states are rejected by production isResidentPaymentActionEligible", () => {
+  // Eligible: Pending, Approved, On Process with positive fee and unpaid/pending_verification
+  assert.equal(isResidentPaymentActionEligible({ status: "Pending", paymentStatus: "unpaid", documentFee: 50 }), true)
+  assert.equal(isResidentPaymentActionEligible({ status: "Approved", paymentStatus: "unpaid", documentFee: 50 }), true)
+  assert.equal(isResidentPaymentActionEligible({ status: "On Process", paymentStatus: "unpaid", documentFee: 50 }), true)
+  assert.equal(isResidentPaymentActionEligible({ status: "Pending", paymentStatus: "pending_verification", documentFee: 50 }), true)
 
-  // Ineligible because already paid or waived
-  assert.equal(isPaymentActionEligible("Pending", "paid", 50), false)
-  assert.equal(isPaymentActionEligible("Pending", "waived", 50), false)
-  assert.equal(isPaymentActionEligible("Pending", "unpaid", 0), false)
+  // Ineligible: Paid or waived requests
+  assert.equal(isResidentPaymentActionEligible({ status: "Pending", paymentStatus: "paid", documentFee: 50 }), false)
+  assert.equal(isResidentPaymentActionEligible({ status: "Pending", paymentStatus: "waived", documentFee: 50 }), false)
 
-  // Ineligible because of terminal status (F03 fix)
-  assert.equal(isPaymentActionEligible("Cancelled", "unpaid", 50), false)
-  assert.equal(isPaymentActionEligible("Rejected", "unpaid", 50), false)
-  assert.equal(isPaymentActionEligible("Completed", "unpaid", 50), false)
+  // Ineligible: Zero or negative fee
+  assert.equal(isResidentPaymentActionEligible({ status: "Pending", paymentStatus: "unpaid", documentFee: 0 }), false)
+  assert.equal(isResidentPaymentActionEligible({ status: "Pending", paymentStatus: "unpaid", documentFee: -10 }), false)
+  assert.equal(isResidentPaymentActionEligible({ status: "Pending", paymentStatus: "unpaid" }), false)
+
+  // Ineligible: Terminal statuses (F03 fix) - must NEVER allow payment actions
+  assert.equal(isResidentPaymentActionEligible({ status: "Cancelled", paymentStatus: "unpaid", documentFee: 50 }), false)
+  assert.equal(isResidentPaymentActionEligible({ status: "Cancelled", paymentStatus: "pending_verification", documentFee: 50 }), false)
+  assert.equal(isResidentPaymentActionEligible({ status: "Rejected", paymentStatus: "unpaid", documentFee: 50 }), false)
+  assert.equal(isResidentPaymentActionEligible({ status: "Rejected", paymentStatus: "pending_verification", documentFee: 50 }), false)
+  assert.equal(isResidentPaymentActionEligible({ status: "Completed", paymentStatus: "unpaid", documentFee: 50 }), false)
+
+  // Ineligible: Awaiting Payment - resident cannot transition this via Firestore Rules (admin handles this queue)
+  assert.equal(isResidentPaymentActionEligible({ status: "Awaiting Payment", paymentStatus: "unpaid", documentFee: 50 }), false)
+
+  // Ineligible: Null or undefined or empty
+  assert.equal(isResidentPaymentActionEligible(null), false)
+  assert.equal(isResidentPaymentActionEligible(undefined), false)
+  assert.equal(isResidentPaymentActionEligible({} as any), false)
 })
 
-test("F04: Admin payment queue excludes terminal requests and zero-fee requests", () => {
-  const isPaymentQueueEligible = (r: { status: string; paymentStatus?: string; documentFee?: number }) => {
-    const isTerminal = r.status === "Completed" || r.status === "Rejected" || r.status === "Cancelled"
-    if (isTerminal) return false
-    const fee = r.documentFee || 0
-    if (fee <= 0) return false
-    return r.paymentStatus === "pending_verification" || r.paymentStatus === "unpaid"
-  }
+test("F04: Admin payment queue excludes terminal requests, zero-fee requests, and already paid/waived requests", () => {
+  // Zero-fee requests in ANY state (including Awaiting Payment and pending_verification) must NOT enter queue
+  assert.equal(isAdminPaymentQueueEligible({ status: "Awaiting Payment", paymentStatus: "unpaid", documentFee: 0 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Awaiting Payment", paymentStatus: "pending_verification", documentFee: 0 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Pending", paymentStatus: "pending_verification", documentFee: 0 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Approved", paymentStatus: "unpaid", documentFee: 0 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "On Process", paymentStatus: "unpaid" }), false)
 
+  // Terminal requests (Cancelled, Rejected, Completed) must NOT enter queue even with fee > 0
+  assert.equal(isAdminPaymentQueueEligible({ status: "Cancelled", paymentStatus: "pending_verification", documentFee: 50 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Cancelled", paymentStatus: "unpaid", documentFee: 50 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Rejected", paymentStatus: "pending_verification", documentFee: 75 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Rejected", paymentStatus: "unpaid", documentFee: 75 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Completed", paymentStatus: "unpaid", documentFee: 50 }), false)
+
+  // Paid or waived requests must NOT enter queue
+  assert.equal(isAdminPaymentQueueEligible({ status: "Pending", paymentStatus: "paid", documentFee: 50 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Pending", paymentStatus: "waived", documentFee: 50 }), false)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Awaiting Payment", paymentStatus: "paid", documentFee: 50 }), false)
+
+  // Legitimate payment queue entries
+  assert.equal(isAdminPaymentQueueEligible({ status: "Awaiting Payment", paymentStatus: "unpaid", documentFee: 50 }), true)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Pending", paymentStatus: "pending_verification", documentFee: 50 }), true)
+  assert.equal(isAdminPaymentQueueEligible({ status: "Approved", paymentStatus: "pending_verification", documentFee: 50 }), true)
+  assert.equal(isAdminPaymentQueueEligible({ status: "On Process", paymentStatus: "unpaid", documentFee: 100 }), true)
+
+  // Sample array filter verification
   const sampleRequests = [
     { id: "1", status: "Pending", paymentStatus: "pending_verification", documentFee: 50 },
     { id: "2", status: "On Process", paymentStatus: "unpaid", documentFee: 100 },
@@ -67,11 +94,14 @@ test("F04: Admin payment queue excludes terminal requests and zero-fee requests"
     { id: "5", status: "Completed", paymentStatus: "unpaid", documentFee: 50 },
     { id: "6", status: "Pending", paymentStatus: "paid", documentFee: 50 },
     { id: "7", status: "Pending", paymentStatus: "unpaid", documentFee: 0 },
+    { id: "8", status: "Awaiting Payment", paymentStatus: "unpaid", documentFee: 0 }, // F04 edge case
+    { id: "9", status: "Awaiting Payment", paymentStatus: "pending_verification", documentFee: 0 }, // F04 edge case
+    { id: "10", status: "Awaiting Payment", paymentStatus: "unpaid", documentFee: 60 }, // Valid queue item
   ]
 
-  const queue = sampleRequests.filter(isPaymentQueueEligible)
-  assert.equal(queue.length, 2)
-  assert.deepEqual(queue.map(r => r.id), ["1", "2"])
+  const queue = sampleRequests.filter(isAdminPaymentQueueEligible)
+  assert.equal(queue.length, 3)
+  assert.deepEqual(queue.map(r => r.id), ["1", "2", "10"])
 })
 
 test("F07: Super Admin creation form validates contact number format", () => {

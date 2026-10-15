@@ -1,6 +1,29 @@
 # TALASYS Project State
 
-## Current verified state — 15 October 2026 (Functional Bug Remediation F01–F16 Pass)
+## Current verified state — 15 October 2026 (Final Functional Integration Corrections: F03, F04, F14, F15, F13, Test Quality)
+
+- **Working branch**: `main`
+- **Audited baseline**: `c5cf2ba9794c4c4c14b74ebbe918bfff35994c21`
+- **Status**: Final functional integration remediation across F03, F04, F14, F15, F13, and production-path regression verification is fully implemented, self-audited, and verified.
+  1. **F03 (Mobile Resident Payment Controls on Terminal Requests)**: Unified mobile and desktop payment action eligibility via shared production helper `isResidentPaymentActionEligible(request)` in `lib/resident/payment-policy.ts`. Enforces `documentFee > 0`, non-terminal status, not paid/waived, and allowed status under `firestore.rules` (`['Pending', 'Approved', 'On Process']`). Modal independently guards submissions. Verified in E2E browser test across desktop (1280x800) and mobile (375x667) viewports.
+  2. **F04 (Admin Payment Queue Eligibility)**: Unified queue filtering, counter badge, and process modal guards via shared production helper `isAdminPaymentQueueEligible(request)` in `lib/admin/payment-queue-policy.ts`. Excludes terminal requests, fully paid/waived, and requests with `documentFee <= 0`. Verified in E2E browser test.
+  3. **F14 (Report Date-Filter Accuracy for Missing Dates)**: Implemented `isRecordInPeriod` and `getManilaCalendarDate` in `lib/timestamp-normalizer.ts`. All Time includes all records; specific year/month strictly requires valid timestamp in `Asia/Manila` (UTC+8) and excludes missing/undated records from period reports.
+  4. **F15 (Dashboard Timestamp Normalization & Sparkline Fallback)**: Created shared `normalizeTimestamp` in `lib/timestamp-normalizer.ts` handling ISO strings, Unix ms, seconds, Date objects, and Firestore Timestamps uniformly. In `app/superadmin/dashboard/page.tsx`, fixed trend calculations and eliminated `count || adminStats.totalResidents` fallback to preserve genuine historical zero counts.
+  5. **F13 (Authoritative Document Issuance Timestamps)**: Implemented `getAuthoritativeIssuanceTimestamp` in `lib/timestamp-normalizer.ts`. Prioritizes `issuedAt`, `generatedAt`, `statusTimestamps['Ready for Pick Up']`, `statusTimestamps['Completed']`. Strictly never falls back to `createdAt` (request submission) or unrelated `updatedAt`.
+  6. **Test Quality Improvement**: Refactored `test/milestone-a-functional.test.ts`, `test/milestone-b-functional.test.ts`, and `test/milestone-c-functional.test.ts` to import production policies directly instead of duplicating mock logic. Added adversarial fixtures and added 2 real Playwright browser tests in `test/e2e/authenticated-workflows.spec.ts`.
+- **Rules state**: Unchanged and strictly preserved. Client mutations to requests remain governed by `firestore.rules`. `Awaiting Payment` is exclusively transitioned via authoritative admin server operations (`/api/admin/operations`).
+- **Verification metrics**:
+  - `npm test`: PASS 183/183 across 31 suites.
+  - `npm run test:rules`: PASS 58/58 against Auth & Firestore emulators.
+  - `npm run test:e2e:auth`: PASS 27/27 across Chromium authenticated workflows.
+  - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+  - `npm run lint`: PASS (0 errors, 839 warnings).
+  - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
+  - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles.
+  - `git diff --check`: PASS (clean).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No unauthorized production deployment or live rules publication performed.
+
+## Prior verified state — 15 October 2026 (Functional Bug Remediation F01–F16 Pass)
 
 - **Working branch**: `main`
 - **Audited baseline**: `c0bca7b6c71286b28e58b1e7947138aa2d4213a2`

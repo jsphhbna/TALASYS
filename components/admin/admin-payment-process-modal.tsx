@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth"
 import { useAdminData } from "@/hooks/admin"
+import { isAdminPaymentQueueEligible } from "@/lib/admin/payment-queue-policy"
 import { toast } from "sonner"
 import { CreditCard, Banknote, X, CheckCircle2 } from "lucide-react"
 import { SecureMediaViewer } from "@/components/media/secure-image"
@@ -35,7 +36,13 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
 
   if (!request) return null
 
+  const isEligible = isAdminPaymentQueueEligible(request)
+
   const handleConfirmCash = async () => {
+    if (!isAdminPaymentQueueEligible(request)) {
+      toast.error("This request is not eligible for payment processing.")
+      return
+    }
     setSubmitType("cash")
     try {
       await confirmPayment(request.id, user?.name || "Admin", user?.email || "admin@system.com", "cash")
@@ -49,6 +56,10 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
   }
 
   const handleConfirmGCash = async () => {
+    if (!isAdminPaymentQueueEligible(request)) {
+      toast.error("This request is not eligible for payment processing.")
+      return
+    }
     if (gcashRef.trim().length < 13) {
       toast.error("Please enter a valid 13-digit GCash Reference Number")
       return
@@ -66,6 +77,10 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
   }
 
   const handlePayLater = async () => {
+    if (!isAdminPaymentQueueEligible(request)) {
+      toast.error("This request is not eligible for payment processing.")
+      return
+    }
     setSubmitType("payLater")
     try {
       await markPayLater(request.id, user?.name || "Admin", user?.email || "admin@system.com")
@@ -90,6 +105,12 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {!isEligible && (
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-400">
+            This request is not eligible for payment processing.
+          </div>
+        )}
 
         <div className="mx-6 mt-5 mb-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-4 flex items-center justify-between">
           <div>
@@ -130,7 +151,7 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
                 <p className="text-xs text-emerald-600 dark:text-emerald-500/80 mt-1">Verify that you have received P{(request.documentFee ?? 0).toFixed(2)} from the resident.</p>
               </div>
               <div className="flex flex-col gap-3">
-                <Button onClick={handleConfirmCash} disabled={!!submitType} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+                <Button onClick={handleConfirmCash} disabled={!!submitType || !isEligible} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
                   {submitType === "cash" ? "Processing..." : "Confirm Cash Payment"}
                 </Button>
               </div>
@@ -156,10 +177,10 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
                 <p className="text-2xs text-slate-400 mt-1">{gcashRef.length}/13 digits</p>
               </div>
               <div className="flex flex-col gap-3 mt-4">
-                <Button onClick={handleConfirmGCash} disabled={!!submitType || gcashRef.length < 13} className="w-full h-11 bg-[#0049AF] hover:bg-[#0041a0] text-white font-semibold">
+                <Button onClick={handleConfirmGCash} disabled={!!submitType || gcashRef.length < 13 || !isEligible} className="w-full h-11 bg-[#0049AF] hover:bg-[#0041a0] text-white font-semibold">
                   {submitType === "gcash" ? "Processing..." : "Confirm GCash Payment"}
                 </Button>
-                <Button variant="outline" onClick={handlePayLater} disabled={!!submitType} className="w-full h-11 border-slate-300 font-semibold text-slate-700 dark:text-slate-300">
+                <Button variant="outline" onClick={handlePayLater} disabled={!!submitType || !isEligible} className="w-full h-11 border-slate-300 font-semibold text-slate-700 dark:text-slate-300">
                   {submitType === "payLater" ? "Processing..." : "Pay Later (Process Document First)"}
                 </Button>
               </div>

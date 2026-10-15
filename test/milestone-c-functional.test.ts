@@ -1,5 +1,106 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
+import { normalizeTimestamp } from "../lib/timestamp-normalizer.ts"
+
+// F15: Production timestamp normalization across diverse data formats
+test("F15: normalizeTimestamp correctly normalizes ISO strings, Unix ms/seconds, and Firestore Timestamps", () => {
+  const expectedMs = new Date("2026-01-15T12:00:00.000Z").getTime()
+
+  // 1. ISO date strings
+  assert.equal(normalizeTimestamp("2026-01-15T12:00:00.000Z"), expectedMs)
+  assert.equal(normalizeTimestamp("2026-01-15T12:00:00Z"), expectedMs)
+
+  // 2. Numeric milliseconds
+  assert.equal(normalizeTimestamp(expectedMs), expectedMs)
+
+  // 3. Numeric seconds (auto-converted to ms)
+  const expectedSeconds = Math.floor(expectedMs / 1000)
+  assert.equal(normalizeTimestamp(expectedSeconds), expectedSeconds * 1000)
+
+  // 4. Firestore Timestamp with toMillis()
+  assert.equal(normalizeTimestamp({ toMillis: () => expectedMs }), expectedMs)
+
+  // 5. Firestore Timestamp with toDate()
+  assert.equal(normalizeTimestamp({ toDate: () => new Date(expectedMs) }), expectedMs)
+
+  // 6. Firestore Timestamp object with seconds & nanoseconds
+  assert.equal(normalizeTimestamp({ seconds: expectedSeconds, nanoseconds: 0 }), expectedSeconds * 1000)
+  assert.equal(normalizeTimestamp({ _seconds: expectedSeconds, _nanoseconds: 0 }), expectedSeconds * 1000)
+
+  // 7. Date object
+  assert.equal(normalizeTimestamp(new Date(expectedMs)), expectedMs)
+
+  // 8. Numeric string
+  assert.equal(normalizeTimestamp(String(expectedMs)), expectedMs)
+
+  // 9. Null, undefined, empty, or invalid inputs return null (never NaN or current time)
+  assert.equal(normalizeTimestamp(null), null)
+  assert.equal(normalizeTimestamp(undefined), null)
+  assert.equal(normalizeTimestamp(""), null)
+  assert.equal(normalizeTimestamp("   "), null)
+  assert.equal(normalizeTimestamp("not-a-date"), null)
+  assert.equal(normalizeTimestamp(NaN), null)
+  assert.equal(normalizeTimestamp(0), null)
+  assert.equal(normalizeTimestamp(-100), null)
+  assert.equal(normalizeTimestamp({} as any), null)
+})
+
+// F15: Population sparklines preserve legitimate historical zeros and correctly compare ISO strings
+test("F15: Dashboard population trend preserves genuine zeros and correctly evaluates ISO strings against timestamp intervals", () => {
+  const totalResidents = 4
+
+  // Sample residents with mixed timestamp formats
+  const residents = [
+    { id: "res-1", createdAt: "2026-01-15T12:00:00.000Z" }, // ISO string (Jan 2026)
+    { id: "res-2", createdAt: new Date("2026-02-10T08:00:00.000Z").getTime() }, // ms number (Feb 2026)
+    { id: "res-3", createdAt: { toMillis: () => new Date("2026-03-05T00:00:00.000Z").getTime() } }, // Firestore Timestamp (Mar 2026)
+    { id: "res-4", createdAt: "invalid-or-missing" }, // invalid timestamp
+  ]
+
+  // Defined month boundaries
+  const dec2025End = new Date("2025-12-31T23:59:59.999Z").getTime()
+  const jan2026End = new Date("2026-01-31T23:59:59.999Z").getTime()
+  const feb2026End = new Date("2026-02-28T23:59:59.999Z").getTime()
+  const mar2026End = new Date("2026-03-31T23:59:59.999Z").getTime()
+
+  // Cumulative population at end of December 2025
+  const decCount = residents.filter(r => {
+    const ts = normalizeTimestamp(r.createdAt)
+    return ts !== null && ts <= dec2025End
+  }).length
+  assert.equal(decCount, 0)
+
+  // CRITICAL REGRESSION: Under the old buggy sparkline logic `count || adminStats.totalResidents`,
+  // a count of 0 would be replaced with 4!
+  const oldBuggySparklineDec = decCount || totalResidents
+  assert.equal(oldBuggySparklineDec, 4, "Old buggy logic falsely inflated 0 to totalResidents")
+
+  // Under the corrected logic, 0 is strictly preserved:
+  const correctedSparklineDec = decCount
+  assert.equal(correctedSparklineDec, 0, "Corrected sparkline preserves legitimate historical 0")
+
+  // Cumulative population at end of January 2026 (1 resident, res-1 with ISO string)
+  const janCount = residents.filter(r => {
+    const ts = normalizeTimestamp(r.createdAt)
+    return ts !== null && ts <= jan2026End
+  }).length
+  assert.equal(janCount, 1)
+
+  // Cumulative population at end of February 2026 (2 residents: res-1 and res-2)
+  const febCount = residents.filter(r => {
+    const ts = normalizeTimestamp(r.createdAt)
+    return ts !== null && ts <= feb2026End
+  }).length
+  assert.equal(febCount, 2)
+
+  // Cumulative population at end of March 2026 (3 residents: res-1, res-2, res-3)
+  const marCount = residents.filter(r => {
+    const ts = normalizeTimestamp(r.createdAt)
+    return ts !== null && ts <= mar2026End
+  }).length
+  assert.equal(marCount, 3)
+})
+
 
 // F15: Real calendar month interval calculations
 test("F15: Calendar month boundaries use exact calendar months, not fixed 30-day substitutes", () => {

@@ -212,6 +212,65 @@ test.beforeAll(async () => {
     createdAt: Date.now(),
   })
 
+  // F03 & F04 seeded document requests for production regression verification
+  await db.collection("documentRequests").doc("e2e-request-f03-cancelled").set({
+    residentId: "e2e-active-resident",
+    residentName: "E2E Active Resident",
+    documentType: "Barangay Clearance",
+    purpose: "Cancelled Test",
+    status: "Cancelled",
+    requestFor: "self",
+    documentFee: 50,
+    paymentMethod: "gcash",
+    paymentStatus: "unpaid",
+    refNumber: "REF-F03-CANCELLED",
+    createdAt: Date.now() - 7200000,
+  })
+
+  await db.collection("documentRequests").doc("e2e-request-f03-approved").set({
+    residentId: "e2e-active-resident",
+    residentName: "E2E Active Resident",
+    documentType: "Barangay Clearance",
+    purpose: "Approved Test",
+    status: "Approved",
+    requestFor: "self",
+    documentFee: 50,
+    paymentMethod: "gcash",
+    paymentStatus: "unpaid",
+    refNumber: "REF-F03-APPROVED",
+    createdAt: Date.now() - 3600000,
+  })
+
+  await db.collection("documentRequests").doc("e2e-request-f04-zerofee").set({
+    residentId: "e2e-active-resident",
+    residentName: "E2E Active Resident",
+    documentType: "Certificate of Indigency",
+    purpose: "Zero Fee Test",
+    status: "Awaiting Payment",
+    requestFor: "self",
+    documentFee: 0,
+    paymentMethod: "cash",
+    paymentStatus: "unpaid",
+    refNumber: "REF-F04-ZEROFEE",
+    paymentReferenceNumber: "PAY-F04-ZEROFEE",
+    createdAt: Date.now() - 1800000,
+  })
+
+  await db.collection("documentRequests").doc("e2e-request-f04-awaiting").set({
+    residentId: "e2e-active-resident",
+    residentName: "E2E Active Resident",
+    documentType: "Proof of Residency",
+    purpose: "Awaiting Payment Test",
+    status: "Awaiting Payment",
+    requestFor: "self",
+    documentFee: 50,
+    paymentMethod: "cash",
+    paymentStatus: "unpaid",
+    refNumber: "REF-F04-AWAITING",
+    paymentReferenceNumber: "PAY-F04-AWAITING",
+    createdAt: Date.now() - 900000,
+  })
+
   // Resubmission lost-response resident & rejected initial registration verification
   try { await auth.createUser({ uid: "e2e-resubmit-resident", email: "resubmit-resident@example.test", password, emailVerified: true }) } catch (error: any) { if (error.code !== "auth/uid-already-exists") throw error }
   await db.collection("users").doc("e2e-resubmit-resident").set({
@@ -871,4 +930,63 @@ test("R13 browser-level lost resubmission response recovery and refresh idempote
     .get()
   expect(pendingVerifsAfterReload.size).toBe(1)
   expect(pendingVerifsAfterReload.docs[0].id).toBe(authoritativeVerifId)
+})
+
+test("F03: Resident payment actions strictly respect lifecycle eligibility across mobile and desktop viewports", async ({ page }) => {
+  await login(page, "active-resident", true, /\/resident\/dashboard/)
+  await page.goto("/resident/history")
+  await expect(page.getByRole("heading", { name: "Request History" })).toBeVisible()
+
+  // Use search input to isolate the F03 seeded requests
+  await page.getByPlaceholder(/Search requests/i).fill("REF-F03")
+
+  // 1. Desktop viewport verification (1280x800)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  const desktopTable = page.locator(".hidden.md\\:block")
+
+  // Desktop table: Cancelled request row must NOT render Pay Now / Receipt / Resubmit
+  const desktopCancelledRow = desktopTable.locator("tr", { hasText: "REF-F03-CANCELLED" })
+  await expect(desktopCancelledRow).toBeVisible()
+  await expect(desktopCancelledRow.getByRole("button", { name: /Pay Now|Receipt|Resubmit/i })).toHaveCount(0)
+
+  // Desktop table: Approved request row MUST render Pay Now button
+  const desktopApprovedRow = desktopTable.locator("tr", { hasText: "REF-F03-APPROVED" })
+  await expect(desktopApprovedRow).toBeVisible()
+  await expect(desktopApprovedRow.getByRole("button", { name: /Pay Now/i })).toBeVisible()
+
+  // 2. Mobile viewport verification (375x667)
+  await page.setViewportSize({ width: 375, height: 667 })
+  const mobileContainer = page.locator(".md\\:hidden")
+
+  // Mobile card: Cancelled card must NOT render Pay Now / Receipt / Resubmit
+  const mobileCancelledCard = mobileContainer.locator("div", { hasText: "REF-F03-CANCELLED" }).first()
+  await expect(mobileCancelledCard).toBeVisible()
+  await expect(mobileCancelledCard.getByRole("button", { name: /Pay Now|Receipt|Resubmit/i })).toHaveCount(0)
+
+  // Mobile card: Approved card MUST render Pay Now button
+  const mobileApprovedCard = mobileContainer.locator("div", { hasText: "REF-F03-APPROVED" }).first()
+  await expect(mobileApprovedCard).toBeVisible()
+  await expect(mobileApprovedCard.getByRole("button", { name: /Pay Now/i })).toBeVisible()
+})
+
+test("F04: Admin payment queue strictly excludes zero-fee requests across queue list and count badge", async ({ page }) => {
+  await login(page, "full")
+  await page.goto("/admin/requests/payments")
+  await expect(page.getByRole("heading", { name: "Payment Process" })).toBeVisible()
+
+  // 1. Zero-fee request must NOT appear in the table
+  await expect(page.getByText("PAY-F04-ZEROFEE")).toHaveCount(0)
+  await expect(page.getByText("Zero Fee Test")).toHaveCount(0)
+
+  // 2. Legitimate awaiting payment request MUST appear in the table with action button
+  const awaitingRow = page.locator("tr", { hasText: "PAY-F04-AWAITING" })
+  await expect(awaitingRow).toBeVisible()
+  await expect(awaitingRow.getByText("₱50")).toBeVisible()
+  await expect(awaitingRow.getByRole("button", { name: "Process Payment" })).toBeVisible()
+
+  // 3. Count badge must reflect only eligible requests (must not include the zero-fee request)
+  const countBadge = page.getByText(/Awaiting Payment/i).first()
+  await expect(countBadge).toBeVisible()
+  const badgeText = await countBadge.textContent()
+  expect(badgeText).toBeTruthy()
 })

@@ -19,6 +19,12 @@ import {
   FileText, TrendingUp, Clock, BarChart3, Download,
   Users, Shield, Activity,
 } from "lucide-react"
+import {
+  normalizeTimestamp,
+  getManilaCalendarDate,
+  isRecordInPeriod,
+  getAuthoritativeIssuanceTimestamp,
+} from "@/lib/timestamp-normalizer"
 
 export default function SystemReports() {
   const { stats: adminStats, documentRequests, residents } = useAdminData()
@@ -48,8 +54,9 @@ export default function SystemReports() {
   const currentYear = new Date().getFullYear()
   const yearsList = Array.from(new Set(documentRequests.map(r => {
     if (!r.createdAt) return null;
-    const date = new Date(r.createdAt);
-    return date.getFullYear();
+    const ts = normalizeTimestamp(r.createdAt);
+    if (ts === null) return null;
+    return getManilaCalendarDate(ts).year;
   }).filter((y): y is number => y !== null))).sort((a, b) => b - a)
   
   if (yearsList.length === 0) yearsList.push(currentYear)
@@ -61,8 +68,8 @@ export default function SystemReports() {
     return <div className="flex h-full items-center justify-center p-8">Loading reports...</div>
   }
 
-  const getIssuanceTimestamp = (r: any): number => {
-    return r.generatedAt || r.statusTimestamps?.['Ready for Pick Up'] || r.statusTimestamps?.['Completed'] || r.updatedAt || r.createdAt || 0
+  const getIssuanceTimestamp = (r: any): number | null => {
+    return getAuthoritativeIssuanceTimestamp(r)
   }
 
   const currentDate = new Date()
@@ -71,9 +78,19 @@ export default function SystemReports() {
     const start = targetDate.getTime()
     const nextMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1)
     const end = nextMonth.getTime()
-    const monthReqs = documentRequests.filter(r => r.createdAt && r.createdAt >= start && r.createdAt < end)
-    const monthGenerated = documentRequests.filter(r => (r as any).hasGenerated === true && getIssuanceTimestamp(r) >= start && getIssuanceTimestamp(r) < end).length
-    const monthPop = residents.filter(r => (r as any).createdAt && (r as any).createdAt >= start && (r as any).createdAt < end).length
+    const monthReqs = documentRequests.filter(r => {
+      const ts = normalizeTimestamp(r.createdAt)
+      return ts !== null && ts >= start && ts < end
+    })
+    const monthGenerated = documentRequests.filter(r => {
+      if ((r as any).hasGenerated !== true) return false
+      const ts = getAuthoritativeIssuanceTimestamp(r)
+      return ts !== null && ts >= start && ts < end
+    }).length
+    const monthPop = residents.filter(r => {
+      const ts = normalizeTimestamp((r as any).createdAt)
+      return ts !== null && ts >= start && ts < end
+    }).length
     return {
       month: targetDate.toLocaleDateString('en-US', { month: 'short' }),
       documents: monthGenerated,
@@ -152,7 +169,7 @@ export default function SystemReports() {
       const rangedDocs = documentRequests.filter(r => {
         if (!(r as any).hasGenerated) return false
         const ts = getIssuanceTimestamp(r)
-        return ts >= startMs && ts <= endMs
+        return ts !== null && ts >= startMs && ts <= endMs
       })
 
       const doc = new jsPDF()
@@ -183,7 +200,7 @@ export default function SystemReports() {
             r.residentName || 'N/A',
             r.documentType,
             r.status,
-            issueTs ? new Date(issueTs).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'
+            issueTs !== null ? new Date(issueTs).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }) : 'Unknown'
           ]
         }),
         theme: 'striped',
@@ -211,13 +228,7 @@ export default function SystemReports() {
     setIsGeneratingReport(true)
 
     try {
-      const filterByDate = (createdAt?: any) => {
-        if (!createdAt) return true
-        const d = new Date(createdAt)
-        if (selectedYear !== "All" && d.getFullYear().toString() !== selectedYear) return false
-        if (selectedMonth !== "All" && d.getMonth().toString() !== selectedMonth) return false
-        return true
-      }
+      const filterByDate = (createdAt?: any) => isRecordInPeriod(createdAt, selectedYear, selectedMonth)
 
       const periodLabel = selectedMonth === "All" && selectedYear === "All"
         ? "All Time"
@@ -380,7 +391,10 @@ export default function SystemReports() {
   const generatedCount = generatedDocuments.length
 
   const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
-  const thisMonthGenerated = generatedDocuments.filter(r => getIssuanceTimestamp(r) >= currentMonthStart).length
+  const thisMonthGenerated = generatedDocuments.filter(r => {
+    const ts = getIssuanceTimestamp(r)
+    return ts !== null && ts >= currentMonthStart
+  }).length
 
   const documentReports = [
     { title: "Documents by Date Range", description: "All generated documents", icon: FileText, color: "#0C2340", hasDatePicker: true },

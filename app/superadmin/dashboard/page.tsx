@@ -13,6 +13,7 @@ import {
   TrendingUp, TrendingDown, Users, FileText, ShieldCheck, Clock, CheckCircle,
   AlertTriangle, AlertCircle, Info, ArrowRight, Activity,
 } from "lucide-react"
+import { normalizeTimestamp } from "@/lib/timestamp-normalizer"
 
 // --- Sparkline mini-component ---
 function Sparkline({ data, color, height = 28 }: { data: number[]; color: string; height?: number }) {
@@ -121,7 +122,10 @@ export default function SuperAdminDashboard() {
   const dailyRequests = Array.from({ length: 7 }).map((_, i) => {
     const start = now - (6 - i) * dayMs
     const end = start + dayMs
-    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end)
+    const reqs = documentRequests.filter(r => {
+      const ts = normalizeTimestamp(r.createdAt)
+      return ts !== null && ts >= start && ts < end
+    })
     const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status))
     return { day: new Date(start).toLocaleDateString('en-US', { weekday: 'short' }), requests: reqs.length, approvals: apps.length }
   })
@@ -129,7 +133,10 @@ export default function SuperAdminDashboard() {
   const weeklyRequests = Array.from({ length: 8 }).map((_, i) => {
     const start = now - (7 - i) * 7 * dayMs
     const end = start + 7 * dayMs
-    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end)
+    const reqs = documentRequests.filter(r => {
+      const ts = normalizeTimestamp(r.createdAt)
+      return ts !== null && ts >= start && ts < end
+    })
     const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status))
     return { week: `W${i + 1}`, requests: reqs.length, approvals: apps.length }
   })
@@ -141,7 +148,10 @@ export default function SuperAdminDashboard() {
     const start = targetDate.getTime()
     const nextMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1)
     const end = nextMonth.getTime()
-    const reqs = documentRequests.filter(r => r.createdAt >= start && r.createdAt < end)
+    const reqs = documentRequests.filter(r => {
+      const ts = normalizeTimestamp(r.createdAt)
+      return ts !== null && ts >= start && ts < end
+    })
     const apps = reqs.filter(r => ["Approved", "Ready for Pick Up", "Completed"].includes(r.status))
     return { month: targetDate.toLocaleDateString('en-US', { month: 'short' }), requests: reqs.length, approvals: apps.length }
   })
@@ -158,15 +168,17 @@ export default function SuperAdminDashboard() {
 
   // F15: Authoritative turnaround calculation from completed requests with timestamps
   const completedWithTiming = documentRequests.filter(r => {
-    const endTs = (r as any).completedTs || r.statusTimestamps?.['Completed'] || r.statusTimestamps?.['Ready for Pick Up'] || (r as any).generatedAt
-    return endTs && r.createdAt && endTs > r.createdAt
+    const endTs = normalizeTimestamp((r as any).completedTs || r.statusTimestamps?.['Completed'] || r.statusTimestamps?.['Ready for Pick Up'] || (r as any).generatedAt)
+    const createdTs = normalizeTimestamp(r.createdAt)
+    return endTs !== null && createdTs !== null && endTs > createdTs
   })
   let avgTurnaroundHours: number | null = null
   let avgTurnaroundDays: string = "N/A"
   if (completedWithTiming.length > 0) {
     const totalDurationHours = completedWithTiming.reduce((acc, r) => {
-      const endTs = (r as any).completedTs || r.statusTimestamps?.['Completed'] || r.statusTimestamps?.['Ready for Pick Up'] || (r as any).generatedAt
-      return acc + (endTs - r.createdAt) / (1000 * 60 * 60)
+      const endTs = normalizeTimestamp((r as any).completedTs || r.statusTimestamps?.['Completed'] || r.statusTimestamps?.['Ready for Pick Up'] || (r as any).generatedAt)!
+      const createdTs = normalizeTimestamp(r.createdAt)!
+      return acc + (endTs - createdTs) / (1000 * 60 * 60)
     }, 0)
     avgTurnaroundHours = Math.round((totalDurationHours / completedWithTiming.length) * 10) / 10
     avgTurnaroundDays = (avgTurnaroundHours / 24).toFixed(1)
@@ -183,24 +195,33 @@ export default function SuperAdminDashboard() {
   // F15: Real sparklines mapped from actual residents, requests, and verifications
   const populationSparkline = Array.from({ length: 7 }).map((_, i) => {
     const end = now - (6 - i) * dayMs + dayMs
-    const count = residents.filter(r => ((r as any).createdAt || 0) <= end).length
-    return count || adminStats.totalResidents
+    const count = residents.filter(r => {
+      const ts = normalizeTimestamp((r as any).createdAt)
+      return ts !== null && ts <= end
+    }).length
+    return count
   })
   const requestsSparkline = dailyRequests.map(d => d.requests)
   const verificationsSparkline = Array.from({ length: 7 }).map((_, i) => {
     const start = now - (6 - i) * dayMs
     const end = start + dayMs
     return verifications.filter(v => {
-      const ts = (v as any).submittedAt || (v as any).createdAt || 0
-      return ts >= start && ts < end
+      const ts = normalizeTimestamp((v as any).submittedAt || (v as any).createdAt)
+      return ts !== null && ts >= start && ts < end
     }).length
   })
   const processingSparkline = dailyRequests.map(d => d.approvals)
   const approvalSparkline = dailyRequests.map(d => d.approvals > 0 ? (d.approvals / (d.requests || 1)) * 100 : 0)
 
   // Real requests change vs prior period
-  const recentReqsCount = documentRequests.filter(r => r.createdAt >= now - 7 * dayMs && r.createdAt < now).length
-  const priorReqsCount = documentRequests.filter(r => r.createdAt >= now - 14 * dayMs && r.createdAt < now - 7 * dayMs).length
+  const recentReqsCount = documentRequests.filter(r => {
+    const ts = normalizeTimestamp(r.createdAt)
+    return ts !== null && ts >= now - 7 * dayMs && ts < now
+  }).length
+  const priorReqsCount = documentRequests.filter(r => {
+    const ts = normalizeTimestamp(r.createdAt)
+    return ts !== null && ts >= now - 14 * dayMs && ts < now - 7 * dayMs
+  }).length
   const requestsChange = priorReqsCount > 0
     ? Math.round(((recentReqsCount - priorReqsCount) / priorReqsCount) * 100)
     : (recentReqsCount > 0 ? 100 : 0)

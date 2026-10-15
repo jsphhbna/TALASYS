@@ -241,3 +241,46 @@
   8. **Custom Document Deep-Linking & Issuance Timestamps (F12, F13, F14)**: Resolved custom document requests against `systemConfig.customDocumentTypes` in `admin/generate/page.tsx`. Filtered issuance reports by `getIssuanceTimestamp` (`generatedAt || Ready for Pick Up || Completed || updatedAt || createdAt`), and supported ExcelJS `.xlsx` and CSV export honoring year/month periods.
   9. **Truthful Dashboard Metrics & Transparent User Feedback (F15, F16)**: Replaced fabricated dashboard metrics with authoritative calculations or honest "N/A" states, fixed chart data keys (`month`), rethrew descriptive errors in hooks, and introduced dedicated toast presets for payment submission and cash confirmation.
 - **Consequences**: Completely resolves all 16 audit findings; ensures UI feedback and server operations are fully aligned; eliminates false errors, misleading metrics, and disconnected controls; maintains all prior security, lifecycle, and concurrency invariants.
+
+## ADR-022: Final Integration Corrections & Authoritative Policy Enforcement (F03, F04, F14, F15, F13, Test Quality)
+
+- **Status**: Accepted; fully verified across unit (183/183), rules/emulator (58/58), and authenticated browser Playwright (27/27) suites; clean git diff.
+- **Date**: 15 October 2026
+- **Context**:
+  - Independent verification of F01–F16 revealed 5 specific integration inconsistencies:
+    1. F03: Mobile request cards in `app/resident/history/page.tsx` evaluated payment eligibility primarily from `paymentStatus` and `documentFee`, allowing Pay Now / Resubmit buttons on terminal requests (`Cancelled`, `Rejected`, `Completed`).
+    2. F04: Admin payment queue in `app/admin/requests/payments/page.tsx` admitted zero-fee requests when `status === "Awaiting Payment"` or `paymentStatus === "pending_verification"`.
+    3. F14: Report period filter in `app/superadmin/reports/page.tsx` returned `true` when `createdAt` was missing, incorrectly admitting undated records into period-filtered reports.
+    4. F15: Resident `createdAt` is formatted as an ISO string (`toISOString()`), which evaluated to `NaN` when compared directly against numeric Unix ms epoch timestamps in `app/superadmin/dashboard/page.tsx`. Additionally, sparklines used fallback `count || adminStats.totalResidents`, overwriting genuine historical zero counts with today's population.
+    5. F13: Document issuance report fallback used `updatedAt || createdAt`, falsely labeling unrelated updates or initial submissions as issuance dates.
+    6. Test quality: Unit tests in `milestone-a-functional.test.ts`, `milestone-b-functional.test.ts`, and `milestone-c-functional.test.ts` previously defined their own inline mock functions rather than importing and verifying production modules.
+- **Decisions**:
+  1. **Single Shared Resident Payment Action Eligibility Policy (F03)**:
+     - Implemented `isResidentPaymentActionEligible(request)` in `lib/resident/payment-policy.ts` (re-exported in `lib/resident/index.ts`).
+     - Gated to `RESIDENT_PAYMENT_ELIGIBLE_STATUSES = new Set(["Pending", "Approved", "On Process"])` with `documentFee > 0`, non-terminal status, and `paymentStatus !== "paid" && paymentStatus !== "waived"`.
+     - Preserves `firestore.rules` client update restrictions (does not allow direct resident mutation of `Awaiting Payment`).
+     - Applied uniformly to mobile cards, desktop table, and `PaymentModal` guards.
+  2. **Authoritative Admin Payment Queue Policy (F04)**:
+     - Implemented `isAdminPaymentQueueEligible(request)` in `lib/admin/payment-queue-policy.ts` (re-exported in `lib/admin/index.ts`).
+     - Excludes terminal requests (`Cancelled`, `Rejected`, `Completed`), fully paid, waived, and requests with `documentFee <= 0`.
+     - Unified payment queue table, header counter badge, and `AdminPaymentProcessModal` guards.
+  3. **Strict Period Date Filtering in Asia/Manila (F14)**:
+     - Implemented `isRecordInPeriod` and `getManilaCalendarDate` in `lib/timestamp-normalizer.ts`.
+     - "All Time" includes all records; specific year or month/year strictly requires a valid timestamp belonging to that Philippine reporting period (`Asia/Manila` UTC+8) and excludes undated/missing records.
+  4. **Universal Timestamp Normalization & Zero-Preserving Sparklines (F15)**:
+     - Implemented `normalizeTimestamp` in `lib/timestamp-normalizer.ts` supporting ISO strings, numeric ms, numeric seconds, Date objects, and Firestore Timestamps uniformly.
+     - Replaced direct comparisons with `normalizeTimestamp` in `app/superadmin/dashboard/page.tsx` and `app/superadmin/reports/page.tsx`.
+     - Preserved genuine 0 counts in population sparklines by eliminating `count || adminStats.totalResidents`.
+  5. **Authoritative Document Issuance Timestamps (F13)**:
+     - Implemented `getAuthoritativeIssuanceTimestamp` in `lib/timestamp-normalizer.ts`.
+     - Prioritizes `issuedAt`, `generatedAt`, `statusTimestamps['Ready for Pick Up']`, `statusTimestamps['Completed']`.
+     - Strictly never falls back to `createdAt` or unrelated `updatedAt`; returns `null` for unissued/undated records.
+  6. **Production-Path Regression Verification & Test Quality Refactoring**:
+     - Refactored `test/milestone-a-functional.test.ts`, `test/milestone-b-functional.test.ts`, and `test/milestone-c-functional.test.ts` to import production policies directly.
+     - Added adversarial fixtures (zero-fee `Awaiting Payment`, cancelled requests with fee, ISO string timestamps, Manila midnight edge cases).
+     - Added 2 Playwright E2E browser tests in `test/e2e/authenticated-workflows.spec.ts` covering F03 across desktop (1280x800) and mobile (375x667) viewports, and F04 in the live admin payment queue.
+- **Consequences**:
+  - Eliminates all remaining inconsistencies between mobile and desktop resident payment actions.
+  - Guarantees zero-fee requests never enter the admin payment queue or inflate awaiting-payment counts.
+  - Ensures exported reports and dashboard trends reflect accurate, verified Philippine reporting periods and legitimate historical data without zero-replacement or date fabrication.
+  - Unit and E2E test suites exercise production code directly, providing reliable regression protection.

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useResidentData } from "@/hooks/resident"
 import { uploadProtectedFileToCloudinary } from "@/lib/resident"
+import { isResidentPaymentActionEligible } from "@/lib/resident/payment-policy"
 import { showToastPreset } from "@/lib/app-toast"
 import { toast } from "sonner"
 import { Copy, Check, Upload, X, CreditCard, Banknote } from "lucide-react"
@@ -17,6 +18,7 @@ interface PaymentModalProps {
     id: string
     documentType: string
     status?: string
+    paymentStatus?: string
     documentFee?: number
     paymentReferenceNumber?: string
     paymentMethod?: string
@@ -50,7 +52,7 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
 
   if (!request) return null
 
-  const isTerminal = request.status && ["Cancelled", "Rejected", "Completed"].includes(request.status)
+  const isEligible = isResidentPaymentActionEligible(request as any)
 
   const handleCopy = () => {
     if (!request.paymentReferenceNumber) return
@@ -73,8 +75,8 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
   }
 
   const handleSubmitGCash = async () => {
-    if (isTerminal) {
-      toast.error("Payment cannot be submitted for a cancelled, rejected, or completed request.")
+    if (!isResidentPaymentActionEligible(request as any)) {
+      toast.error("This request is not eligible for payment submission.")
       return
     }
     if (!gcashRef.trim()) {
@@ -107,8 +109,8 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
   }
 
   const handleCashConfirm = async () => {
-    if (isTerminal) {
-      toast.error("Payment cannot be submitted for a cancelled, rejected, or completed request.")
+    if (!isResidentPaymentActionEligible(request as any)) {
+      toast.error("This request is not eligible for payment submission.")
       return
     }
     setIsSubmitting(true)
@@ -136,6 +138,12 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {!isEligible && (
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-400">
+            This request is no longer eligible for payment submission.
+          </div>
+        )}
 
         <div className="mx-6 mt-5 mb-4 bg-[#0C2340] dark:bg-slate-800 rounded-xl p-4 flex items-center justify-between">
           <div>
@@ -194,7 +202,7 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
                 )}
                 <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={handleFileChange} />
               </div>
-              <Button onClick={handleSubmitGCash} disabled={isSubmitting || !gcashRef.trim()} className="w-full h-11 bg-[#0049AF] hover:bg-[#0041a0] text-white font-semibold">
+              <Button onClick={handleSubmitGCash} disabled={isSubmitting || !gcashRef.trim() || !isEligible} className="w-full h-11 bg-[#0049AF] hover:bg-[#0041a0] text-white font-semibold">
                 {isSubmitting ? "Submitting..." : "Submit GCash Payment"}
               </Button>
             </>

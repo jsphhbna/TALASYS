@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { delay } from "@/lib/async-delay"
 import { useResidentData } from "@/hooks/resident"
-import type { ResidentRequest } from "@/lib/resident"
+import { isResidentPaymentActionEligible, type ResidentRequest } from "@/lib/resident"
 import { RequestStatusTrackerModal } from "@/components/resident/history/request-status-tracker-modal"
 import { PaymentModal } from "@/components/resident/history/payment-modal"
 import { SecureMediaViewer } from "@/components/media/secure-image"
@@ -294,9 +294,19 @@ export default function RequestHistoryPage() {
                       <Button size="sm" onClick={() => router.push(`/resident/request?type=${encodeURIComponent(request.documentType)}&retry=${request.id}`)} className="flex-1 text-xs-plus h-8 bg-[#0C2340] text-white">Retry</Button>
                     </>
                   )}
-                  {((request as any).paymentStatus === "unpaid" || (request as any).paymentStatus === "pending_verification") && (request as any).documentFee > 0 && (
-                    <Button size="sm" onClick={() => setPaymentRequest(request)} className={`flex-1 text-xs-plus h-8 font-bold ${(request as any).paymentStatus === "unpaid" ? "bg-orange-500 text-white" : "bg-amber-500 text-white"}`}>
-                      {(request as any).paymentStatus === "unpaid" ? "💳 Pay Now" : "Resubmit"}
+                  {isResidentPaymentActionEligible(request as any) && (
+                    <Button
+                      size="sm"
+                      onClick={() => setPaymentRequest(request)}
+                      className={`flex-1 text-xs-plus h-8 font-bold ${
+                        (request as any).paymentStatus === "unpaid"
+                          ? ((request as any).paymentMethod === "cash" ? "bg-[#0C2340] text-white" : "bg-orange-500 text-white")
+                          : "bg-amber-500 text-white"
+                      }`}
+                    >
+                      {(request as any).paymentStatus === "unpaid"
+                        ? ((request as any).paymentMethod === "cash" ? "🧾 Receipt" : "💳 Pay Now")
+                        : "Resubmit"}
                     </Button>
                   )}
                   <Button size="sm" variant="outline" onClick={() => setTrackingRequestId(request.id)} className="flex-1 text-xs-plus h-8 border-slate-300">Track</Button>
@@ -376,10 +386,7 @@ export default function RequestHistoryPage() {
                             {cancellingId === request.id ? "Cancelling..." : "Cancel"}
                           </Button>
                         )}
-                        {!["Cancelled", "Rejected", "Completed"].includes(request.status) &&
-                         ["Pending", "Approved", "On Process", "Awaiting Payment"].includes(request.status) &&
-                         ((request as any).paymentStatus === "unpaid" || (request as any).paymentStatus === "pending_verification") &&
-                         (request as any).documentFee > 0 && (
+                        {isResidentPaymentActionEligible(request as any) && (
                           <Button
                             size="sm"
                             onClick={() => setPaymentRequest(request)}

@@ -241,52 +241,120 @@ test("F12: Custom document deep-link resolution finds custom template by documen
   assert.equal(resolvedUnmatched.matchedId, "custom_blank")
 })
 
-// F13: Issuance date-range report uses authoritative issuance timestamp
-test("F13: Issuance report filters by generatedAt / issuance timestamp, not submission date", () => {
-  const getIssuanceTimestamp = (r: {
-    createdAt?: number
-    generatedAt?: number
-    updatedAt?: number
-    statusTimestamps?: Record<string, number>
-  }): number | undefined => {
-    return r.generatedAt ||
-      r.statusTimestamps?.['Ready for Pick Up'] ||
-      r.statusTimestamps?.['Completed'] ||
-      r.updatedAt ||
-      r.createdAt
-  }
+import {
+  getAuthoritativeIssuanceTimestamp,
+  isRecordInPeriod,
+} from "../lib/timestamp-normalizer.ts"
 
-  // Document requested in January (Jan 10, 2026), but generated in March (March 15, 2026)
+// F13: Authoritative document issuance timestamps (never falling back to createdAt or updatedAt)
+test("F13: getAuthoritativeIssuanceTimestamp uses authoritative issuance evidence and excludes undated/unissued records", () => {
   const janSubmission = new Date("2026-01-10T10:00:00Z").getTime()
   const marIssuance = new Date("2026-03-15T10:00:00Z").getTime()
+  const aprUpdate = new Date("2026-04-20T10:00:00Z").getTime()
 
-  const docRequest = {
+  // 1. Document with explicit generatedAt
+  const docGenerated = {
     id: "req-1",
     createdAt: janSubmission,
     generatedAt: marIssuance,
+    updatedAt: aprUpdate,
   }
+  assert.equal(getAuthoritativeIssuanceTimestamp(docGenerated), marIssuance)
 
-  const marchStart = new Date("2026-03-01T00:00:00+08:00").getTime()
-  const marchEnd = new Date("2026-03-31T23:59:59+08:00").getTime()
-
-  // Filtering by issuance date
-  const issuanceTs = getIssuanceTimestamp(docRequest)
-  assert.equal(issuanceTs, marIssuance)
-
-  const isInMarchRange = issuanceTs! >= marchStart && issuanceTs! <= marchEnd
-  assert.equal(isInMarchRange, true, "Document generated in March should be in March report")
-
-  // Under old flawed logic (using createdAt), it would have been excluded from March
-  const wasInMarchOld = docRequest.createdAt >= marchStart && docRequest.createdAt <= marchEnd
-  assert.equal(wasInMarchOld, false, "CreatedAt was in January so old logic missed it")
-
-  // Historical record without generatedAt falls back gracefully to statusTimestamp or createdAt
-  const historicalDoc = {
+  // 2. Document with explicit issuedAt takes highest precedence
+  const docIssued = {
     id: "req-2",
     createdAt: janSubmission,
+    issuedAt: marIssuance,
+    generatedAt: janSubmission,
+    updatedAt: aprUpdate,
+  }
+  assert.equal(getAuthoritativeIssuanceTimestamp(docIssued), marIssuance)
+
+  // 3. Document with statusTimestamps["Ready for Pick Up"]
+  const docReady = {
+    id: "req-3",
+    createdAt: janSubmission,
+    updatedAt: aprUpdate,
     statusTimestamps: {
       "Ready for Pick Up": marIssuance,
     },
   }
-  assert.equal(getIssuanceTimestamp(historicalDoc), marIssuance)
+  assert.equal(getAuthoritativeIssuanceTimestamp(docReady), marIssuance)
+
+  // 4. Document with statusTimestamps["Completed"]
+  const docCompleted = {
+    id: "req-4",
+    createdAt: janSubmission,
+    updatedAt: aprUpdate,
+    statusTimestamps: {
+      "Completed": marIssuance,
+    },
+  }
+  assert.equal(getAuthoritativeIssuanceTimestamp(docCompleted), marIssuance)
+
+  // 5. Document with ONLY createdAt and updatedAt (unrelated update or submission only)
+  // Must return null, NEVER falling back to createdAt or updatedAt
+  const docUnissued = {
+    id: "req-5",
+    createdAt: janSubmission,
+    updatedAt: aprUpdate,
+  }
+  assert.equal(getAuthoritativeIssuanceTimestamp(docUnissued), null)
+
+  // 6. Record without any timestamps
+  assert.equal(getAuthoritativeIssuanceTimestamp({ id: "req-6" }), null)
+  assert.equal(getAuthoritativeIssuanceTimestamp(null), null)
+  assert.equal(getAuthoritativeIssuanceTimestamp(undefined), null)
+})
+
+// F14: Report date-filter accuracy in Asia/Manila reporting periods
+test("F14: isRecordInPeriod strictly validates dates and excludes undated records when period is specified", () => {
+  // All Time includes everything
+  assert.equal(isRecordInPeriod(undefined, "All Time"), true)
+  assert.equal(isRecordInPeriod(null, "All Time"), true)
+  assert.equal(isRecordInPeriod("2026-03-15T10:00:00Z", "All Time"), true)
+  assert.equal(isRecordInPeriod(1773576000000, "All Time"), true)
+
+  // Specific Year: excludes missing/malformed dates
+  assert.equal(isRecordInPeriod(undefined, "2026"), false)
+  assert.equal(isRecordInPeriod(null, "2026"), false)
+  assert.equal(isRecordInPeriod("", "2026"), false)
+  assert.equal(isRecordInPeriod("invalid-date", "2026"), false)
+
+  // Specific Year: includes only records belonging to that calendar year in Asia/Manila
+  assert.equal(isRecordInPeriod("2026-05-10T12:00:00Z", "2026"), true)
+  assert.equal(isRecordInPeriod("2025-12-31T12:00:00Z", "2026"), false)
+  assert.equal(isRecordInPeriod("2027-01-01T12:00:00Z", "2026"), false)
+
+  // Specific Month and Year: excludes missing/malformed dates
+  assert.equal(isRecordInPeriod(undefined, "2026", "March"), false)
+  assert.equal(isRecordInPeriod(null, "2026", "March"), false)
+  assert.equal(isRecordInPeriod("", "2026", "March"), false)
+
+  // Specific Month and Year: matches correct month
+  assert.equal(isRecordInPeriod("2026-03-15T12:00:00Z", "2026", "March"), true)
+  assert.equal(isRecordInPeriod("2026-04-15T12:00:00Z", "2026", "March"), false)
+  assert.equal(isRecordInPeriod("2026-02-15T12:00:00Z", "2026", "March"), false)
+
+  // Works with Firestore Timestamp objects
+  const fsTimestamp = { toMillis: () => new Date("2026-03-15T10:00:00Z").getTime() }
+  assert.equal(isRecordInPeriod(fsTimestamp, "2026", "March"), true)
+  assert.equal(isRecordInPeriod(fsTimestamp, "2026", "April"), false)
+
+  // Asia/Manila (UTC+8) midnight boundary tests:
+  // 2026-02-28 16:05:00 UTC = 2026-03-01 00:05:00 Manila (March, NOT February!)
+  const marchFirstManilaUtc = "2026-02-28T16:05:00.000Z"
+  assert.equal(isRecordInPeriod(marchFirstManilaUtc, "2026", "March"), true)
+  assert.equal(isRecordInPeriod(marchFirstManilaUtc, "2026", "February"), false)
+
+  // 2026-03-31 15:59:00 UTC = 2026-03-31 23:59:00 Manila (March, NOT April!)
+  const marchLastManilaUtc = "2026-03-31T15:59:00.000Z"
+  assert.equal(isRecordInPeriod(marchLastManilaUtc, "2026", "March"), true)
+  assert.equal(isRecordInPeriod(marchLastManilaUtc, "2026", "April"), false)
+
+  // 2026-03-31 16:01:00 UTC = 2026-04-01 00:01:00 Manila (April, NOT March!)
+  const aprilFirstManilaUtc = "2026-03-31T16:01:00.000Z"
+  assert.equal(isRecordInPeriod(aprilFirstManilaUtc, "2026", "March"), false)
+  assert.equal(isRecordInPeriod(aprilFirstManilaUtc, "2026", "April"), true)
 })
