@@ -1,6 +1,37 @@
 # TALASYS Project State
 
-## Current verified state — 15 October 2026 (Final Functional Integration Corrections: F03, F04, F14, F15, F13, Test Quality)
+## Current verified state — 16 October 2026 (Final Two Targeted Functional Corrections: F17, F18)
+
+- **Working branch**: `main`
+- **Audited baseline**: `a071b7c8dc82b884ef1ab64598c2d479368fe756`
+- **Status**: Final targeted functional corrections for F17 and F18 are fully implemented, self-audited, and verified.
+  1. **F17 (Resident Payment Modal Live-State Consistency & Ineligibility Guards)**:
+     - In `lib/resident/payment-policy.ts`, updated `isResidentPaymentActionEligible` to strictly validate payment status (`"unpaid"` or `"pending_verification"`), eliminating unsafe defaulting to `"unpaid"` when caller omits the field, while preserving legitimate legacy records flagged `isLegacyRecord: true`.
+     - In `app/resident/history/page.tsx`, replaced snapshot `paymentRequest` state with `paymentRequestId`, reactively deriving `activePaymentRequest` from the live real-time `requests` subscription. Supplies complete authoritative request object to `PaymentModal`.
+     - In `components/resident/history/payment-modal.tsx`, added graceful "Request Unavailable" dialog if request is deleted while open; added specific truthful explanatory banners for all ineligible states (`paid`, `waived`, `Cancelled`, `Rejected`, `Completed`, `Ready for Pick Up`, zero-fee); disabled submission buttons and enforced ineligibility submission guards.
+     - Verified in 7 unit/integration scenarios and browser Playwright E2E test 28 (background payment confirmation and deletion live in browser).
+  2. **F18 (Full Analytics Generation-Period Accuracy & Timestamp Isolation)**:
+     - In `lib/timestamp-normalizer.ts`, implemented `getAuthoritativeGenerationTimestamp` (inspects `generatedAt` recorded by `request.markGenerated` and generation lifecycle timestamps, strictly never falling back to `createdAt` or `updatedAt`).
+     - Implemented `getAuthoritativeRejectionTimestamp` (inspects `rejectedAt` and `statusTimestamps['Rejected']`).
+     - Implemented shared production helper `calculateFullAnalyticsMetrics` partitioning metrics: `Total Requests Submitted` by `createdAt`, `Documents Generated` by authoritative `generatedAt`, `Rejected Requests` by authoritative rejection timestamp.
+     - Preserved historical records lacking generation timestamps without date fabrication; strictly excluded from specific period reports and counted in All Time with transparent unknown-date breakdown.
+     - Guaranteed 100% numerical parity across Excel (`.xlsx`), CSV, and PDF exports.
+     - In `app/superadmin/reports/page.tsx`, wired `calculateFullAnalyticsMetrics` into `Full Analytics` export and updated `reportGenerationTrend` to resolve generation via `getAuthoritativeGenerationTimestamp`.
+     - Verified across 8 unit/integration test scenarios (cross-month generation, same-day, ungenerated, unknown date, Manila midnight boundaries, format parity, all-time totals, rejection period).
+- **Rules state**: Unchanged and strictly preserved. Client mutations to requests remain governed by `firestore.rules`.
+- **Verification metrics**:
+  - `npm test`: PASS 198/198 across 32 suites.
+  - `npm run test:rules`: PASS 58/58 against Auth & Firestore emulators.
+  - `npm run test:e2e:auth`: PASS 28/28 across Chromium authenticated workflows.
+  - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+  - `npm run lint`: PASS (0 errors).
+  - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
+  - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles.
+  - `git diff --check`: PASS (clean).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No unauthorized production deployment or live rules publication performed.
+
+## Prior verified state — 15 October 2026 (Final Functional Integration Corrections: F03, F04, F14, F15, F13, Test Quality)
+
 
 - **Working branch**: `main`
 - **Audited baseline**: `c5cf2ba9794c4c4c14b74ebbe918bfff35994c21`

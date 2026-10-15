@@ -30,7 +30,11 @@ export default function RequestHistoryPage() {
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<ResidentRequest | null>(null)
   const [rejectionModalRequest, setRejectionModalRequest] = useState<ResidentRequest | null>(null)
-  const [paymentRequest, setPaymentRequest] = useState<ResidentRequest | null>(null)
+  const [paymentRequestId, setPaymentRequestId] = useState<string | null>(null)
+  const activePaymentRequest = useMemo(() => {
+    if (!paymentRequestId) return null
+    return requests.find(r => r.id === paymentRequestId) || null
+  }, [requests, paymentRequestId])
   const [selectedYear, setSelectedYear] = useState<string>("All Years")
   const [selectedMonth, setSelectedMonth] = useState<string>("All Months")
   const itemsPerPage = 5
@@ -297,7 +301,7 @@ export default function RequestHistoryPage() {
                   {isResidentPaymentActionEligible(request as any) && (
                     <Button
                       size="sm"
-                      onClick={() => setPaymentRequest(request)}
+                      onClick={() => setPaymentRequestId(request.id)}
                       className={`flex-1 text-xs-plus h-8 font-bold ${
                         (request as any).paymentStatus === "unpaid"
                           ? ((request as any).paymentMethod === "cash" ? "bg-[#0C2340] text-white" : "bg-orange-500 text-white")
@@ -389,7 +393,7 @@ export default function RequestHistoryPage() {
                         {isResidentPaymentActionEligible(request as any) && (
                           <Button
                             size="sm"
-                            onClick={() => setPaymentRequest(request)}
+                            onClick={() => setPaymentRequestId(request.id)}
                             className={`text-2xs h-7 px-3 font-semibold ${
                               (request as any).paymentStatus === "unpaid"
                                 ? ((request as any).paymentMethod === "cash" ? "bg-[#0C2340] hover:bg-[#0a1c33] dark:bg-slate-800 dark:hover:bg-slate-700 text-white" : "bg-orange-500 hover:bg-orange-600 text-white")
@@ -584,16 +588,9 @@ export default function RequestHistoryPage() {
       />
 
       <PaymentModal
-        isOpen={!!paymentRequest}
-        onClose={() => setPaymentRequest(null)}
-        request={paymentRequest ? {
-          id: paymentRequest.id,
-          documentType: paymentRequest.documentType,
-          status: paymentRequest.status,
-          documentFee: (paymentRequest as any).documentFee,
-          paymentReferenceNumber: (paymentRequest as any).paymentReferenceNumber,
-          paymentMethod: (paymentRequest as any).paymentMethod,
-        } : null}
+        isOpen={!!paymentRequestId}
+        onClose={() => setPaymentRequestId(null)}
+        request={activePaymentRequest}
       />
 
     </ResidentPageShell>

@@ -26,6 +26,7 @@ export interface PaymentActionCandidate {
   status?: string | null
   paymentStatus?: string | null
   documentFee?: number | null
+  isLegacyRecord?: boolean
   [key: string]: any
 }
 
@@ -42,7 +43,20 @@ export function isResidentPaymentActionEligible(request: PaymentActionCandidate 
     return false
   }
 
-  const paymentStatus = request.paymentStatus || "unpaid"
+  // F17: Do not default an unknown or omitted payment status to "unpaid",
+  // which could incorrectly authorize a paid or waived request whose caller omitted paymentStatus.
+  // Genuinely missing legacy records must be explicitly identified (isLegacyRecord: true).
+  const rawPaymentStatus = request.paymentStatus
+  let paymentStatus: string | undefined = rawPaymentStatus ? String(rawPaymentStatus).trim().toLowerCase() : undefined
+
+  if (!paymentStatus) {
+    if (request.isLegacyRecord === true) {
+      paymentStatus = "unpaid"
+    } else {
+      return false
+    }
+  }
+
   if (paymentStatus === "paid" || paymentStatus === "waived") {
     return false
   }

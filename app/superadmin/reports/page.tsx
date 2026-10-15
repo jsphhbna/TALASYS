@@ -24,6 +24,8 @@ import {
   getManilaCalendarDate,
   isRecordInPeriod,
   getAuthoritativeIssuanceTimestamp,
+  getAuthoritativeGenerationTimestamp,
+  calculateFullAnalyticsMetrics,
 } from "@/lib/timestamp-normalizer"
 
 export default function SystemReports() {
@@ -84,7 +86,7 @@ export default function SystemReports() {
     })
     const monthGenerated = documentRequests.filter(r => {
       if ((r as any).hasGenerated !== true) return false
-      const ts = getAuthoritativeIssuanceTimestamp(r)
+      const ts = getAuthoritativeGenerationTimestamp(r)
       return ts !== null && ts >= start && ts < end
     }).length
     const monthPop = residents.filter(r => {
@@ -267,24 +269,13 @@ export default function SystemReports() {
           doc.save(`${filenameBase}.pdf`)
         }
       } else if (reportType === "Full Analytics") {
-        const filteredRequestsForPeriod = documentRequests.filter(r => filterByDate(r.createdAt))
-        const periodGenerated = filteredRequestsForPeriod.filter(r => (r as any).hasGenerated === true).length
-        const periodRejected = filteredRequestsForPeriod.filter(r => r.status === "Rejected").length
-        const filteredResidentsForPeriod = residents.filter(r => filterByDate((r as any).createdAt))
-
-        const headers = ["Metric", "Value"]
-        const rows = [
-          ['Total Residents Registered', selectedYear === "All" && selectedMonth === "All" ? adminStats.totalResidents.toString() : filteredResidentsForPeriod.length.toString()],
-          ['Registered Voters', selectedYear === "All" && selectedMonth === "All" ? adminStats.voterCount.toString() : filteredResidentsForPeriod.filter(r => r.isVoter).length.toString()],
-          ['Non-Voters', selectedYear === "All" && selectedMonth === "All" ? (adminStats.totalResidents - adminStats.voterCount).toString() : filteredResidentsForPeriod.filter(r => !r.isVoter).length.toString()],
-          ['Senior Citizens', selectedYear === "All" && selectedMonth === "All" ? adminStats.seniorCount.toString() : filteredResidentsForPeriod.filter(r => (r.age || 0) >= 60).length.toString()],
-          ['Adults', selectedYear === "All" && selectedMonth === "All" ? adminStats.adultCount.toString() : filteredResidentsForPeriod.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60).length.toString()],
-          ['Minors', selectedYear === "All" && selectedMonth === "All" ? adminStats.minorCount.toString() : filteredResidentsForPeriod.filter(r => (r.age || 0) < 18).length.toString()],
-          ['Total Requests Submitted', filteredRequestsForPeriod.length.toString()],
-          ['Documents Generated', periodGenerated.toString()],
-          ['Rejected Requests', periodRejected.toString()],
-          ['Pending Verifications (Current)', adminStats.pendingVerifications.toString()],
-        ]
+        const { headers, rows } = calculateFullAnalyticsMetrics({
+          documentRequests,
+          residents,
+          adminStats,
+          selectedYear,
+          selectedMonth,
+        })
         const filenameBase = `TALASYS_Analytics_${periodLabel.replace(/\s+/g, "_")}`
 
         if (reportFormat === "Excel") {

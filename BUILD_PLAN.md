@@ -1,6 +1,35 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, & F01–F16)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, & F01–F18)
 
-## Final Functional Integration Corrections & Production-Path Regression Verification (F03, F04, F14, F15, F13, Test Quality) — CURRENT PASS
+## Final Two Targeted Functional Corrections (F17, F18) — CURRENT PASS
+
+- **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from audited baseline `a071b7c8dc82b884ef1ab64598c2d479368fe756`.
+- **Target findings & remediations**:
+  1. **F17 (Resident Payment Modal Live-State Consistency & Ineligibility Handling)**:
+     - Root cause: `app/resident/history/page.tsx` stored the selected request as a static object snapshot (`paymentRequest`) rather than tracking live real-time updates from `requests`. When opening `PaymentModal`, it also passed a projection omitting `paymentStatus`. In `lib/resident/payment-policy.ts`, `isResidentPaymentActionEligible` defaulted absent `paymentStatus` to `"unpaid"`, incorrectly authorizing paid/waived requests when omitted by callers. Furthermore, if the request became paid, cancelled, rejected, completed, or deleted in the background while the modal remained open, the modal stayed interactive with outdated payment options.
+     - Remediation:
+       - In `lib/resident/payment-policy.ts`: Made payment status validation strict (`unpaid` or `pending_verification`). Eliminated false fallback to `"unpaid"` for missing fields unless explicitly marked as a legacy record (`isLegacyRecord: true`).
+       - In `app/resident/history/page.tsx`: Replaced snapshot state `paymentRequest` with `paymentRequestId`. Derived `activePaymentRequest` from live `requests` collection using `useMemo`. Passed full authoritative request object to `PaymentModal`.
+       - In `components/resident/history/payment-modal.tsx`: Ensured all React hooks (`useMemo`, etc.) execute unconditionally at top of component. Added reactive ineligibility detection with dedicated explanation alerts for paid, waived, cancelled, rejected, completed, ready for pick up, zero-fee, or unverified statuses. Disabled payment submission controls when ineligible. Added a graceful "Request Unavailable" dialog if the request is deleted or inaccessible while the modal is open.
+  2. **F18 (Full Analytics Generation-Period Accuracy vs Submission-Period Attribution)**:
+     - Root cause: In `app/superadmin/reports/page.tsx`, `Full Analytics` filtered requests by submission date (`createdAt`) and then counted `hasGenerated === true` within that submission cohort. Consequently, cross-period generation (e.g. submitted in January, generated in March) omitted March generations and falsely attributed them to January. Furthermore, historical generated records without authoritative timestamps risked arbitrary period assignment or inconsistent calculations across PDF, CSV, and XLSX exports.
+     - Remediation:
+       - In `lib/timestamp-normalizer.ts`: Implemented `getAuthoritativeGenerationTimestamp` which inspects `generatedAt` recorded by `request.markGenerated` (and never falls back to generic `createdAt` or `updatedAt`). Implemented `getAuthoritativeRejectionTimestamp`. Added `calculateFullAnalyticsMetrics` enforcing:
+         - **Total Requests Submitted**: Filtered strictly by authoritative submission period (`createdAt`).
+         - **Documents Generated**: Filtered strictly by authoritative generation period (`generatedAt`).
+         - **Historical Unknown-Date Records**: Explicitly excluded from specific period breakdowns and accounted for in All Time totals.
+         - **Rejections**: Clarified as submission-cohort rejections (`submittedInPeriodAndRejected`) with period rejections computed separately.
+         - **Output-Format Parity**: Standardized unified table headers and row data generation to ensure identical numeric counts across Excel XLSX, CSV, and PDF exports.
+       - In `app/superadmin/reports/page.tsx`: Replaced inline calculations with `calculateFullAnalyticsMetrics`. Updated `reportGenerationTrend` to resolve generation dates using `getAuthoritativeGenerationTimestamp`.
+  3. **Verification**:
+     - Unit tests in `test/f17-f18-functional.test.ts` (15/15 PASS across all F17 and F18 scenarios).
+     - Full unit test suite `npm test`: 198/198 PASS across 32 suites.
+     - Authenticated Playwright E2E test in `test/e2e/authenticated-workflows.spec.ts` (Test 28) verifying live payment modal transitions (paid confirmation disablement, reactive notice, and graceful deletion handling).
+
+| Milestone | Status | Verified Evidence |
+|---|---|---|
+| Final Functional Corrections (F17, F18) | VERIFIED | Unit tests PASS (198/198) across 32 suites; Rules tests PASS (58/58); E2E Playwright tests PASS (28/28); Typecheck app/test (0 errors); ESLint (0 errors); Next.js Build (51/51 routes PASS); Timezone matrix across UTC, Asia/Manila, America/Los_Angeles PASS; clean git diff. |
+
+## Final Functional Integration Corrections & Production-Path Regression Verification (F03, F04, F14, F15, F13, Test Quality) — prior pass
 
 - **Status**: IMPLEMENTED, FULLY VERIFIED on `main` from audited baseline `c5cf2ba9794c4c4c14b74ebbe918bfff35994c21`.
 - **Target findings & remediations**:

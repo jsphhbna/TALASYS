@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,8 @@ interface PaymentModalProps {
     documentFee?: number
     paymentReferenceNumber?: string
     paymentMethod?: string
+    isLegacyRecord?: boolean
+    [key: string]: any
   } | null
 }
 
@@ -50,9 +52,65 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
     }
   }, [isOpen, request?.id])
 
-  if (!request) return null
+  const isEligible = request ? isResidentPaymentActionEligible(request as any) : false
 
-  const isEligible = isResidentPaymentActionEligible(request as any)
+  const ineligibilityReason = useMemo(() => {
+    if (!request || isEligible) return null
+    const paymentStatus = request.paymentStatus ? String(request.paymentStatus).trim().toLowerCase() : ""
+    if (paymentStatus === "paid") {
+      return "This request has already been paid and confirmed."
+    }
+    if (paymentStatus === "waived") {
+      return "Payment for this request has been waived."
+    }
+    const status = request.status
+    if (status === "Cancelled") {
+      return "This request has been cancelled."
+    }
+    if (status === "Rejected") {
+      return "This request has been rejected."
+    }
+    if (status === "Completed") {
+      return "This request has already been completed."
+    }
+    if (status === "Ready for Pick Up") {
+      return "This request is already ready for pick up."
+    }
+    if (status === "Awaiting Payment") {
+      return "This request is in the in-person payment queue at the Barangay Hall."
+    }
+    if (typeof request.documentFee === "number" && request.documentFee <= 0) {
+      return "This document does not require a payment fee."
+    }
+    if (!paymentStatus && !request.isLegacyRecord) {
+      return "Payment status for this request could not be verified."
+    }
+    return "This request is no longer eligible for payment submission."
+  }, [isEligible, request?.paymentStatus, request?.status, request?.documentFee, request?.isLegacyRecord])
+
+  if (!isOpen) return null
+
+  // F17: Graceful presentation when open modal's request is deleted or no longer accessible
+  if (!request) {
+    return (
+      <ModalOverlay isOpen={isOpen} onClose={onClose}>
+        <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md shadow-2xl overflow-hidden p-6">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-base font-bold text-[#0C2340] dark:text-blue-50">Request Unavailable</h2>
+            <button onClick={onClose} aria-label="Close modal" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="my-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-300">
+            This request is no longer accessible or has been removed.
+          </div>
+          <Button onClick={onClose} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 font-semibold">
+            Close
+          </Button>
+        </div>
+      </ModalOverlay>
+    )
+  }
 
   const handleCopy = () => {
     if (!request.paymentReferenceNumber) return
@@ -76,7 +134,7 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
 
   const handleSubmitGCash = async () => {
     if (!isResidentPaymentActionEligible(request as any)) {
-      toast.error("This request is not eligible for payment submission.")
+      toast.error(ineligibilityReason || "This request is not eligible for payment submission.")
       return
     }
     if (!gcashRef.trim()) {
@@ -110,7 +168,7 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
 
   const handleCashConfirm = async () => {
     if (!isResidentPaymentActionEligible(request as any)) {
-      toast.error("This request is not eligible for payment submission.")
+      toast.error(ineligibilityReason || "This request is not eligible for payment submission.")
       return
     }
     setIsSubmitting(true)
@@ -140,10 +198,11 @@ export function PaymentModal({ isOpen, onClose, request }: PaymentModalProps) {
         </div>
 
         {!isEligible && (
-          <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-400">
-            This request is no longer eligible for payment submission.
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-400 font-medium">
+            {ineligibilityReason}
           </div>
         )}
+
 
         <div className="mx-6 mt-5 mb-4 bg-[#0C2340] dark:bg-slate-800 rounded-xl p-4 flex items-center justify-between">
           <div>

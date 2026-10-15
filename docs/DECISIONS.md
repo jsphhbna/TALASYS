@@ -284,3 +284,37 @@
   - Guarantees zero-fee requests never enter the admin payment queue or inflate awaiting-payment counts.
   - Ensures exported reports and dashboard trends reflect accurate, verified Philippine reporting periods and legitimate historical data without zero-replacement or date fabrication.
   - Unit and E2E test suites exercise production code directly, providing reliable regression protection.
+
+## ADR-023: Final Functional Corrections — Payment Modal Live-State Consistency (F17) & Full Analytics Generation-Period Accuracy (F18)
+
+- **Status**: Accepted; verified across unit tests (198/198), rules/emulator suite (58/58), and authenticated browser Playwright suite; clean git diff.
+- **Date**: 16 October 2026
+- **Context**:
+  - Independent verification of TALASYS discovered two targeted defects before final acceptance readiness:
+    1. **F17 (Resident payment modal displays stale request/payment state)**:
+       - In `app/resident/history/page.tsx`, `paymentRequest` was stored as a component state snapshot rather than derived from the existing live `requests` Firestore subscription (`onSnapshot`).
+       - When passing the request to `PaymentModal`, `paymentStatus` was omitted from the candidate object.
+       - In `lib/resident/payment-policy.ts`, `request.paymentStatus || "unpaid"` defaulted an absent payment status to `"unpaid"`, incorrectly authorizing paid or waived requests.
+       - When requests became paid, cancelled, rejected, or were deleted while the modal was open, the modal failed to react or closed silently without an explanation.
+    2. **F18 (Full Analytics attributes generated documents to submission period)**:
+       - In `app/superadmin/reports/page.tsx`, `Full Analytics` filtered requests by `createdAt` (submission period) and then counted those with `hasGenerated === true`.
+       - Requests submitted in earlier months (e.g., January) and generated in later months (e.g., March) were erroneously counted in January and omitted from March.
+       - Historical records with `hasGenerated === true` but lacking `generatedAt` required honest preservation without date fabrication.
+- **Decisions**:
+  1. **Strict Payment Status Invariant & Live Subscription Derivation (F17)**:
+     - In `lib/resident/payment-policy.ts`, updated `isResidentPaymentActionEligible` to strictly require valid payment status (`"unpaid"` or `"pending_verification"`). Never defaults an omitted or unknown payment status to `"unpaid"` unless explicitly identified as a legacy record (`isLegacyRecord: true`).
+     - In `app/resident/history/page.tsx`, replaced `paymentRequest` snapshot state with `paymentRequestId`, reactively deriving `activePaymentRequest` from the active real-time `requests` subscription. Supplies the full authoritative request object to `PaymentModal`.
+     - In `components/resident/history/payment-modal.tsx`, rendered a graceful "Request Unavailable" dialog if the request is deleted or no longer accessible while open; computed specific truthful ineligibility reasons (paid, waived, cancelled, rejected, completed, ready for pick up, zero-fee, unverified); strictly disabled submit buttons and guarded both GCash and Cash submissions against ineligible execution.
+  2. **Authoritative Generation Timestamp Resolution & Report Metrics Isolation (F18)**:
+     - In `lib/timestamp-normalizer.ts`, implemented `getAuthoritativeGenerationTimestamp` inspecting `generatedAt` (written atomically by `request.markGenerated`) and explicit lifecycle generation timestamps, strictly never falling back to `createdAt` or generic `updatedAt`.
+     - Implemented `getAuthoritativeRejectionTimestamp` inspecting `rejectedAt` and `statusTimestamps['Rejected']`.
+     - Implemented shared production helper `calculateFullAnalyticsMetrics` partitioning metrics:
+       - `Total Requests Submitted`: aggregated strictly by `createdAt` (submission cohort).
+       - `Documents Generated`: aggregated strictly by authoritative `generatedAt` (generation event period). Historical records lacking generation timestamps are strictly excluded from period-specific reports and counted in All Time with transparent unknown-date breakdown.
+       - `Rejected Requests`: aggregated strictly by authoritative rejection event timestamp.
+       - Output-format parity: single `rows` calculation shared identically across Excel (`.xlsx`), CSV, and PDF exports.
+     - In `app/superadmin/reports/page.tsx`, wired `calculateFullAnalyticsMetrics` to `Full Analytics` and updated `reportGenerationTrend` to resolve generation via `getAuthoritativeGenerationTimestamp`.
+- **Consequences**:
+  - Eliminates stale payment actions: paid, waived, cancelled, or deleted requests instantly disable modal submission with accurate explanatory feedback.
+  - Guarantees administrative reports and analytics truthfully reflect actual document generation events rather than submission dates.
+  - Ensures complete output parity across PDF, CSV, and XLSX exports without database migration or date fabrication.

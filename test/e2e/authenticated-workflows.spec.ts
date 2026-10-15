@@ -241,6 +241,22 @@ test.beforeAll(async () => {
     createdAt: Date.now() - 3600000,
   })
 
+  await db.collection("documentRequests").doc("e2e-request-f17-live").set({
+    residentId: "e2e-active-resident",
+    residentName: "E2E Active Resident",
+    documentType: "Barangay Clearance",
+    purpose: "Live State Consistency Test",
+    status: "Approved",
+    requestFor: "self",
+    documentFee: 75,
+    paymentMethod: "gcash",
+    paymentStatus: "unpaid",
+    refNumber: "REF-F17-LIVE",
+    paymentReferenceNumber: "PAY-F17-LIVE",
+    createdAt: Date.now() - 2400000,
+  })
+
+
   await db.collection("documentRequests").doc("e2e-request-f04-zerofee").set({
     residentId: "e2e-active-resident",
     residentName: "E2E Active Resident",
@@ -989,4 +1005,58 @@ test("F04: Admin payment queue strictly excludes zero-fee requests across queue 
   await expect(countBadge).toBeVisible()
   const badgeText = await countBadge.textContent()
   expect(badgeText).toBeTruthy()
+})
+
+test("F17: Resident payment modal tracks live request updates and disables actions when request becomes paid or deleted", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+
+  await login(page, "active-resident", true, /\/resident\/dashboard/)
+  await page.goto("/resident/history")
+  await expect(page.getByRole("heading", { name: "Request History" })).toBeVisible()
+
+  // 1. Locate the seeded live test request
+  await page.getByPlaceholder(/Search requests/i).fill("REF-F17-LIVE")
+  const row = page.locator("tr", { hasText: "REF-F17-LIVE" })
+  await expect(row).toBeVisible()
+
+  // 2. Click Pay Now to open the payment modal
+  const payButton = row.getByRole("button", { name: /Pay Now/i })
+  await expect(payButton).toBeVisible()
+  await payButton.click()
+
+  // 3. Modal opens: verify title, amount due, and active GCash tab
+  await expect(page.getByRole("heading", { name: "Complete Payment" })).toBeVisible()
+  await expect(page.getByText("P75.00")).toBeVisible()
+  await page.getByRole("button", { name: "GCash", exact: true }).click()
+  const submitButton = page.getByRole("button", { name: "Submit GCash Payment" })
+  await expect(submitButton).toBeVisible()
+  await expect(submitButton).toBeDisabled() // disabled because ref number is empty
+
+  // Fill in valid GCash reference number
+  await page.getByPlaceholder(/13-digit reference number/i).fill("1234567890123")
+  await expect(submitButton).toBeEnabled()
+
+  // 4. Concurrently in background: request is confirmed as paid by admin
+  await db.collection("documentRequests").doc("e2e-request-f17-live").update({
+    paymentStatus: "paid",
+    receiptNumber: "REC-2026-F17",
+  })
+
+  // 5. Modal re-renders reactively: ineligibility notice appears and submit button is strictly disabled
+  await expect(page.getByText(/This request has already been paid and confirmed/i)).toBeVisible()
+  await expect(submitButton).toBeDisabled()
+
+  // 6. Concurrently in background: request is deleted
+  await db.collection("documentRequests").doc("e2e-request-f17-live").delete()
+
+  // 7. Modal displays graceful Request Unavailable view without allowing stale submission
+  await expect(page.getByRole("heading", { name: "Request Unavailable" })).toBeVisible()
+  await expect(page.getByText(/This request is no longer accessible or has been removed/i)).toBeVisible()
+  const closeButton = page.getByRole("button", { name: "Close", exact: true })
+  await expect(closeButton).toBeVisible()
+  await closeButton.click()
+
+  // Modal dismisses cleanly
+  await expect(page.getByRole("heading", { name: "Request Unavailable" })).toHaveCount(0)
 })

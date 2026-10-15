@@ -203,3 +203,224 @@ export function getAuthoritativeIssuanceTimestamp(request: any): number | null {
 
   return null
 }
+
+/**
+ * Authoritative document generation timestamp resolver (F18).
+ *
+ * Resolves the authoritative timestamp when the document was generated.
+ * In TALASYS, admin document generation atomically commits `generatedAt`
+ * via `request.markGenerated`.
+ *
+ * Never substitutes `createdAt` (request submission) or generic `updatedAt`.
+ * Returns null if no authoritative generation timestamp is present, preserving
+ * historical records without inventing artificial generation dates.
+ */
+export function getAuthoritativeGenerationTimestamp(request: any): number | null {
+  if (!request || typeof request !== "object") return null
+
+  // 1. Authoritative generation timestamp written by request.markGenerated
+  if (request.generatedAt !== undefined && request.generatedAt !== null) {
+    const ts = normalizeTimestamp(request.generatedAt)
+    if (ts !== null) return ts
+  }
+
+  // 2. Authoritative lifecycle status timestamp if explicitly recorded for generation
+  const statusTimestamps = request.statusTimestamps
+  if (statusTimestamps && typeof statusTimestamps === "object") {
+    if (statusTimestamps["Generated"] !== undefined && statusTimestamps["Generated"] !== null) {
+      const ts = normalizeTimestamp(statusTimestamps["Generated"])
+      if (ts !== null) return ts
+    }
+    if (statusTimestamps["generated"] !== undefined && statusTimestamps["generated"] !== null) {
+      const ts = normalizeTimestamp(statusTimestamps["generated"])
+      if (ts !== null) return ts
+    }
+  }
+
+  return null
+}
+
+/**
+ * Authoritative request rejection timestamp resolver (F18).
+ *
+ * Resolves the authoritative timestamp when a request was rejected.
+ * Recorded in `request.statusTimestamps['Rejected']` or `request.rejectedAt`.
+ *
+ * Never falls back to `createdAt` or unrelated update timestamps.
+ * Returns null if no authoritative rejection timestamp is present.
+ */
+export function getAuthoritativeRejectionTimestamp(request: any): number | null {
+  if (!request || typeof request !== "object") return null
+
+  if (request.rejectedAt !== undefined && request.rejectedAt !== null) {
+    const ts = normalizeTimestamp(request.rejectedAt)
+    if (ts !== null) return ts
+  }
+
+  const statusTimestamps = request.statusTimestamps
+  if (statusTimestamps && typeof statusTimestamps === "object") {
+    if (statusTimestamps["Rejected"] !== undefined && statusTimestamps["Rejected"] !== null) {
+      const ts = normalizeTimestamp(statusTimestamps["Rejected"])
+      if (ts !== null) return ts
+    }
+    if (statusTimestamps["rejected"] !== undefined && statusTimestamps["rejected"] !== null) {
+      const ts = normalizeTimestamp(statusTimestamps["rejected"])
+      if (ts !== null) return ts
+    }
+  }
+
+  return null
+}
+
+export interface FullAnalyticsParams {
+  documentRequests: any[]
+  residents: any[]
+  adminStats: {
+    totalResidents: number
+    voterCount: number
+    seniorCount: number
+    adultCount: number
+    minorCount: number
+    pendingVerifications: number
+    [key: string]: any
+  }
+  selectedYear?: string
+  selectedMonth?: string
+}
+
+export interface FullAnalyticsResult {
+  headers: string[]
+  rows: [string, string][]
+  metrics: {
+    totalResidents: number
+    registeredVoters: number
+    nonVoters: number
+    seniorCitizens: number
+    adults: number
+    minors: number
+    totalRequestsSubmitted: number
+    documentsGenerated: number
+    rejectedRequests: number
+    pendingVerifications: number
+    historicalGeneratedUnknownDate: number
+  }
+}
+
+/**
+ * Authoritative Full Analytics metrics calculator (F18).
+ *
+ * Precisely partitions metrics by lifecycle events:
+ * - Total Requests Submitted: aggregated strictly by `createdAt` (request submission).
+ * - Documents Generated: aggregated strictly by `generatedAt` (actual document generation).
+ * - Rejected Requests: aggregated strictly by authoritative rejection event timestamp.
+ * - Historical records with unknown generation dates are preserved and included in All Time,
+ *   never assigned to fabricated calendar periods.
+ * - Guarantees identical row calculations across Excel, CSV, and PDF exports.
+ */
+export function calculateFullAnalyticsMetrics({
+  documentRequests,
+  residents,
+  adminStats,
+  selectedYear = "All",
+  selectedMonth = "All",
+}: FullAnalyticsParams): FullAnalyticsResult {
+  const isAllTime = (!selectedYear || selectedYear === "All" || selectedYear === "All Time") &&
+                    (!selectedMonth || selectedMonth === "All" || selectedMonth === "All Months")
+
+  const filteredResidentsForPeriod = isAllTime
+    ? residents
+    : residents.filter(r => isRecordInPeriod((r as any).createdAt, selectedYear, selectedMonth))
+
+  const totalResidents = isAllTime
+    ? adminStats.totalResidents
+    : filteredResidentsForPeriod.length
+
+  const registeredVoters = isAllTime
+    ? adminStats.voterCount
+    : filteredResidentsForPeriod.filter(r => r.isVoter).length
+
+  const nonVoters = isAllTime
+    ? Math.max(0, adminStats.totalResidents - adminStats.voterCount)
+    : filteredResidentsForPeriod.filter(r => !r.isVoter).length
+
+  const seniorCitizens = isAllTime
+    ? adminStats.seniorCount
+    : filteredResidentsForPeriod.filter(r => (r.age || 0) >= 60).length
+
+  const adults = isAllTime
+    ? adminStats.adultCount
+    : filteredResidentsForPeriod.filter(r => (r.age || 0) >= 18 && (r.age || 0) < 60).length
+
+  const minors = isAllTime
+    ? adminStats.minorCount
+    : filteredResidentsForPeriod.filter(r => (r.age || 0) < 18).length
+
+  // F18: Total Requests Submitted is strictly based on submission/creation timestamp (createdAt)
+  const totalRequestsSubmitted = isAllTime
+    ? documentRequests.length
+    : documentRequests.filter(r => isRecordInPeriod(r.createdAt, selectedYear, selectedMonth)).length
+
+  // F18: Documents Generated is strictly based on authoritative generation timestamp (generatedAt)
+  // Historical generated records without timestamps are never given invented dates and are strictly counted only in All Time.
+  const documentsGenerated = isAllTime
+    ? documentRequests.filter(r => (r as any).hasGenerated === true).length
+    : documentRequests.filter(r => {
+        if ((r as any).hasGenerated !== true) return false
+        const genTs = getAuthoritativeGenerationTimestamp(r)
+        if (genTs === null) return false
+        return isRecordInPeriod(genTs, selectedYear, selectedMonth)
+      }).length
+
+  // Historical generated records lacking authoritative generation timestamp
+  const historicalGeneratedUnknownDate = isAllTime
+    ? documentRequests.filter(r => (r as any).hasGenerated === true && getAuthoritativeGenerationTimestamp(r) === null).length
+    : 0
+
+  // F18: Rejected Requests in period based on authoritative rejection event timestamp
+  const rejectedRequests = isAllTime
+    ? documentRequests.filter(r => r.status === "Rejected").length
+    : documentRequests.filter(r => {
+        if (r.status !== "Rejected") return false
+        const rejTs = getAuthoritativeRejectionTimestamp(r)
+        if (rejTs === null) return false
+        return isRecordInPeriod(rejTs, selectedYear, selectedMonth)
+      }).length
+
+  const pendingVerifications = adminStats.pendingVerifications
+
+  const headers = ["Metric", "Value"]
+  const rows: [string, string][] = [
+    ['Total Residents Registered', totalResidents.toString()],
+    ['Registered Voters', registeredVoters.toString()],
+    ['Non-Voters', nonVoters.toString()],
+    ['Senior Citizens', seniorCitizens.toString()],
+    ['Adults', adults.toString()],
+    ['Minors', minors.toString()],
+    ['Total Requests Submitted', totalRequestsSubmitted.toString()],
+    ['Documents Generated', documentsGenerated.toString()],
+    ['Rejected Requests', rejectedRequests.toString()],
+    ['Pending Verifications (Current)', pendingVerifications.toString()],
+  ]
+
+  if (isAllTime && historicalGeneratedUnknownDate > 0) {
+    rows.push(['Historical Generated Documents (Unknown Date)', historicalGeneratedUnknownDate.toString()])
+  }
+
+  return {
+    headers,
+    rows,
+    metrics: {
+      totalResidents,
+      registeredVoters,
+      nonVoters,
+      seniorCitizens,
+      adults,
+      minors,
+      totalRequestsSubmitted,
+      documentsGenerated,
+      rejectedRequests,
+      pendingVerifications,
+      historicalGeneratedUnknownDate,
+    },
+  }
+}
