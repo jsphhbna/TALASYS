@@ -1291,3 +1291,193 @@ test("Milestone E02: Active open resident session is authoritatively revoked in 
 
   await residentContext.close()
 })
+
+// ─── Milestone 9: P01–P07 End-to-End & Responsive Acceptance Tests ───
+
+test("Milestone 9 - P01 & P07: Resident representation request with distinct beneficiary details renders without clipping across viewports (360x800, 390x844, 768x1024, 1280x800, 1440x900)", async ({ page }) => {
+  await login(page, "active-resident", true, /\/resident\/dashboard/)
+
+  const viewports = [
+    { width: 360, height: 800, name: "mobile-small" },
+    { width: 390, height: 844, name: "mobile-standard" },
+    { width: 768, height: 1024, name: "tablet" },
+    { width: 1280, height: 800, name: "laptop" },
+    { width: 1440, height: 900, name: "desktop" },
+  ]
+
+  for (const vp of viewports) {
+    await page.setViewportSize({ width: vp.width, height: vp.height })
+    await page.goto("/resident/request")
+    await expect(page.getByRole("heading", { name: "Request Document" })).toBeVisible()
+
+    // Canonical catalog includes Barangay Clearance
+    const clearanceCard = page.locator("[role='button']", { hasText: "Barangay Clearance" }).first()
+    await expect(clearanceCard).toBeVisible()
+
+    // Click to open request modal
+    await clearanceCard.click()
+    await expect(page.getByRole("heading", { name: /Barangay Clearance Request/i })).toBeVisible()
+
+    // Toggle to on-behalf-of representation radio
+    await page.getByText("For someone else").click()
+
+    // Beneficiary fields are visible without clipping
+    const nameInput = page.getByPlaceholder("Enter full name")
+    const contactInput = page.getByPlaceholder("Enter contact number")
+    const addressInput = page.getByPlaceholder("Enter the represented person's address")
+    const ageInput = page.getByPlaceholder("Enter the represented person's age")
+
+    await expect(nameInput).toBeVisible()
+    await expect(contactInput).toBeVisible()
+    await expect(addressInput).toBeVisible()
+    await expect(ageInput).toBeVisible()
+
+    // Fill beneficiary details
+    await nameInput.fill("Pedro Beneficiary")
+    await contactInput.fill("09998887777")
+    await addressInput.fill("456 Pedro St., Manila")
+    await ageInput.fill("28")
+
+    // Values are held cleanly without unexpected resets
+    await expect(nameInput).toHaveValue("Pedro Beneficiary")
+    await expect(addressInput).toHaveValue("456 Pedro St., Manila")
+    await expect(ageInput).toHaveValue("28")
+
+    // Close modal cleanly for next viewport iteration
+    await page.getByRole("button", { name: "Cancel" }).click()
+    await expect(page.getByRole("heading", { name: /Barangay Clearance Request/i })).toHaveCount(0)
+  }
+})
+
+test("Milestone 9 - P01 & P05: Admin generation separates beneficiary identity and preserves first-generation timestamp on reprint", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+
+  const originalTimestamp = 1727481600000 // Sept 28, 2024
+  const reqId = "e2e-req-p01-p05-verify"
+
+  // Seed a represented request that was already generated once on Sept 28
+  await db.collection("documentRequests").doc(reqId).set({
+    id: reqId,
+    residentId: "e2e-active-resident",
+    residentName: "Maria Clara Santos",
+    documentType: "Barangay Clearance",
+    purpose: "Employment",
+    requestFor: "other",
+    requestedByName: "Pedro Penduko",
+    relationship: "Brother",
+    requestedByContact: "09998887777",
+    representedAddress: "456 Pedro St., Manila",
+    representedAge: 28,
+    status: "Approved",
+    paymentStatus: "paid",
+    hasGenerated: true,
+    generatedAt: originalTimestamp,
+    createdAt: originalTimestamp - 3600000,
+  })
+
+  // Log in as Full Access admin
+  await login(page, "full")
+  await page.goto(`/admin/generate?requestId=${reqId}`)
+  await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
+
+  // 1. P01: Admin Review Banner displays correct separation of identities
+  await expect(page.getByText(/Representation Request:/i)).toBeVisible()
+  await expect(page.getByText("Pedro Penduko").first()).toBeVisible()
+  await expect(page.getByText("PEDRO PENDUKO").first()).toBeVisible()
+
+  // 2. Beneficiary address and age inputs match Pedro's data, NOT Maria's data
+  const beneficiaryAddress = page.getByPlaceholder("Enter verified beneficiary address...")
+  await expect(beneficiaryAddress).toBeVisible()
+  await expect(beneficiaryAddress).toHaveValue("456 Pedro St., Manila")
+
+  const beneficiaryAge = page.getByPlaceholder("Beneficiary age...")
+  await expect(beneficiaryAge).toBeVisible()
+  await expect(beneficiaryAge).toHaveValue("28")
+
+  // 3. Document preview contains Pedro's details, not Maria's
+  const preview = page.locator("[contenteditable]").first()
+  await expect(preview).toBeVisible()
+  const previewText = await preview.textContent()
+  expect(previewText).toContain("PEDRO PENDUKO")
+  expect(previewText).toContain("456 Pedro St., Manila")
+  expect(previewText).not.toContain("123 Barangay Street")
+
+  // 4. P05: Trigger reprint via server operation and verify original timestamp preservation
+  const adminIdToken = await getIdTokenForUser("full@example.test")
+  const reprintRes = await fetch("http://127.0.0.1:3000/api/admin/operations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${adminIdToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      operation: "request.markGenerated",
+      operationId: `op-reprint-${Date.now()}`,
+      targetId: reqId,
+      payload: {},
+    }),
+  })
+  expect(reprintRes.ok).toBe(true)
+
+  // Verify in Firestore: generatedAt MUST remain Sept 28, 2024
+  const updatedReq = (await db.collection("documentRequests").doc(reqId).get()).data()
+  expect(updatedReq?.generatedAt).toBe(originalTimestamp)
+  expect(updatedReq?.reprintCount).toBe(1)
+  expect(updatedReq?.lastReprintedAt).toBeGreaterThan(originalTimestamp)
+})
+
+test("Milestone 9 - P02 & P06: Super Admin config handles disabling all document types and protects unsaved branding/template edits from Firestore snapshot overwrites", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+
+  await login(page, "super", true, /\/superadmin\/dashboard/)
+  await page.goto("/superadmin/config")
+  await expect(page.getByRole("heading", { name: "System Configuration" })).toBeVisible()
+
+  // 1. P02: Navigate to Document Types tab and disable all enabled types
+  await page.getByRole("button", { name: "Document Types" }).click()
+  const disableButtons = page.getByRole("button", { name: "Disable" })
+  while ((await disableButtons.count()) > 0) {
+    await disableButtons.first().click()
+  }
+
+  // Confirm all types disabled in UI and unsaved changes badge is active
+  await expect(page.getByText("0 of 10 document types enabled")).toBeVisible()
+  await expect(page.getByText("● Unsaved Changes")).toBeVisible()
+
+  // 2. P06: Navigate to Branding tab and edit a field locally
+  await page.getByRole("button", { name: "Branding" }).click()
+  const brgyInput = page.getByPlaceholder("Barangay Sample")
+  await brgyInput.fill("Barangay San Nicolas Local Edit")
+
+  // 3. Concurrently simulate remote Firestore update
+  await db.collection("systemConfig").doc("global").update({
+    contactNumber: "02-8888-7777",
+  })
+
+  // 4. Conflict detection: banner appears, but local unsaved edit is NOT overwritten
+  await expect(page.getByText(/Server configuration changed in the background/i)).toBeVisible()
+  await expect(brgyInput).toHaveValue("Barangay San Nicolas Local Edit")
+
+  // 5. Save all changes
+  await page.getByRole("button", { name: "Save All Changes" }).click()
+  await page.getByRole("button", { name: "Save Changes" }).click()
+  await expect(page.getByText("Changes saved").first()).toBeVisible({ timeout: 10000 })
+
+  // 6. Verify Firestore state: empty documentTypes [] is persisted and branding edit persisted
+  const finalConfig = (await db.collection("systemConfig").doc("global").get()).data()
+  expect(finalConfig?.documentTypes).toEqual([])
+  expect(finalConfig?.barangayName).toBe("Barangay San Nicolas Local Edit")
+
+  // Clean up: Re-enable default types for test suite hygiene
+  await page.getByRole("button", { name: "Document Types" }).click()
+  const enableButtons = page.getByRole("button", { name: "Enable" })
+  const count = await enableButtons.count()
+  for (let i = 0; i < Math.min(count, 4); i++) {
+    await enableButtons.nth(i).click()
+  }
+  await page.getByRole("button", { name: "Save All Changes" }).click()
+  await page.getByRole("button", { name: "Save Changes" }).click()
+  await expect(page.getByText("Changes saved").first()).toBeVisible({ timeout: 10000 })
+})

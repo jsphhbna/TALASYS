@@ -315,7 +315,17 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       if (before.status === "Pending") {
         throw httpError("Cannot mark generated for an unapproved request in Pending status.", 409)
       }
-      after = { hasGenerated: true, generatedAt: now, updatedAt: now }; transaction.update(targetRef, after)
+      const isReprint = Boolean(before.hasGenerated && before.generatedAt)
+      after = {
+        hasGenerated: true,
+        generatedAt: before.generatedAt || now,
+        ...(isReprint ? {
+          lastReprintedAt: now,
+          reprintCount: ((before.reprintCount as number) || 0) + 1,
+        } : {}),
+        updatedAt: now,
+      }
+      transaction.update(targetRef, after)
     } else if (operation === "request.confirmPayment") {
       if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
         throw httpError("Cannot confirm payment for a cancelled, rejected, or completed request.", 409)

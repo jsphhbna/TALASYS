@@ -485,3 +485,44 @@
   - Representations accurately identify beneficiaries and requesters.
   - Request lifecycle transitions are strictly governed server-side.
   - UI state and backend persistence remain synchronized with truthful user feedback.
+
+## ADR-022: P01–P07 Document Integrity, Permission Governance & Configuration Synchronization
+- **Context**:
+  Independent post-remediation audit identified seven integration and authorization gaps:
+  1. **P01**: Documents requested on behalf of another person erroneously reused the requesting resident's age and address for the beneficiary.
+  2. **P02**: Super Admin disabling all document types was treated as uninitialized (`.length === 0`), causing fallback to saved configuration.
+  3. **P03**: Canonical Barangay Clearance template contained unresolved `{{civil_status}}` placeholder token.
+  4. **P04**: View Only administrators could create admin alerts or update notifications due to permissive exceptions and `isAnyAdmin()` in `firestore.rules`.
+  5. **P05**: Document reprints in `request.markGenerated` unconditionally overwrote original `generatedAt` timestamp, distorting historical reporting period metrics.
+  6. **P06**: Background Firestore snapshot updates in Super Admin configuration overwrote unsaved local form edits across branding, signatures, and templates.
+  7. **P07**: Duplicate document catalog dictionaries existed across pages and could drift from canonical definitions.
+- **Decisions**:
+  1. **Tripartite Identity Separation (P01)**:
+     - Formally distinguish Requester (submitting resident), Representative (authorized legal proxy), and Document Subject (beneficiary appearing on the certificate).
+     - `resolveDocumentSubject()` enforces that for represented requests (`requestFor === "other"`), the beneficiary name is authoritative; requester address and age are NEVER substituted.
+     - Detect missing beneficiary data (`isSubjectAddressMissing`, `isSubjectAgeMissing`) and display an Admin confirmation banner with override inputs prior to issuance.
+  2. **Explicit Nullable Configuration Staging (P02)**:
+     - Represent staged document types as `string[] | null` where `null` is uninitialized and `[]` is an intentional empty configuration disabling all types.
+     - Backend API respects empty array `documentTypes: []`, disabling resident document creation when all types are deactivated.
+  3. **Standardized Template Contract & Token Stripping (P03)**:
+     - Remove unsupported `{{civil_status}}` from default Barangay Clearance template.
+     - Implement `renderDocumentTemplate()` that HTML-escapes values, cleanly strips unparsed `{{...}}` tokens, and handles optional values without token leakage.
+  4. **Strict View Only Denial & Read-Only Notification Scope (P04)**:
+     - Require `getUserRole() == 'resident'` for resident alert creation exceptions in `firestore.rules`.
+     - Explicitly block View Only (`!isViewOnly()`) from notification create, update, and delete rules.
+     - Restrict client notification updates strictly to `isRead` modification.
+  5. **Immutable First-Generation History (P05)**:
+     - `request.markGenerated` checks existing document state: preserves initial `generatedAt`, sets `lastReprintedAt`, and increments `reprintCount`.
+  6. **Comprehensive Dirty Tracking & Snapshot Collision Protection (P06)**:
+     - Implement unified `isDirty` tracking across branding, contact numbers, official signatures, and document templates.
+     - Snapshot listener suppresses overwriting dirty fields and displays a background update warning banner.
+  7. **Canonical Document Catalog Consolidation (P07)**:
+     - `lib/document-catalog.ts` is the single source of truth for static definitions (10 built-in types, templates, fees).
+     - Dynamic Firestore configuration governs enabled status, fee overrides, and custom templates.
+     - Preserves disabled state for newly introduced types on legacy deployments until explicitly enabled.
+- **Consequences**:
+  - Official documents contain truthful subject data with zero identity blending.
+  - View Only administrators are genuinely read-only across Firestore client access.
+  - Empty configurations persist and reload reliably.
+  - Historical generation attribution in reports remains tamper-proof across reprints.
+  - Administrator form edits are protected against concurrent snapshot loss.

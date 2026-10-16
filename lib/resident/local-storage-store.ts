@@ -56,6 +56,8 @@ export interface CreateResidentRequestInput {
   requestedByContact?: string
   relationship?: string
   authorizationLetter?: string
+  representedAddress?: string
+  representedAge?: number | string
   paymentMethod?: "gcash" | "cash"
   documentFee?: number
   gcashRefNumber?: string

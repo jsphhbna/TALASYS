@@ -371,6 +371,14 @@ function DocumentRequestsContent() {
                         <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedRequest.requestedByContact || "N/A"}</p>
                       </div>
                       <div>
+                        <span className="text-slate-500 dark:text-slate-400">Represented Person Address:</span>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedRequest.representedAddress || "Not provided (Review on generation)"}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400">Represented Person Age:</span>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedRequest.representedAge !== undefined ? `${selectedRequest.representedAge} years old` : "Not provided"}</p>
+                      </div>
+                      <div>
                         <span className="text-slate-500 dark:text-slate-400">Authorization Letter:</span>
                         {selectedRequest.authorizationLetter ? (
                           <p>

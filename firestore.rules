@@ -47,6 +47,11 @@ service cloud.firestore {
         user.get('isVerified', false) == false;
     }
 
+    function isResident() {
+      let role = getUserRole();
+      return isAuthenticated() && isActiveAccount() && (role == 'resident' || role == 'Resident');
+    }
+
     // Super Admin: highest authority
     function isSuperAdmin() {
       let role = getUserRole();
@@ -261,28 +266,42 @@ service cloud.firestore {
         (isAuthenticated() && isActiveAccount() && resource.data.targetId == request.auth.uid)
       );
 
-      // Creation:
-      // - Operational Admins can notify anyone (View Only cannot create notifications).
-      // - Residents can ONLY create notification with targetId == 'admin' (#58 impersonation defense).
-      // - Registration notifications are emitted solely by trusted server registration operations.
+      // Creation (P04):
+      // - Operational Admins can notify anyone (View Only is strictly read-only and cannot create notifications).
+      // - Residents can ONLY create notifications with targetId == 'admin' (impersonation defense).
+      // - View Only administrator is denied client creation targeting either residents or admins.
       allow create: if (
         (
-          isAuthenticated() &&
-          isActiveAccount() &&
+          isResident() &&
           request.resource.data.targetId == 'admin' &&
           request.resource.data.type in ['info', 'alert', 'reactivation']
         ) ||
         canManageNotifications()
       );
 
+      // Updates (P04):
+      // - View Only is denied all updates.
+      // - Operational Admins and Residents can only update the read status field (isRead), preventing arbitrary mutation.
       allow update: if (
-        (isAnyAdmin() && (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid)) ||
-        (isAuthenticated() && isActiveAccount() && resource.data.targetId == request.auth.uid)
+        (
+          canManageNotifications() &&
+          (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead'])
+        ) ||
+        (
+          isResident() &&
+          resource.data.targetId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead'])
+        )
       );
 
+      // Deletes (P04):
+      // - View Only is denied all deletes.
+      // - Operational Admins can delete admin-targeted notifications.
+      // - Residents can delete their own notifications.
       allow delete: if (
         (canManageNotifications() && (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid)) ||
-        (isAuthenticated() && isActiveAccount() && resource.data.targetId == request.auth.uid)
+        (isResident() && resource.data.targetId == request.auth.uid)
       );
     }
 

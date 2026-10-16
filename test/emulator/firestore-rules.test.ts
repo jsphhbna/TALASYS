@@ -526,44 +526,125 @@ test("Milestone E01: Denied accounts fail closed across all direct Firestore cli
   }))
 })
 
-test("UI04: View Only is denied notification creation, while operational admin and resident admin-alerts succeed", async () => {
+test("UI04 & P04: View Only is strictly read-only for notifications, and all 12 permission boundaries are enforced", async () => {
   const viewerDb = environment.authenticatedContext("viewer").firestore()
   const fullAdminDb = environment.authenticatedContext("full-admin").firestore()
   const residentDb = environment.authenticatedContext("resident").firestore()
+  const lockedDb = environment.authenticatedContext("locked").firestore()
+  const deletedDb = environment.authenticatedContext("deleted").firestore()
 
-  // 1. View Only administrator is denied from creating notifications
-  await assertFails(setDoc(doc(viewerDb, "notifications", "viewer-created-notif"), {
+  // Seed sample admin and resident notifications
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore()
+    await setDoc(doc(adminDb, "notifications", "existing-admin-notif"), {
+      targetId: "admin",
+      type: "info",
+      title: "System Update",
+      message: "Scheduled maintenance tonight",
+      isRead: false,
+      createdAt: Date.now(),
+    })
+    await setDoc(doc(adminDb, "notifications", "existing-resident-notif"), {
+      targetId: "resident",
+      type: "info",
+      title: "Document Ready",
+      message: "Your document is ready for pickup",
+      isRead: false,
+      createdAt: Date.now(),
+    })
+  })
+
+  // 1. View Only creates notification targeting resident -> denied
+  await assertFails(setDoc(doc(viewerDb, "notifications", "viewer-to-resident"), {
     targetId: "resident",
     type: "info",
-    title: "View Only Notice",
-    message: "Should be denied",
-    createdAt: Date.now(),
+    title: "Notice",
+    message: "Denied",
   }))
 
-  // 2. Operational administrator is allowed to create notifications
-  await assertSucceeds(setDoc(doc(fullAdminDb, "notifications", "admin-created-notif"), {
-    targetId: "resident",
-    type: "info",
-    title: "Official Notice",
-    message: "Permitted by operational admin",
-    createdAt: Date.now(),
-  }))
-
-  // 3. Resident creating notification targeted at admin succeeds
-  await assertSucceeds(setDoc(doc(residentDb, "notifications", "resident-admin-alert"), {
+  // 2. View Only creates notification targeting Admin -> denied
+  await assertFails(setDoc(doc(viewerDb, "notifications", "viewer-to-admin"), {
     targetId: "admin",
     type: "info",
-    title: "Resident Request",
-    message: "Permitted resident-to-admin message",
+    title: "Admin Notice",
+    message: "Denied",
+  }))
+
+  // 3. View Only modifies existing notification message -> denied
+  await assertFails(updateDoc(doc(viewerDb, "notifications", "existing-admin-notif"), {
+    message: "Tampered message",
+  }))
+
+  // 4. View Only changes notification target ID -> denied
+  await assertFails(updateDoc(doc(viewerDb, "notifications", "existing-admin-notif"), {
+    targetId: "viewer",
+  }))
+
+  // 5. View Only deletes notification -> denied
+  await assertFails(deleteDoc(doc(viewerDb, "notifications", "existing-admin-notif")))
+
+  // 6. View Only read access behaves according to policy (can read admin notifications)
+  await assertSucceeds(getDoc(doc(viewerDb, "notifications", "existing-admin-notif")))
+  // View Only cannot read another resident's personal notification
+  await assertFails(getDoc(doc(viewerDb, "notifications", "existing-resident-notif")))
+
+  // 7. Actual resident creates permitted Admin alert -> allowed
+  await assertSucceeds(setDoc(doc(residentDb, "notifications", "resident-alert-to-admin"), {
+    targetId: "admin",
+    type: "alert",
+    title: "Urgent Inquiry",
+    message: "Permitted inquiry from resident",
     createdAt: Date.now(),
   }))
 
-  // 4. Resident attempting to notify another resident (impersonation defense) is denied
-  await assertFails(setDoc(doc(residentDb, "notifications", "resident-impersonate"), {
+  // 8. Resident impersonates another resident -> denied
+  await assertFails(setDoc(doc(residentDb, "notifications", "resident-impersonate-user"), {
     targetId: "viewer",
     type: "info",
     title: "Spoofed Message",
     message: "Targeting non-admin is forbidden",
     createdAt: Date.now(),
+  }))
+
+  // 9. Authorized operational Admin creates permitted notification -> allowed
+  await assertSucceeds(setDoc(doc(fullAdminDb, "notifications", "operational-admin-broadcast"), {
+    targetId: "resident",
+    type: "info",
+    title: "Barangay General Assembly",
+    message: "Attendance requested",
+    createdAt: Date.now(),
+  }))
+
+  // 10. Authorized Admin updates read state without unauthorized content changes
+  // Updating isRead alone -> succeeds
+  await assertSucceeds(updateDoc(doc(fullAdminDb, "notifications", "existing-admin-notif"), {
+    isRead: true,
+  }))
+  // Updating content (message/targetId) -> denied
+  await assertFails(updateDoc(doc(fullAdminDb, "notifications", "existing-admin-notif"), {
+    message: "Unauthorized content modification",
+  }))
+  await assertFails(updateDoc(doc(fullAdminDb, "notifications", "existing-admin-notif"), {
+    targetId: "full-admin",
+  }))
+
+  // 11. Locked or deleted accounts cannot exploit notification exceptions
+  await assertFails(setDoc(doc(lockedDb, "notifications", "locked-attempt"), {
+    targetId: "admin",
+    type: "alert",
+    title: "Locked Attempt",
+  }))
+  await assertFails(setDoc(doc(deletedDb, "notifications", "deleted-attempt"), {
+    targetId: "admin",
+    type: "alert",
+    title: "Deleted Attempt",
+  }))
+
+  // 12. Resident updates read state on own notification -> succeeds; content update -> denied
+  await assertSucceeds(updateDoc(doc(residentDb, "notifications", "existing-resident-notif"), {
+    isRead: true,
+  }))
+  await assertFails(updateDoc(doc(residentDb, "notifications", "existing-resident-notif"), {
+    message: "Resident cannot alter message",
   }))
 })

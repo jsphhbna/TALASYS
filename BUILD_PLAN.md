@@ -1,6 +1,42 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, & Registration Denial Lifecycle)
 
-## Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation (UI01–UI19) — CURRENT PASS
+## P01–P07 Final Integration, Document Integrity & Permission Remediation — CURRENT PASS
+
+- **Status**: COMPLETED & VERIFIED
+- **Branch**: `main`
+- **Audited baseline**: `b47766584a6efb6d3622a5f5dc13ad02c67b21e4`
+- **Objective**: Remediate the remaining functional, authorization, and document integrity defects identified following the UI01–UI19 baseline, ensuring truthful document subject details, read-only enforcement for View Only admins, immutable document generation history, robust empty and unsaved configuration handling, and catalog consolidation.
+
+### Findings Classification Matrix
+
+| Finding | Priority | Disposition | Affected Contracts / Files | Summary of Root Cause & Final Remediation |
+|---|---|---|---|---|
+| **P01** | High | **Resolved** | `lib/document-catalog.ts`, `app/admin/generate/page.tsx`, `app/admin/requests/page.tsx`, `app/api/resident/requests/create/route.ts`, `app/resident/request/page.tsx` | `resolveDocumentSubject()` reused requesting resident's age and address for represented beneficiaries; now cleanly separates requester/representative from beneficiary subject, validates address/age before issuance, and provides admin confirmation overrides. |
+| **P02** | Medium | **Resolved** | `app/superadmin/config/page.tsx`, `app/api/resident/requests/create/route.ts` | `effectiveDocumentTypes` checked `.length > 0`, restoring saved configuration when all types disabled; now uses explicit nullable staged state `string[] | null` and dirty tracking. |
+| **P03** | Medium | **Resolved** | `lib/document-catalog.ts`, `app/admin/generate/page.tsx`, `app/superadmin/config/page.tsx` | Canonical Barangay Clearance template contained unresolved `{{civil_status}}`; removed from default template, resolved safely when present, and standardized in tested template renderer without placeholder leakage. |
+| **P04** | High | **Resolved** | `firestore.rules`, `test/emulator/firestore-rules.test.ts` | Resident-to-admin notification exception lacked `getUserRole() == 'resident'` guard, and `update` allowed `isAnyAdmin()`; tightened rules to require resident role for alerts, strictly deny View Only mutations, and limit updates to `isRead`. |
+| **P05** | Medium | **Resolved** | `app/api/admin/operations/route.ts`, `app/admin/generate/page.tsx`, `lib/timestamp-normalizer.ts`, `lib/master-store.ts` | `request.markGenerated` unconditionally overwrote `generatedAt` on reprints; now preserves initial `generatedAt`, sets `lastReprintedAt`, increments `reprintCount`, and protects reporting period attribution. |
+| **P06** | Medium | **Resolved** | `app/superadmin/config/page.tsx` | `formData` sync effect unconditionally overwrote unsaved branding, signatures, and templates on Firestore snapshot updates; unified `isDirty` guards protect local edits, display background change banner, and preserve tab state. |
+| **P07** | Medium | **Resolved** | `lib/document-catalog.ts`, `app/superadmin/config/page.tsx`, `app/resident/request/page.tsx`, `app/admin/generate/page.tsx` | Duplicated document type arrays, template dictionaries, and fees consolidated to `lib/document-catalog.ts`; legacy deployments with 9 types keep Barangay Clearance disabled until explicitly enabled. |
+
+### Execution Milestones
+
+| Milestone | Scope | Status | Acceptance Criteria / Verification Summary |
+|---|---|---|---|
+| **Milestone 1** | P01: Prevent Wrong Identity Details on Documents | COMPLETED | Separate requester, representative, subject; address & age never blended; missing fields flagged; admin review and confirmation workflow; unit tests pass in `test/p01-p07-integration-remediation.test.ts`. |
+| **Milestone 2** | P02: Fix Empty Staged Document Configuration | COMPLETED | Explicit nullable staged state (`string[] | null`); disabling all types persists `[]`; reload maintains disabled state; resident request reflects disabled status. |
+| **Milestone 3** | P03: Correct Unresolved Template Placeholders | COMPLETED | No `{{civil_status}}` in default template; safe resolution when present; all 10 built-in templates & custom templates render cleanly; zero token leakage. |
+| **Milestone 4** | P04: Close View Only Notification Bypasses | COMPLETED | Rules require resident role for alerts; View Only denied create/update/delete; update limited to `isRead`; 12 emulator tests pass in `test/emulator/firestore-rules.test.ts`. |
+| **Milestone 5** | P05: Preserve Original Generation History | COMPLETED | `markGenerated` preserves `before.generatedAt` on reprint; records `lastReprintedAt` and `reprintCount`; analytics attribution unchanged. |
+| **Milestone 6** | P06: Protect Unsaved Configuration Edits | COMPLETED | Form edits set `isDirty`; snapshot listener does not overwrite dirty state; signatures/tabs preserve edits; save clears dirty state. |
+| **Milestone 7** | P07: Finish Document Catalog Consolidation | COMPLETED | Single source in `lib/document-catalog.ts`; derived UI options; backward compatibility for 9-item configurations. |
+| **Milestone 8** | Targeted Adjacent Regression Sweep | COMPLETED | Traced all request, configuration, and notification flows end-to-end; no orphaned states or unhandled boundaries. |
+| **Milestone 9** | End-to-End Browser Acceptance Testing | COMPLETED | Multi-viewport Playwright tests (360x800, 390x844, 768x1024, 1280x800, 1440x900) pass (34/34 tests pass in `test/e2e/authenticated-workflows.spec.ts`). |
+| **Milestone 10** | Full Verification Suite Execution | COMPLETED | Full test suite (234/234 unit, 87/87 rules, 34/34 e2e, typecheck 0, typecheck:test 0, lint 0 errors, build 51/51 routes, git diff --check clean, 100% timezone tests pass). |
+| **Milestone 11** | Continuous Self-Audit & Independent Review | COMPLETED | Systematic review of diff and edge cases against acceptance criteria; zero regression identified. |
+| **Milestone 12** | Documentation, Commit & Push | COMPLETED | Synchronized project memory (`BUILD_PLAN.md`, `PROJECT_STATE.md`, `HANDOFF.md`, `DECISIONS.md`, `EVIDENCE_LEDGER.md`). |
+
+## Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation (UI01–UI19) — PRIOR PASS
 
 - **Status**: COMPLETED & VERIFIED
 - **Branch**: `main`

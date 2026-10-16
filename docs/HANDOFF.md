@@ -1,8 +1,55 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-16 (Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation: UI01–UI19)
+## Current handoff — 2026-10-16 (P01–P07 Final Integration, Document Integrity & Permission Remediation)
 
-Working branch: `main`. Audited baseline: `0e6f2e32372079b0ac8c899eea2ef4e3d13b9aa5`.
+Working branch: `main`. Audited baseline: `b47766584a6efb6d3622a5f5dc13ad02c67b21e4`.
+
+This pass remediates all seven post-remediation audit defects (P01–P07):
+1. **P01 (Prevent Wrong Identity Details on Official Documents)**:
+   - `lib/document-catalog.ts`: Separated requester, representative, and document subject identities. For direct requests, profile data is used. For represented requests (`requestFor === "other"`), the represented person's name is authoritative; requester address and age are never silently substituted as beneficiary data. Added `isSubjectAddressMissing` and `isSubjectAgeMissing` flags.
+   - `app/admin/generate/page.tsx`: Added clear representation review banner distinguishing Requester vs Document Subject. Added administrator confirmation and input overrides for verified beneficiary address and age before issuance.
+   - `app/admin/requests/page.tsx`: Displayed representation details, requester profile, relationship, and authorization letter link.
+   - `app/resident/request/page.tsx` & `app/api/resident/requests/create/route.ts`: Collected and persisted represented person address (`representedAddress`) and age (`representedAge`).
+2. **P02 (Fix Empty Staged Document Configuration)**:
+   - `app/superadmin/config/page.tsx`: Replaced ambiguous array length checks (`stagedDocumentTypes.length > 0`) with explicit nullable staged state `string[] | null`. Disabling all 10 document types correctly stages and persists `documentTypes: []`.
+   - `app/api/resident/requests/create/route.ts`: Evaluates configured document types with `Array.isArray(config?.documentTypes) && !config.documentTypes.includes(docType)` so an empty configured array disables new request submissions.
+3. **P03 (Correct Unresolved Template Placeholders)**:
+   - `lib/document-catalog.ts`: Removed unresolved `{{civil_status}}` placeholder from canonical Barangay Clearance template.
+   - Implemented `renderDocumentTemplate()` which safely escapes HTML, resolves all defined tokens, cleanly strips unparsed `{{...}}` placeholder tags, and handles optional missing fields without token leakage.
+4. **P04 (Close View Only Notification Permission Bypasses)**:
+   - `firestore.rules`: Tightened resident-to-admin notification exception by strictly enforcing `getUserRole() == 'resident'`. Added explicit `isViewOnly()` rejection in `canManageNotifications()`. Restricted notification client updates strictly to `isRead` modification.
+   - `test/emulator/firestore-rules.test.ts`: Added 12 authenticated emulator assertions covering all View Only deny invariants, resident alert creation, and read-status updates.
+5. **P05 (Preserve Original Document Generation History)**:
+   - `app/api/admin/operations/route.ts`: `request.markGenerated` server operation checks existing request state. On initial generation, sets `hasGenerated: true` and `generatedAt: now`. On subsequent reprint/regeneration, preserves original `generatedAt`, sets `lastReprintedAt: now`, and increments `reprintCount`.
+   - `lib/master-store.ts`: Preserves `generatedAt` on existing requests during client store generation updates.
+6. **P06 (Protect Unsaved Configuration Edits)**:
+   - `app/superadmin/config/page.tsx`: Introduced comprehensive `isDirty` tracking across branding inputs, contact details, official names, signatures, and document templates. Firestore snapshot listener suppresses overwriting dirty fields, displaying a background-change notification banner.
+7. **P07 (Finish Document Catalog Consolidation)**:
+   - `lib/document-catalog.ts`: Serves as the authoritative single source of truth for all 10 built-in types, templates, and default fees.
+   - `app/superadmin/config/page.tsx`: Derives configuration lists and default templates from the canonical catalog. For legacy 9-type configurations without Barangay Clearance, preserves disabled state until Super Admin explicitly enables it.
+
+Evidence is provided by:
+- 234 unit/integration tests (PASS, 31 suites)
+- 87 Auth/Firestore emulator tests (PASS, 6 suites)
+- 34 authenticated Playwright E2E tests (PASS)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 881 legacy warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Clean `git diff --check` (0 whitespace errors)
+- Timezone verification: 18/18 PASS across UTC, Asia/Manila, and America/Los_Angeles
+
+Required Production Rollout:
+- Publish updated `firestore.rules` to Firebase project (`firebase deploy --only firestore:rules`).
+- Deploy updated Next.js application.
+- Recommended order: Deploy application first, then publish Firestore rules.
+- Post-deployment verification:
+  1. Verify represented-person document generation displays separate identities and verified beneficiary address/age.
+  2. Verify View Only administrator cannot create or edit notifications.
+  3. Verify Super Admin configuration can stage, persist, and reload empty document type list without fallback.
+  4. Verify reprinted documents preserve original `generatedAt` timestamp in reports.
+  5. Verify unsaved branding and template edits are preserved during background snapshot updates.
+
+## Prior handoff — 2026-10-16 (Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation: UI01–UI19)
 
 This pass performs the complete remediation of all 19 findings identified during the TALASYS UI/UX and frontend–backend integration audit:
 1. **Milestone A (Document Generation & Request Lifecycle: UI01, UI02, UI03, UI14, UI16)**:

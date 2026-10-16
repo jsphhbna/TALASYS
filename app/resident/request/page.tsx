@@ -14,7 +14,11 @@ import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useResidentData } from "@/hooks/resident"
 import { uploadProtectedFileToCloudinary } from "@/lib/resident/cloudinary"
-import { resolveDocumentType } from "@/lib/document-catalog"
+import {
+  resolveDocumentType,
+  BUILT_IN_DOCUMENT_TYPES,
+  BUILT_IN_PURPOSE_OPTIONS,
+} from "@/lib/document-catalog"
 
 type DocumentType = "clearance" | "funeral" | "pwd_adult" | "pwd_minor" | "indigency" | "residency" | "business" | "business_homeowner" | "business_contractor" | "osca"
 type RequestFor = "myself" | "other"
@@ -27,31 +31,17 @@ interface DocumentOption {
   fee: number
 }
 
-const documentTypes: DocumentOption[] = [
-  { id: "clearance", icon: "📄", title: "Barangay Clearance", description: "General clearance for employment, identification, and transactions", fee: 50 },
-  { id: "funeral", icon: "🕊️", title: "Funeral Certification", description: "Certification for funeral assistance", fee: 0 },
-  { id: "pwd_adult", icon: "♿", title: "PWD Certification (Adult)", description: "For PWD application purposes (Adult)", fee: 0 },
-  { id: "pwd_minor", icon: "🚸", title: "PWD Certification (Minor)", description: "For PWD application purposes (Minor)", fee: 0 },
-  { id: "indigency", icon: "📋", title: "Certificate of Indigency", description: "For medical or financial assistance", fee: 0 },
-  { id: "residency", icon: "🏠", title: "Proof of Residency", description: "Proof of residence for various purposes", fee: 50 },
-  { id: "business", icon: "🏢", title: "Business Clearance", description: "General business clearance or activity", fee: 150 },
-  { id: "business_homeowner", icon: "🏡", title: "Business Clearance (Homeowner)", description: "Business clearance for homeowners", fee: 150 },
-  { id: "business_contractor", icon: "👷", title: "Business Clearance (Contractor)", description: "Business clearance for contractors", fee: 150 },
-  { id: "osca", icon: "👵", title: "OSCA Certification", description: "For Senior Citizen ID application", fee: 0 },
-]
+// Canonical document types derived directly from lib/document-catalog (P07)
+const documentTypes: DocumentOption[] = BUILT_IN_DOCUMENT_TYPES.map(d => ({
+  id: d.id as DocumentType,
+  icon: d.icon,
+  title: d.label,
+  description: d.description,
+  fee: d.defaultFee,
+}))
 
-const purposeOptions: Record<DocumentType, string[]> = {
-  clearance: ["Employment", "Postal ID", "Police Clearance", "Bank Account", "Other"],
-  funeral: ["Funeral Assistance", "Other"],
-  pwd_adult: ["PWD Application", "Other"],
-  pwd_minor: ["PWD Application", "Other"],
-  indigency: ["Medical Assistance", "Financial Aid", "Educational Support", "Other"],
-  residency: ["Bank Transaction", "Employment", "School Requirement", "Other"],
-  business: ["Business Application", "Activity/Event", "Other"],
-  business_homeowner: ["Business Application", "Other"],
-  business_contractor: ["Contractor Registration", "Other"],
-  osca: ["OSCA ID Application", "Other"],
-}
+// Canonical purpose options derived directly from lib/document-catalog (P07)
+const purposeOptions: Record<string, string[]> = BUILT_IN_PURPOSE_OPTIONS
 
 function RequestDocumentContent() {
   const router = useRouter()
@@ -72,6 +62,8 @@ function RequestDocumentContent() {
   const [paymentMethod, setPaymentMethod] = useState("cash")
   const [otherPersonName, setOtherPersonName] = useState("")
   const [otherPersonContact, setOtherPersonContact] = useState("")
+  const [otherPersonAddress, setOtherPersonAddress] = useState("")
+  const [otherPersonAge, setOtherPersonAge] = useState("")
   const [relationship, setRelationship] = useState("")
   const [authorizationLetter, setAuthorizationLetter] = useState<File | null>(null)
   const [isUploadingAuthorization, setIsUploadingAuthorization] = useState(false)
@@ -127,6 +119,8 @@ function RequestDocumentContent() {
       if (retryReq.requestedByName) setOtherPersonName(retryReq.requestedByName)
       if (retryReq.requestedByContact) setOtherPersonContact(retryReq.requestedByContact)
       if (retryReq.relationship) setRelationship(retryReq.relationship)
+      if (retryReq.representedAddress) setOtherPersonAddress(retryReq.representedAddress)
+      if (retryReq.representedAge !== undefined) setOtherPersonAge(String(retryReq.representedAge))
     }
     if (retryReq.additionalDetails) {
       setAdditionalDetails(retryReq.additionalDetails)
@@ -214,6 +208,8 @@ function RequestDocumentContent() {
             requestedByContact: otherPersonContact,
             relationship,
             authorizationLetter: authLetterUrl || authorizationLetter?.name,
+            representedAddress: otherPersonAddress.trim() || undefined,
+            representedAge: otherPersonAge.trim() ? Number(otherPersonAge) : undefined,
           }),
         })
       }
@@ -595,6 +591,36 @@ function RequestDocumentContent() {
                         </SelectContent>
                       </Select>
                       {errors.relationship && <p className="text-xs text-red-600 mt-1">{errors.relationship}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Beneficiary Address <span className="text-xs font-normal text-slate-500 dark:text-slate-400">(Optional / Recommended)</span>
+                      </label>
+                      <Input
+                        type="text"
+                        value={otherPersonAddress}
+                        onChange={(e) => setOtherPersonAddress(e.target.value)}
+                        placeholder="Enter the represented person's address"
+                        className="w-full h-12 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+                      />
+                      <p className="text-2xs text-slate-500 dark:text-slate-400 mt-1">Providing the beneficiary's actual address ensures official documents contain their verified details.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Beneficiary Age <span className="text-xs font-normal text-slate-500 dark:text-slate-400">(Optional / Recommended)</span>
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="130"
+                        value={otherPersonAge}
+                        onChange={(e) => setOtherPersonAge(e.target.value)}
+                        placeholder="Enter the represented person's age"
+                        className="w-full h-12 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+                      />
+                      <p className="text-2xs text-slate-500 dark:text-slate-400 mt-1">Used for certificates requiring age (e.g. Funeral Assistance, PWD, OSCA).</p>
                     </div>
 
                     <div>

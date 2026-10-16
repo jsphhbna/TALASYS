@@ -3,6 +3,8 @@ import { adminAuth, adminDb } from "../../../../../lib/firebase-admin.ts"
 import { COLLECTION_DOCUMENT_REQUESTS, COLLECTION_NOTIFICATIONS, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID } from "../../../../../lib/constants.ts"
 import { parseCloudinaryAsset } from "../../../../../lib/security/media-auth.ts"
 
+import { DEFAULT_ENABLED_DOCUMENT_TYPES, BUILT_IN_DOCUMENT_TYPES } from "../../../../../lib/document-catalog.ts"
+
 function isOwnedProtectedAsset(url: unknown, residentId: string, folder: "talasys/receipts" | "talasys/letters"): boolean {
   if (typeof url !== "string") return false
   const parsed = parseCloudinaryAsset(url)
@@ -11,11 +13,14 @@ function isOwnedProtectedAsset(url: unknown, residentId: string, folder: "talasy
 }
 
 export function resolveConfiguredDocument(config: Record<string, any>, documentType: string, residentStatuses: string[]) {
-  const enabled = Array.isArray(config.documentTypes) ? config.documentTypes : []
+  const enabled = Array.isArray(config.documentTypes)
+    ? config.documentTypes
+    : (config.documentTypes === undefined ? DEFAULT_ENABLED_DOCUMENT_TYPES : [])
   const custom = Array.isArray(config.customDocumentTypes) ? config.customDocumentTypes : []
   if (!enabled.includes(documentType)) throw Object.assign(new Error("Document type is disabled or unknown."), { status: 400 })
   const customEntry = custom.find((entry: any) => entry?.name === documentType)
-  const configuredFee = config.documentFees?.[documentType] ?? customEntry?.fee
+  const defaultFee = BUILT_IN_DOCUMENT_TYPES.find(d => d.label === documentType)?.defaultFee
+  const configuredFee = config.documentFees?.[documentType] ?? customEntry?.fee ?? defaultFee
   if (typeof configuredFee !== "number" || !Number.isFinite(configuredFee) || configuredFee < 0) throw Object.assign(new Error("Document fee configuration is missing or invalid."), { status: 503 })
   let fee = configuredFee
   const policy = config.feeWaiverPolicy
@@ -90,6 +95,8 @@ export function createResidentRequestHandler(injected?: { auth?: any; db?: any }
       idempotencyKey,
     } = body
     const additionalDetails = typeof body.additionalDetails === "string" && body.additionalDetails.trim() ? body.additionalDetails.trim().slice(0, 1000) : undefined
+    const representedAddress = typeof body.representedAddress === "string" && body.representedAddress.trim() ? body.representedAddress.trim().slice(0, 300) : undefined
+    const representedAge = body.representedAge !== undefined && !isNaN(Number(body.representedAge)) && Number(body.representedAge) >= 0 ? Number(body.representedAge) : undefined
 
     if (!documentType || typeof documentType !== "string") {
       return NextResponse.json({ error: "Invalid or unsupported document type requested." }, { status: 400 })
@@ -202,6 +209,8 @@ export function createResidentRequestHandler(injected?: { auth?: any; db?: any }
             requestedByContact: (requestedByContact || "").trim(),
             relationship: relationship.trim(),
             authorizationLetter,
+            ...(representedAddress ? { representedAddress } : {}),
+            ...(representedAge !== undefined ? { representedAge } : {}),
           }
         : { requestFor: "myself" }),
     }

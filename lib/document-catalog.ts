@@ -9,6 +9,7 @@
  * - Legacy alias resolution
  * - Subject resolution for requests on behalf of another individual
  */
+import { escapeHtml } from "./security/sanitize.ts"
 
 export interface DocumentCatalogItem {
   id: string
@@ -32,7 +33,7 @@ export const BUILT_IN_DOCUMENT_TYPES: DocumentCatalogItem[] = [
     defaultFee: 50,
     header: "BARANGAY CLEARANCE",
     defaultTemplate:
-      'This is to certify that {{name}}, of legal age, {{civil_status}}, Filipino, is a bonafide resident of {{barangay_name}} with postal address at {{address}}.\n\nThis certifies that the person named above has no derogatory record or pending criminal case filed against them in this Barangay.\n\nThis Clearance is issued upon the request of the above-named person for {{purpose}} purposes.\n\nIssued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.',
+      'This is to certify that {{name}}, of legal age, Filipino, is a bonafide resident of {{barangay_name}} with postal address at {{address}}.\n\nThis certifies that the person named above has no derogatory record or pending criminal case filed against them in this Barangay.\n\nThis Clearance is issued upon the request of the above-named person for {{purpose}} purposes.\n\nIssued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.',
     purposeOptions: ["Employment", "Postal ID", "Police Clearance", "Bank Account", "Other"],
     aliases: ["clearance", "barangay-clearance", "barangay clearance", "Barangay Clearance"],
     enabledByDefault: true,
@@ -244,25 +245,62 @@ export interface DocumentSubjectResolution {
   isRepresentation: boolean
   relationship?: string
   authorizationLetter?: string
+  beneficiaryContact?: string
   address: string
   age: string
+  isSubjectAddressMissing: boolean
+  isSubjectAgeMissing: boolean
+  civilStatus?: string
+}
+
+function calculateAgeFromDob(dob?: string): string {
+  if (!dob) return ""
+  const birth = new Date(dob)
+  if (isNaN(birth.getTime())) return ""
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  return age >= 0 ? String(age) : ""
 }
 
 /**
  * Resolves the subject details for document generation, correctly separating
- * represented beneficiaries from requesting residents (UI02).
+ * represented beneficiaries from requesting residents (UI02, P01).
+ * Never silently reuses the requester's age or address for represented beneficiaries.
  */
 export function resolveDocumentSubject(
   request: any,
-  resident: any
+  resident: any,
+  adminOverrides?: { address?: string; age?: string | number; civilStatus?: string }
 ): DocumentSubjectResolution {
   const isRepresentation = request?.requestFor === "other" && Boolean(request?.requestedByName?.trim())
   const requesterName = resident?.fullName || resident?.name || "Authorized Resident"
   const subjectName = isRepresentation ? request.requestedByName.trim() : requesterName
   const relationship = isRepresentation ? (request.relationship?.trim() || "Authorized Representative") : undefined
   const authorizationLetter = isRepresentation ? request.authorizationLetter : undefined
-  const address = resident?.address || "__________________"
-  const age = resident?.age?.toString() || "___"
+  const beneficiaryContact = isRepresentation ? request.requestedByContact : undefined
+
+  let address = ""
+  let age = ""
+
+  if (isRepresentation) {
+    // P01: For representation requests, NEVER reuse requester's address or age!
+    address = adminOverrides?.address?.trim() || request?.representedAddress?.trim() || request?.subjectAddress?.trim() || ""
+    const rawAge = adminOverrides?.age !== undefined ? adminOverrides.age : (request?.representedAge !== undefined ? request.representedAge : request?.subjectAge)
+    age = rawAge !== undefined && rawAge !== null && String(rawAge).trim() !== "" ? String(rawAge).trim() : ""
+  } else {
+    address = adminOverrides?.address?.trim() || resident?.address?.trim() || ""
+    const residentDob = resident?.dateOfBirth || resident?.dob || resident?.birthDate
+    const rawAge = adminOverrides?.age !== undefined ? adminOverrides.age : (resident?.age !== undefined ? resident.age : calculateAgeFromDob(residentDob))
+    age = rawAge !== undefined && rawAge !== null && String(rawAge).trim() !== "" ? String(rawAge).trim() : ""
+  }
+
+  const isSubjectAddressMissing = !address
+  const isSubjectAgeMissing = !age
+  const civilStatus = adminOverrides?.civilStatus?.trim() || (!isRepresentation ? (resident?.civilStatus?.trim() || "") : "")
 
   return {
     subjectName,
@@ -270,7 +308,97 @@ export function resolveDocumentSubject(
     isRepresentation,
     relationship,
     authorizationLetter,
+    beneficiaryContact,
     address,
     age,
+    isSubjectAddressMissing,
+    isSubjectAgeMissing,
+    civilStatus,
   }
+}
+
+export interface DocumentTemplateData {
+  name: string
+  address: string
+  age?: string | number
+  civilStatus?: string
+  purpose?: string
+  barangayName?: string
+  date?: Date
+}
+
+/**
+ * Authoritative document template renderer (P03).
+ * Resolves standard placeholders:
+ * - {{name}}, {{address}}, {{age}}, {{civil_status}}, {{purpose}}
+ * - {{date_issued}}, {{date_ordinal_issued}}, {{date_day_issued}}, {{barangay_name}}
+ *
+ * Guarantees:
+ * 1. Values are safely HTML-escaped.
+ * 2. Unprovided optional placeholders (like civil_status) clean up without hanging punctuation.
+ * 3. Any unparsed {{...}} placeholder tokens are stripped, preventing code leaks into official certificates.
+ * 4. Dangerous script tags and inline handlers are neutralized.
+ */
+export function renderDocumentTemplate(
+  template: string,
+  data: DocumentTemplateData
+): string {
+  if (!template || typeof template !== "string") return ""
+
+  const d = data.date || new Date()
+  const formatter = new Intl.DateTimeFormat("en", { day: "numeric" })
+  const day = formatter.format(d)
+  const suffix = ["11", "12", "13"].includes(day)
+    ? "th"
+    : day.endsWith("1")
+    ? "st"
+    : day.endsWith("2")
+    ? "nd"
+    : day.endsWith("3")
+    ? "rd"
+    : "th"
+  const ordinalDay = `${day}${suffix}`
+  const monthYear = d.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+
+  const dateIssued = d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+  const dateOrdinalIssued = `${ordinalDay} day of ${monthYear}`
+  const dateDayIssued = `${ordinalDay} of ${monthYear}`
+
+  const safeName = `<strong>${escapeHtml((data.name || "").toUpperCase())}</strong>`
+  const safeAddress = data.address?.trim()
+    ? `<strong>${escapeHtml(data.address.trim())}</strong>`
+    : `<strong>[ADDRESS REQUIRED]</strong>`
+  const safeAge = data.age !== undefined && data.age !== null && String(data.age).trim() !== ""
+    ? escapeHtml(String(data.age).trim())
+    : `<strong>[AGE REQUIRED]</strong>`
+  const safeCivilStatus = data.civilStatus?.trim() ? escapeHtml(data.civilStatus.trim()) : ""
+  const safePurpose = `<strong>${escapeHtml((data.purpose || "GENERAL").toUpperCase())}</strong>`
+  const safeDateIssued = `<strong>${escapeHtml(dateIssued)}</strong>`
+  const safeDateOrdinalIssued = `<strong>${escapeHtml(dateOrdinalIssued)}</strong>`
+  const safeDateDayIssued = `<strong>${escapeHtml(dateDayIssued)}</strong>`
+  const safeBarangayName = escapeHtml(data.barangayName?.trim() || "__________________")
+
+  let resolved = template
+    .replace(/{{name}}/g, safeName)
+    .replace(/{{address}}/g, safeAddress)
+    .replace(/{{age}}/g, safeAge)
+    .replace(/{{civil_status}}/g, safeCivilStatus)
+    .replace(/{{purpose}}/g, safePurpose)
+    .replace(/{{date_issued}}/g, safeDateIssued)
+    .replace(/{{date_ordinal_issued}}/g, safeDateOrdinalIssued)
+    .replace(/{{date_day_issued}}/g, safeDateDayIssued)
+    .replace(/{{barangay_name}}/g, safeBarangayName)
+
+  // Clean up any double commas or punctuation left if civil_status or other optional token was empty
+  resolved = resolved.replace(/,\s*,/g, ",").replace(/,\s*\./g, ".").replace(/\s{2,}/g, " ")
+
+  // Prevent any lingering unresolved {{...}} tokens from leaking into official documents
+  resolved = resolved.replace(/{{\s*[\w.-]+\s*}}/g, "")
+
+  // Neutralize script tags and dangerous HTML attributes
+  resolved = resolved.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+  resolved = resolved.replace(/\bon\w+\s*=/gi, "data-blocked-handler=")
+  resolved = resolved.replace(/javascript:/gi, "blocked-scheme:")
+
+  return resolved
 }

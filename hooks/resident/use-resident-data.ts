@@ -198,6 +198,8 @@ export function useResidentData() {
           requestedByContact: input.requestedByContact,
           relationship: input.relationship,
           authorizationLetter: input.authorizationLetter,
+          representedAddress: input.representedAddress,
+          representedAge: input.representedAge,
           additionalDetails: input.additionalDetails,
           paymentMethod: input.paymentMethod,
           gcashRefNumber: input.gcashRefNumber,

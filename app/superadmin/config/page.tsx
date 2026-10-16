@@ -8,7 +8,6 @@ import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { db, auth } from "@/lib/firebase"
 import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
-const systemHealthMetrics: any = { uptime: 100, storageUsed: 12, storageTotal: 100, responseTime: 45, activeModules: 4, totalModules: 4, activeDocTypes: 5, totalDocTypes: 6 };
 import { useSuperAdminData } from "@/hooks/superadmin"
 import { useAdminData } from "@/hooks/admin"
 import {
@@ -20,6 +19,11 @@ import { toast } from "sonner"
 import { uploadFileToCloudinary } from "@/lib/resident/cloudinary"
 import { BackupHistoryList } from "@/components/superadmin/layout/backup-history-list"
 import { SecureMediaViewer } from "@/components/media/secure-image"
+import {
+  BUILT_IN_DOCUMENT_TYPES,
+  DEFAULT_TEMPLATES,
+  DEFAULT_DOCUMENT_FEES,
+} from "@/lib/document-catalog"
 
 const changeTypeIcons: Record<string, typeof Palette> = {
   branding: Palette,
@@ -49,6 +53,12 @@ export default function SystemConfig() {
   )
   const [isAddingDoc, setIsAddingDoc] = useState(false)
 
+  // Staged document types & fees (nullable to distinguish empty array [] from uninitialized null) (P02)
+  const [stagedDocumentTypes, setStagedDocumentTypes] = useState<string[] | null>(null)
+  const [stagedDocumentFees, setStagedDocumentFees] = useState<Record<string, number> | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const [externalChangeDetected, setExternalChangeDetected] = useState(false)
+
   const configChangeLog = auditLogs.filter(l => l.actionType === "Config Edit" || l.actionType === "Settings Updated" || l.action === "Config Edit" || l.action === "Settings Updated").slice(0, 5).map(l => ({
     admin: l.admin?.name || (l as any).adminName || "System",
     action: l.actionType || l.action || "Unknown",
@@ -59,7 +69,7 @@ export default function SystemConfig() {
           (l.details || "").toLowerCase().includes("document") ? "document" : "module"
   }))
 
-  // Local state for branding edits
+  // Local state for branding edits and templates
   const [formData, setFormData] = useState({
     barangayName: systemConfig.barangayName || "",
     address: systemConfig.address || "",
@@ -69,69 +79,21 @@ export default function SystemConfig() {
     secretaryName: systemConfig.secretaryName || "",
     captainSignatureUrl: systemConfig.captainSignatureUrl || "",
     secretarySignatureUrl: systemConfig.secretarySignatureUrl || "",
-    templates: systemConfig.templates || {
-      clearance: `This is to certify that {{name}}, of legal age, is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.
-
-This further certifies that the above-named person has NO DEROGATORY RECORD filed in this office as of this date.
-
-This Certification is issued upon the request of the above-named person for {{purpose}} purposes.
-
-City of Manila, {{date_issued}}.`,
-      funeral: `This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.
-
-This Certification is issued upon the request of the above-named person for FUNERAL ASSISTANCE purposes.
-
-City of Manila, {{date_issued}}.`,
-      pwd_adult: `This is to certify that {{name}} is a bonified resident and registered voter of {{barangay_name}}, with postal address located at {{address}}.
-
-This Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.
-
-Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
-      pwd_minor: `This is to certify that {{name}} {{age}} years old of age, is a bonified resident of {{barangay_name}}, with postal address located at {{address}}.
-
-This Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.
-
-Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
-      indigency: `This is to certify that {{name}} is a bonafide resident of {{barangay_name}} with postal address {{address}}.
-
-This further certifies that the said person belongs to indigent families in our Barangay.
-
-This Certification is issued upon the request of the above-named person for {{purpose}} purposes.
-
-Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
-      residency: `This is to certify {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.
-
-This Certification is issued upon the request of the above-mentioned name for {{purpose}} purposes.
-
-Issued this {{date_day_issued}}, City of Manila.`,
-      business: `This is to certify that {{name}} located at {{address}} with Business Style _________________ conducted "__________________" at _________________ today {{date_issued}}.
-
-This Certification is issued upon the request of the above-cited for whatever legal purpose this is intended.
-
-Donation for venue Php 500.00
-
-City Manila, {{date_issued}}.`,
-      business_homeowner: `This is to certify that {{name}} is hereby issued Barangay Clearance for "__________________" entity located at {{address}}. This is under the territorial jurisdiction of {{barangay_name}}.
-
-This certification is issued upon the request of the above-cited person for whatever purposes it may serve.
-
-Issued this {{date_ordinal_issued}}, City of Manila.`,
-      business_contractor: `This is to certify that {{name}} is hereby issued Barangay Clearance for "__________________" entity located along {{address}} Under the territorial jurisdiction of {{barangay_name}}.
-
-This certification is issued upon the request of the above-cited name for whatever legal purpose this is intended.
-
-City of Manila, {{date_issued}}.`,
-      osca: `This is to certify that {{name}} is bonafide resident of {{barangay_name}}, with postal address at {{address}}.
-
-This Certification is issued upon the request of the above cited person for <strong>OSCA ID application</strong> purposes.
-
-City of Manila, {{date_issued}}.`
+    templates: {
+      ...DEFAULT_TEMPLATES,
+      ...(systemConfig.templates || {})
     }
   })
 
-  // Sync formData when systemConfig loads
+  // Sync formData when systemConfig updates, protected by dirty check (P06)
   useEffect(() => {
-    if (systemConfig.barangayName !== undefined) {
+    if (isDirty) {
+      setExternalChangeDetected(true)
+      return
+    }
+
+    setExternalChangeDetected(false)
+    if (systemConfig.barangayName !== undefined || systemConfig.templates !== undefined || systemConfig.documentTypes !== undefined) {
       setFormData({
         barangayName: systemConfig.barangayName || "",
         address: systemConfig.address || "",
@@ -142,98 +104,39 @@ City of Manila, {{date_issued}}.`
         captainSignatureUrl: systemConfig.captainSignatureUrl || "",
         secretarySignatureUrl: systemConfig.secretarySignatureUrl || "",
         templates: {
-          clearance: `This is to certify that {{name}}, of legal age, is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.
-
-This further certifies that the above-named person has NO DEROGATORY RECORD filed in this office as of this date.
-
-This Certification is issued upon the request of the above-named person for {{purpose}} purposes.
-
-City of Manila, {{date_issued}}.`,
-          funeral: `This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.
-
-This Certification is issued upon the request of the above-named person for FUNERAL ASSISTANCE purposes.
-
-City of Manila, {{date_issued}}.`,
-          pwd_adult: `This is to certify that {{name}} is a bonified resident and registered voter of {{barangay_name}}, with postal address located at {{address}}.
-
-This Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.
-
-Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
-          pwd_minor: `This is to certify that {{name}} {{age}} years old of age, is a bonified resident of {{barangay_name}}, with postal address located at {{address}}.
-
-This Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.
-
-Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
-          indigency: `This is to certify that {{name}} is a bonafide resident of {{barangay_name}} with postal address {{address}}.
-
-This further certifies that the said person belongs to indigent families in our Barangay.
-
-This Certification is issued upon the request of the above-named person for {{purpose}} purposes.
-
-Issued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila.`,
-          residency: `This is to certify {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.
-
-This Certification is issued upon the request of the above-mentioned name for {{purpose}} purposes.
-
-Issued this {{date_day_issued}}, City of Manila.`,
-          business: `This is to certify that {{name}} located at {{address}} with Business Style _________________ conducted "__________________" at _________________ today {{date_issued}}.
-
-This Certification is issued upon the request of the above-cited for whatever legal purpose this is intended.
-
-Donation for venue Php 500.00
-
-City Manila, {{date_issued}}.`,
-          business_homeowner: `This is to certify that {{name}} is hereby issued Barangay Clearance for "__________________" entity located at {{address}}. This is under the territorial jurisdiction of {{barangay_name}}.
-
-This certification is issued upon the request of the above-cited person for whatever purposes it may serve.
-
-Issued this {{date_ordinal_issued}}, City of Manila.`,
-          business_contractor: `This is to certify that {{name}} is hereby issued Barangay Clearance for "__________________" entity located along {{address}} Under the territorial jurisdiction of {{barangay_name}}.
-
-This certification is issued upon the request of the above-cited name for whatever legal purpose this is intended.
-
-City of Manila, {{date_issued}}.`,
-          osca: `This is to certify that {{name}} is bonafide resident of {{barangay_name}}, with postal address at {{address}}.
-
-This Certification is issued upon the request of the above cited person for <strong>OSCA ID application</strong> purposes.
-
-City of Manila, {{date_issued}}.`,
-          // merge any saved Firebase templates on top of defaults
+          ...DEFAULT_TEMPLATES,
           ...(systemConfig.templates || {})
         }
       })
     }
-  }, [systemConfig.barangayName, systemConfig.address, systemConfig.contactNumber, systemConfig.emailAddress, systemConfig.barangayCaptainName, systemConfig.templates])
+  }, [
+    systemConfig.barangayName,
+    systemConfig.address,
+    systemConfig.contactNumber,
+    systemConfig.emailAddress,
+    systemConfig.barangayCaptainName,
+    systemConfig.secretaryName,
+    systemConfig.captainSignatureUrl,
+    systemConfig.secretarySignatureUrl,
+    systemConfig.templates,
+    systemConfig.documentTypes,
+    isDirty
+  ])
 
-  const [stagedDocumentTypes, setStagedDocumentTypes] = useState<string[]>([])
-  const [stagedDocumentFees, setStagedDocumentFees] = useState<Record<string, number>>({})
-  const [isDirty, setIsDirty] = useState(false)
+  // Derive effective document types and fees (P02, P07)
+  const serverDocumentTypes: string[] = Array.isArray(systemConfig.documentTypes)
+    ? systemConfig.documentTypes
+    : BUILT_IN_DOCUMENT_TYPES.map(d => d.label)
 
-  useEffect(() => {
-    if (!isDirty) {
-      if (systemConfig.documentTypes !== undefined) {
-        setStagedDocumentTypes(systemConfig.documentTypes)
-      } else {
-        setStagedDocumentTypes([
-          "Barangay Clearance",
-          "Funeral Certification",
-          "PWD Certification (Adult)",
-          "PWD Certification (Minor)",
-          "Certificate of Indigency",
-          "Proof of Residency",
-          "Business Clearance",
-          "Business Clearance (Homeowner)",
-          "Business Clearance (Contractor)",
-          "OSCA Certification"
-        ])
-      }
-      if (systemConfig.documentFees !== undefined) {
-        setStagedDocumentFees(systemConfig.documentFees)
-      } else {
-        setStagedDocumentFees({})
-      }
-    }
-  }, [systemConfig.documentTypes, systemConfig.documentFees, isDirty])
+  const effectiveDocumentTypes: string[] = stagedDocumentTypes !== null
+    ? stagedDocumentTypes
+    : serverDocumentTypes
+
+  const serverDocumentFees: Record<string, number> = systemConfig.documentFees || DEFAULT_DOCUMENT_FEES
+
+  const effectiveDocumentFees: Record<string, number> = stagedDocumentFees !== null
+    ? stagedDocumentFees
+    : serverDocumentFees
 
   const tabs = [
     { id: "branding" as const, label: "Branding", icon: Palette },
@@ -242,17 +145,13 @@ City of Manila, {{date_issued}}.`,
     { id: "backups" as const, label: "Database Backups", icon: Database },
   ]
 
+  // Canonical templates derived from BUILT_IN_DOCUMENT_TYPES and customDocumentTypes (P07)
   const templates = [
-    { id: "clearance", name: "Barangay Clearance", lastEdited: "1 day ago" },
-    { id: "funeral", name: "Funeral Certification", lastEdited: "1 day ago" },
-    { id: "pwd_adult", name: "PWD Certification (Adult)", lastEdited: "1 day ago" },
-    { id: "pwd_minor", name: "PWD Certification (Minor)", lastEdited: "1 day ago" },
-    { id: "indigency", name: "Certificate of Indigency", lastEdited: "1 day ago" },
-    { id: "residency", name: "Proof of Residency", lastEdited: "1 day ago" },
-    { id: "business", name: "Business Clearance", lastEdited: "1 day ago" },
-    { id: "business_homeowner", name: "Business Clearance (Homeowner)", lastEdited: "1 day ago" },
-    { id: "business_contractor", name: "Business Clearance (Contractor)", lastEdited: "1 day ago" },
-    { id: "osca", name: "OSCA Certification", lastEdited: "1 day ago" },
+    ...BUILT_IN_DOCUMENT_TYPES.map(d => ({
+      id: d.id,
+      name: d.label,
+      lastEdited: "Default"
+    })),
     ...(systemConfig.customDocumentTypes || []).map((c: any) => ({
       id: c.id,
       name: c.name,
@@ -260,37 +159,50 @@ City of Manila, {{date_issued}}.`,
     }))
   ]
 
+  // Document types list derived from BUILT_IN_DOCUMENT_TYPES and customDocumentTypes (P07)
   const documentTypesList = [
-    { name: "Barangay Clearance", requests: documentRequests.filter(r => r.documentType === "Barangay Clearance").length },
-    { name: "Funeral Certification", requests: documentRequests.filter(r => r.documentType === "Funeral Certification").length },
-    { name: "PWD Certification (Adult)", requests: documentRequests.filter(r => r.documentType === "PWD Certification (Adult)").length },
-    { name: "PWD Certification (Minor)", requests: documentRequests.filter(r => r.documentType === "PWD Certification (Minor)").length },
-    { name: "Certificate of Indigency", requests: documentRequests.filter(r => r.documentType === "Certificate of Indigency").length },
-    { name: "Proof of Residency", requests: documentRequests.filter(r => r.documentType === "Proof of Residency").length },
-    { name: "Business Clearance", requests: documentRequests.filter(r => r.documentType === "Business Clearance").length },
-    { name: "Business Clearance (Homeowner)", requests: documentRequests.filter(r => r.documentType === "Business Clearance (Homeowner)").length },
-    { name: "Business Clearance (Contractor)", requests: documentRequests.filter(r => r.documentType === "Business Clearance (Contractor)").length },
-    { name: "OSCA Certification", requests: documentRequests.filter(r => r.documentType === "OSCA Certification").length },
+    ...BUILT_IN_DOCUMENT_TYPES.map(d => ({
+      name: d.label,
+      requests: documentRequests.filter(r => r.documentType === d.label).length
+    })),
     ...(systemConfig.customDocumentTypes || []).map((c: any) => ({
       name: c.name,
       requests: documentRequests.filter(r => r.documentType === c.name).length
     }))
   ]
 
-  const effectiveDocumentTypes = stagedDocumentTypes.length > 0
-    ? stagedDocumentTypes
-    : (systemConfig.documentTypes !== undefined ? systemConfig.documentTypes : ["Barangay Clearance", "Funeral Certification", "PWD Certification (Adult)", "PWD Certification (Minor)", "Certificate of Indigency", "Proof of Residency", "Business Clearance", "Business Clearance (Homeowner)", "Business Clearance (Contractor)", "OSCA Certification"]);
-  const effectiveDocumentFees = Object.keys(stagedDocumentFees).length > 0
-    ? stagedDocumentFees
-    : (systemConfig.documentFees || {});
-
-  const documentTypes = documentTypesList.map(d => ({
-    ...d,
-    enabled: effectiveDocumentTypes.includes(d.name),
-    fee: effectiveDocumentFees[d.name] ?? (d.name === "Proof of Residency" || d.name === "Barangay Clearance" ? 50 : d.name.includes("Business") ? 150 : 0)
-  }))
+  const documentTypes = documentTypesList.map(d => {
+    const builtIn = BUILT_IN_DOCUMENT_TYPES.find(b => b.label === d.name)
+    return {
+      ...d,
+      enabled: effectiveDocumentTypes.includes(d.name),
+      fee: effectiveDocumentFees[d.name] ?? (builtIn ? builtIn.defaultFee : 0)
+    }
+  })
 
   const maxRequests = Math.max(...documentTypes.map(d => d.requests), 1)
+
+  const handleDiscardChanges = () => {
+    setIsDirty(false)
+    setStagedDocumentTypes(null)
+    setStagedDocumentFees(null)
+    setExternalChangeDetected(false)
+    setFormData({
+      barangayName: systemConfig.barangayName || "",
+      address: systemConfig.address || "",
+      contactNumber: systemConfig.contactNumber || "",
+      emailAddress: systemConfig.emailAddress || "",
+      barangayCaptainName: systemConfig.barangayCaptainName || "",
+      secretaryName: systemConfig.secretaryName || "",
+      captainSignatureUrl: systemConfig.captainSignatureUrl || "",
+      secretarySignatureUrl: systemConfig.secretarySignatureUrl || "",
+      templates: {
+        ...DEFAULT_TEMPLATES,
+        ...(systemConfig.templates || {})
+      }
+    })
+    toast.info("Unsaved edits discarded; configuration reset to server state.")
+  }
 
   const handleSaveAllChanges = async () => {
     if (isSavingChanges) return
@@ -302,6 +214,9 @@ City of Manila, {{date_issued}}.`,
         documentFees: effectiveDocumentFees,
       })
       setIsDirty(false)
+      setStagedDocumentTypes(null)
+      setStagedDocumentFees(null)
+      setExternalChangeDetected(false)
       setShowSaveDialog(false)
       showToastPreset("configSaved")
     } catch (err: any) {
@@ -322,11 +237,18 @@ City of Manila, {{date_issued}}.`,
         ...(systemConfig.customDocumentTypes || []),
         { id: docId, name: newDocName.trim(), icon: newDocIcon, fee: parseFloat(newDocFee) || 0, header: newDocHeader }
       ]
-      const newTemplates = { ...(systemConfig.templates || {}), [docId]: newDocTemplate }
-      await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
-      setStagedDocumentTypes(newDocTypes)
-      setStagedDocumentFees(newFees)
-      setFormData(prev => ({ ...prev, templates: { ...prev.templates, [docId]: newDocTemplate } }))
+      const newTemplates = { ...(formData.templates || {}), [docId]: newDocTemplate }
+      await updateConfig({
+        ...formData,
+        documentTypes: newDocTypes,
+        documentFees: newFees,
+        customDocumentTypes: newCustomDocTypes,
+        templates: newTemplates
+      })
+      setStagedDocumentTypes(null)
+      setStagedDocumentFees(null)
+      setIsDirty(false)
+      setFormData(prev => ({ ...prev, templates: newTemplates }))
       setShowAddDocModal(false)
       setNewDocName("")
       setNewDocIcon("📄")
@@ -350,11 +272,19 @@ City of Manila, {{date_issued}}.`,
       const newFees = { ...effectiveDocumentFees }
       delete newFees[docName]
       const newCustomDocTypes = (systemConfig.customDocumentTypes || []).filter((d: any) => d.name !== docName)
-      const newTemplates = { ...(systemConfig.templates || {}) }
+      const newTemplates = { ...(formData.templates || {}) }
       delete newTemplates[docId]
-      await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
-      setStagedDocumentTypes(newDocTypes)
-      setStagedDocumentFees(newFees)
+      await updateConfig({
+        ...formData,
+        documentTypes: newDocTypes,
+        documentFees: newFees,
+        customDocumentTypes: newCustomDocTypes,
+        templates: newTemplates
+      })
+      setStagedDocumentTypes(null)
+      setStagedDocumentFees(null)
+      setIsDirty(false)
+      setFormData(prev => ({ ...prev, templates: newTemplates }))
       toast.success("Document type deleted")
     } catch (err: any) {
       toast.error(err?.message || "Failed to delete document type")
@@ -371,9 +301,14 @@ City of Manila, {{date_issued}}.`,
         </div>
         <div className="flex items-center gap-3">
           {isDirty && (
-            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-900">
-              ● Unsaved Changes
-            </span>
+            <>
+              <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-900">
+                ● Unsaved Changes
+              </span>
+              <Button variant="outline" onClick={handleDiscardChanges} disabled={isSavingChanges} className="text-xs h-9">
+                Discard
+              </Button>
+            </>
           )}
           <Button onClick={() => setShowSaveDialog(true)} disabled={isSavingChanges} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">
             {isSavingChanges ? "Saving..." : "Save All Changes"}
@@ -381,7 +316,18 @@ City of Manila, {{date_issued}}.`,
         </div>
       </div>
 
-
+      {/* External Change Conflict Warning (P06) */}
+      {externalChangeDetected && isDirty && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg p-3 px-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 text-xs">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Server configuration changed in the background. Your local unsaved edits are preserved.</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleDiscardChanges} className="text-xs h-7 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-100 hover:bg-amber-100">
+            Discard Local Edits
+          </Button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-slate-200 dark:border-slate-700">
@@ -411,20 +357,48 @@ City of Manila, {{date_issued}}.`,
               <div className="space-y-4">
                 <div>
                   <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Name</label>
-                  <Input value={formData.barangayName} onChange={e => setFormData({ ...formData, barangayName: e.target.value })} placeholder="Barangay Sample" />
+                  <Input
+                    value={formData.barangayName}
+                    onChange={e => {
+                      setFormData(prev => ({ ...prev, barangayName: e.target.value }))
+                      setIsDirty(true)
+                    }}
+                    placeholder="Barangay Sample"
+                  />
                 </div>
                 <div>
                   <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Municipality / City</label>
-                  <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="City of Sample" />
+                  <Input
+                    value={formData.address}
+                    onChange={e => {
+                      setFormData(prev => ({ ...prev, address: e.target.value }))
+                      setIsDirty(true)
+                    }}
+                    placeholder="City of Sample"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Contact Number</label>
-                    <Input value={formData.contactNumber} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} placeholder="(02) 8123-4567" />
+                    <Input
+                      value={formData.contactNumber}
+                      onChange={e => {
+                        setFormData(prev => ({ ...prev, contactNumber: e.target.value }))
+                        setIsDirty(true)
+                      }}
+                      placeholder="(02) 8123-4567"
+                    />
                   </div>
                   <div>
                     <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
-                    <Input value={formData.emailAddress} onChange={e => setFormData({ ...formData, emailAddress: e.target.value })} placeholder="barangay@sample.gov.ph" />
+                    <Input
+                      value={formData.emailAddress}
+                      onChange={e => {
+                        setFormData(prev => ({ ...prev, emailAddress: e.target.value }))
+                        setIsDirty(true)
+                      }}
+                      placeholder="barangay@sample.gov.ph"
+                    />
                   </div>
                 </div>
               </div>
@@ -435,7 +409,15 @@ City of Manila, {{date_issued}}.`,
                 <div>
                   <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Barangay Captain</label>
                   <div className="flex gap-2 mb-2">
-                    <Input value={formData.barangayCaptainName} onChange={e => setFormData({ ...formData, barangayCaptainName: e.target.value })} placeholder="Hon. Juan Dela Cruz" className="flex-1" />
+                    <Input
+                      value={formData.barangayCaptainName}
+                      onChange={e => {
+                        setFormData(prev => ({ ...prev, barangayCaptainName: e.target.value }))
+                        setIsDirty(true)
+                      }}
+                      placeholder="Hon. Juan Dela Cruz"
+                      className="flex-1"
+                    />
                     <Button variant="outline" className="text-xs bg-transparent relative overflow-hidden" onClick={() => document.getElementById("captain-sig-upload")?.click()}>
                       <UploadCloud className="w-4 h-4 mr-1.5" />
                       Upload Sig
@@ -451,6 +433,7 @@ City of Manila, {{date_issued}}.`,
                           try {
                             const url = await uploadFileToCloudinary(file, { folder: "talasys/signatures" });
                             setFormData(prev => ({ ...prev, captainSignatureUrl: url }));
+                            setIsDirty(true);
                             toast.dismiss();
                             toast.success("Captain's signature uploaded successfully");
                           } catch (err) {
@@ -464,7 +447,13 @@ City of Manila, {{date_issued}}.`,
                   {formData.captainSignatureUrl && (
                     <div className="w-full h-20 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded flex items-center justify-center p-2 relative group">
                       <SecureMediaViewer src={formData.captainSignatureUrl} alt="Captain Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal" />
-                      <button onClick={() => setFormData(prev => ({ ...prev, captainSignatureUrl: "" }))} className="absolute top-1 right-1 p-1 bg-red-100 text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, captainSignatureUrl: "" }))
+                          setIsDirty(true)
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-red-100 text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
@@ -473,7 +462,15 @@ City of Manila, {{date_issued}}.`,
                 <div>
                   <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Secretary</label>
                   <div className="flex gap-2 mb-2">
-                    <Input value={formData.secretaryName} onChange={e => setFormData({ ...formData, secretaryName: e.target.value })} placeholder="Maria Santos" className="flex-1" />
+                    <Input
+                      value={formData.secretaryName}
+                      onChange={e => {
+                        setFormData(prev => ({ ...prev, secretaryName: e.target.value }))
+                        setIsDirty(true)
+                      }}
+                      placeholder="Maria Santos"
+                      className="flex-1"
+                    />
                     <Button variant="outline" className="text-xs bg-transparent relative overflow-hidden" onClick={() => document.getElementById("secretary-sig-upload")?.click()}>
                       <UploadCloud className="w-4 h-4 mr-1.5" />
                       Upload Sig
@@ -489,6 +486,7 @@ City of Manila, {{date_issued}}.`,
                           try {
                             const url = await uploadFileToCloudinary(file, { folder: "talasys/signatures" });
                             setFormData(prev => ({ ...prev, secretarySignatureUrl: url }));
+                            setIsDirty(true);
                             toast.dismiss();
                             toast.success("Secretary's signature uploaded successfully");
                           } catch (err) {
@@ -502,7 +500,13 @@ City of Manila, {{date_issued}}.`,
                   {formData.secretarySignatureUrl && (
                     <div className="w-full h-20 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded flex items-center justify-center p-2 relative group">
                       <SecureMediaViewer src={formData.secretarySignatureUrl} alt="Secretary Signature" className="max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal" />
-                      <button onClick={() => setFormData(prev => ({ ...prev, secretarySignatureUrl: "" }))} className="absolute top-1 right-1 p-1 bg-red-100 text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, secretarySignatureUrl: "" }))
+                          setIsDirty(true)
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-red-100 text-red-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
@@ -549,10 +553,13 @@ City of Manila, {{date_issued}}.`,
                 <textarea
                   className="w-full h-64 p-4 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-[#0C2340]/20"
                   value={(formData.templates as Record<string, string>)[selectedTemplate] || ""}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    templates: { ...prev.templates, [selectedTemplate]: e.target.value }
-                  }))}
+                  onChange={(e) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      templates: { ...prev.templates, [selectedTemplate]: e.target.value }
+                    }))
+                    setIsDirty(true)
+                  }}
                 />
               ) : (
                 <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-6 h-64 overflow-auto font-mono text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
@@ -584,14 +591,15 @@ City of Manila, {{date_issued}}.`,
           <div className="divide-y divide-slate-100">
             {documentTypes.map((doc) => {
               const customEntry = (systemConfig.customDocumentTypes || []).find((c: any) => c.name === doc.name)
-              const docId = customEntry?.id || doc.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")
-              const isBuiltIn = ["Barangay Clearance","Funeral Certification","PWD Certification (Adult)","PWD Certification (Minor)","Certificate of Indigency","Proof of Residency","Business Clearance","Business Clearance (Homeowner)","Business Clearance (Contractor)","OSCA Certification"].includes(doc.name)
+              const builtIn = BUILT_IN_DOCUMENT_TYPES.find(b => b.label === doc.name)
+              const docId = customEntry?.id || builtIn?.id || doc.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+              const isBuiltIn = BUILT_IN_DOCUMENT_TYPES.some(b => b.label === doc.name)
               return (
               <div key={doc.name} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
                   <div className="col-span-4 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center">
-                      <span className="text-sm">{customEntry?.icon || "📄"}</span>
+                      <span className="text-sm">{customEntry?.icon || builtIn?.icon || "📄"}</span>
                     </div>
                     <div>
                       <span className="text-sm font-medium text-[#0C2340] dark:text-blue-50">{doc.name}</span>
@@ -615,7 +623,7 @@ City of Manila, {{date_issued}}.`,
                         onChange={(e) => {
                           const val = parseFloat(e.target.value)
                           if (!isNaN(val)) {
-                            setStagedDocumentFees(prev => ({ ...prev, [doc.name]: val }))
+                            setStagedDocumentFees(prev => ({ ...(prev || effectiveDocumentFees), [doc.name]: val }))
                             setIsDirty(true)
                           }
                         }}

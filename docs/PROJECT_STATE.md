@@ -1,10 +1,44 @@
 # TALASYS Project State
 
-## Current Verified State — 16 October 2026 (Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation: UI01–UI19)
+## Current Verified State — 16 October 2026 (P01–P07 Final Integration, Document Integrity & Permission Remediation)
 
 - **Working branch**: `main`
-- **Audited baseline**: `0e6f2e32372079b0ac8c899eea2ef4e3d13b9aa5`
-- **Status**: All 19 UI/UX, frontend–backend integration, and request lifecycle audit findings (UI01–UI19) are fully remediated, verified, and self-audited.
+- **Audited baseline**: `b47766584a6efb6d3622a5f5dc13ad02c67b21e4`
+- **Status**: All seven post-remediation audit defects (P01–P07) are completely remediated, verified, and self-audited.
+  1. **P01 (Prevent Wrong Identity Details on Official Documents)**:
+     - `lib/document-catalog.ts`: Separated requester, representative, and document subject identities. For direct requests, profile data is used. For represented requests (`requestFor === "other"`), the represented person's name is authoritative; requester address and age are never silently substituted as beneficiary data. Added `isSubjectAddressMissing` and `isSubjectAgeMissing` detection.
+     - `app/admin/generate/page.tsx`: Added clear representation review banner distinguishing Requester vs Document Subject. Added administrator confirmation and input overrides for verified beneficiary address and age before issuance.
+     - `app/admin/requests/page.tsx`: Displayed representation details, requester profile, relationship, and authorization letter link.
+     - `app/resident/request/page.tsx` & `app/api/resident/requests/create/route.ts`: Collected and persisted represented person address (`representedAddress`) and age (`representedAge`).
+  2. **P02 (Fix Empty Staged Document Configuration)**:
+     - `app/superadmin/config/page.tsx`: Replaced ambiguous array length checks (`stagedDocumentTypes.length > 0`) with explicit nullable staged state `string[] | null`. Disabling all 10 document types correctly stages and persists `documentTypes: []`.
+     - `app/api/resident/requests/create/route.ts`: Evaluates configured document types with `Array.isArray(config?.documentTypes) && !config.documentTypes.includes(docType)` so an empty configured array disables new request submissions.
+  3. **P03 (Correct Unresolved Template Placeholders)**:
+     - `lib/document-catalog.ts`: Removed unresolved `{{civil_status}}` placeholder from canonical Barangay Clearance template.
+     - Implemented `renderDocumentTemplate()` which safely escapes HTML, resolves all defined tokens, cleanly strips unparsed `{{...}}` placeholder tags, and handles optional missing fields without token leakage.
+  4. **P04 (Close View Only Notification Permission Bypasses)**:
+     - `firestore.rules`: Tightened resident-to-admin notification exception by strictly enforcing `getUserRole() == 'resident'`. Added explicit `isViewOnly()` rejection in `canManageNotifications()`. Restricted notification client updates strictly to `isRead` modification.
+     - `test/emulator/firestore-rules.test.ts`: Added 12 authenticated emulator assertions covering all View Only deny invariants, resident alert creation, and read-status updates.
+  5. **P05 (Preserve Original Document Generation History)**:
+     - `app/api/admin/operations/route.ts`: `request.markGenerated` server operation checks existing request state. On initial generation, sets `hasGenerated: true` and `generatedAt: now`. On subsequent reprint/regeneration, preserves original `generatedAt`, sets `lastReprintedAt: now`, and increments `reprintCount`.
+     - `lib/master-store.ts`: Preserves `generatedAt` on existing requests during client store generation updates.
+  6. **P06 (Protect Unsaved Configuration Edits)**:
+     - `app/superadmin/config/page.tsx`: Introduced comprehensive `isDirty` tracking across branding inputs, contact details, official names, signatures, and document templates. Firestore snapshot listener suppresses overwriting dirty fields, displaying a background-change notification banner.
+  7. **P07 (Finish Document Catalog Consolidation)**:
+     - `lib/document-catalog.ts`: Serves as the authoritative single source of truth for all 10 built-in types, templates, and default fees.
+     - `app/superadmin/config/page.tsx`: Derives configuration lists and default templates from the canonical catalog. For legacy 9-type configurations without Barangay Clearance, preserves disabled state until Super Admin explicitly enables it.
+  8. **Verification Metrics**:
+     - `npm test`: PASS (234/234 across 31 suites).
+     - `npm run test:rules`: PASS (87/87 against Auth & Firestore emulators).
+     - `npm run test:e2e:auth`: PASS (34/34 authenticated Playwright E2E tests passing, including 5 multi-viewport responsive checks, represented beneficiary review/preview, reprint timestamp preservation, and empty/dirty config persistence).
+     - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+     - `npm run lint`: PASS (0 errors, 881 warnings).
+     - `npm run build`: PASS (51/51 routes generated with Next.js 16.4.0 Turbopack).
+     - `git diff --check`: PASS (0 whitespace errors).
+     - Timezone tests: PASS (18/18 across UTC, Asia/Manila, and America/Los_Angeles).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No unauthorized production deployment or live rules publication performed.
+
+## Prior Verified State — 16 October 2026 (Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation: UI01–UI19)
   1. **Milestone A (Document Generation & Request Lifecycle: UI01, UI02, UI03, UI14, UI16)**:
      - `lib/document-catalog.ts`: Established single canonical source of truth for all 10 built-in types (`clearance`, `indigency`, `residency`, `business`, `business_homeowner`, `business_contractor`, `funeral`, `pwd_adult`, `pwd_minor`, `osca`) with dedicated templates and official headings.
      - Resolved UI01: Barangay Clearance mapped to dedicated template and `BARANGAY CLEARANCE` heading, eliminating fallback to Business Clearance.

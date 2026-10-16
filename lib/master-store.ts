@@ -97,11 +97,15 @@ export interface MasterDocumentRequest {
   requestedByContact?: string
   relationship?: string
   authorizationLetter?: string
+  representedAddress?: string
+  representedAge?: number | string
   statusTimestamps?: Record<string, number>
   rejectionReason?: string
   additionalDetails?: string
   hasGenerated?: boolean
   generatedAt?: number
+  lastReprintedAt?: number
+  reprintCount?: number
 
   // Payment fields
   documentFee?: number

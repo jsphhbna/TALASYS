@@ -22,6 +22,7 @@ import {
   DEFAULT_TEMPLATES,
   resolveDocumentType,
   resolveDocumentSubject,
+  renderDocumentTemplate,
 } from "@/lib/document-catalog"
 
 function GenerateDocumentsContent() {
@@ -44,6 +45,8 @@ function GenerateDocumentsContent() {
   const [customDocTitle, setCustomDocTitle] = useState("C E R T I F I C A T I O N")
   const [isGenerating, setIsGenerating] = useState(false)
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null)
+  const [beneficiaryAddressOverride, setBeneficiaryAddressOverride] = useState<string>("")
+  const [beneficiaryAgeOverride, setBeneficiaryAgeOverride] = useState<string>("")
   const [lastDownload, setLastDownload] = useState(0)
   const editorRef = useRef<HTMLDivElement>(null)
 
@@ -66,6 +69,11 @@ function GenerateDocumentsContent() {
         } else {
           setSelectedDocType("custom_blank")
           setCustomDocTitle("C E R T I F I C A T I O N")
+        }
+
+        if (req.requestFor === "other") {
+          setBeneficiaryAddressOverride(req.representedAddress || "")
+          setBeneficiaryAgeOverride(req.representedAge !== undefined ? String(req.representedAge) : "")
         }
       }
     }
@@ -95,45 +103,20 @@ function GenerateDocumentsContent() {
       ? adminDocumentRequests.find(r => r.id === processingRequestId)
       : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
 
-    const subject = resolveDocumentSubject(matchedReq, selectedResident)
+    const subject = resolveDocumentSubject(matchedReq, selectedResident, {
+      address: beneficiaryAddressOverride.trim() || undefined,
+      age: beneficiaryAgeOverride.trim() || undefined,
+    })
     const purpose = matchedReq?.purpose || "_____________"
 
-    const d = new Date()
-    const formatter = new Intl.DateTimeFormat('en', { day: 'numeric' })
-    const day = formatter.format(d)
-    const suffix = ["11", "12", "13"].includes(day) ? "th" : day.endsWith("1") ? "st" : day.endsWith("2") ? "nd" : day.endsWith("3") ? "rd" : "th"
-    const ordinalDay = `${day}${suffix}`
-    const monthYear = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-
-    const dateIssued = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-    const dateOrdinalIssued = `${ordinalDay} day of ${monthYear}`
-    const dateDayIssued = `${ordinalDay} of ${monthYear}`
-
-    const safeName = `<strong>${escapeHtml(subject.subjectName.toUpperCase())}</strong>`
-    const safeAddress = `<strong>${escapeHtml(subject.address)}</strong>`
-    const safeAge = escapeHtml(subject.age)
-    const safePurpose = `<strong>${escapeHtml(purpose.toUpperCase())}</strong>`
-    const safeDateIssued = `<strong>${escapeHtml(dateIssued)}</strong>`
-    const safeDateOrdinalIssued = `<strong>${escapeHtml(dateOrdinalIssued)}</strong>`
-    const safeDateDayIssued = `<strong>${escapeHtml(dateDayIssued)}</strong>`
-    const safeBarangayName = escapeHtml(systemConfig?.barangayName || "__________________")
-
-    let resolved = template
-      .replace(/{{name}}/g, safeName)
-      .replace(/{{address}}/g, safeAddress)
-      .replace(/{{age}}/g, safeAge)
-      .replace(/{{purpose}}/g, safePurpose)
-      .replace(/{{date_issued}}/g, safeDateIssued)
-      .replace(/{{date_ordinal_issued}}/g, safeDateOrdinalIssued)
-      .replace(/{{date_day_issued}}/g, safeDateDayIssued)
-      .replace(/{{barangay_name}}/g, safeBarangayName)
-
-    // Defense-in-depth: strip any malicious script tags or inline handlers
-    resolved = resolved.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    resolved = resolved.replace(/\bon\w+\s*=/gi, "data-blocked-handler=")
-    resolved = resolved.replace(/javascript:/gi, "blocked-scheme:")
-
-    return resolved
+    return renderDocumentTemplate(template, {
+      name: subject.subjectName,
+      address: subject.address,
+      age: subject.age,
+      civilStatus: subject.civilStatus,
+      purpose,
+      barangayName: systemConfig?.barangayName,
+    })
   }
 
   const isInactiveResident = (status?: string | null) => {
@@ -185,7 +168,7 @@ function GenerateDocumentsContent() {
       ).join('')
       editorRef.current.innerHTML = paragraphs
     }
-  }, [selectedResident, selectedDocType, systemConfig])
+  }, [selectedResident, selectedDocType, systemConfig, beneficiaryAddressOverride, beneficiaryAgeOverride])
 
   return (
     <AdminPageShell>
@@ -305,21 +288,78 @@ function GenerateDocumentsContent() {
                     : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
 
                   if (matchedReq?.requestFor === "other") {
+                    const subject = resolveDocumentSubject(matchedReq, selectedResident, {
+                      address: beneficiaryAddressOverride.trim() || undefined,
+                      age: beneficiaryAgeOverride.trim() || undefined,
+                    })
                     return (
-                      <div className="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg text-xs text-purple-900 dark:text-purple-200 flex items-center justify-between">
-                        <div>
-                          <span className="font-bold">Representation Request:</span> Document requested by <span className="font-semibold">{selectedResident.name}</span> on behalf of <span className="font-semibold">{matchedReq.requestedByName}</span> (Relationship: {matchedReq.relationship || "Authorized Representative"}).
+                      <div className="p-4 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg text-xs text-purple-900 dark:text-purple-200 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-bold">Representation Request:</span> Document requested by <span className="font-semibold">{selectedResident.name}</span> (Requester) on behalf of <span className="font-semibold text-purple-700 dark:text-purple-300">{matchedReq.requestedByName}</span> (Document Subject).
+                          </div>
+                          {matchedReq.authorizationLetter && (
+                            <a
+                              href={matchedReq.authorizationLetter}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-3 shrink-0 px-2.5 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 font-semibold rounded hover:bg-purple-200 transition-colors"
+                            >
+                              📎 Auth Letter
+                            </a>
+                          )}
                         </div>
-                        {matchedReq.authorizationLetter && (
-                          <a
-                            href={matchedReq.authorizationLetter}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-3 shrink-0 px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 font-semibold rounded hover:bg-purple-200 transition-colors"
-                          >
-                            📎 Auth Letter
-                          </a>
-                        )}
+
+                        <div className="text-2xs text-purple-800 dark:text-purple-300 flex flex-wrap items-center gap-x-4 gap-y-1">
+                          <span>Relationship: <strong className="font-semibold">{matchedReq.relationship || "Authorized Representative"}</strong></span>
+                          {matchedReq.requestedByContact && <span>Contact: <strong className="font-semibold">{matchedReq.requestedByContact}</strong></span>}
+                        </div>
+
+                        <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/60 grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-[10px] font-bold uppercase tracking-wider text-purple-900 dark:text-purple-200">
+                                Beneficiary Address
+                              </label>
+                              {subject.isSubjectAddressMissing ? (
+                                <span className="text-[10px] font-bold text-red-600 bg-red-100 dark:bg-red-950/50 px-1.5 py-0.5 rounded">Missing — Required</span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">Verified</span>
+                              )}
+                            </div>
+                            <input
+                              type="text"
+                              value={beneficiaryAddressOverride}
+                              onChange={(e) => setBeneficiaryAddressOverride(e.target.value)}
+                              placeholder="Enter verified beneficiary address..."
+                              className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
+                            />
+                            <p className="text-[10px] text-purple-700 dark:text-purple-400 mt-0.5">Requester's address is never applied to the represented subject.</p>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-[10px] font-bold uppercase tracking-wider text-purple-900 dark:text-purple-200">
+                                Beneficiary Age
+                              </label>
+                              {subject.isSubjectAgeMissing ? (
+                                <span className="text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">Optional</span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">Verified</span>
+                              )}
+                            </div>
+                            <input
+                              type="number"
+                              min="0"
+                              max="130"
+                              value={beneficiaryAgeOverride}
+                              onChange={(e) => setBeneficiaryAgeOverride(e.target.value)}
+                              placeholder="Beneficiary age..."
+                              className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
+                            />
+                            <p className="text-[10px] text-purple-700 dark:text-purple-400 mt-0.5">Required for age-dependent documents (e.g. Funeral, PWD, OSCA).</p>
+                          </div>
+                        </div>
                       </div>
                     )
                   }
@@ -408,6 +448,40 @@ function GenerateDocumentsContent() {
                         }
                         setLastDownload(now);
 
+                        const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
+                        const docLabel = resolvedType?.label || selectedDocType
+                        const pendingReq = processingRequestId
+                          ? adminDocumentRequests.find(r => r.id === processingRequestId)
+                          : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+
+                        const subject = resolveDocumentSubject(pendingReq, selectedResident, {
+                          address: beneficiaryAddressOverride.trim() || undefined,
+                          age: beneficiaryAgeOverride.trim() || undefined,
+                        })
+
+                        const docTemplateText = (systemConfig?.templates && systemConfig.templates[selectedDocType]) || DEFAULT_TEMPLATES[selectedDocType] || ""
+                        const requiresAge = docTemplateText.includes("{{age}}")
+
+                        if (subject.isRepresentation) {
+                          if (subject.isSubjectAddressMissing) {
+                            toast.error("Beneficiary address is required before generating official documents. Please enter and confirm the verified address.")
+                            return
+                          }
+                          if (requiresAge && subject.isSubjectAgeMissing) {
+                            toast.error("Beneficiary age is required for this certificate before generating official documents. Please enter and confirm the verified age.")
+                            return
+                          }
+                        } else {
+                          if (subject.isSubjectAddressMissing) {
+                            toast.error("Resident address is missing. Please ensure resident profile contains an address.")
+                            return
+                          }
+                          if (requiresAge && subject.isSubjectAgeMissing) {
+                            toast.error("Resident age is missing. Please ensure resident profile contains an age or birthdate.")
+                            return
+                          }
+                        }
+
                         setIsGenerating(true)
                         const element = document.getElementById("pdf-preview-container")
                         if (!element) return
@@ -431,13 +505,6 @@ function GenerateDocumentsContent() {
 
                         pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
 
-                        const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
-                        const docLabel = resolvedType?.label || selectedDocType
-                        const pendingReq = processingRequestId
-                          ? adminDocumentRequests.find(r => r.id === processingRequestId)
-                          : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
-
-                        const subject = resolveDocumentSubject(pendingReq, selectedResident)
                         const docTitle = selectedDocType.replace(/[^a-zA-Z0-9_]/g, "_")
                         pdf.save(`${docTitle}_${subject.subjectName.replace(/\s+/g, "_")}.pdf`)
 
@@ -473,6 +540,42 @@ function GenerateDocumentsContent() {
                       if (requiredSignatureError) { toast.error(`Protected signature unavailable: ${requiredSignatureError}`); return }
                       const element = document.getElementById("pdf-preview-container")
                       if (!element) return
+
+                      const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
+                      const docLabel = resolvedType?.label || selectedDocType
+
+                      const pendingReq = processingRequestId
+                        ? adminDocumentRequests.find(r => r.id === processingRequestId)
+                        : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+
+                      const subject = resolveDocumentSubject(pendingReq, selectedResident, {
+                        address: beneficiaryAddressOverride.trim() || undefined,
+                        age: beneficiaryAgeOverride.trim() || undefined,
+                      })
+
+                      const docTemplateText = (systemConfig?.templates && systemConfig.templates[selectedDocType]) || DEFAULT_TEMPLATES[selectedDocType] || ""
+                      const requiresAge = docTemplateText.includes("{{age}}")
+
+                      if (subject.isRepresentation) {
+                        if (subject.isSubjectAddressMissing) {
+                          toast.error("Beneficiary address is required before printing official documents. Please enter and confirm the verified address.")
+                          return
+                        }
+                        if (requiresAge && subject.isSubjectAgeMissing) {
+                          toast.error("Beneficiary age is required for this certificate before printing official documents. Please enter and confirm the verified age.")
+                          return
+                        }
+                      } else {
+                        if (subject.isSubjectAddressMissing) {
+                          toast.error("Resident address is missing. Please ensure resident profile contains an address.")
+                          return
+                        }
+                        if (requiresAge && subject.isSubjectAgeMissing) {
+                          toast.error("Resident age is missing. Please ensure resident profile contains an age or birthdate.")
+                          return
+                        }
+                      }
+
                       const printWindow = window.open("", "_blank")
                       if (!printWindow) {
                         toast.error("Pop-up window was blocked by your browser. Please allow pop-ups for TALASYS to print documents.")
@@ -490,13 +593,6 @@ function GenerateDocumentsContent() {
                         </html>
                       `)
                       printWindow.document.close()
-
-                      const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
-                      const docLabel = resolvedType?.label || selectedDocType
-
-                      const pendingReq = processingRequestId
-                        ? adminDocumentRequests.find(r => r.id === processingRequestId)
-                        : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
 
                       if (pendingReq) {
                         try {
