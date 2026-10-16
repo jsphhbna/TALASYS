@@ -11,7 +11,13 @@ export async function callAdminOperation(operation: string, options: { targetId?
     body: JSON.stringify({ operation, operationId: options.operationId || crypto.randomUUID(), targetId: options.targetId, payload: options.payload }),
   })
   const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.error || "Administrator operation failed.")
+  if (!response.ok) {
+    const err: any = new Error(result.error || "Administrator operation failed.")
+    err.status = response.status
+    err.statusCode = response.status
+    err.conflictingFields = result.conflictingFields
+    throw err
+  }
   return result
 }
 

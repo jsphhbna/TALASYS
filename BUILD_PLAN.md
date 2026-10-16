@@ -1,16 +1,86 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, & Registration Denial Lifecycle)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07)
 
-## P01–P07 Final Integration, Document Integrity & Permission Remediation — CURRENT PASS
+## R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop — CURRENT PASS
 
-- **Status**: COMPLETED & VERIFIED
+- **Status**: COMPLETED & VERIFIED (across two consecutive clean stability passes, Loops A–D)
 - **Branch**: `main`
-- **Audited baseline**: `b47766584a6efb6d3622a5f5dc13ad02c67b21e4`
-- **Objective**: Remediate the remaining functional, authorization, and document integrity defects identified following the UI01–UI19 baseline, ensuring truthful document subject details, read-only enforcement for View Only admins, immutable document generation history, robust empty and unsaved configuration handling, and catalog consolidation.
+- **Audited baseline**: `fe66f7c44a2520e08493fecd3a80b0c1e16553bc`
+- **Execution mode**: Structured milestones + continuous root-cause analysis + recursive regression checking
+- **Development framework**: DevKit V9 RC10
 
 ### Findings Classification Matrix
 
-| Finding | Priority | Disposition | Affected Contracts / Files | Summary of Root Cause & Final Remediation |
-|---|---|---|---|---|
+| Finding | Priority | Category | Status | Affected Files | Root Cause & Targeted Remediation |
+|---|---|---|---|---|---|
+| **R01** | Medium | **DOCUMENT** / **STATE** | **Resolved** | `lib/document-catalog.ts`, `app/admin/generate/page.tsx` | Normalized horizontal whitespace with `[ \t]{2,}` without stripping newlines; implemented `formatTemplateParagraphs` converting `\n\n` into `<p>` elements and single newlines into `<br />`. Verified 3-paragraph structure in editor, preview, PDF, and print. |
+| **R02** | Medium | **STATE** | **Resolved** | `app/superadmin/config/page.tsx` | Decoupled local `isDirty` state from remote conflict detection; introduced `baselineConfigRef`, `isDirtyRef`, `initialSyncDoneRef`, and `isMeaningfulConfigChange` helper gated by `isConfigLoaded`. Added "Discard Changes" workflow. |
+| **R03** | High | **CONCURRENCY** / **PERSISTENCE** | **Resolved** | `app/superadmin/config/page.tsx`, `hooks/superadmin/use-superadmin-data.ts`, `app/api/admin/operations/route.ts` | Server-authoritative optimistic concurrency in `system.config.update`; compares `baseVersion` within transaction; safely merges non-conflicting field updates; rejects overlapping field edits with HTTP 409 Conflict and lists `conflictingFields` while preserving local draft. |
+| **R04** | Medium | **AUTHORIZATION** / **STATE** | **Resolved** | `app/admin/notifications/page.tsx`, `hooks/admin/use-admin-data.ts`, `lib/auth/auth-types.ts` | Exported `canManageNotificationsRole` (false for View Only); hidden mutation controls in UI; preview modal inspection suppresses `markNotificationRead` for read-only roles, preventing forbidden Firestore write errors. |
+| **R05** | Medium | **DOCUMENT** / **CONTRACT** | **Resolved** | `app/admin/generate/page.tsx`, `lib/document-catalog.ts` | Introduced 3 truthful states: `missing` (Red), `provided` / Unreviewed (Amber), and `confirmed` / Confirmed by Staff (Green). Verification badge strictly reflects persisted staff review metadata. |
+| **R06** | High | **PERSISTENCE** / **STATE** / **CONTRACT** | **Resolved** | `app/admin/generate/page.tsx`, `app/admin/requests/page.tsx`, `app/api/admin/operations/route.ts`, `lib/document-catalog.ts` | Server-authoritative `request.confirmBeneficiary` transaction with audit logging; persisted confirmed subject values in `request.markGenerated` and `resolveDocumentSubject`; ref-guarded inputs prevent active typing loss during background refreshes. |
+| **R07** | Medium | **TEST** | **Resolved** | `test/e2e/authenticated-workflows.spec.ts`, `test/p01-p07-integration-remediation.test.ts` | Implemented end-to-end tests for representation submission via API, print workflow preparation with popup blocked handling, concurrent config 409 collisions, local edit conflict isolation, View Only notification preview, and exact before/after `systemConfig` snapshot restoration. |
+
+### Execution Milestones
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **Milestone 1** | R01: Preserve Official Document Formatting | COMPLETED | Three-paragraph templates retain 3 distinct paragraphs; blank lines survive; print & PDF preserve structure; HTML escaping intact. |
+| **Milestone 2** | R02: Correct False Configuration Conflict Warnings | COMPLETED | Local editing shows "Unsaved Changes", not "External Change"; unchanged remote snapshots ignore; real external modification shows warning; discard restores server state. |
+| **Milestone 3** | R03: Prevent Concurrent Configuration Overwrites | COMPLETED | Field-level diffing; transaction-checked `baseVersion`; non-conflicting fields merged; conflicting fields rejected with 409 and preserved draft. |
+| **Milestone 4** | R04: View Only Notification Preview Without Mutation | COMPLETED | View Only opens notification preview dialog with zero Firestore writes attempted; broadcast and mark-all-read controls guarded by role; authorized admins handle errors cleanly. |
+| **Milestone 5** | R05: Correct Misleading Beneficiary Verification Labels | COMPLETED | Self-reported data displays "Provided (Unreviewed)"; missing data displays "Missing — Required"; verified badge appears ONLY when staff confirmed metadata is present. |
+| **Milestone 6** | R06: Persist Admin-Confirmed Beneficiary Details | COMPLETED | Server-authoritative `request.confirmBeneficiary` persists confirmed address/age/admin/time/audit; reprints and reloads retain confirmed details; React state preserves in-progress typing. |
+| **Milestone 7** | R07: Close Regression Testing Gaps & Restore Fixtures | COMPLETED | Resident representation submission to live API; print preparation workflow; real concurrent save test; isolated fixture restore before/after. |
+| **Milestone 8** | Continuous Recurring Defect Detection Loop (A, B, C, D) | COMPLETED | Loops A (validation), B (root cause recurrence search), C (independent review), D (stability verification: 2 clean passes). |
+| **Milestone 9** | Full Multi-Viewport Playwright Verification | COMPLETED | Playwright multi-viewport (360x800, 390x844, 768x1024, 1280x800, 1440x900) across all admin/resident flows (39/39 pass). |
+| **Milestone 10** | Final Verification Gate & Documentation | COMPLETED | `npm test` (250/250), `npm run test:rules` (87/87), `npm run test:e2e:auth` (39/39), `npm run typecheck` (0), `npm run typecheck:test` (0), `npm run lint` (0), `npm run build` (51/51), `git diff --check` (0), timezones (41/41). |
+| **Milestone 11** | Clean Git Commit, Origin/Main Push & Completion Report | COMPLETED | Working tree clean, 0/0 ahead/behind, final comprehensive report delivered. |
+
+### Recurring Defect Prevention Register
+
+1. **Whitespace Regex Paragraph Collapsing**
+   - *Original Defect*: R01 (`lib/document-catalog.ts`, `app/admin/generate/page.tsx`).
+   - *Pattern*: `/\s{2,}/g` collapsed newlines into single spaces, destroying document paragraph breaks.
+   - *Correction*: Use horizontal-only regex `/[ \t]{2,}/g` and semantic `formatTemplateParagraphs` converting `\n\n` into `<p>` elements.
+   - *Invariant*: Text formatting helpers must preserve newline sequences `\n\n` for official legal documents.
+
+2. **React Effect Stale-Snapshot & Dirty-State Coupling**
+   - *Original Defect*: R02 (`app/superadmin/config/page.tsx`).
+   - *Pattern*: Effect subscribed to `isDirty`, interpreting local edits or initial load as background external changes.
+   - *Correction*: Decouple `isDirty` from effect dependency array; use `baselineConfigRef`, `initialSyncDoneRef`, and compare authoritative incoming data against baseline.
+   - *Invariant*: Subscriptions must compare incoming data against an authoritative baseline, never against UI dirty flags.
+
+3. **Lost Concurrent Updates via Full-Object Writes**
+   - *Original Defect*: R03 (`app/superadmin/config/page.tsx`, `app/api/admin/operations/route.ts`).
+   - *Pattern*: Submitting full configuration snapshots without version checks silently stomped concurrent edits.
+   - *Correction*: Server-authoritative optimistic concurrency in Firestore transactions checking `baseVersion`; non-conflicting field updates merge safely; overlapping field edits reject with HTTP 409 and `conflictingFields`.
+   - *Invariant*: Configuration writes must submit `baseVersion` and check for conflicts within a Firestore transaction.
+
+4. **Privilege Leak via Unauthorized UI Mutations**
+   - *Original Defect*: R04 (`app/admin/notifications/page.tsx`, `lib/auth/auth-types.ts`).
+   - *Pattern*: Opening preview modal invoked `markNotificationRead`, causing permission errors for View Only users.
+   - *Correction*: Check `canManageNotificationsRole` before initiating mutations; hide mutation controls in UI.
+   - *Invariant*: Read-only inspection workflows must never execute mutation side-effects.
+
+5. **Misleading Verification Badges on Self-Reported Data**
+   - *Original Defect*: R05 (`app/admin/generate/page.tsx`, `lib/document-catalog.ts`).
+   - *Pattern*: Presence of non-empty string displayed with Green "Verified" badge without review.
+   - *Correction*: Tri-state review lifecycle (`missing`, `provided` / Unreviewed, `confirmed` / Confirmed by Staff); badges reflect persisted staff review metadata, never non-empty input presence.
+   - *Invariant*: Verification status indicators must be backed by authoritative staff review records.
+
+6. **Ephemeral Administrative Corrections Not Persisted**
+   - *Original Defect*: R06 (`app/admin/generate/page.tsx`, `app/api/admin/operations/route.ts`).
+   - *Pattern*: Admin overrides stored only in React state and lost on refresh or reprint.
+   - *Correction*: Dedicated `request.confirmBeneficiary` transaction with audit log; persist confirmed values in `request.markGenerated`; prioritize confirmed details in document resolution.
+   - *Invariant*: Admin-verified subject corrections must be persisted to the database before document generation.
+
+7. **Test Fixture Pollution & Incomplete Workflow Assertions**
+   - *Original Defect*: R07 (`test/e2e/authenticated-workflows.spec.ts`).
+   - *Pattern*: Arbitrary subset restorations in teardown; missing real representation submission and print testing.
+   - *Correction*: Snapshot entire initial database document in `try...finally`; test true production API endpoints and edge cases.
+   - *Invariant*: Every test altering shared config must restore exact pre-test state.
+
+## P01–P07 Final Integration, Document Integrity & Permission Remediation — PRIOR PASS
 | **P01** | High | **Resolved** | `lib/document-catalog.ts`, `app/admin/generate/page.tsx`, `app/admin/requests/page.tsx`, `app/api/resident/requests/create/route.ts`, `app/resident/request/page.tsx` | `resolveDocumentSubject()` reused requesting resident's age and address for represented beneficiaries; now cleanly separates requester/representative from beneficiary subject, validates address/age before issuance, and provides admin confirmation overrides. |
 | **P02** | Medium | **Resolved** | `app/superadmin/config/page.tsx`, `app/api/resident/requests/create/route.ts` | `effectiveDocumentTypes` checked `.length > 0`, restoring saved configuration when all types disabled; now uses explicit nullable staged state `string[] | null` and dirty tracking. |
 | **P03** | Medium | **Resolved** | `lib/document-catalog.ts`, `app/admin/generate/page.tsx`, `app/superadmin/config/page.tsx` | Canonical Barangay Clearance template contained unresolved `{{civil_status}}`; removed from default template, resolved safely when present, and standardized in tested template renderer without placeholder leakage. |

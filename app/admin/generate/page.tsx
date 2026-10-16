@@ -23,12 +23,13 @@ import {
   resolveDocumentType,
   resolveDocumentSubject,
   renderDocumentTemplate,
+  formatTemplateParagraphs,
 } from "@/lib/document-catalog"
 
 function GenerateDocumentsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus, updateRequestGenerated } = useAdminData()
+  const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus, updateRequestGenerated, confirmBeneficiaryDetails } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const { user } = useAuth()
   const isAuthorized = canManageRequestsRole(user?.role)
@@ -47,8 +48,11 @@ function GenerateDocumentsContent() {
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null)
   const [beneficiaryAddressOverride, setBeneficiaryAddressOverride] = useState<string>("")
   const [beneficiaryAgeOverride, setBeneficiaryAgeOverride] = useState<string>("")
+  const [isConfirmingBeneficiary, setIsConfirmingBeneficiary] = useState(false)
   const [lastDownload, setLastDownload] = useState(0)
   const editorRef = useRef<HTMLDivElement>(null)
+  const loadedRequestIdRef = useRef<string | null>(null)
+  const isEditingBeneficiaryRef = useRef(false)
 
   useEffect(() => {
     const requestId = searchParams.get("requestId")
@@ -72,8 +76,23 @@ function GenerateDocumentsContent() {
         }
 
         if (req.requestFor === "other") {
-          setBeneficiaryAddressOverride(req.representedAddress || "")
-          setBeneficiaryAgeOverride(req.representedAge !== undefined ? String(req.representedAge) : "")
+          if (loadedRequestIdRef.current !== req.id) {
+            loadedRequestIdRef.current = req.id
+            isEditingBeneficiaryRef.current = false
+            setBeneficiaryAddressOverride(req.confirmedBeneficiaryAddress || req.representedAddress || "")
+            setBeneficiaryAgeOverride(
+              req.confirmedBeneficiaryAge !== undefined
+                ? String(req.confirmedBeneficiaryAge)
+                : (req.representedAge !== undefined ? String(req.representedAge) : "")
+            )
+          } else if (!isEditingBeneficiaryRef.current) {
+            setBeneficiaryAddressOverride(req.confirmedBeneficiaryAddress || req.representedAddress || "")
+            setBeneficiaryAgeOverride(
+              req.confirmedBeneficiaryAge !== undefined
+                ? String(req.confirmedBeneficiaryAge)
+                : (req.representedAge !== undefined ? String(req.representedAge) : "")
+            )
+          }
         }
       }
     }
@@ -163,10 +182,7 @@ function GenerateDocumentsContent() {
   useEffect(() => {
     if (editorRef.current && selectedResident && selectedDocType) {
       const resolved = getTemplateContent()
-      const paragraphs = resolved.split('\n\n').map(p =>
-        `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
-      ).join('')
-      editorRef.current.innerHTML = paragraphs
+      editorRef.current.innerHTML = formatTemplateParagraphs(resolved)
     }
   }, [selectedResident, selectedDocType, systemConfig, beneficiaryAddressOverride, beneficiaryAgeOverride])
 
@@ -270,10 +286,7 @@ function GenerateDocumentsContent() {
                       e.preventDefault()
                       if (!editorRef.current) return
                       const resolved = getTemplateContent()
-                      const paragraphs = resolved.split('\n\n').map(p =>
-                        `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${p}</p>`
-                      ).join('')
-                      editorRef.current.innerHTML = paragraphs
+                      editorRef.current.innerHTML = formatTemplateParagraphs(resolved)
                     }}
                     className="px-2.5 py-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 shadow-sm ml-1"
                   >↺ Reset</button>
@@ -323,14 +336,19 @@ function GenerateDocumentsContent() {
                               </label>
                               {subject.isSubjectAddressMissing ? (
                                 <span className="text-[10px] font-bold text-red-600 bg-red-100 dark:bg-red-950/50 px-1.5 py-0.5 rounded">Missing — Required</span>
+                              ) : subject.isBeneficiaryConfirmed ? (
+                                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">✓ Confirmed by Staff</span>
                               ) : (
-                                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">Verified</span>
+                                <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-1.5 py-0.5 rounded">Provided (Unreviewed)</span>
                               )}
                             </div>
                             <input
                               type="text"
                               value={beneficiaryAddressOverride}
-                              onChange={(e) => setBeneficiaryAddressOverride(e.target.value)}
+                              onChange={(e) => {
+                                isEditingBeneficiaryRef.current = true
+                                setBeneficiaryAddressOverride(e.target.value)
+                              }}
                               placeholder="Enter verified beneficiary address..."
                               className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
                             />
@@ -344,8 +362,10 @@ function GenerateDocumentsContent() {
                               </label>
                               {subject.isSubjectAgeMissing ? (
                                 <span className="text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">Optional</span>
+                              ) : subject.isBeneficiaryConfirmed ? (
+                                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">✓ Confirmed by Staff</span>
                               ) : (
-                                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">Verified</span>
+                                <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-1.5 py-0.5 rounded">Provided (Unreviewed)</span>
                               )}
                             </div>
                             <input
@@ -353,12 +373,54 @@ function GenerateDocumentsContent() {
                               min="0"
                               max="130"
                               value={beneficiaryAgeOverride}
-                              onChange={(e) => setBeneficiaryAgeOverride(e.target.value)}
+                              onChange={(e) => {
+                                isEditingBeneficiaryRef.current = true
+                                setBeneficiaryAgeOverride(e.target.value)
+                              }}
                               placeholder="Beneficiary age..."
                               className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
                             />
                             <p className="text-[10px] text-purple-700 dark:text-purple-400 mt-0.5">Required for age-dependent documents (e.g. Funeral, PWD, OSCA).</p>
                           </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/60 flex items-center justify-between">
+                          <div className="text-[10px] text-purple-700 dark:text-purple-400">
+                            {subject.isBeneficiaryConfirmed ? (
+                              <span>
+                                Confirmed by <strong className="font-semibold">{matchedReq.beneficiaryConfirmedBy || "Staff"}</strong>
+                                {matchedReq.beneficiaryConfirmedAt ? ` on ${new Date(matchedReq.beneficiaryConfirmedAt).toLocaleDateString()}` : ""}
+                              </span>
+                            ) : (
+                              <span>Staff review and explicit confirmation required before issuance.</span>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isConfirmingBeneficiary || !beneficiaryAddressOverride.trim()}
+                            onClick={async () => {
+                              if (!matchedReq || !beneficiaryAddressOverride.trim()) return
+                              setIsConfirmingBeneficiary(true)
+                              try {
+                                await confirmBeneficiaryDetails(matchedReq.id, {
+                                  confirmedAddress: beneficiaryAddressOverride.trim(),
+                                  confirmedAge: beneficiaryAgeOverride.trim() ? Number(beneficiaryAgeOverride.trim()) : undefined,
+                                })
+                                isEditingBeneficiaryRef.current = false
+                                toast.success("Beneficiary details confirmed and persistently saved.")
+                              } catch (err: any) {
+                                toast.error(err?.message || "Failed to confirm beneficiary details.")
+                              } finally {
+                                setIsConfirmingBeneficiary(false)
+                              }
+                            }}
+                            className="h-7 px-3 text-2xs bg-white dark:bg-purple-900 border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-200 hover:bg-purple-50"
+                          >
+                            {isConfirmingBeneficiary ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+                            {subject.isBeneficiaryConfirmed ? "Update Confirmation" : "Confirm Details"}
+                          </Button>
                         </div>
                       </div>
                     )
@@ -510,7 +572,11 @@ function GenerateDocumentsContent() {
 
                         if (pendingReq) {
                            try {
-                             await updateRequestGenerated(pendingReq.id)
+                             await updateRequestGenerated(pendingReq.id, {
+                               confirmedAddress: beneficiaryAddressOverride.trim() || undefined,
+                               confirmedAge: beneficiaryAgeOverride.trim() ? Number(beneficiaryAgeOverride.trim()) : undefined,
+                             })
+                             isEditingBeneficiaryRef.current = false
                              toast.success("Document downloaded successfully.")
                              if (processingRequestId) router.push("/admin/requests")
                            } catch (err: any) {
@@ -596,7 +662,11 @@ function GenerateDocumentsContent() {
 
                       if (pendingReq) {
                         try {
-                          await updateRequestGenerated(pendingReq.id)
+                          await updateRequestGenerated(pendingReq.id, {
+                            confirmedAddress: beneficiaryAddressOverride.trim() || undefined,
+                            confirmedAge: beneficiaryAgeOverride.trim() ? Number(beneficiaryAgeOverride.trim()) : undefined,
+                          })
+                          isEditingBeneficiaryRef.current = false
                           toast.success("Document printed successfully.")
                           if (processingRequestId) router.push("/admin/requests")
                         } catch (err: any) {

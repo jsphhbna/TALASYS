@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,7 +33,7 @@ const changeTypeIcons: Record<string, typeof Palette> = {
 }
 
 export default function SystemConfig() {
-  const { systemConfig, updateConfig, auditLogs } = useSuperAdminData()
+  const { systemConfig, updateConfig, auditLogs, isConfigLoaded } = useSuperAdminData()
   const { documentRequests } = useAdminData()
   const [activeTab, setActiveTab] = useState<"branding" | "templates" | "documents" | "backups">("branding")
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -85,15 +85,76 @@ export default function SystemConfig() {
     }
   })
 
-  // Sync formData when systemConfig updates, protected by dirty check (P06)
+  const baselineConfigRef = useRef<any>(null)
+  const isDirtyRef = useRef(false)
+  const initialSyncDoneRef = useRef(false)
   useEffect(() => {
-    if (isDirty) {
-      setExternalChangeDetected(true)
+    isDirtyRef.current = isDirty
+  }, [isDirty])
+
+  const isMeaningfulConfigChange = (current: any, incoming: any) => {
+    if (!current || !incoming) return false
+    if (typeof incoming.version === "number" && typeof current.version === "number") {
+      return incoming.version !== current.version
+    }
+    const fieldsToCompare = [
+      "barangayName",
+      "address",
+      "contactNumber",
+      "emailAddress",
+      "barangayCaptainName",
+      "secretaryName",
+      "captainSignatureUrl",
+      "secretarySignatureUrl",
+    ]
+    for (const f of fieldsToCompare) {
+      if ((current[f] || "") !== (incoming[f] || "")) return true
+    }
+    if (JSON.stringify(current.documentTypes || []) !== JSON.stringify(incoming.documentTypes || [])) return true
+    if (JSON.stringify(current.documentFees || {}) !== JSON.stringify(incoming.documentFees || {})) return true
+    if (JSON.stringify(current.templates || {}) !== JSON.stringify(incoming.templates || {})) return true
+    if (JSON.stringify(current.customDocumentTypes || []) !== JSON.stringify(incoming.customDocumentTypes || [])) return true
+    return false
+  }
+
+  // Sync formData when systemConfig updates from authoritative server (R02, P06)
+  // Decoupled from isDirty to prevent false positive external change warnings
+  useEffect(() => {
+    if (!isConfigLoaded) return
+
+    if (!initialSyncDoneRef.current) {
+      initialSyncDoneRef.current = true
+      baselineConfigRef.current = systemConfig
+      setFormData({
+        barangayName: systemConfig.barangayName || "",
+        address: systemConfig.address || "",
+        contactNumber: systemConfig.contactNumber || "",
+        emailAddress: systemConfig.emailAddress || "",
+        barangayCaptainName: systemConfig.barangayCaptainName || "",
+        secretaryName: systemConfig.secretaryName || "",
+        captainSignatureUrl: systemConfig.captainSignatureUrl || "",
+        secretarySignatureUrl: systemConfig.secretarySignatureUrl || "",
+        templates: {
+          ...DEFAULT_TEMPLATES,
+          ...(systemConfig.templates || {})
+        }
+      })
+      setExternalChangeDetected(false)
       return
     }
 
-    setExternalChangeDetected(false)
-    if (systemConfig.barangayName !== undefined || systemConfig.templates !== undefined || systemConfig.documentTypes !== undefined) {
+    const hasExternalChange = isMeaningfulConfigChange(baselineConfigRef.current, systemConfig)
+    if (!hasExternalChange) {
+      return
+    }
+
+    if (isDirtyRef.current) {
+      // Administrator has active local modifications: preserve local draft and alert
+      setExternalChangeDetected(true)
+    } else {
+      // No active local modifications: seamlessly absorb authoritative changes
+      baselineConfigRef.current = systemConfig
+      setExternalChangeDetected(false)
       setFormData({
         barangayName: systemConfig.barangayName || "",
         address: systemConfig.address || "",
@@ -109,19 +170,7 @@ export default function SystemConfig() {
         }
       })
     }
-  }, [
-    systemConfig.barangayName,
-    systemConfig.address,
-    systemConfig.contactNumber,
-    systemConfig.emailAddress,
-    systemConfig.barangayCaptainName,
-    systemConfig.secretaryName,
-    systemConfig.captainSignatureUrl,
-    systemConfig.secretarySignatureUrl,
-    systemConfig.templates,
-    systemConfig.documentTypes,
-    isDirty
-  ])
+  }, [systemConfig, isConfigLoaded])
 
   // Derive effective document types and fees (P02, P07)
   const serverDocumentTypes: string[] = Array.isArray(systemConfig.documentTypes)
@@ -187,6 +236,7 @@ export default function SystemConfig() {
     setStagedDocumentTypes(null)
     setStagedDocumentFees(null)
     setExternalChangeDetected(false)
+    baselineConfigRef.current = systemConfig
     setFormData({
       barangayName: systemConfig.barangayName || "",
       address: systemConfig.address || "",
@@ -208,11 +258,54 @@ export default function SystemConfig() {
     if (isSavingChanges) return
     setIsSavingChanges(true)
     try {
-      await updateConfig({
-        ...formData,
-        documentTypes: effectiveDocumentTypes,
-        documentFees: effectiveDocumentFees,
+      const baseline = baselineConfigRef.current || systemConfig
+      const updates: Record<string, any> = {}
+      const baseConfig: Record<string, any> = {}
+
+      const stringFields = [
+        "barangayName", "address", "contactNumber", "emailAddress",
+        "barangayCaptainName", "secretaryName", "captainSignatureUrl", "secretarySignatureUrl"
+      ]
+      for (const f of stringFields) {
+        if ((formData[f as keyof typeof formData] || "") !== (baseline[f as keyof typeof baseline] || "")) {
+          updates[f] = formData[f as keyof typeof formData]
+          baseConfig[f] = baseline[f as keyof typeof baseline] || ""
+        }
+      }
+
+      if (JSON.stringify(formData.templates) !== JSON.stringify(baseline.templates || {})) {
+        updates.templates = formData.templates
+        baseConfig.templates = baseline.templates || {}
+      }
+
+      if (stagedDocumentTypes !== null && JSON.stringify(stagedDocumentTypes) !== JSON.stringify(baseline.documentTypes || [])) {
+        updates.documentTypes = effectiveDocumentTypes
+        baseConfig.documentTypes = baseline.documentTypes || []
+      }
+
+      if (stagedDocumentFees !== null && JSON.stringify(stagedDocumentFees) !== JSON.stringify(baseline.documentFees || {})) {
+        updates.documentFees = effectiveDocumentFees
+        baseConfig.documentFees = baseline.documentFees || {}
+      }
+
+      const changedFields = Object.keys(updates)
+      if (changedFields.length === 0) {
+        setIsDirty(false)
+        setShowSaveDialog(false)
+        return
+      }
+
+      await updateConfig(updates, {
+        baseVersion: baseline.version || 1,
+        baseConfig,
+        changedFields,
       })
+
+      baselineConfigRef.current = {
+        ...baseline,
+        ...updates,
+        version: (baseline.version || 1) + 1,
+      }
       setIsDirty(false)
       setStagedDocumentTypes(null)
       setStagedDocumentFees(null)
@@ -220,7 +313,12 @@ export default function SystemConfig() {
       setShowSaveDialog(false)
       showToastPreset("configSaved")
     } catch (err: any) {
-      toast.error(err?.message || "Failed to save configuration changes")
+      if (err?.status === 409 || err?.statusCode === 409 || err?.message?.includes("conflict")) {
+        setExternalChangeDetected(true)
+        toast.error(err?.message || "Configuration conflict: Another administrator made conflicting changes. Please review.")
+      } else {
+        toast.error(err?.message || "Failed to save configuration changes")
+      }
     } finally {
       setIsSavingChanges(false)
     }
@@ -306,7 +404,7 @@ export default function SystemConfig() {
                 ● Unsaved Changes
               </span>
               <Button variant="outline" onClick={handleDiscardChanges} disabled={isSavingChanges} className="text-xs h-9">
-                Discard
+                Discard Changes
               </Button>
             </>
           )}
@@ -348,8 +446,16 @@ export default function SystemConfig() {
         </div>
       </div>
 
-      {/* Branding Tab */}
-      {activeTab === "branding" && (
+      {/* Tab Contents */}
+      {!isConfigLoaded ? (
+        <Card className="p-12 shadow-sm flex flex-col items-center justify-center text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#C5A55A] mb-3" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading system configuration...</p>
+        </Card>
+      ) : (
+        <>
+          {/* Branding Tab */}
+          {activeTab === "branding" && (
         <Card className="p-6 shadow-sm">
           <div className="grid md:grid-cols-2 gap-10">
             <div>
@@ -803,6 +909,8 @@ export default function SystemConfig() {
             </div>
           </Card>
         </div>
+      )}
+        </>
       )}
 
       {/* Add Document Type Modal */}

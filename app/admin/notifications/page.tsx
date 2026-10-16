@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/admin"
 import { Bell, UserPlus, Clock, FileText, Mail } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/auth"
+import { canManageNotificationsRole } from "@/lib/auth/auth-types"
 
 function formatRelativeTime(createdAt: number): string {
   if (!createdAt) return "Just now"
@@ -27,6 +29,8 @@ function formatRelativeTime(createdAt: number): string {
 }
 
 export default function Notifications() {
+  const { user } = useAuth()
+  const canManage = canManageNotificationsRole(user?.role)
   const { notifications: adminNotifications, markAllNotificationsRead, markNotificationRead, addNotification, residents } = useAdminData()
   const [activeFilter, setActiveFilter] = useState("all")
   const [selectedNotification, setSelectedNotification] = useState<any>(null)
@@ -74,7 +78,7 @@ export default function Notifications() {
   }
 
   const handleMarkAllRead = async () => {
-    if (isMarkingAllRead) return
+    if (!canManage || isMarkingAllRead) return
     setIsMarkingAllRead(true)
     try {
       await markAllNotificationsRead()
@@ -95,7 +99,7 @@ export default function Notifications() {
   }
 
   const handleBroadcast = async () => {
-    if (!broadcastMessage.trim()) return
+    if (!canManage || !broadcastMessage.trim()) return
     setIsSending(true)
     try {
       const activeResidents = residents.filter(r => r.status === "Verified" || r.status === "Expiring")
@@ -165,6 +169,20 @@ export default function Notifications() {
     }
   }
 
+  const handleNotificationClick = async (notification: any) => {
+    setSelectedNotification(notification)
+    setShowPreviewDialog(true)
+
+    // View Only users can preview notifications freely without attempting forbidden Firestore writes (R04)
+    if (canManage && !notification.isRead) {
+      try {
+        await markNotificationRead(notification.id)
+      } catch (err: any) {
+        console.error("Failed to mark notification as read:", err)
+      }
+    }
+  }
+
   return (
     <AdminPageShell>
       <div className="mb-6">
@@ -188,37 +206,46 @@ export default function Notifications() {
             </button>
           ))}
         </div>
-        <button
-          onClick={handleMarkAllRead}
-          disabled={isMarkingAllRead || unreadCount === 0}
-          className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center disabled:opacity-50 disabled:no-underline"
-        >
-          <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}
-        </button>
+        {canManage && (
+          <button
+            onClick={handleMarkAllRead}
+            disabled={isMarkingAllRead || unreadCount === 0}
+            className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center disabled:opacity-50 disabled:no-underline"
+          >
+            <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}
+          </button>
+        )}
       </div>
 
       {/* Notifications List */}
       <Card className="shadow-sm">
         {/* Send Notification */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-4 rounded-t-xl">
-          <input
-            type="text"
-            value={broadcastMessage}
-            onChange={(e) => setBroadcastMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleBroadcast()}
-            disabled={isSending}
-            placeholder="Send notification to everyone..."
-            className="flex-1 px-4 py-2 text-sm border-none bg-transparent focus:outline-none"
-          />
-          <Button
-            size="sm"
-            onClick={handleBroadcast}
-            disabled={isSending || !broadcastMessage.trim()}
-            className="h-9 px-6 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
-          >
-            {isSending ? "Sending..." : "Send"}
-          </Button>
-        </div>
+        {canManage ? (
+          <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-4 rounded-t-xl">
+            <input
+              type="text"
+              value={broadcastMessage}
+              onChange={(e) => setBroadcastMessage(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleBroadcast()}
+              disabled={isSending}
+              placeholder="Send notification to everyone..."
+              className="flex-1 px-4 py-2 text-sm border-none bg-transparent focus:outline-none"
+            />
+            <Button
+              size="sm"
+              onClick={handleBroadcast}
+              disabled={isSending || !broadcastMessage.trim()}
+              className="h-9 px-6 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
+            >
+              {isSending ? "Sending..." : "Send"}
+            </Button>
+          </div>
+        ) : (
+          <div className="p-3 px-5 bg-slate-50/70 dark:bg-slate-900/30 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 rounded-t-xl flex items-center gap-2">
+            <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+            <span>Viewing notifications in read-only mode ({user?.role || "View Only"}). Broadcast and status modification are restricted to operational roles.</span>
+          </div>
+        )}
 
         <div className="divide-y divide-slate-100">
           {filteredNotifications.length === 0 ? (
@@ -229,7 +256,7 @@ export default function Notifications() {
           ) : filteredNotifications.map((notification) => (
             <div
               key={notification.id}
-              onClick={() => { markNotificationRead(notification.id); setSelectedNotification(notification); setShowPreviewDialog(true) }}
+              onClick={() => handleNotificationClick(notification)}
               className={`p-5 hover:bg-slate-50 dark:bg-slate-950 cursor-pointer transition-colors ${!notification.isRead
                 ? notification.type === "registration" ? "bg-blue-50/50" :
                   notification.type === "expiring" ? "bg-amber-50/50" :

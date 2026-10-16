@@ -115,6 +115,13 @@ export function isReadOnlyAdminRole(role?: string | null): boolean {
   return role.trim() === "View Only"
 }
 
+export function canManageNotificationsRole(role?: string | null): boolean {
+  if (!role) return false
+  if (isReadOnlyAdminRole(role)) return false
+  return isAnyAdminRole(role)
+}
+
+
 /**
  * Returns the authoritative allowed landing page for a given role.
  */

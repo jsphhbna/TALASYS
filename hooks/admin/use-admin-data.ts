@@ -315,8 +315,20 @@ export function useAdminData() {
         deleteDocumentRequest: useCallback(async (id: string) => {
             await callAdminOperation("request.delete", { targetId: id })
         }, []),
-        updateRequestGenerated: useCallback(async (id: string) => {
-            await callAdminOperation("request.markGenerated", { targetId: id })
+        updateRequestGenerated: useCallback(async (id: string, options?: { confirmedAddress?: string; confirmedAge?: number }) => {
+            await callAdminOperation("request.markGenerated", {
+                targetId: id,
+                payload: {
+                    ...(options?.confirmedAddress ? { confirmedAddress: options.confirmedAddress } : {}),
+                    ...(options?.confirmedAge !== undefined ? { confirmedAge: options.confirmedAge } : {}),
+                }
+            })
+        }, []),
+        confirmBeneficiaryDetails: useCallback(async (id: string, details: { confirmedAddress: string; confirmedAge?: number; notes?: string }) => {
+            await callAdminOperation("request.confirmBeneficiary", {
+                targetId: id,
+                payload: details
+            })
         }, []),
 
         confirmPayment: useCallback(async (id: string, adminName: string, adminEmail?: string, paymentMethodOverride?: "cash" | "gcash", paymentRefOverride?: string) => {

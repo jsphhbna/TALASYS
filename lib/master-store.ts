@@ -62,6 +62,8 @@ export interface SystemConfig {
   documentFees: Record<string, number>
   templates?: Record<string, string>
   customDocumentTypes?: any[]
+  version?: number
+  updatedAt?: number
 }
 
 export interface ResidentProofDocument {
@@ -106,6 +108,18 @@ export interface MasterDocumentRequest {
   generatedAt?: number
   lastReprintedAt?: number
   reprintCount?: number
+
+  // Confirmed beneficiary fields (R05, R06)
+  confirmedBeneficiaryName?: string
+  confirmedBeneficiaryAddress?: string
+  confirmedBeneficiaryAge?: number | string
+  beneficiaryReviewStatus?: "missing" | "provided" | "confirmed"
+  beneficiaryConfirmedAt?: number
+  beneficiaryConfirmedBy?: string
+  beneficiaryConfirmedByUid?: string
+  beneficiaryConfirmationNotes?: string
+  issuanceBeneficiaryAddress?: string
+  issuanceBeneficiaryAge?: number | string
 
   // Payment fields
   documentFee?: number

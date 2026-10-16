@@ -239,6 +239,8 @@ export function resolveDocumentType(
   return null
 }
 
+export type BeneficiaryReviewStatus = "missing" | "provided" | "confirmed"
+
 export interface DocumentSubjectResolution {
   subjectName: string
   requesterName: string
@@ -251,6 +253,10 @@ export interface DocumentSubjectResolution {
   isSubjectAddressMissing: boolean
   isSubjectAgeMissing: boolean
   civilStatus?: string
+  beneficiaryReviewStatus: BeneficiaryReviewStatus
+  beneficiaryConfirmedBy?: string
+  beneficiaryConfirmedAt?: number
+  isBeneficiaryConfirmed: boolean
 }
 
 function calculateAgeFromDob(dob?: string): string {
@@ -268,8 +274,9 @@ function calculateAgeFromDob(dob?: string): string {
 
 /**
  * Resolves the subject details for document generation, correctly separating
- * represented beneficiaries from requesting residents (UI02, P01).
+ * represented beneficiaries from requesting residents (UI02, P01, R05, R06).
  * Never silently reuses the requester's age or address for represented beneficiaries.
+ * Accurately tracks staff confirmation status without misleading 'Verified' claims.
  */
 export function resolveDocumentSubject(
   request: any,
@@ -285,12 +292,38 @@ export function resolveDocumentSubject(
 
   let address = ""
   let age = ""
+  let isBeneficiaryConfirmed = false
+  let beneficiaryReviewStatus: BeneficiaryReviewStatus = "missing"
 
   if (isRepresentation) {
-    // P01: For representation requests, NEVER reuse requester's address or age!
-    address = adminOverrides?.address?.trim() || request?.representedAddress?.trim() || request?.subjectAddress?.trim() || ""
-    const rawAge = adminOverrides?.age !== undefined ? adminOverrides.age : (request?.representedAge !== undefined ? request.representedAge : request?.subjectAge)
+    // R06: Check for authoritative staff confirmation
+    isBeneficiaryConfirmed = Boolean(
+      request?.beneficiaryReviewStatus === "confirmed" ||
+      request?.beneficiaryConfirmedAt ||
+      request?.confirmedBeneficiaryAddress
+    )
+
+    // Precedence: explicit admin overrides -> confirmed issuance values -> resident-submitted values
+    address = adminOverrides?.address?.trim() ||
+      request?.confirmedBeneficiaryAddress?.trim() ||
+      request?.representedAddress?.trim() ||
+      request?.subjectAddress?.trim() ||
+      ""
+
+    const rawAge = adminOverrides?.age !== undefined
+      ? adminOverrides.age
+      : (request?.confirmedBeneficiaryAge !== undefined
+          ? request.confirmedBeneficiaryAge
+          : (request?.representedAge !== undefined ? request.representedAge : request?.subjectAge))
     age = rawAge !== undefined && rawAge !== null && String(rawAge).trim() !== "" ? String(rawAge).trim() : ""
+
+    if (isBeneficiaryConfirmed) {
+      beneficiaryReviewStatus = "confirmed"
+    } else if (address.length > 0 || age.length > 0) {
+      beneficiaryReviewStatus = "provided"
+    } else {
+      beneficiaryReviewStatus = "missing"
+    }
   } else {
     address = adminOverrides?.address?.trim() || resident?.address?.trim() || ""
     const residentDob = resident?.dateOfBirth || resident?.dob || resident?.birthDate
@@ -314,6 +347,10 @@ export function resolveDocumentSubject(
     isSubjectAddressMissing,
     isSubjectAgeMissing,
     civilStatus,
+    beneficiaryReviewStatus,
+    beneficiaryConfirmedBy: request?.beneficiaryConfirmedBy,
+    beneficiaryConfirmedAt: request?.beneficiaryConfirmedAt,
+    isBeneficiaryConfirmed,
   }
 }
 
@@ -346,7 +383,7 @@ export function renderDocumentTemplate(
   if (!template || typeof template !== "string") return ""
 
   const d = data.date || new Date()
-  const formatter = new Intl.DateTimeFormat("en", { day: "numeric" })
+  const formatter = new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: "Asia/Manila" })
   const day = formatter.format(d)
   const suffix = ["11", "12", "13"].includes(day)
     ? "th"
@@ -358,9 +395,9 @@ export function renderDocumentTemplate(
     ? "rd"
     : "th"
   const ordinalDay = `${day}${suffix}`
-  const monthYear = d.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+  const monthYear = d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "Asia/Manila" })
 
-  const dateIssued = d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+  const dateIssued = d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "Asia/Manila" })
   const dateOrdinalIssued = `${ordinalDay} day of ${monthYear}`
   const dateDayIssued = `${ordinalDay} of ${monthYear}`
 
@@ -390,7 +427,14 @@ export function renderDocumentTemplate(
     .replace(/{{barangay_name}}/g, safeBarangayName)
 
   // Clean up any double commas or punctuation left if civil_status or other optional token was empty
-  resolved = resolved.replace(/,\s*,/g, ",").replace(/,\s*\./g, ".").replace(/\s{2,}/g, " ")
+  // Use horizontal whitespace matching ([ \t]) so that line breaks and paragraphs are preserved (R01)
+  resolved = resolved
+    .replace(/,[ \t]*,/g, ",")
+    .replace(/,[ \t]*\./g, ".")
+    .replace(/[ \t]{2,}/g, " ")
+
+  // Normalize CRLF to LF and cap excessive blank lines to double newlines while preserving paragraph separation
+  resolved = resolved.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n")
 
   // Prevent any lingering unresolved {{...}} tokens from leaking into official documents
   resolved = resolved.replace(/{{\s*[\w.-]+\s*}}/g, "")
@@ -401,4 +445,24 @@ export function renderDocumentTemplate(
   resolved = resolved.replace(/javascript:/gi, "blocked-scheme:")
 
   return resolved
+}
+
+/**
+ * Formats resolved template text into structured HTML paragraphs with Philippine barangay document indentation,
+ * converting double line breaks into paragraphs and single line breaks into line breaks (R01).
+ */
+export function formatTemplateParagraphs(resolved: string): string {
+  if (!resolved || typeof resolved !== "string") return ""
+  return resolved
+    .split(/\n{2,}/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
+    .map(p => {
+      if (p.startsWith("<p") && p.endsWith("</p>")) {
+        return p
+      }
+      const withBr = p.replace(/\n/g, "<br />")
+      return `<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">${withBr}</p>`
+    })
+    .join("")
 }

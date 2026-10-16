@@ -50,6 +50,7 @@ export function useSuperAdminData() {
     })
     
     const [isLoaded, setIsLoaded] = useState(false)
+    const [isConfigLoaded, setIsConfigLoaded] = useState(false)
     const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({})
     const error = Object.values(sourceErrors).join("; ") || null
     const [stats, setStats] = useState({
@@ -147,10 +148,12 @@ export function useSuperAdminData() {
 
         unsubscribeFunctions.push(onSnapshot(doc(db, COLLECTION_SYSTEM_CONFIG, SYSTEM_CONFIG_DOCUMENT_ID), (snapshot) => {
             if (snapshot.exists()) setSystemConfig(snapshot.data() as SystemConfig)
+            setIsConfigLoaded(true)
             checkReady("config")
         }, (err) => {
             console.error("config snapshot error in superadmin hook:", err)
             setSourceErrors(previous => ({ ...previous, config: err.message || "Failed to load system config" }))
+            setIsConfigLoaded(true)
             setIsLoaded(true)
         }))
 
@@ -249,6 +252,7 @@ export function useSuperAdminData() {
         systemAlerts,
         systemConfig,
         isLoaded,
+        isConfigLoaded,
         error,
         hasError: !!error,
         stats: {
@@ -307,8 +311,15 @@ export function useSuperAdminData() {
         }, []),
 
         // System Config
-        updateConfig: useCallback(async (updates: Partial<SystemConfig>) => {
-            await callAdminOperation("system.config.update", { payload: { updates: updates as any } })
+        updateConfig: useCallback(async (updates: Partial<SystemConfig>, options?: { baseVersion?: number; baseConfig?: Record<string, any>; changedFields?: string[] }) => {
+            await callAdminOperation("system.config.update", {
+                payload: {
+                    updates: updates as any,
+                    baseVersion: options?.baseVersion,
+                    baseConfig: options?.baseConfig,
+                    changedFields: options?.changedFields,
+                }
+            })
         }, []),
     }
 }

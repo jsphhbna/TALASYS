@@ -1,9 +1,74 @@
 # TALASYS Project State
 
-## Current Verified State — 16 October 2026 (P01–P07 Final Integration, Document Integrity & Permission Remediation)
+## Current Active Milestone — 16 October 2026 (R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop)
 
 - **Working branch**: `main`
-- **Audited baseline**: `b47766584a6efb6d3622a5f5dc13ad02c67b21e4`
+- **Audited baseline**: `fe66f7c44a2520e08493fecd3a80b0c1e16553bc`
+- **Framework**: DevKit V9 RC10
+- **Status**: COMPLETE & VERIFIED across two consecutive clean stability passes (Loop D).
+- **Verification Metrics (Two Consecutive Clean Passes)**:
+  - `npm test`: 250/250 pass (31 suites)
+  - `npm run test:rules`: 87/87 pass (Auth & Firestore emulators)
+  - `npm run test:e2e:auth`: 39/39 pass (Playwright authenticated suite, Scenarios A–F)
+  - `npm run typecheck` & `npm run typecheck:test`: 0 errors
+  - `npm run lint`: 0 errors (900 warnings)
+  - `npm run build`: 51/51 routes generated successfully (Next.js 16.4.0 Turbopack)
+  - `git diff --check`: 0 errors / clean
+  - Timezone invariance: 41/41 pass across UTC, Asia/Manila, America/Los_Angeles
+- **Scope & Resolutions**:
+  - R01 (Medium): Official document paragraph formatting preserved with horizontal-only normalization `/[ \t]{2,}/g` and `formatTemplateParagraphs`.
+  - R02 (Medium): Eliminated false configuration conflict warnings in `app/superadmin/config/page.tsx` via `isDirty` decoupling, `baselineConfigRef`, and `isConfigLoaded` gating.
+  - R03 (High): Server-authoritative optimistic concurrency in `app/api/admin/operations/route.ts` checking `systemConfig.version`; safe non-overlapping merge, 409 conflict on overlapping edits.
+  - R04 (Medium): Guarded View Only notification preview against forbidden Firestore mutations in `app/admin/notifications/page.tsx` using `canManageNotificationsRole`.
+  - R05 (Medium): Replaced misleading "Verified" labels with truthful 3-state review badges (`missing`, `provided`, `confirmed`).
+  - R06 (High): Persisted admin-confirmed beneficiary details via server-authoritative `request.confirmBeneficiary` and `request.markGenerated`.
+  - R07 (Medium): Full test suite with representation API submission, print workflow, concurrent config 409, and exact snapshot restoration.
+
+### Recurring Defect Prevention Register
+
+1. **Whitespace Regex Paragraph Collapsing**
+   - *Original Defect*: R01 (`lib/document-catalog.ts`, `app/admin/generate/page.tsx`).
+   - *Pattern*: `/\s{2,}/g` collapsed newlines into single spaces, destroying document paragraph breaks.
+   - *Correction*: Use horizontal-only regex `/[ \t]{2,}/g` and semantic `formatTemplateParagraphs` converting `\n\n` into `<p>` elements.
+   - *Invariant*: Text formatting helpers must preserve newline sequences `\n\n` for official legal documents.
+
+2. **React Effect Stale-Snapshot & Dirty-State Coupling**
+   - *Original Defect*: R02 (`app/superadmin/config/page.tsx`).
+   - *Pattern*: Effect subscribed to `isDirty`, interpreting local edits or initial load as background external changes.
+   - *Correction*: Decouple `isDirty` from effect dependency array; use `baselineConfigRef`, `initialSyncDoneRef`, and compare authoritative incoming data against baseline.
+   - *Invariant*: Subscriptions must compare incoming data against an authoritative baseline, never against UI dirty flags.
+
+3. **Lost Concurrent Updates via Full-Object Writes**
+   - *Original Defect*: R03 (`app/superadmin/config/page.tsx`, `app/api/admin/operations/route.ts`).
+   - *Pattern*: Submitting full configuration snapshots without version checks silently stomped concurrent edits.
+   - *Correction*: Server-authoritative optimistic concurrency in Firestore transactions checking `baseVersion`; non-conflicting field updates merge safely; overlapping field edits reject with HTTP 409 and `conflictingFields`.
+   - *Invariant*: Configuration writes must submit `baseVersion` and check for conflicts within a Firestore transaction.
+
+4. **Privilege Leak via Unauthorized UI Mutations**
+   - *Original Defect*: R04 (`app/admin/notifications/page.tsx`, `lib/auth/auth-types.ts`).
+   - *Pattern*: Opening preview modal invoked `markNotificationRead`, causing permission errors for View Only users.
+   - *Correction*: Check `canManageNotificationsRole` before initiating mutations; hide mutation controls in UI.
+   - *Invariant*: Read-only inspection workflows must never execute mutation side-effects.
+
+5. **Misleading Verification Badges on Self-Reported Data**
+   - *Original Defect*: R05 (`app/admin/generate/page.tsx`, `lib/document-catalog.ts`).
+   - *Pattern*: Presence of non-empty string displayed with Green "Verified" badge without review.
+   - *Correction*: Tri-state review lifecycle (`missing`, `provided` / Unreviewed, `confirmed` / Confirmed by Staff); badges reflect persisted staff review metadata, never non-empty input presence.
+   - *Invariant*: Verification status indicators must be backed by authoritative staff review records.
+
+6. **Ephemeral Administrative Corrections Not Persisted**
+   - *Original Defect*: R06 (`app/admin/generate/page.tsx`, `app/api/admin/operations/route.ts`).
+   - *Pattern*: Admin overrides stored only in React state and lost on refresh or reprint.
+   - *Correction*: Dedicated `request.confirmBeneficiary` transaction with audit log; persist confirmed values in `request.markGenerated`; prioritize confirmed details in document resolution.
+   - *Invariant*: Admin-verified subject corrections must be persisted to the database before document generation.
+
+7. **Test Fixture Pollution & Incomplete Workflow Assertions**
+   - *Original Defect*: R07 (`test/e2e/authenticated-workflows.spec.ts`).
+   - *Pattern*: Arbitrary subset restorations in teardown; missing real representation submission and print testing.
+   - *Correction*: Snapshot entire initial database document in `try...finally`; test true production API endpoints and edge cases.
+   - *Invariant*: Every test altering shared config must restore exact pre-test state.
+
+## Prior Verified State — 16 October 2026 (P01–P07 Final Integration, Document Integrity & Permission Remediation)
 - **Status**: All seven post-remediation audit defects (P01–P07) are completely remediated, verified, and self-audited.
   1. **P01 (Prevent Wrong Identity Details on Official Documents)**:
      - `lib/document-catalog.ts`: Separated requester, representative, and document subject identities. For direct requests, profile data is used. For represented requests (`requestFor === "other"`), the represented person's name is authoritative; requester address and age are never silently substituted as beneficiary data. Added `isSubjectAddressMissing` and `isSubjectAgeMissing` detection.

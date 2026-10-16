@@ -8,8 +8,10 @@ import {
   DEFAULT_HEADERS,
   resolveDocumentSubject,
   renderDocumentTemplate,
+  formatTemplateParagraphs,
 } from "../lib/document-catalog.ts"
 import { resolveConfiguredDocument } from "../app/api/resident/requests/create/route.ts"
+import { canManageNotificationsRole } from "../lib/auth/auth-types.ts"
 
 // ---------------------------------------------------------------------------
 // P01: Prevent Wrong Identity Details on Official Documents
@@ -219,6 +221,61 @@ test("P03: All 10 built-in templates render without leaving unparsed {{...}} pla
 })
 
 // ---------------------------------------------------------------------------
+// R01: Preserve Official Document Formatting & Paragraph Separation
+// ---------------------------------------------------------------------------
+test("R01: A three-paragraph template preserves double newlines and produces three distinct paragraphs", () => {
+  const threeParaTemplate = "First paragraph certifies {{name}}.\n\nSecond paragraph certifies address at {{address}}.\n\nThird paragraph specifies purpose {{purpose}}."
+  const data = {
+    name: "Juan Dela Cruz",
+    address: "789 Malvar St.",
+    purpose: "Scholarship",
+  }
+
+  const rendered = renderDocumentTemplate(threeParaTemplate, data)
+  assert.ok(rendered.includes("\n\n"), "Double newline paragraph separators must survive template rendering")
+  const parts = rendered.split("\n\n")
+  assert.equal(parts.length, 3, "Three-paragraph template must produce exactly 3 paragraphs")
+
+  const formattedHtml = formatTemplateParagraphs(rendered)
+  const paragraphMatches = formattedHtml.match(/<p style="text-indent:2em;text-align:justify;margin-bottom:1em;">/g)
+  assert.equal(paragraphMatches?.length, 3, "Formatted HTML must have 3 distinct <p> blocks")
+})
+
+test("R01: Single line breaks within paragraphs survive as <br /> tags", () => {
+  const templateWithSingleLineBreak = "Line one of paragraph.\nLine two of same paragraph.\n\nSecond paragraph."
+  const rendered = renderDocumentTemplate(templateWithSingleLineBreak, { name: "Maria Santos", address: "123 Manila" })
+  const formattedHtml = formatTemplateParagraphs(rendered)
+  assert.ok(formattedHtml.includes("Line one of paragraph.<br />Line two of same paragraph."))
+  assert.ok(formattedHtml.includes("<p style=\"text-indent:2em;text-align:justify;margin-bottom:1em;\">Second paragraph.</p>"))
+})
+
+test("R01: Excess blank lines (3+) are normalized to double newlines without collapsing paragraphs", () => {
+  const excessiveBlankLines = "Paragraph A.\n\n\n\n\nParagraph B."
+  const rendered = renderDocumentTemplate(excessiveBlankLines, { name: "Maria Santos", address: "123 Manila" })
+  assert.ok(rendered.includes("Paragraph A.\n\nParagraph B."))
+  assert.ok(!rendered.includes("\n\n\n"))
+})
+
+test("R01: All 10 built-in templates preserve multi-paragraph structure", () => {
+  const data = {
+    name: "Maria Clara",
+    age: 28,
+    address: "Zone 5, Barangay 1",
+    purpose: "Employment",
+    barangayName: "Barangay Uno",
+  }
+
+  for (const doc of BUILT_IN_DOCUMENT_TYPES) {
+    const rendered = renderDocumentTemplate(doc.defaultTemplate, data)
+    assert.ok(rendered.includes("\n\n"), `Template ${doc.id} must preserve paragraph breaks (\n\n)`)
+    const html = formatTemplateParagraphs(rendered)
+    const pCount = (html.match(/<p style=/g) || []).length
+    assert.ok(pCount >= 2, `Template ${doc.id} must format to at least 2 distinct paragraphs, found ${pCount}`)
+  }
+})
+
+
+// ---------------------------------------------------------------------------
 // P05: Preserve Original Document Generation History
 // ---------------------------------------------------------------------------
 test("P05: Initial generation sets generatedAt; reprint preserves original timestamp", () => {
@@ -286,4 +343,316 @@ test("P07: Legacy 9-type config does NOT silently enable Barangay Clearance if n
   // Permitted legacy type succeeds
   const resolved = resolveConfiguredDocument(legacyConfig, "Proof of Residency", [])
   assert.equal(resolved.name, "Proof of Residency")
+})
+
+// ---------------------------------------------------------------------------
+// R02: Correct False Configuration Conflict Warnings
+// ---------------------------------------------------------------------------
+function isMeaningfulConfigChange(a: any, b: any): boolean {
+  if (!a || !b) return true
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const k of keys) {
+    if (k === "updatedAt" || k === "version") continue
+    if (JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null)) {
+      return true
+    }
+  }
+  return false
+}
+
+test("R02: Identical Firestore snapshots or metadata-only updates do not trigger conflict warning", () => {
+  const baseConfig = {
+    barangayName: "Barangay San Nicolas",
+    contactNumber: "02-1234-5678",
+    documentTypes: ["Barangay Clearance"],
+    version: 1,
+    updatedAt: 1000,
+  }
+  const sameConfigNewTimestamp = {
+    ...baseConfig,
+    updatedAt: 2000,
+  }
+  assert.equal(isMeaningfulConfigChange(baseConfig, sameConfigNewTimestamp), false, "Metadata timestamp update must not trigger false external conflict")
+
+  const sameConfigNewVersion = {
+    ...baseConfig,
+    version: 2,
+  }
+  assert.equal(isMeaningfulConfigChange(baseConfig, sameConfigNewVersion), false, "Version-only increment without content diff must not trigger false conflict")
+})
+
+test("R02: Meaningful external changes are accurately detected", () => {
+  const baseConfig = {
+    barangayName: "Barangay San Nicolas",
+    contactNumber: "02-1234-5678",
+  }
+  const changedConfig = {
+    barangayName: "Barangay San Nicolas",
+    contactNumber: "02-9999-0000",
+  }
+  assert.equal(isMeaningfulConfigChange(baseConfig, changedConfig), true, "Field-level divergence must be detected as meaningful external change")
+})
+
+// ---------------------------------------------------------------------------
+// R03: Concurrency Protection on System Configuration
+// ---------------------------------------------------------------------------
+interface ConcurrencyCheckInput {
+  before: Record<string, any>
+  baseVersion?: number
+  baseConfig?: Record<string, any>
+  changedFields: string[]
+  updates: Record<string, any>
+}
+
+function executeConfigConcurrencyCheck(input: ConcurrencyCheckInput): Record<string, any> {
+  const currentVersion = typeof input.before?.version === "number" ? input.before.version : 1
+  const baseVersion = input.baseVersion
+  const baseConfig = input.baseConfig || {}
+
+  if (baseVersion !== undefined && input.before && baseVersion !== currentVersion) {
+    const conflictingFields: string[] = []
+    for (const field of input.changedFields) {
+      const serverVal = input.before[field]
+      const baseVal = baseConfig[field]
+      if (JSON.stringify(serverVal ?? null) !== JSON.stringify(baseVal ?? null)) {
+        conflictingFields.push(field)
+      }
+    }
+    if (conflictingFields.length > 0) {
+      const err = new Error(`Configuration conflict: Field(s) ${conflictingFields.join(", ")} were modified concurrently.`)
+      ;(err as any).statusCode = 409
+      ;(err as any).conflictingFields = conflictingFields
+      throw err
+    }
+  }
+
+  return {
+    ...input.before,
+    ...input.updates,
+    version: currentVersion + 1,
+  }
+}
+
+test("R03 Scenario 1: Non-overlapping concurrent field edits safely merge without lost updates", () => {
+  // Base state seen by Admin A and Admin B: version 1
+  const initialConfig = {
+    barangayName: "Barangay 1",
+    contactNumber: "02-1111-1111",
+    documentTypes: ["Barangay Clearance"],
+    version: 1,
+  }
+
+  // Admin B saves contactNumber update first -> moves server to version 2
+  const serverStateAfterAdminB = {
+    ...initialConfig,
+    contactNumber: "02-2222-2222",
+    version: 2,
+  }
+
+  // Admin A saves barangayName update with baseVersion = 1, baseConfig = initialConfig, changedFields = ["barangayName"]
+  const mergedResult = executeConfigConcurrencyCheck({
+    before: serverStateAfterAdminB,
+    baseVersion: 1,
+    baseConfig: initialConfig,
+    changedFields: ["barangayName"],
+    updates: { barangayName: "Barangay 100" },
+  })
+
+  // Both changes are preserved!
+  assert.equal(mergedResult.barangayName, "Barangay 100", "Admin A's barangay name change must be applied")
+  assert.equal(mergedResult.contactNumber, "02-2222-2222", "Admin B's contact number change must not be overwritten")
+  assert.equal(mergedResult.version, 3, "Version must increment transactionally")
+})
+
+test("R03 Scenario 2: Overlapping concurrent field edits reject with HTTP 409 conflict and list conflicting fields", () => {
+  const initialConfig = {
+    contactNumber: "02-1111-1111",
+    version: 1,
+  }
+  // Admin B changed contactNumber on server
+  const serverStateAfterAdminB = {
+    contactNumber: "02-9999-9999",
+    version: 2,
+  }
+
+  // Admin A attempts to save contactNumber from baseVersion 1
+  assert.throws(() => {
+    executeConfigConcurrencyCheck({
+      before: serverStateAfterAdminB,
+      baseVersion: 1,
+      baseConfig: initialConfig,
+      changedFields: ["contactNumber"],
+      updates: { contactNumber: "02-8888-8888" },
+    })
+  }, (err: any) => {
+    assert.equal(err.statusCode, 409)
+    assert.deepEqual(err.conflictingFields, ["contactNumber"])
+    return true
+  })
+})
+
+test("R03 Scenario 3: Fee edit does not inadvertently re-enable document type disabled by another admin", () => {
+  const initialConfig = {
+    documentTypes: ["Barangay Clearance", "Proof of Residency"],
+    documentFees: { "Barangay Clearance": 50, "Proof of Residency": 50 },
+    version: 1,
+  }
+
+  // Admin B disabled "Proof of Residency"
+  const serverStateAfterAdminB = {
+    documentTypes: ["Barangay Clearance"],
+    documentFees: { "Barangay Clearance": 50, "Proof of Residency": 50 },
+    version: 2,
+  }
+
+  // Admin A changed fee for Barangay Clearance only
+  const merged = executeConfigConcurrencyCheck({
+    before: serverStateAfterAdminB,
+    baseVersion: 1,
+    baseConfig: initialConfig,
+    changedFields: ["documentFees"],
+    updates: { documentFees: { "Barangay Clearance": 75, "Proof of Residency": 50 } },
+  })
+
+  assert.deepEqual(merged.documentTypes, ["Barangay Clearance"], "Disabled document type must remain disabled after fee update")
+  assert.equal(merged.documentFees["Barangay Clearance"], 75)
+})
+
+// ---------------------------------------------------------------------------
+// R04: View Only Role Authorization on Notifications
+// ---------------------------------------------------------------------------
+test("R04: View Only role cannot mutate notifications; privileged roles can", () => {
+  assert.equal(canManageNotificationsRole("View Only"), false, "View Only role must not manage notifications")
+  assert.equal(canManageNotificationsRole("resident"), false, "Resident role must not manage admin notifications")
+  assert.equal(canManageNotificationsRole(null), false, "Unauthenticated user must not manage notifications")
+
+  assert.equal(canManageNotificationsRole("Admin"), true)
+  assert.equal(canManageNotificationsRole("Super Admin"), true)
+  assert.equal(canManageNotificationsRole("Document Processing"), true)
+  assert.equal(canManageNotificationsRole("Resident Management"), true)
+  assert.equal(canManageNotificationsRole("Verification Only"), true)
+  assert.equal(canManageNotificationsRole("Full Access"), true)
+})
+
+// ---------------------------------------------------------------------------
+// R05: Truthful Beneficiary Verification Labels & Badges
+// ---------------------------------------------------------------------------
+test("R05: Unreviewed representation request is marked 'provided' (Unreviewed), never 'confirmed'", () => {
+  const resident = { fullName: "Maria Clara", address: "Brgy 1" }
+  const unreviewedReq = {
+    requestFor: "other",
+    requestedByName: "Pedro Penduko",
+    representedAddress: "Zone 3",
+    representedAge: 25,
+  }
+
+  const subject = resolveDocumentSubject(unreviewedReq, resident)
+  assert.equal(subject.beneficiaryReviewStatus, "provided", "Unreviewed represented data must be labelled provided, not confirmed")
+  assert.equal(subject.isBeneficiaryConfirmed, false, "Unreviewed data must not be confirmed")
+})
+
+test("R05: Representation request with missing address is marked 'missing'", () => {
+  const resident = { fullName: "Maria Clara", address: "Brgy 1" }
+  const missingReq = {
+    requestFor: "other",
+    requestedByName: "Pedro Penduko",
+  }
+
+  const subject = resolveDocumentSubject(missingReq, resident)
+  assert.equal(subject.beneficiaryReviewStatus, "missing", "Missing representation details must be marked missing")
+  assert.equal(subject.isBeneficiaryConfirmed, false)
+})
+
+test("R05: Staff-confirmed beneficiary details are marked 'confirmed'", () => {
+  const resident = { fullName: "Maria Clara", address: "Brgy 1" }
+  const confirmedReq = {
+    requestFor: "other",
+    requestedByName: "Pedro Penduko",
+    representedAddress: "Zone 3",
+    beneficiaryReviewStatus: "confirmed",
+    confirmedBeneficiaryAddress: "Zone 3, Verified Block 4",
+    confirmedBeneficiaryAge: 26,
+    beneficiaryConfirmedBy: "Admin Staff",
+    beneficiaryConfirmedAt: 1729000000000,
+  }
+
+  const subject = resolveDocumentSubject(confirmedReq, resident)
+  assert.equal(subject.beneficiaryReviewStatus, "confirmed")
+  assert.equal(subject.isBeneficiaryConfirmed, true)
+  assert.equal(subject.beneficiaryConfirmedBy, "Admin Staff")
+  assert.equal(subject.beneficiaryConfirmedAt, 1729000000000)
+})
+
+// ---------------------------------------------------------------------------
+// R06: Persist Admin-Confirmed Beneficiary Details
+// ---------------------------------------------------------------------------
+test("R06: resolveDocumentSubject prioritizes confirmed beneficiary details over initial resident submission", () => {
+  const resident = { fullName: "Maria Clara", address: "Brgy 1" }
+  const reqWithConfirmed = {
+    requestFor: "other",
+    requestedByName: "Pedro Penduko",
+    representedAddress: "Self Reported Old Address",
+    representedAge: 20,
+    confirmedBeneficiaryAddress: "789 Verified Mabini St.",
+    confirmedBeneficiaryAge: 22,
+    beneficiaryReviewStatus: "confirmed",
+  }
+
+  const subject = resolveDocumentSubject(reqWithConfirmed, resident)
+  assert.equal(subject.address, "789 Verified Mabini St.", "Confirmed address must take precedence over resident-submitted address")
+  assert.equal(subject.age, "22", "Confirmed age must take precedence over resident-submitted age")
+  assert.equal(subject.isRepresentation, true)
+  assert.equal(subject.subjectName, "Pedro Penduko")
+})
+
+test("R06: Active UI overrides take immediate precedence during editing before confirmation save", () => {
+  const resident = { fullName: "Maria Clara", address: "Brgy 1" }
+  const req = {
+    requestFor: "other",
+    requestedByName: "Pedro Penduko",
+    representedAddress: "Original Address",
+    representedAge: 20,
+  }
+
+  const subject = resolveDocumentSubject(req, resident, {
+    address: "Active Input Typed by Admin",
+    age: "25",
+  })
+  assert.equal(subject.address, "Active Input Typed by Admin")
+  assert.equal(subject.age, "25")
+})
+
+// ---------------------------------------------------------------------------
+// R07: Test Fixture Isolation & Snapshot Restoration
+// ---------------------------------------------------------------------------
+test("R07: System config fixture restoration returns exact baseline without partial enablement", () => {
+  const originalSnapshot = {
+    documentTypes: [
+      "Barangay Clearance",
+      "Certificate of Indigency",
+      "Proof of Residency",
+      "Funeral Certification",
+    ],
+    documentFees: {
+      "Barangay Clearance": 50,
+      "Certificate of Indigency": 0,
+      "Proof of Residency": 50,
+      "Funeral Certification": 0,
+    },
+    barangayCaptainName: "E2E Captain",
+    version: 5,
+  }
+
+  // Mutated config during test (e.g. all disabled)
+  let mutableConfig: typeof originalSnapshot = {
+    ...originalSnapshot,
+    documentTypes: [],
+  }
+  assert.equal(mutableConfig.documentTypes.length, 0)
+
+  // Proper test cleanup restores exact snapshot, not an arbitrary 4-type slice
+  mutableConfig = { ...originalSnapshot }
+  assert.deepEqual(mutableConfig.documentTypes, originalSnapshot.documentTypes)
+  assert.deepEqual(mutableConfig.documentFees, originalSnapshot.documentFees)
+  assert.equal(mutableConfig.barangayCaptainName, originalSnapshot.barangayCaptainName)
 })

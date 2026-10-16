@@ -526,3 +526,46 @@
   - Empty configurations persist and reload reliably.
   - Historical generation attribution in reports remains tamper-proof across reprints.
   - Administrator form edits are protected against concurrent snapshot loss.
+
+## ADR-023: R01–R07 Remediation, Concurrency Protection, and Truthful Beneficiary Verification
+- **Context**:
+  Independent post-remediation audit identified seven operational and verification defects:
+  1. **R01**: Document formatting collapsed multiple paragraphs into a single paragraph because whitespace normalization regex `/\s{2,}/g` collapsed newlines.
+  2. **R02**: Configuration screen falsely reported background changes whenever local `isDirty` changed because the effect subscribed to `isDirty`.
+  3. **R03**: Concurrent configuration saves could overwrite newer changes because frontend submitted full snapshots without version-aware transactions.
+  4. **R04**: View Only notification preview triggered forbidden Firestore writes (`markNotificationRead`) on unread notifications.
+  5. **R05**: Beneficiary fields were labelled "Verified" merely if non-empty, even when self-reported and unreviewed.
+  6. **R06**: Admin-confirmed beneficiary details were stored only in ephemeral React state and lost on refresh or navigation.
+  7. **R07**: Test isolation was incomplete; previous tests altered system config without restoring exact initial snapshots, and failed to test real representation API submissions or print preparation.
+- **Decisions**:
+  1. **Document Paragraph Preservation (R01)**:
+     - Replace whitespace regex with horizontal-only normalization `/[ \t]{2,}/g`, preserving `\n\n` paragraph boundaries and intentional line breaks.
+     - Export `formatTemplateParagraphs` converting `\n\n` into semantic `<p>` blocks and single newlines into `<br />`.
+  2. **Decoupled Dirty & External Conflict Tracking (R02)**:
+     - Decouple `isDirty` from synchronization effect dependencies; introduce `baselineConfigRef`, `isDirtyRef`, `initialSyncDoneRef`, and `isMeaningfulConfigChange` helper.
+     - Gate baseline initialization on `isConfigLoaded` to prevent treating initial Firestore connection as a remote modification.
+     - Provide explicit "Discard Changes" workflow resetting local draft to authoritative server state.
+  3. **Server-Authoritative Concurrency Protection (R03)**:
+     - Add `version` field to `systemConfig` (numeric integer incremented on each mutation).
+     - Implement optimistic concurrency in `app/api/admin/operations/route.ts`: transactionally verify `baseVersion`.
+     - When versions differ, detect whether modified fields overlap with remote changes using `baseConfig`. Overlapping field edits reject with HTTP 409 Conflict and list `conflictingFields`. Non-overlapping field edits safely merge and increment version.
+     - Surface HTTP 409 conflict notifications in UI without erasing local draft.
+  4. **Strict Non-Mutating View Only Preview (R04)**:
+     - Export `canManageNotificationsRole` in `lib/auth/auth-types.ts` returning `false` for View Only.
+     - Conditionally guard `markNotificationRead` call when opening preview modal; hide broadcast bar and mark-all-as-read buttons for unauthorized roles.
+  5. **Truthful 3-State Beneficiary Status (R05)**:
+     - Replace misleading binary "Verified" badge with 3-state truthful review status: `missing` (Red), `provided` / Unreviewed (Amber), and `confirmed` / Confirmed by Staff (Green).
+     - Base verification badges strictly on authoritative persisted metadata, never on non-empty self-reported strings.
+  6. **Authoritative Persisted Beneficiary Corrections (R06)**:
+     - Introduce `request.confirmBeneficiary` operation in `app/api/admin/operations/route.ts` persisting confirmed address, age, reviewer ID, and timestamp with audit logging.
+     - Persist confirmed subject values in `request.markGenerated` and pass them during PDF download and print workflows.
+     - Prioritize confirmed values in `resolveDocumentSubject`; guard React inputs with `loadedRequestIdRef` and `isEditingBeneficiaryRef` to prevent active input overwriting on background refreshes.
+  7. **Hermetic Test Isolation & End-to-End Workflows (R07)**:
+     - Implement exact `initialConfigSnapshot` capture and restoration in `try...finally` blocks for all tests modifying system configuration.
+     - Implement end-to-end test scenarios (A through F) covering resident representation API submission, admin preview, print preparation with popup blocked scenarios, concurrent configuration 409 conflict, local edit conflict isolation, and View Only notification preview.
+- **Consequences**:
+  - Official certificates maintain paragraph structure and indentation without unparsed token leakage.
+  - Concurrent configuration saves cannot silently overwrite remote edits.
+  - View Only administrators can browse notifications without triggering authorization denials or Firestore writes.
+  - Beneficiary details are accurately labelled and permanently stored in official records.
+  - Test suites execute hermetically without shared state contamination.

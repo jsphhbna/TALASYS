@@ -89,6 +89,8 @@ test.beforeAll(async () => {
     status: "Active",
     isVerified: true,
     statuses: ["Resident"],
+    address: "123 Barangay Street, Manila",
+    dob: "1990-01-01",
     accountExpiry: new Date(Date.now() + 365 * 86400 * 1000).toISOString(),
     createdAt: Date.now(),
   })
@@ -1431,53 +1433,311 @@ test("Milestone 9 - P02 & P06: Super Admin config handles disabling all document
   const app = getApps().find(candidate => candidate.name === "e2e-seed")!
   const db = getFirestore(app)
 
-  await login(page, "super", true, /\/superadmin\/dashboard/)
-  await page.goto("/superadmin/config")
-  await expect(page.getByRole("heading", { name: "System Configuration" })).toBeVisible()
+  // Capture full authoritative initial config snapshot for test isolation hygiene (R07)
+  const initialConfigSnapshot = (await db.collection("systemConfig").doc("global").get()).data()
 
-  // 1. P02: Navigate to Document Types tab and disable all enabled types
-  await page.getByRole("button", { name: "Document Types" }).click()
-  const disableButtons = page.getByRole("button", { name: "Disable" })
-  while ((await disableButtons.count()) > 0) {
-    await disableButtons.first().click()
+  try {
+    await login(page, "super", true, /\/superadmin\/dashboard/)
+    await page.goto("/superadmin/config")
+    await expect(page.getByRole("heading", { name: "System Configuration" })).toBeVisible()
+
+    // 1. P02: Navigate to Document Types tab and disable all enabled types
+    await page.getByRole("button", { name: "Document Types" }).click()
+    const disableButtons = page.getByRole("button", { name: "Disable" })
+    await disableButtons.first().waitFor({ state: "visible" })
+    while ((await disableButtons.count()) > 0) {
+      await disableButtons.first().click()
+    }
+
+    // Confirm all types disabled in UI and unsaved changes badge is active
+    await expect(page.getByText("0 of 10 document types enabled")).toBeVisible()
+    await expect(page.getByText("● Unsaved Changes")).toBeVisible()
+
+    // 2. P06: Navigate to Branding tab and edit a field locally
+    await page.getByRole("button", { name: "Branding" }).click()
+    const brgyInput = page.getByPlaceholder("Barangay Sample")
+    await brgyInput.fill("Barangay San Nicolas Local Edit")
+
+    // 3. Concurrently simulate remote Firestore update to an unrelated field (contactNumber)
+    await db.collection("systemConfig").doc("global").update({
+      contactNumber: "02-8888-7777",
+    })
+
+    // 4. Conflict detection: banner appears, but local unsaved edit is NOT overwritten
+    await expect(page.getByText(/Server configuration changed in the background/i)).toBeVisible()
+    await expect(brgyInput).toHaveValue("Barangay San Nicolas Local Edit")
+
+    // 5. Save all changes
+    await page.getByRole("button", { name: "Save All Changes" }).click()
+    await page.getByRole("button", { name: "Save Changes" }).click()
+    await expect(page.getByText("Changes saved").first()).toBeVisible({ timeout: 10000 })
+
+    // 6. Verify Firestore state: empty documentTypes [] is persisted and branding edit persisted,
+    // and remote contactNumber update was safely merged without being lost (R03)
+    const finalConfig = (await db.collection("systemConfig").doc("global").get()).data()
+    expect(finalConfig?.documentTypes).toEqual([])
+    expect(finalConfig?.barangayName).toBe("Barangay San Nicolas Local Edit")
+    expect(finalConfig?.contactNumber).toBe("02-8888-7777")
+  } finally {
+    // R07 Isolation: Restore exact snapshot in finally block, never arbitrary partial enablement
+    if (initialConfigSnapshot) {
+      await db.collection("systemConfig").doc("global").set(initialConfigSnapshot)
+      const restored = (await db.collection("systemConfig").doc("global").get()).data()
+      expect(restored?.documentTypes).toEqual(initialConfigSnapshot.documentTypes)
+    }
   }
+})
 
-  // Confirm all types disabled in UI and unsaved changes badge is active
-  await expect(page.getByText("0 of 10 document types enabled")).toBeVisible()
-  await expect(page.getByText("● Unsaved Changes")).toBeVisible()
+// ─── Milestone 7: R01–R07 End-to-End Production Regressions & Defect Detection ───
 
-  // 2. P06: Navigate to Branding tab and edit a field locally
-  await page.getByRole("button", { name: "Branding" }).click()
-  const brgyInput = page.getByPlaceholder("Barangay Sample")
-  await brgyInput.fill("Barangay San Nicolas Local Edit")
+test("R07 Scenario A & B: Resident representation submission, admin confirmation, preview, and PDF generation", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
 
-  // 3. Concurrently simulate remote Firestore update
-  await db.collection("systemConfig").doc("global").update({
-    contactNumber: "02-8888-7777",
+  // 1. Submit represented-person request through production API
+  const residentIdToken = await getIdTokenForUser("active-resident@example.test")
+  const idempotencyKey = `r07-rep-${Date.now()}`
+
+  // Seed authorized letter asset in media registry for representation requirement
+  const authLetterUrl = `https://res.cloudinary.com/${testCloudName}/image/authenticated/s--authletter--/v1/talasys/letters/e2e-active-resident/auth-letter.jpg`
+  await db.collection("mediaRegistry").doc(mediaRegistryDocumentId(
+    testCloudName,
+    "image",
+    "talasys/letters/e2e-active-resident/auth-letter",
+  )).set({
+    cloudName: testCloudName,
+    resourceType: "image",
+    deliveryType: "authenticated",
+    publicId: "talasys/letters/e2e-active-resident/auth-letter",
+    ownerUid: "e2e-active-resident",
+    status: "claimed",
+    capabilityHash: null,
+    expiresAt: null,
+    claimedAt: Date.now(),
   })
 
-  // 4. Conflict detection: banner appears, but local unsaved edit is NOT overwritten
-  await expect(page.getByText(/Server configuration changed in the background/i)).toBeVisible()
-  await expect(brgyInput).toHaveValue("Barangay San Nicolas Local Edit")
+  const submitRes = await fetch("http://127.0.0.1:3000/api/resident/requests/create", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${residentIdToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      documentType: "Barangay Clearance",
+      purpose: "Scholarship",
+      requestFor: "other",
+      requestedByName: "Elena Santos Represented",
+      requestedByContact: "09123456789",
+      relationship: "Daughter",
+      authorizationLetter: authLetterUrl,
+      representedAddress: "Block 10 Lot 12, Barangay Compound",
+      representedAge: 19,
+      paymentMethod: "cash",
+      idempotencyKey,
+    }),
+  })
+  expect(submitRes.ok).toBe(true)
 
-  // 5. Save all changes
-  await page.getByRole("button", { name: "Save All Changes" }).click()
-  await page.getByRole("button", { name: "Save Changes" }).click()
-  await expect(page.getByText("Changes saved").first()).toBeVisible({ timeout: 10000 })
+  // Verify in Firestore that representation details are persisted
+  const residentDoc = (await db.collection("users").where("email", "==", "active-resident@example.test").get()).docs[0]
+  const residentUid = residentDoc.id
+  const reqDoc = await db.collection("documentRequests").doc(`req_${residentUid}_${idempotencyKey}`).get()
+  expect(reqDoc.exists).toBe(true)
+  const reqData = reqDoc.data()!
+  expect(reqData.requestFor).toBe("other")
+  expect(reqData.requestedByName).toBe("Elena Santos Represented")
+  expect(reqData.representedAddress).toBe("Block 10 Lot 12, Barangay Compound")
+  expect(reqData.representedAge).toBe(19)
 
-  // 6. Verify Firestore state: empty documentTypes [] is persisted and branding edit persisted
-  const finalConfig = (await db.collection("systemConfig").doc("global").get()).data()
-  expect(finalConfig?.documentTypes).toEqual([])
-  expect(finalConfig?.barangayName).toBe("Barangay San Nicolas Local Edit")
+  // Transition request to Approved so official document can be generated
+  await db.collection("documentRequests").doc(reqDoc.id).update({
+    status: "Approved",
+    paymentStatus: "paid",
+  })
 
-  // Clean up: Re-enable default types for test suite hygiene
-  await page.getByRole("button", { name: "Document Types" }).click()
-  const enableButtons = page.getByRole("button", { name: "Enable" })
-  const count = await enableButtons.count()
-  for (let i = 0; i < Math.min(count, 4); i++) {
-    await enableButtons.nth(i).click()
+  // 2. Admin logs in and opens Generator for this request
+  await login(page, "full")
+  await page.goto(`/admin/generate?requestId=${reqDoc.id}`)
+  await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
+
+  // 3. Inspect truthful review badge: shows "Provided (Unreviewed)", not "Verified" (R05)
+  await expect(page.getByText("Provided (Unreviewed)").first()).toBeVisible()
+  const addrInput = page.getByPlaceholder("Enter verified beneficiary address...")
+  await expect(addrInput).toHaveValue("Block 10 Lot 12, Barangay Compound")
+
+  // 4. Admin clicks "Confirm Details" to persistently confirm beneficiary (R06)
+  await page.getByRole("button", { name: "Confirm Details" }).click()
+  await expect(page.getByText(/Beneficiary details confirmed/i)).toBeVisible()
+  await expect(page.getByText("✓ Confirmed by Staff").first()).toBeVisible()
+
+  // Verify Firestore has confirmed issuance details persisted
+  const confirmedDoc = (await db.collection("documentRequests").doc(reqDoc.id).get()).data()!
+  expect(confirmedDoc.beneficiaryReviewStatus).toBe("confirmed")
+  expect(confirmedDoc.confirmedBeneficiaryAddress).toBe("Block 10 Lot 12, Barangay Compound")
+  expect(confirmedDoc.confirmedBeneficiaryAge).toBe(19)
+
+  // 5. Verify Document Preview: multi-paragraph structure, no unresolved tokens, Elena's address (R01, R05, R06)
+  const preview = page.locator("[contenteditable]").first()
+  await expect(preview).toBeVisible()
+  const previewText = await preview.textContent()
+  expect(previewText).toContain("ELENA SANTOS REPRESENTED")
+  expect(previewText).toContain("Block 10 Lot 12, Barangay Compound")
+  expect(previewText).not.toContain("{{")
+})
+
+test("R07 Scenario C: Print workflow pop-up preparation and generation status update", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+
+  const printReqId = `e2e-req-print-${Date.now()}`
+  await db.collection("documentRequests").doc(printReqId).set({
+    id: printReqId,
+    residentId: "e2e-active-resident",
+    residentName: "Maria Clara Santos",
+    documentType: "Barangay Clearance",
+    purpose: "Job Application",
+    requestFor: "myself",
+    status: "Approved",
+    paymentStatus: "paid",
+    hasGenerated: false,
+    createdAt: Date.now(),
+  })
+
+  await login(page, "full")
+  await page.goto(`/admin/generate?requestId=${printReqId}`)
+  await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
+
+  // 1. Verify pop-up blocked handling: when window.open returns null, user receives informative error toast (R07 C)
+  await page.evaluate(() => {
+    window.open = () => null
+  })
+  await page.getByRole("button", { name: "Print Document" }).click()
+  await expect(page.getByText(/Pop-up window was blocked by your browser/i)).toBeVisible({ timeout: 10000 })
+
+  // 2. Verify print preparation success when pop-up is allowed:
+  await page.evaluate(() => {
+    window.open = () => ({
+      document: {
+        write: () => {},
+        close: () => {},
+      },
+    } as any)
+  })
+  await page.getByRole("button", { name: "Print Document" }).click()
+
+  // Wait for success toast notification
+  await expect(page.getByText(/Document printed successfully/i)).toBeVisible({ timeout: 10000 })
+
+  // Verify in Firestore that hasGenerated is true and generatedAt is recorded (P05)
+  const updatedReq = (await db.collection("documentRequests").doc(printReqId).get()).data()!
+  expect(updatedReq.hasGenerated).toBe(true)
+  expect(typeof updatedReq.generatedAt).toBe("number")
+})
+
+test("R07 Scenario D: Concurrent configuration conflict rejection with HTTP 409", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+  const initialConfig = (await db.collection("systemConfig").doc("global").get()).data()
+
+  try {
+    await login(page, "super", true, /\/superadmin\/dashboard/)
+    await page.goto("/superadmin/config")
+    await expect(page.getByRole("heading", { name: "System Configuration" })).toBeVisible()
+
+    // Admin edits contactNumber locally
+    await page.getByRole("button", { name: "Branding" }).click()
+    const contactInput = page.getByPlaceholder("(02) 8123-4567")
+    await contactInput.fill("02-1111-2222")
+
+    // Another admin updates the same field remotely
+    await db.collection("systemConfig").doc("global").update({
+      contactNumber: "02-9999-8888",
+      version: 99,
+    })
+
+    // Admin attempts to save
+    await page.getByRole("button", { name: "Save All Changes" }).click()
+    await page.getByRole("button", { name: "Save Changes" }).click()
+
+    // 409 Conflict message appears and local draft is preserved (R03)
+    await expect(page.getByText(/Configuration conflict/i)).toBeVisible({ timeout: 10000 })
+    await expect(contactInput).toHaveValue("02-1111-2222")
+
+    // Server state remains the newer remote update
+    const serverConfig = (await db.collection("systemConfig").doc("global").get()).data()!
+    expect(serverConfig.contactNumber).toBe("02-9999-8888")
+  } finally {
+    if (initialConfig) {
+      await db.collection("systemConfig").doc("global").set(initialConfig)
+    }
   }
-  await page.getByRole("button", { name: "Save All Changes" }).click()
-  await page.getByRole("button", { name: "Save Changes" }).click()
-  await expect(page.getByText("Changes saved").first()).toBeVisible({ timeout: 10000 })
+})
+
+test("R07 Scenario E: Local configuration edit does not trigger false external conflict warning", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+  const initialConfig = (await db.collection("systemConfig").doc("global").get()).data()
+
+  try {
+    await login(page, "super", true, /\/superadmin\/dashboard/)
+    await page.goto("/superadmin/config")
+    await expect(page.getByRole("heading", { name: "System Configuration" })).toBeVisible()
+
+    // Admin edits barangayName locally
+    await page.getByRole("button", { name: "Branding" }).click()
+    const brgyInput = page.getByPlaceholder("Barangay Sample")
+    await brgyInput.fill("Barangay San Nicolas Isolated Local Edit")
+
+    // Verify: dirty badge appears
+    await expect(page.getByText("● Unsaved Changes")).toBeVisible()
+
+    // Verify: external conflict banner is NOT visible (R02)
+    await expect(page.getByText(/Server configuration changed in the background/i)).toHaveCount(0)
+
+    // Click Discard Changes
+    await page.getByRole("button", { name: "Discard Changes" }).click()
+    await expect(page.getByText("● Unsaved Changes")).toHaveCount(0)
+    await expect(brgyInput).not.toHaveValue("Barangay San Nicolas Isolated Local Edit")
+  } finally {
+    if (initialConfig) {
+      await db.collection("systemConfig").doc("global").set(initialConfig)
+    }
+  }
+})
+
+test("R07 Scenario F: View Only admin opening notification preview does not trigger forbidden Firestore writes", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+
+  // Seed an unread notification targeted to admin
+  const notifId = `e2e-notif-viewonly-${Date.now()}`
+  await db.collection("notifications").doc(notifId).set({
+    targetId: "admin",
+    type: "info",
+    title: "System Maintenance Notice",
+    message: "Scheduled maintenance will occur tonight at 11 PM.",
+    timestamp: "10m ago",
+    isRead: false,
+    createdAt: Date.now(),
+  })
+
+  // Log in as View Only
+  await login(page, "viewer")
+  await page.goto("/admin/notifications")
+  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible()
+
+  // 1. Verify mutation controls are hidden for View Only (R04)
+  await expect(page.getByRole("button", { name: "Broadcast Message" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Mark all as read" })).toHaveCount(0)
+
+  // 2. Click the notification card to open preview
+  await page.getByText("System Maintenance Notice").first().click()
+
+  // 3. Modal opens with notification details
+  await expect(page.getByRole("heading", { name: "Notification Details" })).toBeVisible()
+  await expect(page.getByRole("dialog").getByText("Scheduled maintenance will occur tonight at 11 PM.")).toBeVisible()
+
+  // 4. Verify in Firestore: isRead is STILL false! (No forbidden Firestore write attempted - R04)
+  const notifDoc = await db.collection("notifications").doc(notifId).get()
+  expect(notifDoc.data()?.isRead).toBe(false)
 })

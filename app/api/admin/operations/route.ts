@@ -12,7 +12,7 @@ type OperationBody = { operation?: string; operationId?: string; targetId?: stri
 const INACTIVE = new Set(["Locked", "Deleted", "Deleted by Resident"])
 const RESIDENT_PROFILE_FIELDS = new Set(["name", "dateOfBirth", "contactNumber", "address", "statuses", "profilePicture"])
 const ADMIN_UPDATE_FIELDS = new Set(["name", "role", "status", "contactNumber"])
-const SYSTEM_CONFIG_FIELDS = new Set(["barangayName", "barangayCaptainName", "secretaryName", "captainSignatureUrl", "secretarySignatureUrl", "officialSignatureUrl", "contactNumber", "emailAddress", "address", "enabledModules", "documentTypes", "documentFees", "templates", "customDocumentTypes"])
+const SYSTEM_CONFIG_FIELDS = new Set(["barangayName", "barangayCaptainName", "secretaryName", "captainSignatureUrl", "secretarySignatureUrl", "officialSignatureUrl", "contactNumber", "emailAddress", "address", "enabledModules", "documentTypes", "documentFees", "templates", "customDocumentTypes", "version"])
 const SYSTEM_ALERT_FIELDS = new Set(["severity", "title", "description", "metric"])
 const ADMIN_ROLES = new Set(["admin", "Full Access", "Verification Only", "Documents Only", "View Only", "Resident Management", "Verifications", "Document Processing"])
 const REQUEST_STATUSES = new Set(["Approved", "On Process", "Processing", "Awaiting Payment", "Ready for Pick Up", "Completed", "Rejected", "Cancelled"])
@@ -308,6 +308,36 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     } else if (operation === "request.delete") {
       after = null
       transaction.delete(targetRef)
+    } else if (operation === "request.confirmBeneficiary") {
+      if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
+        throw httpError(`Cannot confirm beneficiary details on request in terminal state '${before.status}'.`, 409)
+      }
+      if (before.requestFor !== "other") {
+        throw httpError("Beneficiary confirmation is only applicable to represented-person requests.", 400)
+      }
+      const confirmedAddress = typeof payload.confirmedAddress === "string" ? payload.confirmedAddress.trim() : ""
+      if (!confirmedAddress) {
+        throw httpError("Confirmed beneficiary address is required.", 400)
+      }
+      const confirmedAge = payload.confirmedAge !== undefined && payload.confirmedAge !== null && String(payload.confirmedAge).trim() !== ""
+        ? Number(payload.confirmedAge)
+        : undefined
+      if (confirmedAge !== undefined && (isNaN(confirmedAge) || confirmedAge < 0 || confirmedAge > 130)) {
+        throw httpError("Invalid confirmed beneficiary age.", 400)
+      }
+
+      after = {
+        confirmedBeneficiaryName: before.requestedByName || "",
+        confirmedBeneficiaryAddress: confirmedAddress,
+        ...(confirmedAge !== undefined ? { confirmedBeneficiaryAge: confirmedAge } : {}),
+        beneficiaryReviewStatus: "confirmed",
+        beneficiaryConfirmedAt: now,
+        beneficiaryConfirmedBy: actor.name,
+        beneficiaryConfirmedByUid: actorUid,
+        ...(typeof payload.notes === "string" && payload.notes.trim() ? { beneficiaryConfirmationNotes: payload.notes.trim() } : {}),
+        updatedAt: now,
+      }
+      transaction.update(targetRef, after)
     } else if (operation === "request.markGenerated") {
       if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
         throw httpError(`Cannot mark generated for request in terminal state '${before.status}'.`, 409)
@@ -316,6 +346,11 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
         throw httpError("Cannot mark generated for an unapproved request in Pending status.", 409)
       }
       const isReprint = Boolean(before.hasGenerated && before.generatedAt)
+      const confirmedAddress = typeof payload.confirmedAddress === "string" ? payload.confirmedAddress.trim() : undefined
+      const confirmedAge = payload.confirmedAge !== undefined && payload.confirmedAge !== null && String(payload.confirmedAge).trim() !== ""
+        ? Number(payload.confirmedAge)
+        : undefined
+
       after = {
         hasGenerated: true,
         generatedAt: before.generatedAt || now,
@@ -323,6 +358,16 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
           lastReprintedAt: now,
           reprintCount: ((before.reprintCount as number) || 0) + 1,
         } : {}),
+        ...(confirmedAddress ? {
+          confirmedBeneficiaryAddress: confirmedAddress,
+          beneficiaryReviewStatus: "confirmed",
+          beneficiaryConfirmedAt: before.beneficiaryConfirmedAt || now,
+          beneficiaryConfirmedBy: before.beneficiaryConfirmedBy || actor.name,
+          beneficiaryConfirmedByUid: before.beneficiaryConfirmedByUid || actorUid,
+        } : {}),
+        ...(confirmedAge !== undefined ? { confirmedBeneficiaryAge: confirmedAge } : {}),
+        issuanceBeneficiaryAddress: confirmedAddress || before.confirmedBeneficiaryAddress || before.representedAddress || null,
+        issuanceBeneficiaryAge: confirmedAge !== undefined ? confirmedAge : (before.confirmedBeneficiaryAge !== undefined ? before.confirmedBeneficiaryAge : (before.representedAge !== undefined ? before.representedAge : null)),
         updatedAt: now,
       }
       transaction.update(targetRef, after)
@@ -374,7 +419,44 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     } else if (operation === "system.config.update") {
       const updates = exactFields(safeObject(payload.updates), SYSTEM_CONFIG_FIELDS)
       if (!Object.keys(updates).length) throw httpError("No configuration fields supplied.", 400)
-      after = { ...updates, updatedAt: now }; transaction.set(targetRef, after, { merge: true })
+
+      const currentVersion = typeof before?.version === "number" ? before.version : 1
+      const baseVersion = typeof payload.baseVersion === "number" ? payload.baseVersion : undefined
+      const baseConfig = safeObject(payload.baseConfig)
+      const changedFields: string[] = Array.isArray(payload.changedFields)
+        ? payload.changedFields
+        : Object.keys(updates)
+
+      // Concurrency protection (R03):
+      // If baseVersion is specified and authoritative server version differs, check for overlapping field modifications
+      if (baseVersion !== undefined && before && baseVersion !== currentVersion) {
+        const conflictingFields: string[] = []
+        for (const field of changedFields) {
+          const serverVal = before[field]
+          const baseVal = baseConfig[field]
+          if (JSON.stringify(serverVal ?? null) !== JSON.stringify(baseVal ?? null)) {
+            conflictingFields.push(field)
+          }
+        }
+
+        if (conflictingFields.length > 0) {
+          const conflictErr = httpError(
+            `Configuration conflict: Field(s) ${conflictingFields.map(f => `'${f}'`).join(", ")} were modified concurrently by another administrator. Please review the updated configuration before saving.`,
+            409
+          )
+          ;(conflictErr as any).conflictingFields = conflictingFields
+          throw conflictErr
+        }
+      }
+
+      const nextVersion = currentVersion + 1
+      after = {
+        ...(before || {}),
+        ...updates,
+        version: nextVersion,
+        updatedAt: now,
+      }
+      transaction.set(targetRef, after, { merge: true })
     } else if (operation === "notification.create") {
       const value = safeObject(payload.notification)
       if (typeof value.targetId !== "string" || typeof value.title !== "string" || typeof value.message !== "string") throw httpError("Invalid notification payload.", 400)
@@ -538,7 +620,11 @@ export function createAdminOperationsHandler(injected?: { auth?: typeof adminAut
         : await executeFirestoreOperation(db, decoded.uid, { ...body, operation: body.operation, operationId }, extractClientIp(req), now)
       return NextResponse.json({ success: true, operationId, ...result })
     } catch (error: any) {
-      return NextResponse.json({ error: error?.message || "Admin operation failed", operationIncomplete: error?.status === 503 }, { status: error?.status || 500 })
+      return NextResponse.json({
+        error: error?.message || "Admin operation failed",
+        conflictingFields: error?.conflictingFields || undefined,
+        operationIncomplete: error?.status === 503
+      }, { status: error?.status || 500 })
     }
   }
 }

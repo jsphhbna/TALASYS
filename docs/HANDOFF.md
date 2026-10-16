@@ -1,8 +1,29 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-16 (P01–P07 Final Integration, Document Integrity & Permission Remediation)
+## Active handoff — 2026-10-17 (R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop)
 
-Working branch: `main`. Audited baseline: `b47766584a6efb6d3622a5f5dc13ad02c67b21e4`.
+Working branch: `main`. Audited baseline: `fe66f7c44a2520e08493fecd3a80b0c1e16553bc`.
+
+This active milestone resolves the remaining R01–R07 audit findings, systematically prevents recurrence of underlying root causes, and executes recursive verification across all layers:
+1. **R01 (Preserve Official Document Paragraph Formatting)**: Corrected whitespace normalization in `lib/document-catalog.ts` using horizontal-only regex `/[ \t]{2,}/g` and `formatTemplateParagraphs()` to preserve `\n\n` paragraph boundaries.
+2. **R02 (Eliminate False Configuration Conflict Warnings)**: Decoupled local `isDirty` state from remote conflict detection, introduced `baselineConfigRef` and `isConfigLoaded` gating, and provided explicit "Discard Changes" workflow.
+3. **R03 (Prevent Concurrent Configuration Overwrites)**: Implemented server-authoritative optimistic concurrency in `app/api/admin/operations/route.ts` with `systemConfig.version` check; non-overlapping field updates safely merge, overlapping field updates return HTTP 409 with `conflictingFields`.
+4. **R04 (View Only Notification Preview Without Mutation)**: Exported `canManageNotificationsRole` (false for View Only), hidden mutation controls in UI, and guarded `markNotificationRead` during preview modal inspection.
+5. **R05 (Accurate Beneficiary Verification Labels)**: Introduced 3-state truthful review status (`missing`, `provided` / Unreviewed, `confirmed` / Confirmed by Staff) based on authoritative persisted metadata.
+6. **R06 (Persist Admin-Confirmed Beneficiary Details)**: Added `request.confirmBeneficiary` operation with transactional audit logging, persisted confirmed subject values in `request.markGenerated`, and prioritized confirmed values in `resolveDocumentSubject`.
+7. **R07 (Close Regression Testing Gaps)**: Comprehensive testing for live representation submissions, print workflow with popup blocked scenario, real concurrency 409 collisions, local edit conflict isolation, and full test fixture cleanup via `try...finally` snapshot restoration.
+
+Evidence is verified across two consecutive clean stability passes (Loop D):
+- 250 unit/integration tests (PASS, 31 suites)
+- 87 Auth/Firestore emulator tests (PASS, 6 suites)
+- 39 authenticated Playwright E2E tests (PASS, Scenarios A–F)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 900 legacy warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Clean `git diff --check` (0 whitespace errors)
+- Timezone verification: 41/41 PASS across UTC, Asia/Manila, and America/Los_Angeles
+
+## Prior handoff — 2026-10-16 (P01–P07 Final Integration, Document Integrity & Permission Remediation)
 
 This pass remediates all seven post-remediation audit defects (P01–P07):
 1. **P01 (Prevent Wrong Identity Details on Official Documents)**:
