@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/admin"
 import { Bell, UserPlus, Clock, FileText, Mail } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 
 function formatRelativeTime(createdAt: number): string {
   if (!createdAt) return "Just now"
@@ -32,6 +33,7 @@ export default function Notifications() {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
   const [broadcastMessage, setBroadcastMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
 
   const unreadCount = adminNotifications.filter(n => !n.isRead).length
 
@@ -71,42 +73,95 @@ export default function Notifications() {
     return null
   }
 
-  const handleBroadcast = async () => {
-    if (!broadcastMessage.trim()) return;
-    setIsSending(true);
+  const handleMarkAllRead = async () => {
+    if (isMarkingAllRead) return
+    setIsMarkingAllRead(true)
     try {
-      const activeResidents = residents.filter(r => r.status === "Verified" || r.status === "Expiring");
-      const promises = activeResidents.map(r => 
-        addNotification({
-          targetId: r.id,
-          type: "info",
-          title: "Barangay Announcement",
-          message: broadcastMessage,
-          timestamp: "Just now",
-          isRead: false,
-          createdAt: Date.now()
-        })
-      );
-      
-      // Also add one for admin log visibility
-      promises.push(
-        addNotification({
+      await markAllNotificationsRead()
+      toast({
+        title: "Notifications marked as read",
+        description: "All notifications have been marked as read.",
+      })
+    } catch (err: any) {
+      console.error("Failed to mark admin notifications read:", err)
+      toast({
+        title: "Action failed",
+        description: "Could not mark notifications as read. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMarkingAllRead(false)
+    }
+  }
+
+  const handleBroadcast = async () => {
+    if (!broadcastMessage.trim()) return
+    setIsSending(true)
+    try {
+      const activeResidents = residents.filter(r => r.status === "Verified" || r.status === "Expiring")
+      const residentResults = await Promise.allSettled(
+        activeResidents.map(r =>
+          addNotification({
+            targetId: r.id,
+            type: "info",
+            title: "Barangay Announcement",
+            message: broadcastMessage,
+            timestamp: "Just now",
+            isRead: false,
+            createdAt: Date.now()
+          })
+        )
+      )
+
+      let successes = 0
+      let failures = 0
+      residentResults.forEach(res => {
+        if (res.status === "fulfilled") successes++
+        else failures++
+      })
+
+      try {
+        await addNotification({
           targetId: "admin",
           type: "info",
           title: "Broadcast Sent",
-          message: `Sent: "${broadcastMessage}" to ${activeResidents.length} residents`,
+          message: `Sent: "${broadcastMessage}" (${successes} succeeded, ${failures} failed out of ${activeResidents.length})`,
           timestamp: "Just now",
           isRead: false,
           createdAt: Date.now()
         })
-      );
+      } catch (adminLogErr) {
+        console.warn("Could not log broadcast to admin notifications:", adminLogErr)
+      }
 
-      await Promise.all(promises);
-      setBroadcastMessage("");
+      if (failures === 0) {
+        toast({
+          title: "Broadcast sent",
+          description: `Successfully delivered announcement to ${successes} residents.`,
+        })
+        setBroadcastMessage("")
+      } else if (successes > 0) {
+        toast({
+          title: "Partial broadcast delivery",
+          description: `Delivered to ${successes} residents, but ${failures} failed.`,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Broadcast delivery failed",
+          description: `Failed to deliver announcement to ${failures} residents.`,
+          variant: "destructive",
+        })
+      }
     } catch (error) {
-      console.error("Failed to send broadcast", error);
+      console.error("Failed to send broadcast", error)
+      toast({
+        title: "Broadcast error",
+        description: "An unexpected error occurred while sending the broadcast.",
+        variant: "destructive",
+      })
     } finally {
-      setIsSending(false);
+      setIsSending(false)
     }
   }
 
@@ -133,8 +188,12 @@ export default function Notifications() {
             </button>
           ))}
         </div>
-        <button onClick={() => markAllNotificationsRead()} className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center">
-          <span>✓✓</span> Mark all as read
+        <button
+          onClick={handleMarkAllRead}
+          disabled={isMarkingAllRead || unreadCount === 0}
+          className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center disabled:opacity-50 disabled:no-underline"
+        >
+          <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}
         </button>
       </div>
 
@@ -151,10 +210,10 @@ export default function Notifications() {
             placeholder="Send notification to everyone..."
             className="flex-1 px-4 py-2 text-sm border-none bg-transparent focus:outline-none"
           />
-          <Button 
-            size="sm" 
-            onClick={handleBroadcast} 
-            disabled={isSending || !broadcastMessage.trim()} 
+          <Button
+            size="sm"
+            onClick={handleBroadcast}
+            disabled={isSending || !broadcastMessage.trim()}
             className="h-9 px-6 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
           >
             {isSending ? "Sending..." : "Send"}

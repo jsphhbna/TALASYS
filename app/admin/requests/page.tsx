@@ -27,7 +27,7 @@ function DocumentRequestsContent() {
   const { residents, documentRequests: adminDocumentRequests, updateRequestStatus, confirmPayment, waivePayment, error, refresh } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const { user } = useAuth()
-  
+
   const [docTypeFilter, setDocTypeFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [showApproveDialog, setShowApproveDialog] = useState(false)
@@ -80,10 +80,10 @@ function DocumentRequestsContent() {
 
     // 2. Doc Type Filtering
     const matchesDocType = docTypeFilter === "all" || r.documentType === docTypeFilter;
-    
+
     // 3. Search Query
     const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = r.residentName.toLowerCase().includes(searchLower) || 
+    const matchesSearch = r.residentName.toLowerCase().includes(searchLower) ||
                           r.documentType.toLowerCase().includes(searchLower) ||
                           r.id.toLowerCase().includes(searchLower) ||
                           (r as any).receiptNumber?.toLowerCase().includes(searchLower);
@@ -108,8 +108,8 @@ function DocumentRequestsContent() {
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
             className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id 
-                ? "border-[#0C2340] text-[#0C2340] dark:border-blue-500 dark:text-blue-500" 
+              activeTab === tab.id
+                ? "border-[#0C2340] text-[#0C2340] dark:border-blue-500 dark:text-blue-500"
                 : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
@@ -127,8 +127,8 @@ function DocumentRequestsContent() {
             </SelectTrigger>
             <SelectContent className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800">
               {docTypeOptions.map((opt) => (
-                <SelectItem 
-                  key={opt.id} 
+                <SelectItem
+                  key={opt.id}
                   value={opt.id}
                   className="focus:bg-slate-100 dark:focus:bg-slate-900 cursor-pointer"
                 >
@@ -138,12 +138,12 @@ function DocumentRequestsContent() {
             </SelectContent>
           </Select>
         </div>
-        
+
         <div className="relative w-full md:w-80 lg:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search by resident name or reference (PAY- / REC-)..." 
+          <input
+            type="text"
+            placeholder="Search by resident name or reference (PAY- / REC-)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0C2340] dark:focus:ring-slate-700"
@@ -260,13 +260,13 @@ function DocumentRequestsContent() {
                       {(request.status === "On Process" || request.status === "Approved") && (
                         <div className="flex items-center gap-2">
                           {!(request as any).hasGenerated ? (
-                            <Button size="sm" onClick={(e) => { 
-                              e.stopPropagation(); 
+                            <Button size="sm" onClick={(e) => {
+                              e.stopPropagation();
                               router.push(`/admin/generate?requestId=${request.id}`)
                             }} className="h-6 px-3 text-2xs bg-blue-600 hover:bg-blue-700">Generate</Button>
                           ) : (
-                            <Button size="sm" variant="outline" onClick={async (e) => { 
-                              e.stopPropagation(); 
+                            <Button size="sm" variant="outline" onClick={async (e) => {
+                              e.stopPropagation();
                               try {
                                 await updateRequestStatus(request.id, "Ready for Pick Up", undefined, user?.name || "Admin", user?.email || "admin@system.com")
                                 toast.success("Status updated to Ready for Pick Up")
@@ -278,19 +278,19 @@ function DocumentRequestsContent() {
                         </div>
                       )}
                       {request.status === "Ready for Pick Up" && (
-                        <Button 
-                          size="sm" 
-                          disabled={(request as any).paymentStatus === "unpaid"}
-                          title={(request as any).paymentStatus === "unpaid" ? "Payment must be processed first" : ""}
-                          onClick={async (e) => { 
-                            e.stopPropagation(); 
+                        <Button
+                          size="sm"
+                          disabled={!(request as any).hasGenerated || ((request.documentFee ?? 0) > 0 && (request as any).paymentStatus !== "paid" && (request as any).paymentStatus !== "waived")}
+                          title={!(request as any).hasGenerated ? "Official document must be generated before completing." : ((request.documentFee ?? 0) > 0 && (request as any).paymentStatus !== "paid" && (request as any).paymentStatus !== "waived") ? "Payment must be processed and confirmed before completing." : ""}
+                          onClick={async (e) => {
+                            e.stopPropagation();
                             try {
                               await updateRequestStatus(request.id, "Completed", undefined, user?.name || "Admin", user?.email || "admin@system.com")
                               toast.success("Status updated to Completed")
                             } catch (err: any) {
                               toast.error(err.message || "Failed to update status")
                             }
-                          }} 
+                          }}
                           className="h-6 px-3 text-2xs bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Complete
@@ -306,7 +306,7 @@ function DocumentRequestsContent() {
               </tr>
             )
             })}
-            
+
             {filteredRequests.length === 0 && (
               <tr>
                 <td colSpan={6} className="py-12 text-center text-slate-400">
@@ -348,6 +348,46 @@ function DocumentRequestsContent() {
                   <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Purpose</p>
                   <p className="text-sm text-slate-900 dark:text-slate-100">{selectedRequest.purpose}</p>
                 </div>
+                {selectedRequest.additionalDetails && (
+                  <div className="col-span-2">
+                    <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Additional Details</p>
+                    <p className="text-sm text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-800 whitespace-pre-wrap">{selectedRequest.additionalDetails}</p>
+                  </div>
+                )}
+                {selectedRequest.requestFor === "other" && (
+                  <div className="col-span-2 bg-purple-50/50 dark:bg-purple-950/20 p-4 rounded-lg border border-purple-100 dark:border-purple-900/40">
+                    <h4 className="text-xs font-bold text-purple-900 dark:text-purple-200 uppercase tracking-wider mb-2">Representation Details</h4>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400">Represented Person:</span>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedRequest.requestedByName || "N/A"}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400">Relationship:</span>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedRequest.relationship || "N/A"}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400">Representative Contact:</span>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedRequest.requestedByContact || "N/A"}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400">Authorization Letter:</span>
+                        {selectedRequest.authorizationLetter ? (
+                          <p>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setShowAuthDialog(true) }}
+                              className="font-semibold text-purple-700 dark:text-purple-300 underline hover:text-purple-900"
+                            >
+                              View Letter
+                            </button>
+                          </p>
+                        ) : (
+                          <p className="text-slate-400">None attached</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <p className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Resident</p>
                   <p className="text-sm text-slate-900 dark:text-slate-100">{selectedRequest.residentName}</p>
@@ -412,9 +452,9 @@ function DocumentRequestsContent() {
               <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Approve <strong>{selectedRequest.documentType}</strong> for <strong>{selectedRequest.residentName}</strong>?</p>
               <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
-                  <Button onClick={async () => { 
+                  <Button onClick={async () => {
                     try {
-                      await updateRequestStatus(selectedRequest.id, "On Process", undefined, user?.name || "Admin", user?.email || "admin@system.com"); 
+                      await updateRequestStatus(selectedRequest.id, "On Process", undefined, user?.name || "Admin", user?.email || "admin@system.com");
                       setShowApproveDialog(false);
                       toast.success(`Status updated to On Process`)
                     } catch (err: any) {
@@ -453,9 +493,9 @@ function DocumentRequestsContent() {
               </p>
               <div className="flex gap-3">
                 <Button
-                  onClick={async () => { 
+                  onClick={async () => {
                     try {
-                      await updateRequestStatus(selectedRequest.id, "Rejected", rejectReason, user?.name || "Admin", user?.email || "admin@system.com"); 
+                      await updateRequestStatus(selectedRequest.id, "Rejected", rejectReason, user?.name || "Admin", user?.email || "admin@system.com");
                       setShowRejectDialog(false);
                       toast.success("Status updated to Rejected")
                     } catch (err: any) {

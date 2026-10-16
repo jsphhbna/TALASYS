@@ -15,6 +15,14 @@ import { toast } from "sonner"
 import { escapeHtml } from "@/lib/security/sanitize"
 import { canManageRequestsRole } from "@/lib/auth/auth-types"
 import { useSecureMediaUrl } from "@/components/media/secure-image"
+import {
+  BUILT_IN_DOCUMENT_TYPES,
+  DEFAULT_ENABLED_DOCUMENT_TYPES,
+  DEFAULT_HEADERS,
+  DEFAULT_TEMPLATES,
+  resolveDocumentType,
+  resolveDocumentSubject,
+} from "@/lib/document-catalog"
 
 function GenerateDocumentsContent() {
   const searchParams = useSearchParams()
@@ -51,41 +59,14 @@ function GenerateDocumentsContent() {
           setSearchQuery(res.name)
         }
 
-        let matchedId = "custom_blank";
-        const customDoc = (systemConfig?.customDocumentTypes || []).find(
-          (c: any) => (c.name && c.name.toLowerCase() === req.documentType.toLowerCase()) || c.id === req.documentType
-        )
-
-        if (customDoc) {
-          matchedId = customDoc.id
-          if (customDoc.header) {
-            setCustomDocTitle(customDoc.header)
-          }
+        const resolved = resolveDocumentType(req.documentType, systemConfig?.customDocumentTypes)
+        if (resolved) {
+          setSelectedDocType(resolved.id)
+          setCustomDocTitle(resolved.header)
         } else {
-          const builtInLabels: Record<string, string> = {
-            "Funeral Certification": "funeral",
-            "PWD Certification (Adult)": "pwd_adult",
-            "PWD Certification (Minor)": "pwd_minor",
-            "Certificate of Indigency": "indigency",
-            "Proof of Residency": "residency",
-            "Business Clearance": "business",
-            "Business Clearance (Homeowner)": "business_homeowner",
-            "Business Clearance (Contractor)": "business_contractor",
-            "OSCA Certification": "osca"
-          }
-
-          if (builtInLabels[req.documentType]) {
-            matchedId = builtInLabels[req.documentType]
-          } else if (req.documentType.toLowerCase().includes("clearance")) {
-            matchedId = "business"
-          } else if (req.documentType.toLowerCase().includes("residency")) {
-            matchedId = "residency"
-          } else if (req.documentType.toLowerCase().includes("indigency")) {
-            matchedId = "indigency"
-          }
+          setSelectedDocType("custom_blank")
+          setCustomDocTitle("C E R T I F I C A T I O N")
         }
-
-        setSelectedDocType(matchedId)
       }
     }
   }, [searchParams, allResidents, adminDocumentRequests, systemConfig])
@@ -93,41 +74,29 @@ function GenerateDocumentsContent() {
   const getTemplateContent = () => {
     if (!selectedResident || !selectedDocType) return ""
     const templates = systemConfig?.templates || {}
-    let template = ""
-    if (selectedDocType === "funeral") template = templates.funeral || "This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for FUNERAL ASSISTANCE purposes.\n\nCity of Manila, {{date_issued}}."
-    if (selectedDocType === "pwd_adult") template = templates.pwd_adult || "This is to certify that {{name}} is a bonified resident and registered voter of {{barangay_name}}, with postal address located at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.\n\nIssued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila."
-    if (selectedDocType === "pwd_minor") template = templates.pwd_minor || "This is to certify that {{name}} {{age}} years old of age, is a bonified resident of {{barangay_name}}, with postal address located at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for <strong>PWD-Application</strong> purposes.\n\nIssued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila."
-    if (selectedDocType === "indigency") template = templates.indigency || "This is to certify that {{name}} is a bonafide resident of {{barangay_name}} with postal address {{address}}.\n\nThis further certifies that the said person belongs to indigent families in our Barangay.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nIssued this {{date_ordinal_issued}}, at the Office of {{barangay_name}}, City of Manila."
-    if (selectedDocType === "residency") template = templates.residency || "This is to certify {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-mentioned name for {{purpose}} purposes.\n\nIssued this {{date_day_issued}}, City of Manila."
-    if (selectedDocType === "business") template = templates.business || "This is to certify that {{name}} located at {{address}} with Business Style _________________ conducted \"__________________\" at _________________ today {{date_issued}}.\n\nThis Certification is issued upon the request of the above-cited for whatever legal purpose this is intended.\n\nDonation for venue Php 500.00\n\nCity Manila, {{date_issued}}."
-    if (selectedDocType === "business_homeowner") template = templates.business_homeowner || "This is to certify that {{name}} is hereby issued Barangay Clearance for \"__________________\" entity located at {{address}}. This is under the territorial jurisdiction of {{barangay_name}}.\n\nThis certification is issued upon the request of the above-cited person for whatever purposes it may serve.\n\nIssued this {{date_ordinal_issued}}, City of Manila."
-    if (selectedDocType === "business_contractor") template = templates.business_contractor || "This is to certify that {{name}} is hereby issued Barangay Clearance for \"__________________\" entity located along {{address}} Under the territorial jurisdiction of {{barangay_name}}.\n\nThis certification is issued upon the request of the above-cited name for whatever legal purpose this is intended.\n\nCity of Manila, {{date_issued}}."
-    if (selectedDocType === "osca") template = templates.osca || "This is to certify that {{name}} is bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above cited person for <strong>OSCA ID application</strong> purposes.\n\nCity of Manila, {{date_issued}}."
-    if (selectedDocType === "custom_blank") template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\n[TYPE YOUR CUSTOM CONTENT HERE]\n\nCity of Manila, {{date_issued}}."
+    let template = templates[selectedDocType] || DEFAULT_TEMPLATES[selectedDocType]
 
-    if (!template && templates[selectedDocType]) template = templates[selectedDocType]
-    const customDoc = (systemConfig?.customDocumentTypes || []).find((c: any) => c.id === selectedDocType)
-    if (!template && customDoc?.template) template = customDoc.template
-    if (!template) template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}."
-
-    const docLabelMap: Record<string, string> = {
-      funeral: "Funeral Certification",
-      pwd_adult: "PWD Certification (Adult)",
-      pwd_minor: "PWD Certification (Minor)",
-      indigency: "Certificate of Indigency",
-      residency: "Proof of Residency",
-      business: "Business Clearance",
-      business_homeowner: "Business Clearance (Homeowner)",
-      business_contractor: "Business Clearance (Contractor)",
-      osca: "OSCA Certification"
+    if (!template) {
+      const customDoc = (systemConfig?.customDocumentTypes || []).find((c: any) => c.id === selectedDocType)
+      if (customDoc?.template) template = customDoc.template
     }
-    const docLabel = customDoc?.name || docLabelMap[selectedDocType] || selectedDocType
+
+    if (!template && selectedDocType === "custom_blank") {
+      template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\n[TYPE YOUR CUSTOM CONTENT HERE]\n\nCity of Manila, {{date_issued}}."
+    }
+
+    if (!template) {
+      template = "This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}."
+    }
+
+    const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
+    const docLabel = resolvedType?.label || selectedDocType
     const matchedReq = processingRequestId
       ? adminDocumentRequests.find(r => r.id === processingRequestId)
       : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
 
+    const subject = resolveDocumentSubject(matchedReq, selectedResident)
     const purpose = matchedReq?.purpose || "_____________"
-    const age = selectedResident.age?.toString() || "___"
 
     const d = new Date()
     const formatter = new Intl.DateTimeFormat('en', { day: 'numeric' })
@@ -140,9 +109,9 @@ function GenerateDocumentsContent() {
     const dateOrdinalIssued = `${ordinalDay} day of ${monthYear}`
     const dateDayIssued = `${ordinalDay} of ${monthYear}`
 
-    const safeName = `<strong>${escapeHtml(selectedResident.name.toUpperCase())}</strong>`
-    const safeAddress = `<strong>${escapeHtml(selectedResident.address || "__________________")}</strong>`
-    const safeAge = escapeHtml(age)
+    const safeName = `<strong>${escapeHtml(subject.subjectName.toUpperCase())}</strong>`
+    const safeAddress = `<strong>${escapeHtml(subject.address)}</strong>`
+    const safeAge = escapeHtml(subject.age)
     const safePurpose = `<strong>${escapeHtml(purpose.toUpperCase())}</strong>`
     const safeDateIssued = `<strong>${escapeHtml(dateIssued)}</strong>`
     const safeDateOrdinalIssued = `<strong>${escapeHtml(dateOrdinalIssued)}</strong>`
@@ -177,17 +146,14 @@ function GenerateDocumentsContent() {
     ? allResidents.filter(r => !isInactiveResident(r.status) && !isInactiveResident((r as any).accountStatus) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 5)
     : []
 
-  const builtInDocTypes = [
-    { id: "funeral", label: "Funeral Certification", icon: "🕊️", desc: "Certification for funeral assistance", enabled: true },
-    { id: "pwd_adult", label: "PWD Certification (Adult)", icon: "♿", desc: "For PWD application purposes (Adult)", enabled: true },
-    { id: "pwd_minor", label: "PWD Certification (Minor)", icon: "🚸", desc: "For PWD application purposes (Minor)", enabled: true },
-    { id: "indigency", label: "Certificate of Indigency", icon: "📋", desc: "For medical or financial assistance", enabled: true },
-    { id: "residency", label: "Proof of Residency", icon: "🏠", desc: "Proof of residence for various purposes", enabled: true },
-    { id: "business", label: "Business Clearance", icon: "🏢", desc: "General business clearance or activity", enabled: true },
-    { id: "business_homeowner", label: "Business Clearance (Homeowner)", icon: "🏡", desc: "Business clearance for homeowners", enabled: true },
-    { id: "business_contractor", label: "Business Clearance (Contractor)", icon: "👷", desc: "Business clearance for contractors", enabled: true },
-    { id: "osca", label: "OSCA Certification", icon: "👵", desc: "For Senior Citizen ID application", enabled: true },
-  ]
+  const builtInDocTypes = BUILT_IN_DOCUMENT_TYPES.map(d => ({
+    id: d.id,
+    label: d.label,
+    icon: d.icon,
+    desc: d.description,
+    header: d.header,
+    enabled: true,
+  }))
 
   const customDocTypes = (systemConfig?.customDocumentTypes || []).map((c: any) => ({
     id: c.id,
@@ -203,11 +169,7 @@ function GenerateDocumentsContent() {
     ...customDocTypes
   ]
 
-  const enabledDocTypes = systemConfig?.documentTypes || [
-    "Funeral Certification", "PWD Certification (Adult)", "PWD Certification (Minor)",
-    "Certificate of Indigency", "Proof of Residency", "Business Clearance",
-    "Business Clearance (Homeowner)", "Business Clearance (Contractor)", "OSCA Certification"
-  ]
+  const enabledDocTypes = systemConfig?.documentTypes || DEFAULT_ENABLED_DOCUMENT_TYPES
   const docTypes = allDocTypes.map(doc => ({
     ...doc,
     enabled: enabledDocTypes.includes(doc.label)
@@ -335,6 +297,35 @@ function GenerateDocumentsContent() {
 
                 </div>
 
+                {(() => {
+                  const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
+                  const docLabel = resolvedType?.label || selectedDocType
+                  const matchedReq = processingRequestId
+                    ? adminDocumentRequests.find(r => r.id === processingRequestId)
+                    : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+
+                  if (matchedReq?.requestFor === "other") {
+                    return (
+                      <div className="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg text-xs text-purple-900 dark:text-purple-200 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold">Representation Request:</span> Document requested by <span className="font-semibold">{selectedResident.name}</span> on behalf of <span className="font-semibold">{matchedReq.requestedByName}</span> (Relationship: {matchedReq.relationship || "Authorized Representative"}).
+                        </div>
+                        {matchedReq.authorizationLetter && (
+                          <a
+                            href={matchedReq.authorizationLetter}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-3 shrink-0 px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 font-semibold rounded hover:bg-purple-200 transition-colors"
+                          >
+                            📎 Auth Letter
+                          </a>
+                        )}
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+
                 <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-8 shadow-sm flex flex-col min-h-[600px] overflow-hidden">
                   <div
                     id="pdf-preview-container"
@@ -347,14 +338,12 @@ function GenerateDocumentsContent() {
                       <div className="text-center mb-10">
                         <p className={`font-extrabold text-black uppercase whitespace-nowrap ${selectedDocType === "residency" ? "tracking-widest text-base" : "tracking-[0.25em] text-base"}`}>
                           {(() => {
-                             const customDoc = (systemConfig?.customDocumentTypes || []).find((c: any) => c.id === selectedDocType)
-                             if (customDoc?.header) return customDoc.header.toUpperCase()
-                             if (selectedDocType === "indigency") return "CERTIFICATE OF INDIGENCY"
-                             if (selectedDocType === "residency" || selectedDocType === "business") return "BARANGAY CERTIFICATION"
-                             if (selectedDocType === "business_homeowner") return "BARANGAY BUSINESS CLEARANCE"
-                             if (selectedDocType === "business_contractor") return "BARANGAY CLEARANCE"
-                             return "C E R T I F I C A T I O N"
-                           })()}
+                            const customDoc = (systemConfig?.customDocumentTypes || []).find((c: any) => c.id === selectedDocType)
+                            if (customDoc?.header) return customDoc.header.toUpperCase()
+                            const resolved = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
+                            if (resolved?.header) return resolved.header.toUpperCase()
+                            return "C E R T I F I C A T I O N"
+                          })()}
                         </p>
                       </div>
                       <div className="text-sm-minus text-black leading-relaxed">
@@ -442,40 +431,24 @@ function GenerateDocumentsContent() {
 
                         pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
 
-                        const docTitleMap: Record<string, string> = {
-                          funeral: "Funeral",
-                          pwd_adult: "PWD_Adult",
-                          pwd_minor: "PWD_Minor",
-                          indigency: "Indigency",
-                          residency: "Residency",
-                          business: "Business",
-                          business_homeowner: "Business_Homeowner",
-                          business_contractor: "Business_Contractor",
-                          osca: "OSCA"
-                        }
-                        const docTitle = docTitleMap[selectedDocType] || selectedDocType
-                        pdf.save(`${docTitle}_${selectedResident.name.replace(/\s+/g, "_")}.pdf`)
-
-                        const docLabelMap: Record<string, string> = {
-                          funeral: "Funeral Certification",
-                          pwd_adult: "PWD Certification (Adult)",
-                          pwd_minor: "PWD Certification (Minor)",
-                          indigency: "Certificate of Indigency",
-                          residency: "Proof of Residency",
-                          business: "Business Clearance",
-                          business_homeowner: "Business Clearance (Homeowner)",
-                          business_contractor: "Business Clearance (Contractor)",
-                          osca: "OSCA Certification"
-                        }
-                        const docLabel = docLabelMap[selectedDocType] || selectedDocType
+                        const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
+                        const docLabel = resolvedType?.label || selectedDocType
                         const pendingReq = processingRequestId
                           ? adminDocumentRequests.find(r => r.id === processingRequestId)
                           : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
 
+                        const subject = resolveDocumentSubject(pendingReq, selectedResident)
+                        const docTitle = selectedDocType.replace(/[^a-zA-Z0-9_]/g, "_")
+                        pdf.save(`${docTitle}_${subject.subjectName.replace(/\s+/g, "_")}.pdf`)
+
                         if (pendingReq) {
-                           await updateRequestGenerated(pendingReq.id)
-                           toast.success("Document downloaded successfully.")
-                           if (processingRequestId) router.push("/admin/requests")
+                           try {
+                             await updateRequestGenerated(pendingReq.id)
+                             toast.success("Document downloaded successfully.")
+                             if (processingRequestId) router.push("/admin/requests")
+                           } catch (err: any) {
+                             toast.error(err?.message || "Failed to mark document as generated.")
+                           }
                         } else {
                            toast.success("Document generated successfully.")
                         }
@@ -495,13 +468,17 @@ function GenerateDocumentsContent() {
                   <Button
                     variant="outline"
                     disabled={isGenerating || requiredSignaturesLoading}
-                    onClick={() => {
+                    onClick={async () => {
                       if (requiredSignaturesLoading) { toast.error("Protected signatures are still loading. Please wait before printing."); return }
                       if (requiredSignatureError) { toast.error(`Protected signature unavailable: ${requiredSignatureError}`); return }
                       const element = document.getElementById("pdf-preview-container")
                       if (!element) return
                       const printWindow = window.open("", "_blank")
-                      printWindow?.document.write(`
+                      if (!printWindow) {
+                        toast.error("Pop-up window was blocked by your browser. Please allow pop-ups for TALASYS to print documents.")
+                        return
+                      }
+                      printWindow.document.write(`
                         <html>
                           <head>
                             <title>Print Document</title>
@@ -512,34 +489,25 @@ function GenerateDocumentsContent() {
                           </body>
                         </html>
                       `)
-                      printWindow?.document.close()
+                      printWindow.document.close()
 
-                      const docLabelMap: Record<string, string> = {
-                        funeral: "Funeral Certification",
-                        pwd_adult: "PWD Certification (Adult)",
-                        pwd_minor: "PWD Certification (Minor)",
-                        indigency: "Certificate of Indigency",
-                        residency: "Proof of Residency",
-                        business: "Business Clearance",
-                        business_homeowner: "Business Clearance (Homeowner)",
-                        business_contractor: "Business Clearance (Contractor)",
-                        osca: "OSCA Certification"
-                      }
-                      const docLabel = docLabelMap[selectedDocType] || selectedDocType
+                      const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
+                      const docLabel = resolvedType?.label || selectedDocType
 
                       const pendingReq = processingRequestId
                         ? adminDocumentRequests.find(r => r.id === processingRequestId)
                         : adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === docLabel && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
 
                       if (pendingReq) {
-                         updateRequestGenerated(pendingReq.id)
-                          .then(() => {
-                             toast.success("Document printed successfully.")
-                             if (processingRequestId) router.push("/admin/requests")
-                          })
-                          .catch(console.error)
+                        try {
+                          await updateRequestGenerated(pendingReq.id)
+                          toast.success("Document printed successfully.")
+                          if (processingRequestId) router.push("/admin/requests")
+                        } catch (err: any) {
+                          toast.error(err?.message || "Failed to mark document as generated.")
+                        }
                       } else {
-                         toast.success("Document printed successfully.")
+                        toast.success("Document printed successfully.")
                       }
                     }}
                     className={`flex-1 h-10 ${processingRequestId ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-0' : 'bg-transparent'}`}

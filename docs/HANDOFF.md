@@ -1,5 +1,51 @@
 # TALASYS Remediation Handoff
 
+## Current handoff — 2026-10-16 (Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation: UI01–UI19)
+
+Working branch: `main`. Audited baseline: `0e6f2e32372079b0ac8c899eea2ef4e3d13b9aa5`.
+
+This pass performs the complete remediation of all 19 findings identified during the TALASYS UI/UX and frontend–backend integration audit:
+1. **Milestone A (Document Generation & Request Lifecycle: UI01, UI02, UI03, UI14, UI16)**:
+   - `lib/document-catalog.ts` created as canonical source of truth for 10 built-in types with official templates and headers.
+   - UI01: Barangay Clearance mapped to dedicated template and `BARANGAY CLEARANCE` header.
+   - UI02: `resolveDocumentSubject` separates requester identity from represented person identity in document generation and preview.
+   - UI03: `app/api/admin/operations/route.ts` enforces request lifecycle: terminal/pending requests cannot be marked generated; transition to Completed strictly requires document generation and paid/waived status.
+   - UI14: Handled popup blocker and print window preparation with truthful success/error feedback.
+   - UI16: Unified catalog across Resident request, Admin generation, and Super Admin configuration.
+2. **Milestone B (Resident Request Form & History: UI05, UI06, UI07)**:
+   - UI05: Retry button pre-populates form from rejected request with canonical document ID resolution and disabled-type guard.
+   - UI06: Switching to "Pay at Barangay Hall" sets payment method to "cash" and records in-person payment intent.
+   - UI07: Additional Details textarea contract wired from frontend to API route, Firestore, and Admin request modal.
+3. **Milestone C (Payment & Notification Integrity: UI04, UI08, UI09, UI11, UI13)**:
+   - UI04: `firestore.rules` flat-evaluated `canManageNotifications()` denies View Only admins and allows operational admins and resident alerts.
+   - UI08: Payment status mutation decoupled from notification emission to avoid false failure toasts.
+   - UI09: `handleMarkAllRead` awaits Firestore mutation in resident and admin pages.
+   - UI11: Admin payment modal reactively binds to live Firestore request, preventing stale actions.
+   - UI13: Broadcast notifications track individual successes/failures with `Promise.allSettled`.
+4. **Milestone D (Super Admin Configuration & Accounts: UI10, UI15, UI17)**:
+   - UI10: Local staging of configuration changes with dirty indicator and atomic Save All Changes.
+   - UI15: Removed fabricated online metrics in favor of truthful active administrator metrics.
+   - UI17: Responsive admin table layout prevents narrow-screen horizontal breakout.
+5. **Milestone E (Reporting & Dashboard Accuracy: UI12, UI18)**:
+   - UI12: Completed metric strictly counts `Completed` status, eliminating artificial completion rate inflation.
+   - UI18: Reactive year reconciliation updates selected year when asynchronous year list loads.
+6. **Milestone F (Responsive UI & Visual Functionality: UI19)**:
+   - Responsive verification across 5 standard viewports and light/dark modes.
+
+Evidence is provided by:
+- 221 unit/integration tests (PASS, 31 suites)
+- 87 Auth/Firestore emulator tests (PASS, 6 suites)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 883 legacy warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Clean `git diff --check`
+
+Required Production Rollout:
+- Publish updated `firestore.rules` to Firebase project (`firebase deploy --only firestore:rules`).
+- Deploy updated Next.js application.
+- Recommended order: Deploy application first, then publish Firestore rules.
+- Post-deployment verification: test resident request creation, admin generation with Barangay Clearance, payment modal reactive updates, and Super Admin configuration save.
+
 ## Current handoff — 2026-10-16 (Final Denied-Account Authorization & Functional Consistency Closure: E01–E05)
 
 Working branch: `main`. Audited baseline: `0e1469c1210f7c1a1475ca9657c82e0fd4600591`.

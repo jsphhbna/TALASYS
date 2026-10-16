@@ -175,3 +175,77 @@ test("actual request endpoint enforces forward-only transitions and normalizes l
   for (const operationId of operationIds) cleanupBatch.delete(adminDb.collection("activityLogs").doc(operationDocumentId(operationId)))
   await cleanupBatch.commit()
 })
+
+test("UI03: request.markGenerated and request.updateStatus enforce prerequisites", async () => {
+  const handler = createAdminOperationsHandler({ auth: routeAuth as any, db: adminDb, now: () => Date.UTC(2026, 0, 2) })
+  const targetId = "req-lifecycle-ui03"
+  const targetRef = adminDb.collection("documentRequests").doc(targetId)
+
+  // 1. Pending request cannot be marked generated
+  await targetRef.set({
+    residentId: "res-ui03",
+    documentType: "Barangay Clearance",
+    status: "Pending",
+    paymentStatus: "unpaid",
+    documentFee: 50,
+  })
+  const markPending = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ operation: "request.markGenerated", operationId: "op-mark-pending", targetId }),
+  }))
+  assert.equal(markPending.status, 409)
+
+  // 2. Approved request CAN be marked generated
+  await targetRef.update({ status: "Approved" })
+  const markApproved = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ operation: "request.markGenerated", operationId: "op-mark-approved", targetId }),
+  }))
+  assert.equal(markApproved.status, 200)
+  assert.equal((await targetRef.get()).data()?.hasGenerated, true)
+
+  // 3. Request transition to Completed without payment is rejected (documentFee > 0, unpaid)
+  await targetRef.update({ status: "Ready for Pick Up", paymentStatus: "unpaid" })
+  const completeUnpaid = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ operation: "request.updateStatus", operationId: "op-complete-unpaid", targetId, payload: { status: "Completed" } }),
+  }))
+  assert.equal(completeUnpaid.status, 409)
+
+  // 4. Request transition to Completed without hasGenerated is rejected
+  await targetRef.update({ hasGenerated: false, paymentStatus: "paid" })
+  const completeNotGenerated = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ operation: "request.updateStatus", operationId: "op-complete-notgen", targetId, payload: { status: "Completed" } }),
+  }))
+  assert.equal(completeNotGenerated.status, 409)
+
+  // 5. Request with both hasGenerated and paid fee succeeds transition to Completed
+  await targetRef.update({ hasGenerated: true, paymentStatus: "paid" })
+  const completeValid = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ operation: "request.updateStatus", operationId: "op-complete-valid", targetId, payload: { status: "Completed" } }),
+  }))
+  assert.equal(completeValid.status, 200)
+  assert.equal((await targetRef.get()).data()?.status, "Completed")
+
+  // 6. Terminal status (Completed) cannot be marked generated again
+  const markCompleted = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ operation: "request.markGenerated", operationId: "op-mark-completed", targetId }),
+  }))
+  assert.equal(markCompleted.status, 409)
+
+  // Clean up
+  await targetRef.delete()
+  const cleanOps = ["op-mark-pending", "op-mark-approved", "op-complete-unpaid", "op-complete-notgen", "op-complete-valid", "op-mark-completed"]
+  for (const op of cleanOps) {
+    await adminDb.collection("activityLogs").doc(operationDocumentId(op)).delete().catch(() => {})
+  }
+})

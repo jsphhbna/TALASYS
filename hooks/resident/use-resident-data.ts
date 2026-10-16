@@ -88,12 +88,12 @@ export function useResidentData() {
       if (!snapshot.empty) {
         const allVerifications = snapshot.docs.map(snapshotDoc => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as any))
         allVerifications.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        
+
         const latestVerification = allVerifications[0]
         setVerification(latestVerification)
-        
+
         const aggregatedDocs = new Map<string, any>()
-        
+
         // Traverse from oldest to newest to aggregate documents and track their latest status
         for (let i = allVerifications.length - 1; i >= 0; i--) {
           const v = allVerifications[i]
@@ -105,7 +105,7 @@ export function useResidentData() {
             })
           }
         }
-        
+
         const mergedProofs = Array.from(aggregatedDocs.values()).map((proofDocument: any, index: number) => ({
           id: `proof-${residentId}-${index}`,
           name: proofDocument.name,
@@ -114,7 +114,7 @@ export function useResidentData() {
           uploadDate: proofDocument.uploadDate || "N/A",
           status: proofDocument.status,
         }))
-        
+
         setProofs(mergedProofs)
       } else {
         setVerification(null)
@@ -198,6 +198,7 @@ export function useResidentData() {
           requestedByContact: input.requestedByContact,
           relationship: input.relationship,
           authorizationLetter: input.authorizationLetter,
+          additionalDetails: input.additionalDetails,
           paymentMethod: input.paymentMethod,
           gcashRefNumber: input.gcashRefNumber,
           gcashScreenshotUrl: input.gcashScreenshotUrl,
@@ -230,17 +231,21 @@ export function useResidentData() {
           } : {}),
           paymentSubmittedAt: Date.now()
         })
-        await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
-          targetId: "admin",
-          type: "info",
-          title: "Payment Submitted",
-          message: `${user?.name || "A resident"} submitted a ${method === "gcash" ? "GCash" : "Cash"} payment for review.`,
-          timestamp: "Just now",
-          isRead: false,
-          createdAt: Date.now(),
-          residentName: user?.name,
-          actionUrl: "/admin/requests/payments"
-        })
+        try {
+          await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
+            targetId: "admin",
+            type: "info",
+            title: "Payment Submitted",
+            message: `${user?.name || "A resident"} submitted a ${method === "gcash" ? "GCash" : "Cash"} payment for review.`,
+            timestamp: "Just now",
+            isRead: false,
+            createdAt: Date.now(),
+            residentName: user?.name,
+            actionUrl: "/admin/requests/payments"
+          })
+        } catch (notifError) {
+          console.warn("Payment updated successfully but failed to create admin notification:", notifError)
+        }
       } catch (error: any) {
         console.error("Error submitting payment for request (id:", requestId, "):", error)
         if (error?.code === "permission-denied") {
@@ -256,9 +261,9 @@ export function useResidentData() {
 
   const requestProfileEdit = useCallback(
     async (
-      changes: { field: string; oldValue: string; newValue: string }[], 
-      reason: string, 
-      uploadedFiles: any, 
+      changes: { field: string; oldValue: string; newValue: string }[],
+      reason: string,
+      uploadedFiles: any,
       newProfilePicture?: string,
       verificationType: "profile-edit" | "registration" = "profile-edit"
     ) => {
@@ -456,11 +461,11 @@ export function useResidentData() {
         if (!uploadedUrl) {
           throw new Error(`Failed to upload ${documentName}`)
         }
-        uploadedDocuments.push({ 
-          name: documentName, 
+        uploadedDocuments.push({
+          name: documentName,
           url: uploadedUrl,
-          status: "pending", 
-          uploadDate: new Date().toLocaleDateString('en-US') 
+          status: "pending",
+          uploadDate: new Date().toLocaleDateString('en-US')
         })
       }
 
@@ -535,11 +540,11 @@ export function useResidentData() {
     if (!residentId) return false
     try {
       const { auth } = await import("@/lib/firebase")
-      
+
       // Soft-delete by marking status rather than removing the Firestore document.
       // Physical deletion would allow the resident to log back in via Firebase Auth
       // and auto-recreate a blank profile on next authentication.
-      await updateDoc(doc(db, COLLECTION_USERS, residentId), { 
+      await updateDoc(doc(db, COLLECTION_USERS, residentId), {
         status: "Deleted by Resident",
         updatedAt: Date.now()
       })

@@ -50,6 +50,7 @@ export interface CreateResidentAccountInput {
 export interface CreateResidentRequestInput {
   documentType: string
   purpose: string
+  additionalDetails?: string
   requestFor?: "myself" | "other"
   requestedByName?: string
   requestedByContact?: string
@@ -235,12 +236,12 @@ export const deleteResidentAccount = (residentId: string) => {
   if (residentIndex !== -1) {
     storage.residents.splice(residentIndex, 1)
   }
-  
+
   // Cascading delete: remove all data associated with this resident to prevent orphaned records.
   storage.documentRequests = storage.documentRequests.filter(request => request.residentId !== residentId)
   storage.notifications = storage.notifications.filter(notification => notification.targetId !== residentId)
   storage.verifications = storage.verifications.filter(verification => verification.residentId !== residentId)
-  
+
   writeMasterStorage(storage)
   return true
 }

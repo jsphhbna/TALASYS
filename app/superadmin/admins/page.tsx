@@ -44,7 +44,7 @@ export default function AdminManagement() {
   const [showLogsModal, setShowLogsModal] = useState(false)
   const [selectedAdmin, setSelectedAdmin] = useState<any>(null)
   const [isCreating, setIsCreating] = useState(false)
-  
+
   const adminRecentActions = auditLogs.slice(0, 5).map(l => {
     const actionType = l.actionType || l.action || "Unknown"
     return {
@@ -119,7 +119,6 @@ export default function AdminManagement() {
 
   const activeCount = adminAccounts.filter((a) => a.status === "Active").length
   const lockedCount = adminAccounts.filter((a) => a.status === "Locked").length
-  const onlineCount = adminAccounts.filter((a) => a.isOnline).length
 
   const roles = [
     { label: "Full Access", description: "All features" },
@@ -231,10 +230,10 @@ export default function AdminManagement() {
       setFormError("Please enter a valid contact number (7-20 digits or symbols).")
       return
     }
-    
+
     setFormError("")
     const fullName = `${newAdminFirstName} ${newAdminMiddleInitial ? newAdminMiddleInitial + '. ' : ''}${newAdminLastName}`
-    
+
     setIsCreating(true)
     try {
       await addAdmin({
@@ -285,7 +284,7 @@ export default function AdminManagement() {
       </div>
 
       {/* KPI Strip */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {kpis.map((kpi) => (
           <Card key={kpi.label} className="p-4 shadow-sm">
             <div className="flex items-start justify-between mb-2">
@@ -309,9 +308,9 @@ export default function AdminManagement() {
       </div>
 
       {/* Analytics Row: Activity Trend + Role Distribution + Recent Actions */}
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Activity Trend */}
-        <Card className="col-span-5 p-5 shadow-sm">
+        <Card className="col-span-12 lg:col-span-5 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Admin Activity</h2>
           <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-4">Logins and actions over 6 months</p>
           <ResponsiveContainer width="100%" height={180}>
@@ -344,7 +343,7 @@ export default function AdminManagement() {
         </Card>
 
         {/* Role Distribution */}
-        <Card className="col-span-3 p-5 shadow-sm">
+        <Card className="col-span-12 md:col-span-6 lg:col-span-3 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-1">Role Distribution</h2>
           <p className="text-xs-plus text-slate-500 dark:text-slate-400 mb-3">Admin access levels</p>
           <ResponsiveContainer width="100%" height={120}>
@@ -372,7 +371,7 @@ export default function AdminManagement() {
         </Card>
 
         {/* Recent Admin Actions */}
-        <Card className="col-span-4 p-5 shadow-sm">
+        <Card className="col-span-12 md:col-span-6 lg:col-span-4 p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50 mb-3">Recent Actions</h2>
           <div className="space-y-3">
             {adminRecentActions.map((act, i) => (
@@ -393,12 +392,12 @@ export default function AdminManagement() {
       </div>
 
       {/* Search and Filter */}
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <Input
           placeholder="Search admin by name or email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
         <select
           value={statusFilter}
@@ -412,8 +411,8 @@ export default function AdminManagement() {
       </div>
 
       {/* Admin Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 overflow-visible shadow-sm">
-        <div className="min-w-[800px]">
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+        <div className="min-w-[760px]">
           <div className="bg-slate-50 dark:bg-slate-950 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="grid grid-cols-12 gap-4">
               <div className="col-span-3"><p className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Admin</p></div>

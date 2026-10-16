@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -30,6 +30,12 @@ export default function VerificationHistoryPage() {
   )
 
   const [selectedYear, setSelectedYear] = useState(allYears[0] || new Date().getFullYear().toString())
+
+  useEffect(() => {
+    if (allYears.length > 0 && !allYears.includes(selectedYear)) {
+      setSelectedYear(allYears[0])
+    }
+  }, [allYears, selectedYear])
 
   const verifLogs = useMemo(() =>
     activityLogs.filter(log => {

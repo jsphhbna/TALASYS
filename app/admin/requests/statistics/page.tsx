@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -25,19 +25,23 @@ export default function DocumentHistoryPage() {
 
   const [selectedYear, setSelectedYear] = useState(() => allYears[0] || new Date().getFullYear().toString())
 
+  useEffect(() => {
+    if (allYears.length > 0 && !allYears.includes(selectedYear)) {
+      setSelectedYear(allYears[0])
+    }
+  }, [allYears, selectedYear])
+
   const yearRequests = useMemo(() =>
     documentRequests.filter(r => r.createdAt && new Date(r.createdAt).getFullYear().toString() === selectedYear),
     [documentRequests, selectedYear]
   )
-
-  const DONE = ["Completed","Approved","Ready for Pick Up","On Process"]
 
   const monthlyData = useMemo(() =>
     MONTHS.map((month, idx) => {
       const m = yearRequests.filter(r => new Date(r.createdAt).getMonth() === idx)
       return {
         month, reqs: m, total: m.length,
-        completed: m.filter(r => DONE.includes(r.status)).length,
+        completed: m.filter(r => r.status === "Completed").length,
         rejected:  m.filter(r => r.status === "Rejected").length,
         pending:   m.filter(r => r.status === "Pending").length,
       }
@@ -45,7 +49,7 @@ export default function DocumentHistoryPage() {
     [yearRequests]
   )
 
-  const totalCompleted = yearRequests.filter(r => DONE.includes(r.status)).length
+  const totalCompleted = yearRequests.filter(r => r.status === "Completed").length
   const totalRejected  = yearRequests.filter(r => r.status === "Rejected").length
   const totalPending   = yearRequests.filter(r => r.status === "Pending").length
   const totalProcessed = yearRequests.length
@@ -224,7 +228,7 @@ export default function DocumentHistoryPage() {
                   {row.reqs.map((req, i) => (
                     <div key={i} className="grid grid-cols-12 gap-2 px-5 py-2.5 items-center border-b border-slate-100/50 last:border-0">
                       <div className="col-span-1 flex items-center justify-center">
-                        {DONE.includes(req.status) ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500"/>
+                        {req.status === "Completed" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500"/>
                           : req.status==="Rejected" ? <XCircle className="w-3.5 h-3.5 text-red-500"/>
                           : <Activity className="w-3.5 h-3.5 text-amber-500"/>}
                       </div>
@@ -235,7 +239,7 @@ export default function DocumentHistoryPage() {
                       <div className="col-span-3"><p className="text-2xs text-slate-500 truncate">{req.purpose||"—"}</p></div>
                       <div className="col-span-2">
                         <span className={`text-2xs font-medium px-2 py-0.5 rounded ${
-                          DONE.includes(req.status)?"bg-emerald-50 text-emerald-700"
+                          req.status === "Completed" ? "bg-emerald-50 text-emerald-700"
                           :req.status==="Rejected"?"bg-red-50 text-red-700"
                           :req.status==="Pending"?"bg-amber-50 text-amber-700"
                           :"bg-blue-50 text-blue-700"}`}>{req.status}</span>

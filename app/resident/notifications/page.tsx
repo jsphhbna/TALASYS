@@ -7,7 +7,7 @@ import { useResidentData } from "@/hooks/resident"
 import { ResidentPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { delay } from "@/lib/async-delay"
-import { showToastPreset } from "@/lib/app-toast"
+import { toast } from "@/hooks/use-toast"
 
 function formatRelativeTime(createdAt: number): string {
   const now = Date.now()
@@ -39,9 +39,22 @@ export default function NotificationsPage() {
     if (isMarkingAllRead) return
 
     setIsMarkingAllRead(true)
-    await delay(450)
-    markAllNotificationsRead()
-    setIsMarkingAllRead(false)
+    try {
+      await markAllNotificationsRead()
+      toast({
+        title: "Notifications marked as read",
+        description: "All notifications have been marked as read.",
+      })
+    } catch (err: any) {
+      console.error("Failed to mark all notifications read:", err)
+      toast({
+        title: "Action failed",
+        description: "Could not mark all notifications as read. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMarkingAllRead(false)
+    }
   }
 
   const unreadCount = notifications.filter((n) => !n.isRead).length
@@ -51,9 +64,9 @@ export default function NotificationsPage() {
       {/* Page Title */}
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-1 tracking-tight">Notifications</h1>
-        <button 
-          onClick={handleMarkAllRead} 
-          className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center" 
+        <button
+          onClick={handleMarkAllRead}
+          className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center"
           disabled={isMarkingAllRead || unreadCount === 0}
         >
           <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}

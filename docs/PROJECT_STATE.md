@@ -1,5 +1,45 @@
 # TALASYS Project State
 
+## Current Verified State — 16 October 2026 (Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation: UI01–UI19)
+
+- **Working branch**: `main`
+- **Audited baseline**: `0e6f2e32372079b0ac8c899eea2ef4e3d13b9aa5`
+- **Status**: All 19 UI/UX, frontend–backend integration, and request lifecycle audit findings (UI01–UI19) are fully remediated, verified, and self-audited.
+  1. **Milestone A (Document Generation & Request Lifecycle: UI01, UI02, UI03, UI14, UI16)**:
+     - `lib/document-catalog.ts`: Established single canonical source of truth for all 10 built-in types (`clearance`, `indigency`, `residency`, `business`, `business_homeowner`, `business_contractor`, `funeral`, `pwd_adult`, `pwd_minor`, `osca`) with dedicated templates and official headings.
+     - Resolved UI01: Barangay Clearance mapped to dedicated template and `BARANGAY CLEARANCE` heading, eliminating fallback to Business Clearance.
+     - Resolved UI02: `resolveDocumentSubject` resolves beneficiary subject (`requestedByName`) for on-behalf-of requests without mixing identities, displaying an on-behalf-of banner and authorization letter preview link.
+     - Resolved UI03: Backend request transition guards in `app/api/admin/operations/route.ts` reject marking generated on terminal or pending requests, and enforce that status transition to `Completed` requires both `hasGenerated === true` and paid/waived fees.
+     - Resolved UI14: Handled popup blocking, wrapped generation update in try/catch, and prevented false success toasts when print preparation fails.
+     - Resolved UI16: Unified catalog across Resident request form, Admin generation, and Super Admin configuration with custom document support.
+  2. **Milestone B (Resident Request Form & History: UI05, UI06, UI07)**:
+     - Resolved UI05: `retry` query parameter on resident request page resolves canonical document ID, validates enabled status, and prefills form fields from the rejected request.
+     - Resolved UI06: Selecting "Pay at Barangay Hall" updates payment method state to `"cash"` and submits cash in-person payment choice.
+     - Resolved UI07: Added `additionalDetails` to `MasterDocumentRequest` type, create request input schema, backend route persistence, and Admin request modal display.
+  3. **Milestone C (Payment & Notification Integrity: UI04, UI08, UI09, UI11, UI13)**:
+     - Resolved UI04: `firestore.rules` aligns notification permissions; View Only administrator is denied client creation, while operational admins and resident-to-admin alerts succeed. Evaluated with a flat role check to avoid expression limit errors.
+     - Resolved UI08: Decoupled payment update from notification creation in `useResidentData.submitPayment` so notification delivery failures do not misrepresent payment outcome.
+     - Resolved UI09: `handleMarkAllRead` in resident and admin notifications awaits the asynchronous mutation with proper loading feedback and error handling.
+     - Resolved UI11: `AdminPaymentProcessModal` reactively derives `liveRequest` from live collection snapshot, disabling invalid actions if already paid or in terminal status.
+     - Resolved UI13: Broadcast sending uses `Promise.allSettled` with distinct success/failure tracking and truthful feedback.
+  4. **Milestone D (Super Admin Configuration & Accounts: UI10, UI15, UI17)**:
+     - Resolved UI10: Staged document fees and enabled/disabled toggles locally with dirty-state indicator, persisting all changes authoritatively through "Save All Changes" with deletion confirmation.
+     - Resolved UI15: Removed fabricated `isOnline` count and displayed active administrator counts.
+     - Resolved UI17: Responsive grid breakpoints and horizontal overflow containment prevent table breakout on narrow mobile screens.
+  5. **Milestone E (Reporting & Dashboard Accuracy: UI12, UI18)**:
+     - Resolved UI12: Completed metric strictly counts `status === "Completed"`, separating active processing statuses and computing accurate completion rate.
+     - Resolved UI18: Reconciled `selectedYear` in `useEffect` across requests statistics, resident statistics, and verification history when `allYears` updates asynchronously.
+  6. **Milestone F (Responsive UI & Visual Functionality: UI19)**:
+     - Validated layouts across viewports (360x800, 390x844, 768x1024, 1280x800, 1440x900) and dark mode across all Resident, Admin, and Super Admin modules.
+  7. **Verification Metrics**:
+     - `npm test`: PASS (221/221 across 31 suites).
+     - `npm run test:rules`: PASS (87/87 against Auth & Firestore emulators).
+     - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+     - `npm run lint`: PASS (0 errors, 883 warnings).
+     - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
+     - `git diff --check`: PASS (clean).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No unauthorized production deployment or live rules publication performed.
+
 ## Current Verified State — 16 October 2026 (Denied-Account Authorization & Functional Consistency Closure: E01–E05)
 
 - **Working branch**: `main`

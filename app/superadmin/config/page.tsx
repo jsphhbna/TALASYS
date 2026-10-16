@@ -54,7 +54,7 @@ export default function SystemConfig() {
     action: l.actionType || l.action || "Unknown",
     detail: l.details || (l as any).residentName || "",
     timestamp: l.date,
-    type: (l.details || "").toLowerCase().includes("template") ? "template" : 
+    type: (l.details || "").toLowerCase().includes("template") ? "template" :
           (l.details || "").toLowerCase().includes("branding") ? "branding" :
           (l.details || "").toLowerCase().includes("document") ? "document" : "module"
   }))
@@ -70,6 +70,13 @@ export default function SystemConfig() {
     captainSignatureUrl: systemConfig.captainSignatureUrl || "",
     secretarySignatureUrl: systemConfig.secretarySignatureUrl || "",
     templates: systemConfig.templates || {
+      clearance: `This is to certify that {{name}}, of legal age, is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.
+
+This further certifies that the above-named person has NO DEROGATORY RECORD filed in this office as of this date.
+
+This Certification is issued upon the request of the above-named person for {{purpose}} purposes.
+
+City of Manila, {{date_issued}}.`,
       funeral: `This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.
 
 This Certification is issued upon the request of the above-named person for FUNERAL ASSISTANCE purposes.
@@ -135,6 +142,13 @@ City of Manila, {{date_issued}}.`
         captainSignatureUrl: systemConfig.captainSignatureUrl || "",
         secretarySignatureUrl: systemConfig.secretarySignatureUrl || "",
         templates: {
+          clearance: `This is to certify that {{name}}, of legal age, is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.
+
+This further certifies that the above-named person has NO DEROGATORY RECORD filed in this office as of this date.
+
+This Certification is issued upon the request of the above-named person for {{purpose}} purposes.
+
+City of Manila, {{date_issued}}.`,
           funeral: `This is to certify that {{name}}, age {{age}}, is a bonafide resident of {{barangay_name}}, with postal address located at {{address}}.
 
 This Certification is issued upon the request of the above-named person for FUNERAL ASSISTANCE purposes.
@@ -191,6 +205,36 @@ City of Manila, {{date_issued}}.`,
     }
   }, [systemConfig.barangayName, systemConfig.address, systemConfig.contactNumber, systemConfig.emailAddress, systemConfig.barangayCaptainName, systemConfig.templates])
 
+  const [stagedDocumentTypes, setStagedDocumentTypes] = useState<string[]>([])
+  const [stagedDocumentFees, setStagedDocumentFees] = useState<Record<string, number>>({})
+  const [isDirty, setIsDirty] = useState(false)
+
+  useEffect(() => {
+    if (!isDirty) {
+      if (systemConfig.documentTypes !== undefined) {
+        setStagedDocumentTypes(systemConfig.documentTypes)
+      } else {
+        setStagedDocumentTypes([
+          "Barangay Clearance",
+          "Funeral Certification",
+          "PWD Certification (Adult)",
+          "PWD Certification (Minor)",
+          "Certificate of Indigency",
+          "Proof of Residency",
+          "Business Clearance",
+          "Business Clearance (Homeowner)",
+          "Business Clearance (Contractor)",
+          "OSCA Certification"
+        ])
+      }
+      if (systemConfig.documentFees !== undefined) {
+        setStagedDocumentFees(systemConfig.documentFees)
+      } else {
+        setStagedDocumentFees({})
+      }
+    }
+  }, [systemConfig.documentTypes, systemConfig.documentFees, isDirty])
+
   const tabs = [
     { id: "branding" as const, label: "Branding", icon: Palette },
     { id: "templates" as const, label: "Templates", icon: LayoutTemplate },
@@ -199,6 +243,7 @@ City of Manila, {{date_issued}}.`,
   ]
 
   const templates = [
+    { id: "clearance", name: "Barangay Clearance", lastEdited: "1 day ago" },
     { id: "funeral", name: "Funeral Certification", lastEdited: "1 day ago" },
     { id: "pwd_adult", name: "PWD Certification (Adult)", lastEdited: "1 day ago" },
     { id: "pwd_minor", name: "PWD Certification (Minor)", lastEdited: "1 day ago" },
@@ -216,6 +261,7 @@ City of Manila, {{date_issued}}.`,
   ]
 
   const documentTypesList = [
+    { name: "Barangay Clearance", requests: documentRequests.filter(r => r.documentType === "Barangay Clearance").length },
     { name: "Funeral Certification", requests: documentRequests.filter(r => r.documentType === "Funeral Certification").length },
     { name: "PWD Certification (Adult)", requests: documentRequests.filter(r => r.documentType === "PWD Certification (Adult)").length },
     { name: "PWD Certification (Minor)", requests: documentRequests.filter(r => r.documentType === "PWD Certification (Minor)").length },
@@ -231,15 +277,18 @@ City of Manila, {{date_issued}}.`,
     }))
   ]
 
-  const currentDocumentTypes = systemConfig.documentTypes !== undefined ? systemConfig.documentTypes : ["Funeral Certification", "PWD Certification (Adult)", "PWD Certification (Minor)", "Certificate of Indigency", "Proof of Residency", "Business Clearance", "Business Clearance (Homeowner)", "Business Clearance (Contractor)", "OSCA Certification"];
-  const currentDocumentFees = systemConfig.documentFees || {};
+  const effectiveDocumentTypes = stagedDocumentTypes.length > 0
+    ? stagedDocumentTypes
+    : (systemConfig.documentTypes !== undefined ? systemConfig.documentTypes : ["Barangay Clearance", "Funeral Certification", "PWD Certification (Adult)", "PWD Certification (Minor)", "Certificate of Indigency", "Proof of Residency", "Business Clearance", "Business Clearance (Homeowner)", "Business Clearance (Contractor)", "OSCA Certification"]);
+  const effectiveDocumentFees = Object.keys(stagedDocumentFees).length > 0
+    ? stagedDocumentFees
+    : (systemConfig.documentFees || {});
 
   const documentTypes = documentTypesList.map(d => ({
     ...d,
-    enabled: currentDocumentTypes.includes(d.name),
-    fee: currentDocumentFees[d.name] ?? (d.name === "Proof of Residency" ? 50 : d.name.includes("Business") ? 150 : 0)
+    enabled: effectiveDocumentTypes.includes(d.name),
+    fee: effectiveDocumentFees[d.name] ?? (d.name === "Proof of Residency" || d.name === "Barangay Clearance" ? 50 : d.name.includes("Business") ? 150 : 0)
   }))
-
 
   const maxRequests = Math.max(...documentTypes.map(d => d.requests), 1)
 
@@ -247,7 +296,12 @@ City of Manila, {{date_issued}}.`,
     if (isSavingChanges) return
     setIsSavingChanges(true)
     try {
-      await updateConfig(formData)
+      await updateConfig({
+        ...formData,
+        documentTypes: effectiveDocumentTypes,
+        documentFees: effectiveDocumentFees,
+      })
+      setIsDirty(false)
       setShowSaveDialog(false)
       showToastPreset("configSaved")
     } catch (err: any) {
@@ -262,14 +316,16 @@ City of Manila, {{date_issued}}.`,
     setIsAddingDoc(true)
     try {
       const docId = newDocName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")
-      const newDocTypes = [...currentDocumentTypes, newDocName.trim()]
-      const newFees = { ...currentDocumentFees, [newDocName.trim()]: parseFloat(newDocFee) || 0 }
+      const newDocTypes = [...effectiveDocumentTypes, newDocName.trim()]
+      const newFees = { ...effectiveDocumentFees, [newDocName.trim()]: parseFloat(newDocFee) || 0 }
       const newCustomDocTypes = [
         ...(systemConfig.customDocumentTypes || []),
         { id: docId, name: newDocName.trim(), icon: newDocIcon, fee: parseFloat(newDocFee) || 0, header: newDocHeader }
       ]
       const newTemplates = { ...(systemConfig.templates || {}), [docId]: newDocTemplate }
       await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
+      setStagedDocumentTypes(newDocTypes)
+      setStagedDocumentFees(newFees)
       setFormData(prev => ({ ...prev, templates: { ...prev.templates, [docId]: newDocTemplate } }))
       setShowAddDocModal(false)
       setNewDocName("")
@@ -286,14 +342,19 @@ City of Manila, {{date_issued}}.`,
   }
 
   const handleDeleteDocType = async (docName: string, docId: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete the custom document type "${docName}"? This action cannot be undone.`)) {
+      return
+    }
     try {
-      const newDocTypes = currentDocumentTypes.filter(t => t !== docName)
-      const newFees = { ...currentDocumentFees }
+      const newDocTypes = effectiveDocumentTypes.filter(t => t !== docName)
+      const newFees = { ...effectiveDocumentFees }
       delete newFees[docName]
       const newCustomDocTypes = (systemConfig.customDocumentTypes || []).filter((d: any) => d.name !== docName)
       const newTemplates = { ...(systemConfig.templates || {}) }
       delete newTemplates[docId]
       await updateConfig({ documentTypes: newDocTypes, documentFees: newFees, customDocumentTypes: newCustomDocTypes, templates: newTemplates })
+      setStagedDocumentTypes(newDocTypes)
+      setStagedDocumentFees(newFees)
       toast.success("Document type deleted")
     } catch (err: any) {
       toast.error(err?.message || "Failed to delete document type")
@@ -308,7 +369,16 @@ City of Manila, {{date_issued}}.`,
           <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">System Configuration</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Manage system branding, templates, and document settings</p>
         </div>
-        <Button onClick={() => setShowSaveDialog(true)} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">Save All Changes</Button>
+        <div className="flex items-center gap-3">
+          {isDirty && (
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-900">
+              ● Unsaved Changes
+            </span>
+          )}
+          <Button onClick={() => setShowSaveDialog(true)} disabled={isSavingChanges} className="bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">
+            {isSavingChanges ? "Saving..." : "Save All Changes"}
+          </Button>
+        </div>
       </div>
 
 
@@ -369,11 +439,11 @@ City of Manila, {{date_issued}}.`,
                     <Button variant="outline" className="text-xs bg-transparent relative overflow-hidden" onClick={() => document.getElementById("captain-sig-upload")?.click()}>
                       <UploadCloud className="w-4 h-4 mr-1.5" />
                       Upload Sig
-                      <input 
-                        id="captain-sig-upload" 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
+                      <input
+                        id="captain-sig-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
@@ -387,7 +457,7 @@ City of Manila, {{date_issued}}.`,
                             toast.dismiss();
                             toast.error("Failed to upload signature");
                           }
-                        }} 
+                        }}
                       />
                     </Button>
                   </div>
@@ -407,11 +477,11 @@ City of Manila, {{date_issued}}.`,
                     <Button variant="outline" className="text-xs bg-transparent relative overflow-hidden" onClick={() => document.getElementById("secretary-sig-upload")?.click()}>
                       <UploadCloud className="w-4 h-4 mr-1.5" />
                       Upload Sig
-                      <input 
-                        id="secretary-sig-upload" 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
+                      <input
+                        id="secretary-sig-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
@@ -425,7 +495,7 @@ City of Manila, {{date_issued}}.`,
                             toast.dismiss();
                             toast.error("Failed to upload signature");
                           }
-                        }} 
+                        }}
                       />
                     </Button>
                   </div>
@@ -515,7 +585,7 @@ City of Manila, {{date_issued}}.`,
             {documentTypes.map((doc) => {
               const customEntry = (systemConfig.customDocumentTypes || []).find((c: any) => c.name === doc.name)
               const docId = customEntry?.id || doc.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")
-              const isBuiltIn = ["Funeral Certification","PWD Certification (Adult)","PWD Certification (Minor)","Certificate of Indigency","Proof of Residency","Business Clearance","Business Clearance (Homeowner)","Business Clearance (Contractor)","OSCA Certification"].includes(doc.name)
+              const isBuiltIn = ["Barangay Clearance","Funeral Certification","PWD Certification (Adult)","PWD Certification (Minor)","Certificate of Indigency","Proof of Residency","Business Clearance","Business Clearance (Homeowner)","Business Clearance (Contractor)","OSCA Certification"].includes(doc.name)
               return (
               <div key={doc.name} className="px-6 py-3.5 hover:bg-slate-50/50 dark:bg-slate-900/50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="grid grid-cols-12 gap-4 items-center">
@@ -541,12 +611,12 @@ City of Manila, {{date_issued}}.`,
                       <Input
                         type="number"
                         min="0"
-                        defaultValue={doc.fee}
+                        value={doc.fee}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value)
                           if (!isNaN(val)) {
-                            const newFees = { ...currentDocumentFees, [doc.name]: val }
-                            updateConfig({ documentFees: newFees })
+                            setStagedDocumentFees(prev => ({ ...prev, [doc.name]: val }))
+                            setIsDirty(true)
                           }
                         }}
                         className="h-8 w-20 pl-6 text-xs text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-700"
@@ -562,13 +632,14 @@ City of Manila, {{date_issued}}.`,
                     )}
                   </div>
                   <div className="col-span-2 flex items-center gap-3">
-                    <button 
+                    <button
                       onClick={() => {
-                        const isCurrentlyEnabled = currentDocumentTypes.includes(doc.name);
-                        const newTypes = isCurrentlyEnabled 
-                          ? currentDocumentTypes.filter(t => t !== doc.name)
-                          : [...currentDocumentTypes, doc.name];
-                        updateConfig({ documentTypes: newTypes });
+                        const isCurrentlyEnabled = effectiveDocumentTypes.includes(doc.name);
+                        const newTypes = isCurrentlyEnabled
+                          ? effectiveDocumentTypes.filter(t => t !== doc.name)
+                          : [...effectiveDocumentTypes, doc.name];
+                        setStagedDocumentTypes(newTypes);
+                        setIsDirty(true);
                       }}
                       className={`text-sm font-medium ${doc.enabled ? "text-amber-500 hover:text-amber-600" : "text-emerald-600 hover:text-emerald-700"}`}
                     >
@@ -619,10 +690,10 @@ City of Manila, {{date_issued}}.`,
                 </div>
               </div>
             </div>
-            
+
             <div className="p-8">
               <div className="flex flex-col sm:flex-row items-center gap-4 max-w-lg">
-                <button 
+                <button
                   onClick={async (e) => {
                     e.preventDefault();
                     const now = Date.now();
@@ -631,11 +702,11 @@ City of Manila, {{date_issued}}.`,
                       return;
                     }
                     setLastDownload(now);
-                    
+
                     try {
                       const token = await auth.currentUser?.getIdToken();
                       if (!token) throw new Error("Not authenticated");
-                      
+
                       const response = await fetch('/api/backup/download?type=json', {
                         headers: { 'Authorization': `Bearer ${token}` }
                       });
@@ -662,8 +733,8 @@ City of Manila, {{date_issued}}.`,
                   <Download className="w-4 h-4" />
                   Download as JSON
                 </button>
-                
-                <button 
+
+                <button
                   onClick={async (e) => {
                     e.preventDefault();
                     const now = Date.now();
@@ -672,11 +743,11 @@ City of Manila, {{date_issued}}.`,
                       return;
                     }
                     setLastDownload(now);
-                    
+
                     try {
                       const token = await auth.currentUser?.getIdToken();
                       if (!token) throw new Error("Not authenticated");
-                      
+
                       const response = await fetch('/api/backup/download?type=excel', {
                         headers: { 'Authorization': `Bearer ${token}` }
                       });
@@ -704,7 +775,7 @@ City of Manila, {{date_issued}}.`,
                   Download as Excel
                 </button>
               </div>
-              
+
               <div className="mt-6 flex items-start gap-3 p-4 bg-blue-50/50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50">
                 <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
                 <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">

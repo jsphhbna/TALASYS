@@ -293,6 +293,15 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       }
       const reason = typeof payload.reason === "string" ? payload.reason.trim() : ""
       if (status === "Rejected" && reason.length < 10) throw httpError("Rejection requires a reason of at least 10 characters.", 400)
+      if (status === "Completed") {
+        if (!before.hasGenerated) {
+          throw httpError("Cannot complete request before official document has been generated.", 409)
+        }
+        const fee = typeof before.documentFee === "number" ? before.documentFee : (typeof before.fee === "number" ? before.fee : 0)
+        if (fee > 0 && before.paymentStatus !== "paid" && before.paymentStatus !== "waived") {
+          throw httpError("Cannot complete request with outstanding unpaid document fee.", 409)
+        }
+      }
       after = { status, ...(reason ? { rejectionReason: reason, rejectReason: reason } : {}), [`statusTimestamps.${status}`]: now }
       transaction.update(targetRef, after)
       if (before.residentId) notification = { id: `request-status-${operationDocumentId(operationId)}`, value: { targetId: before.residentId, type: status === "Rejected" ? "error" : "info", title: `Document ${status}`, message: `Your request for ${before.documentType || "document"} is now ${status}.${reason ? ` Reason: ${reason}` : ""}`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
@@ -300,6 +309,12 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       after = null
       transaction.delete(targetRef)
     } else if (operation === "request.markGenerated") {
+      if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
+        throw httpError(`Cannot mark generated for request in terminal state '${before.status}'.`, 409)
+      }
+      if (before.status === "Pending") {
+        throw httpError("Cannot mark generated for an unapproved request in Pending status.", 409)
+      }
       after = { hasGenerated: true, generatedAt: now, updatedAt: now }; transaction.update(targetRef, after)
     } else if (operation === "request.confirmPayment") {
       if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {

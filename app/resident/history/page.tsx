@@ -18,6 +18,7 @@ import { PaymentModal } from "@/components/resident/history/payment-modal"
 import { SecureMediaViewer } from "@/components/media/secure-image"
 import { showToastPreset } from "@/lib/app-toast"
 import { toast } from "sonner"
+import { resolveDocumentType } from "@/lib/document-catalog"
 
 export default function RequestHistoryPage() {
   const router = useRouter()
@@ -295,7 +296,10 @@ export default function RequestHistoryPage() {
                   {request.status === "Rejected" && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => setRejectionModalRequest(request)} className="flex-1 text-xs-plus h-8 border-red-200 text-red-600">Details</Button>
-                      <Button size="sm" onClick={() => router.push(`/resident/request?type=${encodeURIComponent(request.documentType)}&retry=${request.id}`)} className="flex-1 text-xs-plus h-8 bg-[#0C2340] text-white">Retry</Button>
+                      <Button size="sm" onClick={() => {
+                        const canonicalId = resolveDocumentType(request.documentType)?.id || request.documentType
+                        router.push(`/resident/request?type=${encodeURIComponent(canonicalId)}&retry=${request.id}`)
+                      }} className="flex-1 text-xs-plus h-8 bg-[#0C2340] text-white">Retry</Button>
                     </>
                   )}
                   {isResidentPaymentActionEligible(request as any) && (
@@ -417,7 +421,10 @@ export default function RequestHistoryPage() {
                             </Button>
                             <Button
                               size="sm"
-                              onClick={() => router.push(`/resident/request?type=${encodeURIComponent(request.documentType)}&retry=${request.id}`)}
+                              onClick={() => {
+                                const canonicalId = resolveDocumentType(request.documentType)?.id || request.documentType
+                                router.push(`/resident/request?type=${encodeURIComponent(canonicalId)}&retry=${request.id}`)
+                              }}
                               className="bg-[#0C2340] hover:bg-[#0a1c33] dark:bg-slate-800 text-white text-2xs h-7 px-3"
                             >
                               Retry

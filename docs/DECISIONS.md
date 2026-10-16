@@ -439,3 +439,49 @@
   - Active browser sessions are authoritatively revoked in real time when registration is denied.
   - Test fixtures faithfully mirror production key derivation.
   - Verification history metrics accurately reflect original decision events.
+
+## ADR-027: Canonical Document Catalog, Request Lifecycle, and UI/UX Integration (UI01–UI19)
+
+- **Status**: Accepted / Verified
+- **Date**: 16 October 2026
+- **Context**:
+  - Independent audit identified 19 UI/UX, frontend–backend integration, and request lifecycle defects:
+    1. **UI01 & UI16**: Document generation lacked a canonical catalog; Barangay Clearance ambiguously mapped to Business Clearance.
+    2. **UI02**: Requests made on behalf of another person erroneously rendered the requester's profile details on official documents.
+    3. **UI03**: Backend allowed marking requests generated in terminal/pending states and completing without generation or payment confirmation.
+    4. **UI04**: Notification rules permitted View Only admins client write access.
+    5. **UI05**: Retry button passed display titles rather than internal IDs and failed to prefill.
+    6. **UI06**: "Pay at Barangay Hall" retained GCash payment method in request submissions.
+    7. **UI07**: Additional Details textarea was dropped between frontend and backend.
+    8. **UI08**: Payment submission failed when notification emission rejected after payment update.
+    9. **UI09**: Notification "Mark All as Read" completed prematurely without awaiting backend write.
+    10. **UI10**: Super Admin configuration wrote immediately on toggle rather than staging with "Save All Changes".
+    11. **UI11**: Admin Payment Process modal captured stale snapshot objects.
+    12. **UI12**: Completed request metrics counted On Process and Ready for Pick Up as Completed.
+    13. **UI13**: Broadcast notifications swallowed partial failures.
+    14. **UI14**: Document generator assumed print success and marked generated on blocked popups.
+    15. **UI15**: Admin accounts displayed hardcoded fabricated online presence.
+    16. **UI17**: Admin table broke out horizontally on narrow mobile screens.
+    17. **UI18**: Year selector initialized to invalid year before asynchronous Firestore data loaded.
+    18. **UI19**: Viewport responsiveness across 5 screen sizes needed validation.
+- **Decisions**:
+  1. **Canonical Document Catalog (`lib/document-catalog.ts`)**:
+     - Single canonical repository for 10 built-in types, templates, headings, fees, aliases, and `resolveDocumentSubject`.
+  2. **Strict Request Lifecycle Policy**:
+     - `request.markGenerated` rejects terminal and pending requests.
+     - `request.updateStatus` to `Completed` requires `hasGenerated === true` and paid/waived fee.
+  3. **Flat Notification Rules Authorization**:
+     - Replaced deeply nested rules checks with a single-expression role check in `firestore.rules`, denying View Only and avoiding Firestore's 1000-expression limit.
+  4. **Decoupled Payment and Notification Delivery**:
+     - Payment mutation outcome is reported truthfully even if notification emission encounters errors.
+  5. **Reactive State Binding**:
+     - Admin payment modal subscribes to live Firestore requests by ID to avoid race conditions.
+  6. **Unified Configuration Staging**:
+     - Local staging of configuration edits with dirty indicators and atomic Save All Changes.
+  7. **Truthful Metrics & Reconciled Selectors**:
+     - Strict status filtering for completed metrics; reactive year selection reconciliation on data load.
+- **Consequences**:
+  - Correct templates generated for all document types.
+  - Representations accurately identify beneficiaries and requesters.
+  - Request lifecycle transitions are strictly governed server-side.
+  - UI state and backend persistence remain synchronized with truthful user feedback.

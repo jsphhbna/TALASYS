@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // ==============================================================
     // CORE AUTHENTICATION & RBAC HELPER FUNCTIONS
     // ==============================================================
@@ -51,8 +51,8 @@ service cloud.firestore {
     function isSuperAdmin() {
       let role = getUserRole();
       return isAuthenticated() && isActiveAccount() && (
-        role == 'superadmin' || 
-        role == 'SuperAdmin' || 
+        role == 'superadmin' ||
+        role == 'SuperAdmin' ||
         role == 'Super Admin'
       );
     }
@@ -61,9 +61,9 @@ service cloud.firestore {
     function isFullAdmin() {
       let role = getUserRole();
       return isAuthenticated() && isActiveAccount() && (
-        isSuperAdmin() || 
-        role == 'admin' || 
-        role == 'Admin' || 
+        isSuperAdmin() ||
+        role == 'admin' ||
+        role == 'Admin' ||
         role == 'Full Access'
       );
     }
@@ -72,12 +72,11 @@ service cloud.firestore {
     function isAnyAdmin() {
       let role = getUserRole();
       return isAuthenticated() && isActiveAccount() && (
-        isFullAdmin() ||
+        role == 'superadmin' || role == 'SuperAdmin' || role == 'Super Admin' ||
+        role == 'admin' || role == 'Admin' || role == 'Full Access' ||
         role == 'Resident Management' ||
-        role == 'Verifications' || 
-        role == 'Verification Only' ||
-        role == 'Document Processing' || 
-        role == 'Documents Only' ||
+        role == 'Verifications' || role == 'Verification Only' ||
+        role == 'Document Processing' || role == 'Documents Only' ||
         role == 'View Only'
       );
     }
@@ -98,6 +97,17 @@ service cloud.firestore {
       return isFullAdmin() || (isAuthenticated() && isActiveAccount() && (role == 'Document Processing' || role == 'Documents Only'));
     }
 
+    function canManageNotifications() {
+      let role = getUserRole();
+      return isAuthenticated() && isActiveAccount() && (
+        role == 'superadmin' || role == 'SuperAdmin' || role == 'Super Admin' ||
+        role == 'admin' || role == 'Admin' || role == 'Full Access' ||
+        role == 'Resident Management' ||
+        role == 'Verifications' || role == 'Verification Only' ||
+        role == 'Document Processing' || role == 'Documents Only'
+      );
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && isActiveAccount() && request.auth.uid == userId;
     }
@@ -108,10 +118,10 @@ service cloud.firestore {
     match /users/{userId} {
       // Any admin or the account owner can read the profile
       allow read: if isAnyAdmin() || isOwner(userId);
-      
+
       // Initial resident/admin profiles are created only by trusted server operations.
       allow create: if false;
-      
+
       // Updates:
       // Privileged changes are server-only typed operations. Residents retain
       // only the explicit contact/photo and self-deactivation transitions.
@@ -127,7 +137,7 @@ service cloud.firestore {
             resource.data.status != 'Deleted'
           )
         );
-      
+
       // Deletions: Only Super Admin can hard-delete user documents.
       allow delete: if false;
     }
@@ -142,12 +152,12 @@ service cloud.firestore {
         isActiveAccount() &&
         resource.data.residentId == request.auth.uid
       );
-      
+
       // Creation:
       // Direct client creation by residents is blocked to prevent fee tampering and forged waivers (#56).
       // Residents must create requests via the protected server route /api/resident/requests/create.
       allow create: if false;
-      
+
       // Updates:
       // - Document Processing / Full Admin can update everything.
       // - Residents can only perform validated transitions (#26, #56):
@@ -193,11 +203,11 @@ service cloud.firestore {
     // ==============================================================
     match /verifications/{verificationId} {
       allow read: if isAnyAdmin() || (
-        isAuthenticated() && 
+        isAuthenticated() &&
         isActiveAccount() &&
         (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid)
       );
-      
+
       // Creation:
       // - Residents can create verification for profile-edit or reactivation for themselves; status MUST be 'pending' (#57).
       // - Initial registration and registration resubmissions are created ONLY by trusted server operations (/api/resident/registration/finalize and /api/resident/registration/resubmit).
@@ -214,7 +224,7 @@ service cloud.firestore {
           (!('residentId' in request.resource.data && 'userId' in request.resource.data) || request.resource.data.residentId == request.resource.data.userId)
         )
       );
-      
+
       // Review transitions are coupled to audit/notification/identity state by
       // trusted server operations; no client role may write them directly.
       allow update: if false;
@@ -250,22 +260,28 @@ service cloud.firestore {
         (isAnyAdmin() && (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid)) ||
         (isAuthenticated() && isActiveAccount() && resource.data.targetId == request.auth.uid)
       );
-      
+
       // Creation:
-      // - Admins can notify anyone.
+      // - Operational Admins can notify anyone (View Only cannot create notifications).
       // - Residents can ONLY create notification with targetId == 'admin' (#58 impersonation defense).
       // - Registration notifications are emitted solely by trusted server registration operations.
       allow create: if (
-        isAnyAdmin() || (
+        (
           isAuthenticated() &&
           isActiveAccount() &&
           request.resource.data.targetId == 'admin' &&
           request.resource.data.type in ['info', 'alert', 'reactivation']
-        )
+        ) ||
+        canManageNotifications()
       );
-      
-      allow update, delete: if (
+
+      allow update: if (
         (isAnyAdmin() && (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid)) ||
+        (isAuthenticated() && isActiveAccount() && resource.data.targetId == request.auth.uid)
+      );
+
+      allow delete: if (
+        (canManageNotifications() && (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid)) ||
         (isAuthenticated() && isActiveAccount() && resource.data.targetId == request.auth.uid)
       );
     }
@@ -315,7 +331,7 @@ service cloud.firestore {
     // ==============================================================
     match /backupLogs/{logId} {
       allow read: if isSuperAdmin();
-      allow create, update, delete: if false; 
+      allow create, update, delete: if false;
     }
 
     // ==============================================================

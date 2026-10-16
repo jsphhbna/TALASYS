@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuthGuard } from "@/hooks/auth"
 import { ResidentPageShell } from "@/components/layout/page-shells"
@@ -14,6 +14,7 @@ import { delay } from "@/lib/async-delay"
 import { showToastPreset } from "@/lib/app-toast"
 import { useResidentData } from "@/hooks/resident"
 import { uploadProtectedFileToCloudinary } from "@/lib/resident/cloudinary"
+import { resolveDocumentType } from "@/lib/document-catalog"
 
 type DocumentType = "clearance" | "funeral" | "pwd_adult" | "pwd_minor" | "indigency" | "residency" | "business" | "business_homeowner" | "business_contractor" | "osca"
 type RequestFor = "myself" | "other"
@@ -57,12 +58,13 @@ function RequestDocumentContent() {
   const searchParams = useSearchParams()
   const { addRequest, systemConfig, requests } = useResidentData()
   const rawTypeParam = searchParams.get("type")
-  const normalizedTypeParam: DocumentType | null = 
-    rawTypeParam === "clearance" || rawTypeParam === "barangay-clearance" ? "clearance" :
-    rawTypeParam === "residency" || rawTypeParam === "certificate-of-residency" ? "residency" :
-    (rawTypeParam as DocumentType | null)
+  const retryParam = searchParams.get("retry")
 
-  const [selectedType, setSelectedType] = useState<DocumentType | null>(normalizedTypeParam || null)
+  const initialType: DocumentType | null = rawTypeParam
+    ? ((resolveDocumentType(rawTypeParam, systemConfig?.customDocumentTypes)?.id as DocumentType) || null)
+    : null
+
+  const [selectedType, setSelectedType] = useState<DocumentType | null>(initialType)
   const [requestFor, setRequestFor] = useState<RequestFor>("myself")
   const [purpose, setPurpose] = useState("")
   const [customPurpose, setCustomPurpose] = useState("")
@@ -78,7 +80,58 @@ function RequestDocumentContent() {
   const [gcashRefNumber, setGcashRefNumber] = useState("")
   const [gcashScreenshot, setGcashScreenshot] = useState<File | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [retryProcessed, setRetryProcessed] = useState(false)
   const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+  useEffect(() => {
+    if (rawTypeParam && !selectedType) {
+      const canonical = resolveDocumentType(rawTypeParam, systemConfig?.customDocumentTypes)?.id
+      if (canonical) {
+        setSelectedType(canonical as DocumentType)
+      }
+    }
+  }, [rawTypeParam, selectedType, systemConfig])
+
+  useEffect(() => {
+    if (!retryParam || retryProcessed || !requests || requests.length === 0) return
+
+    const retryReq = requests.find((r) => r.id === retryParam)
+    if (!retryReq) return
+
+    setRetryProcessed(true)
+
+    const resolved = resolveDocumentType(retryReq.documentType, systemConfig?.customDocumentTypes)
+    if (!resolved) {
+      setErrors((prev) => ({
+        ...prev,
+        submitError: `The document type "${retryReq.documentType}" is no longer supported.`,
+      }))
+      return
+    }
+
+    const isDocEnabled = systemConfig?.documentTypes !== undefined ? systemConfig.documentTypes.includes(resolved.label) : true
+    if (!isDocEnabled) {
+      setErrors((prev) => ({
+        ...prev,
+        submitError: `The document type "${resolved.label}" is currently unavailable or disabled by administration.`,
+      }))
+      return
+    }
+
+    setSelectedType(resolved.id as DocumentType)
+    if (retryReq.purpose) {
+      setPurpose(retryReq.purpose)
+    }
+    if (retryReq.requestFor === "other") {
+      setRequestFor("other")
+      if (retryReq.requestedByName) setOtherPersonName(retryReq.requestedByName)
+      if (retryReq.requestedByContact) setOtherPersonContact(retryReq.requestedByContact)
+      if (retryReq.relationship) setRelationship(retryReq.relationship)
+    }
+    if (retryReq.additionalDetails) {
+      setAdditionalDetails(retryReq.additionalDetails)
+    }
+  }, [retryParam, retryProcessed, requests, systemConfig])
 
   const handleSubmit = async () => {
     if (isSubmittingRequest) return
@@ -127,8 +180,13 @@ function RequestDocumentContent() {
     await processSubmit(finalPurpose)
   }
 
-  const processSubmit = async (finalPurpose: string, extraData?: { gcashRefNumber?: string; gcashScreenshotUrl?: string }) => {
+  const processSubmit = async (
+    finalPurpose: string,
+    extraData?: { gcashRefNumber?: string; gcashScreenshotUrl?: string },
+    overridePaymentMethod?: "gcash" | "cash"
+  ) => {
     setIsSubmittingRequest(true)
+    const effectivePaymentMethod = overridePaymentMethod || (paymentMethod as "gcash" | "cash")
     try {
       let authLetterUrl: string | undefined = undefined
       if (requestFor === "other" && authorizationLetter) {
@@ -147,8 +205,9 @@ function RequestDocumentContent() {
           documentType: selectedDoc.title,
           purpose: finalPurpose,
           requestFor,
-          paymentMethod: paymentMethod as "gcash" | "cash",
+          paymentMethod: effectivePaymentMethod,
           documentFee: selectedDoc.fee,
+          additionalDetails: additionalDetails.trim() || undefined,
           ...(extraData || {}),
           ...(requestFor === "other" && {
             requestedByName: otherPersonName,
@@ -267,6 +326,11 @@ function RequestDocumentContent() {
               Please fill in the required information below
             </DialogDescription>
           </DialogHeader>
+          {errors.submitError && (
+            <div className="bg-red-50 text-red-700 p-3 mx-6 mt-3 rounded-md text-sm border border-red-200">
+              {errors.submitError}
+            </div>
+          )}
           {gcashStep === "selection" ? (
             <div className="flex-1 flex flex-col">
               <div className="flex-1 p-8 flex flex-col items-center justify-center text-center">
@@ -284,7 +348,10 @@ function RequestDocumentContent() {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => processSubmit(purpose === "Other" ? customPurpose : purpose)}
+                    onClick={() => {
+                      setPaymentMethod("cash")
+                      processSubmit(purpose === "Other" ? customPurpose : purpose, undefined, "cash")
+                    }}
                     className="flex-1 h-12 border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300"
                   >
                     Pay at Barangay Hall
@@ -383,7 +450,7 @@ function RequestDocumentContent() {
                       const newErrs: Record<string, string> = {}
                       if (!gcashRefNumber.trim()) newErrs.gcashRefNumber = "Reference number is required"
                       if (!gcashScreenshot) newErrs.gcashScreenshot = "Screenshot is required"
-                      
+
                       if (Object.keys(newErrs).length > 0) {
                         setErrors(prev => ({...prev, ...newErrs}))
                         return
@@ -415,7 +482,7 @@ function RequestDocumentContent() {
                     {errors.submitError}
                   </div>
                 )}
-                
+
                 {/* Payment Summary */}
                 <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-5 flex items-center justify-between">
                   <div>
@@ -686,7 +753,7 @@ function RequestDocumentContent() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="p-4 px-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 shrink-0 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3">
                 <Button
                   variant="outline"

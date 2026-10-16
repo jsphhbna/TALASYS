@@ -19,33 +19,37 @@ interface AdminPaymentProcessModalProps {
 
 export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaymentProcessModalProps) {
   const { user } = useAuth()
-  const { confirmPayment, updateRequestStatus, markPayLater } = useAdminData()
-  
+  const { confirmPayment, updateRequestStatus, markPayLater, documentRequests } = useAdminData()
+
+  const liveRequest = (request?.id ? documentRequests.find(r => r.id === request.id) : null) || request
+
   const [activeTab, setActiveTab] = useState<"cash" | "gcash">("cash")
-  const [gcashRef, setGcashRef] = useState(request?.gcashRefNumber || "")
+  const [gcashRef, setGcashRef] = useState(liveRequest?.gcashRefNumber || "")
   const [submitType, setSubmitType] = useState<"cash" | "gcash" | "payLater" | null>(null)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    if (request) {
-      setGcashRef(request.gcashRefNumber || "")
-      setActiveTab(request.paymentMethod === "gcash" ? "gcash" : "cash")
+    if (liveRequest) {
+      setGcashRef(liveRequest.gcashRefNumber || "")
+      setActiveTab(liveRequest.paymentMethod === "gcash" ? "gcash" : "cash")
     }
-  }, [request])
+  }, [liveRequest?.id, liveRequest?.paymentMethod, liveRequest?.gcashRefNumber])
 
   if (!request) return null
 
-  const isEligible = isAdminPaymentQueueEligible(request)
+  const isEligible = liveRequest ? isAdminPaymentQueueEligible(liveRequest) : false
+  const isPaid = liveRequest?.paymentStatus === "paid"
+  const isTerminal = liveRequest?.status === "Cancelled" || liveRequest?.status === "Rejected"
 
   const handleConfirmCash = async () => {
-    if (!isAdminPaymentQueueEligible(request)) {
-      toast.error("This request is not eligible for payment processing.")
+    if (!liveRequest || !isAdminPaymentQueueEligible(liveRequest)) {
+      toast.error("This request is no longer eligible for payment processing.")
       return
     }
     setSubmitType("cash")
     try {
-      await confirmPayment(request.id, user?.name || "Admin", user?.email || "admin@system.com", "cash")
+      await confirmPayment(liveRequest.id, user?.name || "Admin", user?.email || "admin@system.com", "cash")
       toast.success("Cash payment confirmed! Request updated.")
       onClose()
     } catch (err: any) {
@@ -56,8 +60,8 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
   }
 
   const handleConfirmGCash = async () => {
-    if (!isAdminPaymentQueueEligible(request)) {
-      toast.error("This request is not eligible for payment processing.")
+    if (!liveRequest || !isAdminPaymentQueueEligible(liveRequest)) {
+      toast.error("This request is no longer eligible for payment processing.")
       return
     }
     if (gcashRef.trim().length < 13) {
@@ -66,7 +70,7 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
     }
     setSubmitType("gcash")
     try {
-      await confirmPayment(request.id, user?.name || "Admin", user?.email || "admin@system.com", "gcash", gcashRef.trim())
+      await confirmPayment(liveRequest.id, user?.name || "Admin", user?.email || "admin@system.com", "gcash", gcashRef.trim())
       toast.success("GCash payment confirmed! Request updated.")
       onClose()
     } catch (err: any) {
@@ -77,13 +81,13 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
   }
 
   const handlePayLater = async () => {
-    if (!isAdminPaymentQueueEligible(request)) {
-      toast.error("This request is not eligible for payment processing.")
+    if (!liveRequest || !isAdminPaymentQueueEligible(liveRequest)) {
+      toast.error("This request is no longer eligible for payment processing.")
       return
     }
     setSubmitType("payLater")
     try {
-      await markPayLater(request.id, user?.name || "Admin", user?.email || "admin@system.com")
+      await markPayLater(liveRequest.id, user?.name || "Admin", user?.email || "admin@system.com")
       toast.success("Payment marked as Pay Later. You can now approve the document.")
       onClose()
     } catch (err: any) {
@@ -99,14 +103,26 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h2 className="text-base font-bold text-[#0C2340] dark:text-blue-50">Process Payment</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{request.documentType}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{liveRequest.documentType}</p>
           </div>
           <button onClick={onClose} aria-label="Close modal" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {!isEligible && (
+        {isPaid && (
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 text-xs text-emerald-700 dark:text-emerald-400">
+            ✓ Payment has already been confirmed for this request ({liveRequest.paymentMethod?.toUpperCase()}).
+          </div>
+        )}
+
+        {isTerminal && (
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-400">
+            Request is in terminal status &quot;{liveRequest.status}&quot;. Payment processing is disabled.
+          </div>
+        )}
+
+        {!isEligible && !isPaid && !isTerminal && (
           <div className="mx-6 mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-400">
             This request is not eligible for payment processing.
           </div>
@@ -115,17 +131,17 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
         <div className="mx-6 mt-5 mb-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-4 flex items-center justify-between">
           <div>
             <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Amount Due</p>
-            <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">P{(request.documentFee ?? 0).toFixed(2)}</p>
+            <p className="text-2xl font-bold text-[#0C2340] dark:text-blue-50">P{(liveRequest.documentFee ?? 0).toFixed(2)}</p>
           </div>
           <div className="text-right">
             <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider">Ref #</p>
-            <p className="text-sm font-mono font-bold text-slate-700 dark:text-slate-300">{request.gcashRefNumber || request.paymentReferenceNumber || "N/A"}</p>
+            <p className="text-sm font-mono font-bold text-slate-700 dark:text-slate-300">{liveRequest.gcashRefNumber || liveRequest.paymentReferenceNumber || "N/A"}</p>
           </div>
         </div>
 
         <div className="px-6 mb-5">
             <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Resident</p>
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{request.residentName}</p>
+            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{liveRequest.residentName}</p>
         </div>
 
         <div className="flex border-b border-slate-100 dark:border-slate-800 mx-6">
@@ -148,7 +164,7 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
             <div className="space-y-5">
               <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/50 rounded-lg">
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-400">Receive Cash Payment</p>
-                <p className="text-xs text-emerald-600 dark:text-emerald-500/80 mt-1">Verify that you have received P{(request.documentFee ?? 0).toFixed(2)} from the resident.</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-500/80 mt-1">Verify that you have received P{(liveRequest.documentFee ?? 0).toFixed(2)} from the resident.</p>
               </div>
               <div className="flex flex-col gap-3">
                 <Button onClick={handleConfirmCash} disabled={!!submitType || !isEligible} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
@@ -158,13 +174,13 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
             </div>
           ) : (
             <div className="space-y-5">
-              {request.paymentMethod === "gcash" && request.gcashScreenshotUrl && (
+              {liveRequest.paymentMethod === "gcash" && liveRequest.gcashScreenshotUrl && (
                 <div className="mb-4">
                   <p className="text-2xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Resident Uploaded Proof</p>
                   <SecureMediaViewer
-                    url={request.gcashScreenshotUrl}
+                    url={liveRequest.gcashScreenshotUrl}
                     alt="GCash proof"
-                    recordId={request.id}
+                    recordId={liveRequest.id}
                     recordType="request"
                     className="w-full h-32 object-contain bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700"
                     onZoom={(signedUrl) => { setLightboxUrl(signedUrl); setIsLightboxOpen(true) }}
@@ -189,22 +205,22 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
         </div>
       </div>
 
-      <ModalOverlay 
-        isOpen={isLightboxOpen} 
+      <ModalOverlay
+        isOpen={isLightboxOpen}
         onClose={() => setIsLightboxOpen(false)}
         className="z-[60] bg-black/90 p-4"
       >
         <div className="relative max-w-4xl w-full h-full flex flex-col items-center justify-center">
-          <button 
+          <button
             onClick={() => setIsLightboxOpen(false)}
             className="absolute top-4 right-4 text-white hover:text-gray-300 z-[70] bg-black/50 p-2 rounded-full"
           >
             <X className="w-6 h-6" />
           </button>
-          <img 
+          <img
             src={lightboxUrl || ""}
-            alt="GCash proof enlarged" 
-            className="max-w-full max-h-[85vh] object-contain rounded-md shadow-2xl" 
+            alt="GCash proof enlarged"
+            className="max-w-full max-h-[85vh] object-contain rounded-md shadow-2xl"
           />
         </div>
       </ModalOverlay>

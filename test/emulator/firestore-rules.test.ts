@@ -525,3 +525,45 @@ test("Milestone E01: Denied accounts fail closed across all direct Firestore cli
     isVerified: true,
   }))
 })
+
+test("UI04: View Only is denied notification creation, while operational admin and resident admin-alerts succeed", async () => {
+  const viewerDb = environment.authenticatedContext("viewer").firestore()
+  const fullAdminDb = environment.authenticatedContext("full-admin").firestore()
+  const residentDb = environment.authenticatedContext("resident").firestore()
+
+  // 1. View Only administrator is denied from creating notifications
+  await assertFails(setDoc(doc(viewerDb, "notifications", "viewer-created-notif"), {
+    targetId: "resident",
+    type: "info",
+    title: "View Only Notice",
+    message: "Should be denied",
+    createdAt: Date.now(),
+  }))
+
+  // 2. Operational administrator is allowed to create notifications
+  await assertSucceeds(setDoc(doc(fullAdminDb, "notifications", "admin-created-notif"), {
+    targetId: "resident",
+    type: "info",
+    title: "Official Notice",
+    message: "Permitted by operational admin",
+    createdAt: Date.now(),
+  }))
+
+  // 3. Resident creating notification targeted at admin succeeds
+  await assertSucceeds(setDoc(doc(residentDb, "notifications", "resident-admin-alert"), {
+    targetId: "admin",
+    type: "info",
+    title: "Resident Request",
+    message: "Permitted resident-to-admin message",
+    createdAt: Date.now(),
+  }))
+
+  // 4. Resident attempting to notify another resident (impersonation defense) is denied
+  await assertFails(setDoc(doc(residentDb, "notifications", "resident-impersonate"), {
+    targetId: "viewer",
+    type: "info",
+    title: "Spoofed Message",
+    message: "Targeting non-admin is forbidden",
+    createdAt: Date.now(),
+  }))
+})

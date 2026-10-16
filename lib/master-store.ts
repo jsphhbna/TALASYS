@@ -99,7 +99,10 @@ export interface MasterDocumentRequest {
   authorizationLetter?: string
   statusTimestamps?: Record<string, number>
   rejectionReason?: string
-  
+  additionalDetails?: string
+  hasGenerated?: boolean
+  generatedAt?: number
+
   // Payment fields
   documentFee?: number
   paymentStatus?: "unpaid" | "pending_verification" | "paid" | "waived"
@@ -115,7 +118,7 @@ export interface MasterDocumentRequest {
 
 export interface MasterNotification {
   id: string
-  targetId: string 
+  targetId: string
   type: "urgent" | "success" | "info" | "read" | "registration" | "expiring" | "reactivation" | "error"
   title: string
   message: string

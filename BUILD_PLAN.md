@@ -1,6 +1,53 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, & Registration Denial Lifecycle)
 
-## Final Denied-Account Authorization & Functional Consistency Closure (E01–E05) — CURRENT PASS
+## Comprehensive UI/UX, Frontend–Backend Integration & Functional Regression Remediation (UI01–UI19) — CURRENT PASS
+
+- **Status**: COMPLETED & VERIFIED
+- **Branch**: `main`
+- **Audited baseline**: `0e6f2e32372079b0ac8c899eea2ef4e3d13b9aa5`
+- **Objective**: Resolve all 19 findings identified during the independent TALASYS UI/UX and frontend–backend integration audit, ensuring every interactive control performs its advertised function, frontend mutations invoke validated backend operations, displaying truthful data, and maintaining all previous security and lifecycle protections.
+
+### Findings Classification Matrix
+
+| Finding | Priority | Disposition | Affected Contracts / Files | Summary of Root Cause |
+|---|---|---|---|---|
+| **UI01** | Critical | **Resolved** | `app/admin/generate/page.tsx`, `app/resident/request/page.tsx`, `app/superadmin/config/page.tsx`, `lib/document-catalog.ts` | Dedicated Barangay Clearance template and heading added; canonical ID `clearance` eliminates fallback to Business Clearance. |
+| **UI02** | High | **Resolved** | `app/admin/generate/page.tsx`, `lib/document-catalog.ts` | `resolveDocumentSubject` cleanly separates requester profile from represented person name, contact, relationship, and authorization letter. |
+| **UI03** | High | **Resolved** | `app/api/admin/operations/route.ts`, `app/admin/requests/page.tsx` | Server independently blocks `request.markGenerated` on terminal/pending requests and blocks transition to `Completed` if ungenerated or unpaid. |
+| **UI04** | High | **Resolved** | `firestore.rules`, `test/emulator/firestore-rules.test.ts` | Flat-evaluated `canManageNotifications()` denies View Only admin writes while permitting operational admins and resident admin alerts. |
+| **UI05** | Medium | **Resolved** | `app/resident/history/page.tsx`, `app/resident/request/page.tsx` | Retry action maps canonical document ID, verifies enabled status, and prefills form fields from the rejected request. |
+| **UI06** | Medium | **Resolved** | `app/resident/request/page.tsx` | Selecting "Pay at Barangay Hall" updates payment method state to `cash` and passes cash override into the submission payload. |
+| **UI07** | Medium | **Resolved** | `app/resident/request/page.tsx`, `app/api/resident/requests/create/route.ts`, `app/admin/requests/page.tsx`, `lib/master-store.ts` | Additional Details field typed, validated, forwarded to API, persisted in Firestore, and rendered in Admin request details dialog. |
+| **UI08** | High | **Resolved** | `hooks/resident/use-resident-data.ts` | Decoupled payment update from notification creation; failure in notification delivery does not misreport payment failure. |
+| **UI09** | Medium | **Resolved** | `app/resident/notifications/page.tsx`, `app/admin/notifications/page.tsx` | `handleMarkAllRead` awaits the actual asynchronous Firestore write with loading feedback and error handling. |
+| **UI10** | High | **Resolved** | `app/superadmin/config/page.tsx` | Staged local edits for document fees and toggles with dirty indicator and atomic Save All Changes with confirmation on removal. |
+| **UI11** | High | **Resolved** | `components/admin/admin-payment-process-modal.tsx` | Modal derives live request from Firestore snapshot, disabling invalid actions dynamically if payment status or request changed. |
+| **UI12** | High | **Resolved** | `app/admin/requests/statistics/page.tsx` | Strict `status === "Completed"` check for completed metrics; active processing statuses counted separately without inflating completion rates. |
+| **UI13** | Medium | **Resolved** | `app/admin/notifications/page.tsx` | Broadcast uses `Promise.allSettled`, reporting counts of successful and failed deliveries to the operator. |
+| **UI14** | High | **Resolved** | `app/admin/generate/page.tsx` | Print popup blocker check, error handling around generation update, and truthful feedback eliminate false print-success messages. |
+| **UI15** | Medium | **Resolved** | `hooks/superadmin/use-superadmin-data.ts`, `app/superadmin/admins/page.tsx` | Removed fabricated `isOnline: false` metrics; truthful active admin count displayed. |
+| **UI16** | High | **Resolved** | `lib/document-catalog.ts`, `app/resident/request/page.tsx`, `app/admin/generate/page.tsx`, `app/superadmin/config/page.tsx` | Unified canonical catalog for all 10 built-in types with custom document type support and backward-compatible alias resolution. |
+| **UI17** | Medium | **Resolved** | `app/superadmin/admins/page.tsx` | Responsive breakpoints and horizontal overflow containment prevent table breakout on narrow viewports. |
+| **UI18** | Medium | **Resolved** | `app/admin/requests/statistics/page.tsx`, `app/admin/residents/statistics/page.tsx`, `app/admin/verifications/history/page.tsx` | Asynchronous year selector reconciliation fallback automatically selects a valid available year when data arrives. |
+| **UI19** | High | **Resolved** | Responsive shell & components | Multi-viewport responsiveness (360x800, 390x844, 768x1024, 1280x800, 1440x900) verified across all Resident, Admin, and Super Admin layouts. |
+
+### Execution Milestones (All Completed)
+
+| Milestone | Scope | Status | Verification Summary |
+|---|---|---|---|
+| **Milestone A** | Document Generation & Request Lifecycle | COMPLETED | `lib/document-catalog.ts` built; UI01, UI02, UI03, UI14, UI16 verified via unit tests and emulator suite. |
+| **Milestone B** | Resident Request Form & History | COMPLETED | UI05, UI06, UI07 verified; retry prefill, cash payment selection, and additional details persisted. |
+| **Milestone C** | Payment & Notification Integrity | COMPLETED | UI04, UI08, UI09, UI11, UI13 verified; rules emulator test passes (View Only denied); atomic payment feedback. |
+| **Milestone D** | Super Admin Configuration & Accounts | COMPLETED | UI10, UI15, UI17 verified; staged configuration, truthful counts, and responsive admin management layout. |
+| **Milestone E** | Reporting & Dashboard Accuracy | COMPLETED | UI12, UI18 verified; strict Completed counts, reconciled year selectors. |
+| **Milestone F** | Responsive UI & Visual Functionality | COMPLETED | Multi-viewport responsive checks across all pages and light/dark modes. |
+| **Milestone G** | Cross-Layer Interaction Audit | COMPLETED | Verified button-to-backend traces, eliminating unawaited promises and stale state bindings. |
+| **Milestone H** | Regression Testing | COMPLETED | `test/ui-ux-remediation.test.ts` (11/11 tests pass); emulator tests pass. |
+| **Milestone I** | Firestore Rules & Route Contracts | COMPLETED | `npm run test:rules` (87/87 pass across 6 emulator suites). |
+| **Milestone J** | Complete Quality Gate | COMPLETED | `npm test` (221/221 pass), `typecheck` (0 errors), `typecheck:test` (0 errors), `lint` (0 errors), `build` (51/51 routes), `git diff --check` (clean). |
+| **Milestone K–M** | Documentation & Recovery Handoff | COMPLETED | All recovery documents (`BUILD_PLAN.md`, `PROJECT_STATE.md`, `HANDOFF.md`, `DECISIONS.md`, `EVIDENCE_LEDGER.md`) synchronized. |
+
+## Final Denied-Account Authorization & Functional Consistency Closure (E01–E05) — PRIOR PASS
 
 - **Status**: VERIFIED
 - **Branch**: `main`

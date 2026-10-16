@@ -89,6 +89,7 @@ export function createResidentRequestHandler(injected?: { auth?: any; db?: any }
       gcashScreenshotUrl,
       idempotencyKey,
     } = body
+    const additionalDetails = typeof body.additionalDetails === "string" && body.additionalDetails.trim() ? body.additionalDetails.trim().slice(0, 1000) : undefined
 
     if (!documentType || typeof documentType !== "string") {
       return NextResponse.json({ error: "Invalid or unsupported document type requested." }, { status: 400 })
@@ -191,6 +192,7 @@ export function createResidentRequestHandler(injected?: { auth?: any; db?: any }
       paymentMethod: effectivePaymentMethod,
       paymentReferenceNumber: paymentRefNumber,
       idempotencyKey,
+      ...(additionalDetails ? { additionalDetails } : {}),
       ...(gcashRefNumber ? { gcashRefNumber } : {}),
       ...(gcashScreenshotUrl ? { gcashScreenshotUrl } : {}),
       ...(requestFor === "other"
