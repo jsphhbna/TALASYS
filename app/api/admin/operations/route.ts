@@ -5,6 +5,7 @@ import { canManageRequestsRole, canManageResidentsRole, canManageVerificationsRo
 import { ACTIVE_LOCKED_STAGES } from "../../../../lib/admin/identity-coordination-policy.ts"
 import { extractClientIp } from "../../../../lib/security/request-ip.ts"
 import { COLLECTION_ACTIVITY_LOGS, COLLECTION_DOCUMENT_REQUESTS, COLLECTION_NOTIFICATIONS, COLLECTION_SYSTEM_ALERTS, COLLECTION_SYSTEM_CONFIG, COLLECTION_USERS, COLLECTION_VERIFICATIONS, SYSTEM_CONFIG_DOCUMENT_ID } from "../../../../lib/constants.ts"
+import { validateBeneficiaryDetails } from "../../../../lib/document-catalog.ts"
 
 type Actor = { uid: string; name: string; email?: string; role: string }
 type OperationBody = { operation?: string; operationId?: string; targetId?: string; payload?: Record<string, any> }
@@ -315,26 +316,21 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       if (before.requestFor !== "other") {
         throw httpError("Beneficiary confirmation is only applicable to represented-person requests.", 400)
       }
-      const confirmedAddress = typeof payload.confirmedAddress === "string" ? payload.confirmedAddress.trim() : ""
-      if (!confirmedAddress) {
-        throw httpError("Confirmed beneficiary address is required.", 400)
+      const validation = validateBeneficiaryDetails(payload)
+      if (!validation.valid || !validation.data) {
+        throw httpError(validation.error || "Invalid beneficiary confirmation payload.", 400)
       }
-      const confirmedAge = payload.confirmedAge !== undefined && payload.confirmedAge !== null && String(payload.confirmedAge).trim() !== ""
-        ? Number(payload.confirmedAge)
-        : undefined
-      if (confirmedAge !== undefined && (isNaN(confirmedAge) || confirmedAge < 0 || confirmedAge > 130)) {
-        throw httpError("Invalid confirmed beneficiary age.", 400)
-      }
+      const { address: confirmedAddress, age: confirmedAge, name: confirmedName, notes: confirmedNotes } = validation.data
 
       after = {
-        confirmedBeneficiaryName: before.requestedByName || "",
+        confirmedBeneficiaryName: confirmedName || before.requestedByName || "",
         confirmedBeneficiaryAddress: confirmedAddress,
         ...(confirmedAge !== undefined ? { confirmedBeneficiaryAge: confirmedAge } : {}),
         beneficiaryReviewStatus: "confirmed",
         beneficiaryConfirmedAt: now,
         beneficiaryConfirmedBy: actor.name,
         beneficiaryConfirmedByUid: actorUid,
-        ...(typeof payload.notes === "string" && payload.notes.trim() ? { beneficiaryConfirmationNotes: payload.notes.trim() } : {}),
+        ...(confirmedNotes ? { beneficiaryConfirmationNotes: confirmedNotes } : {}),
         updatedAt: now,
       }
       transaction.update(targetRef, after)
@@ -345,11 +341,26 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       if (before.status === "Pending") {
         throw httpError("Cannot mark generated for an unapproved request in Pending status.", 409)
       }
+
+      // Enforce explicit staff confirmation for represented-person requests (F02, F04)
+      if (before.requestFor === "other") {
+        if (
+          before.beneficiaryReviewStatus !== "confirmed" ||
+          !before.beneficiaryConfirmedAt ||
+          !before.confirmedBeneficiaryAddress
+        ) {
+          throw httpError("Cannot generate document: Represented beneficiary details must be explicitly confirmed by staff before issuance.", 400)
+        }
+        const validation = validateBeneficiaryDetails({
+          confirmedAddress: before.confirmedBeneficiaryAddress,
+          confirmedAge: before.confirmedBeneficiaryAge,
+        })
+        if (!validation.valid) {
+          throw httpError(`Invalid stored beneficiary confirmation: ${validation.error}`, 400)
+        }
+      }
+
       const isReprint = Boolean(before.hasGenerated && before.generatedAt)
-      const confirmedAddress = typeof payload.confirmedAddress === "string" ? payload.confirmedAddress.trim() : undefined
-      const confirmedAge = payload.confirmedAge !== undefined && payload.confirmedAge !== null && String(payload.confirmedAge).trim() !== ""
-        ? Number(payload.confirmedAge)
-        : undefined
 
       after = {
         hasGenerated: true,
@@ -358,16 +369,18 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
           lastReprintedAt: now,
           reprintCount: ((before.reprintCount as number) || 0) + 1,
         } : {}),
-        ...(confirmedAddress ? {
-          confirmedBeneficiaryAddress: confirmedAddress,
-          beneficiaryReviewStatus: "confirmed",
-          beneficiaryConfirmedAt: before.beneficiaryConfirmedAt || now,
-          beneficiaryConfirmedBy: before.beneficiaryConfirmedBy || actor.name,
-          beneficiaryConfirmedByUid: before.beneficiaryConfirmedByUid || actorUid,
-        } : {}),
-        ...(confirmedAge !== undefined ? { confirmedBeneficiaryAge: confirmedAge } : {}),
-        issuanceBeneficiaryAddress: confirmedAddress || before.confirmedBeneficiaryAddress || before.representedAddress || null,
-        issuanceBeneficiaryAge: confirmedAge !== undefined ? confirmedAge : (before.confirmedBeneficiaryAge !== undefined ? before.confirmedBeneficiaryAge : (before.representedAge !== undefined ? before.representedAge : null)),
+        // Issuance snapshot: preserve original issuance details if set on first generation, or record authoritative
+        issuanceBeneficiaryAddress: before.issuanceBeneficiaryAddress || (before.requestFor === "other"
+          ? before.confirmedBeneficiaryAddress
+          : (before.address || null)),
+        issuanceBeneficiaryAge: before.issuanceBeneficiaryAge !== undefined && before.issuanceBeneficiaryAge !== null
+          ? before.issuanceBeneficiaryAge
+          : (before.requestFor === "other"
+              ? (before.confirmedBeneficiaryAge !== undefined ? before.confirmedBeneficiaryAge : null)
+              : (before.age !== undefined ? before.age : null)),
+        issuanceBeneficiaryName: before.issuanceBeneficiaryName || (before.requestFor === "other"
+          ? (before.confirmedBeneficiaryName || before.requestedByName || null)
+          : (before.residentName || null)),
         updatedAt: now,
       }
       transaction.update(targetRef, after)
@@ -420,15 +433,21 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       const updates = exactFields(safeObject(payload.updates), SYSTEM_CONFIG_FIELDS)
       if (!Object.keys(updates).length) throw httpError("No configuration fields supplied.", 400)
 
+      // Concurrency precondition enforcement (F01):
+      // When target configuration document exists, baseVersion must be provided by the client.
+      if (before && (typeof payload.baseVersion !== "number" || isNaN(payload.baseVersion))) {
+        throw httpError("Concurrency precondition required: 'baseVersion' must be provided for system configuration updates.", 400)
+      }
+
       const currentVersion = typeof before?.version === "number" ? before.version : 1
       const baseVersion = typeof payload.baseVersion === "number" ? payload.baseVersion : undefined
       const baseConfig = safeObject(payload.baseConfig)
-      const changedFields: string[] = Array.isArray(payload.changedFields)
-        ? payload.changedFields
-        : Object.keys(updates)
+      const actualUpdatedFields = Object.keys(updates)
+      const declaredChangedFields: string[] = Array.isArray(payload.changedFields) ? payload.changedFields : []
+      const changedFields = Array.from(new Set([...actualUpdatedFields, ...declaredChangedFields]))
 
-      // Concurrency protection (R03):
-      // If baseVersion is specified and authoritative server version differs, check for overlapping field modifications
+      // Concurrency protection (R03, F01):
+      // When baseVersion differs from authoritative server version, detect overlapping conflicting field modifications
       if (baseVersion !== undefined && before && baseVersion !== currentVersion) {
         const conflictingFields: string[] = []
         for (const field of changedFields) {

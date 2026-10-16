@@ -239,7 +239,115 @@ export function resolveDocumentType(
   return null
 }
 
-export type BeneficiaryReviewStatus = "missing" | "provided" | "confirmed"
+export type BeneficiaryReviewStatus = "missing" | "provided" | "confirmed" | "modified"
+
+export interface ValidatedBeneficiaryDetails {
+  name?: string
+  address: string
+  age?: number
+  notes?: string
+}
+
+export interface BeneficiaryValidationResult {
+  valid: boolean
+  error?: string
+  data?: ValidatedBeneficiaryDetails
+}
+
+/**
+ * Shared production validator for confirmed beneficiary details (F04).
+ * Enforces uniform constraints across confirmation, issuance, and API boundaries.
+ */
+export function validateBeneficiaryDetails(
+  input: unknown,
+  options?: { requiresAge?: boolean; requireName?: boolean }
+): BeneficiaryValidationResult {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { valid: false, error: "Invalid beneficiary confirmation payload: must be an object." }
+  }
+
+  const payload = input as Record<string, unknown>
+
+  // Disallow unapproved fields
+  const allowedKeys = new Set([
+    "confirmedAddress", "confirmedAge", "notes", "confirmedName",
+    "name", "address", "age"
+  ])
+  for (const k of Object.keys(payload)) {
+    if (!allowedKeys.has(k)) {
+      return { valid: false, error: `Unapproved field in beneficiary payload: '${k}'.` }
+    }
+  }
+
+  // Address: required non-empty string, max 300 chars
+  const rawAddress = payload.confirmedAddress ?? payload.address
+  if (typeof rawAddress !== "string" || !rawAddress.trim()) {
+    return { valid: false, error: "Confirmed beneficiary address is required." }
+  }
+  const address = rawAddress.trim()
+  if (address.length > 300) {
+    return { valid: false, error: "Beneficiary address exceeds maximum allowed length (300 characters)." }
+  }
+
+  // Age: optional unless requiresAge is true; if present, must be integer in 0..130
+  const rawAge = payload.confirmedAge !== undefined ? payload.confirmedAge : payload.age
+  let age: number | undefined = undefined
+
+  if (rawAge !== undefined && rawAge !== null && String(rawAge).trim() !== "") {
+    const ageNum = typeof rawAge === "number" ? rawAge : Number(String(rawAge).trim())
+    if (!Number.isFinite(ageNum) || !Number.isInteger(ageNum)) {
+      return { valid: false, error: "Beneficiary age must be a valid whole number." }
+    }
+    if (ageNum < 0) {
+      return { valid: false, error: "Beneficiary age cannot be negative." }
+    }
+    if (ageNum > 130) {
+      return { valid: false, error: "Beneficiary age exceeds supported range (0–130)." }
+    }
+    age = ageNum
+  } else if (options?.requiresAge) {
+    return { valid: false, error: "Beneficiary age is required for this certificate." }
+  }
+
+  // Name: optional unless requireName is true; max 150 chars
+  const rawName = payload.confirmedName ?? payload.name
+  let name: string | undefined = undefined
+  if (rawName !== undefined && rawName !== null && String(rawName).trim() !== "") {
+    if (typeof rawName !== "string") {
+      return { valid: false, error: "Beneficiary name must be a string." }
+    }
+    const nameTrimmed = rawName.trim()
+    if (nameTrimmed.length > 150) {
+      return { valid: false, error: "Beneficiary name exceeds maximum allowed length (150 characters)." }
+    }
+    name = nameTrimmed
+  } else if (options?.requireName) {
+    return { valid: false, error: "Beneficiary name is required." }
+  }
+
+  // Notes: optional string, max 500 chars
+  let notes: string | undefined = undefined
+  if (payload.notes !== undefined && payload.notes !== null && String(payload.notes).trim() !== "") {
+    if (typeof payload.notes !== "string") {
+      return { valid: false, error: "Confirmation notes must be a string." }
+    }
+    const notesTrimmed = payload.notes.trim()
+    if (notesTrimmed.length > 500) {
+      return { valid: false, error: "Confirmation notes exceed maximum allowed length (500 characters)." }
+    }
+    notes = notesTrimmed
+  }
+
+  return {
+    valid: true,
+    data: {
+      address,
+      ...(age !== undefined ? { age } : {}),
+      ...(name ? { name } : {}),
+      ...(notes ? { notes } : {}),
+    }
+  }
+}
 
 export interface DocumentSubjectResolution {
   subjectName: string
@@ -257,6 +365,9 @@ export interface DocumentSubjectResolution {
   beneficiaryConfirmedBy?: string
   beneficiaryConfirmedAt?: number
   isBeneficiaryConfirmed: boolean
+  isBeneficiaryModified?: boolean
+  isAddressModified?: boolean
+  isAgeModified?: boolean
 }
 
 function calculateAgeFromDob(dob?: string): string {
@@ -274,9 +385,9 @@ function calculateAgeFromDob(dob?: string): string {
 
 /**
  * Resolves the subject details for document generation, correctly separating
- * represented beneficiaries from requesting residents (UI02, P01, R05, R06).
+ * represented beneficiaries from requesting residents (UI02, P01, R05, R06, F03).
  * Never silently reuses the requester's age or address for represented beneficiaries.
- * Accurately tracks staff confirmation status without misleading 'Verified' claims.
+ * Accurately tracks staff confirmation status and detects local edits (F03).
  */
 export function resolveDocumentSubject(
   request: any,
@@ -293,36 +404,62 @@ export function resolveDocumentSubject(
   let address = ""
   let age = ""
   let isBeneficiaryConfirmed = false
+  let isBeneficiaryModified = false
+  let isAddressModified = false
+  let isAgeModified = false
   let beneficiaryReviewStatus: BeneficiaryReviewStatus = "missing"
 
   if (isRepresentation) {
-    // R06: Check for authoritative staff confirmation
-    isBeneficiaryConfirmed = Boolean(
-      request?.beneficiaryReviewStatus === "confirmed" ||
-      request?.beneficiaryConfirmedAt ||
+    const hasPersistedConfirmation = Boolean(
+      (request?.beneficiaryReviewStatus === "confirmed" || request?.beneficiaryConfirmedAt) &&
       request?.confirmedBeneficiaryAddress
     )
 
     // Precedence: explicit admin overrides -> confirmed issuance values -> resident-submitted values
-    address = adminOverrides?.address?.trim() ||
-      request?.confirmedBeneficiaryAddress?.trim() ||
-      request?.representedAddress?.trim() ||
-      request?.subjectAddress?.trim() ||
-      ""
+    const effectiveAddress = adminOverrides?.address !== undefined
+      ? adminOverrides.address.trim()
+      : (request?.confirmedBeneficiaryAddress?.trim() ||
+         request?.representedAddress?.trim() ||
+         request?.subjectAddress?.trim() ||
+         "")
 
     const rawAge = adminOverrides?.age !== undefined
       ? adminOverrides.age
       : (request?.confirmedBeneficiaryAge !== undefined
           ? request.confirmedBeneficiaryAge
           : (request?.representedAge !== undefined ? request.representedAge : request?.subjectAge))
-    age = rawAge !== undefined && rawAge !== null && String(rawAge).trim() !== "" ? String(rawAge).trim() : ""
+    const effectiveAge = rawAge !== undefined && rawAge !== null && String(rawAge).trim() !== "" ? String(rawAge).trim() : ""
 
-    if (isBeneficiaryConfirmed) {
-      beneficiaryReviewStatus = "confirmed"
+    address = effectiveAddress
+    age = effectiveAge
+
+    if (!address) {
+      beneficiaryReviewStatus = "missing"
+      isBeneficiaryConfirmed = false
+    } else if (hasPersistedConfirmation) {
+      const persistedAddress = (request?.confirmedBeneficiaryAddress || "").trim()
+      const persistedAge = request?.confirmedBeneficiaryAge !== undefined && request?.confirmedBeneficiaryAge !== null
+        ? String(request.confirmedBeneficiaryAge).trim()
+        : ""
+
+      isAddressModified = adminOverrides?.address !== undefined && adminOverrides.address.trim() !== persistedAddress
+      isAgeModified = adminOverrides?.age !== undefined && effectiveAge !== persistedAge
+
+      if (isAddressModified || isAgeModified) {
+        beneficiaryReviewStatus = "modified"
+        isBeneficiaryConfirmed = false
+        isBeneficiaryModified = true
+      } else {
+        beneficiaryReviewStatus = "confirmed"
+        isBeneficiaryConfirmed = true
+        isBeneficiaryModified = false
+      }
     } else if (address.length > 0 || age.length > 0) {
       beneficiaryReviewStatus = "provided"
+      isBeneficiaryConfirmed = false
     } else {
       beneficiaryReviewStatus = "missing"
+      isBeneficiaryConfirmed = false
     }
   } else {
     address = adminOverrides?.address?.trim() || resident?.address?.trim() || ""
@@ -351,6 +488,9 @@ export function resolveDocumentSubject(
     beneficiaryConfirmedBy: request?.beneficiaryConfirmedBy,
     beneficiaryConfirmedAt: request?.beneficiaryConfirmedAt,
     isBeneficiaryConfirmed,
+    isBeneficiaryModified,
+    isAddressModified,
+    isAgeModified,
   }
 }
 

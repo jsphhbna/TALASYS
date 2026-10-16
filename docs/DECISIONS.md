@@ -569,3 +569,41 @@
   - View Only administrators can browse notifications without triggering authorization denials or Firestore writes.
   - Beneficiary details are accurately labelled and permanently stored in official records.
   - Test suites execute hermetically without shared state contamination.
+
+## ADR-024: Authoritative Configuration Concurrency, Beneficiary Confirmation Decoupling, and Issuance Integrity (F01–F06)
+- **Context**:
+  Independent post-remediation audit following R01–R07 identified six targeted defects:
+  1. **F01**: Add/Delete Document Type submitted entire configuration object without `baseVersion`, bypassing backend concurrency checks.
+  2. **F02**: `request.markGenerated` accepted arbitrary beneficiary inputs and synthesized confirmation status, bypassing explicit staff confirmation.
+  3. **F03**: Admin generator displayed "✓ Confirmed by Staff" badge even after local edits altered the address or age away from the confirmed value.
+  4. **F04**: Validation rules differed across endpoints; `confirmBeneficiary` checked age ranges while `markGenerated` accepted arbitrary unchecked fields.
+  5. **F05**: E2E browser tests created requests, media registry records, and notifications without cleaning them up in `try...finally`.
+  6. **F06**: E2E tests verified preview content but did not verify actual PDF download streams, valid `%PDF-` binary magic bytes, or partial failure handling.
+- **Decisions**:
+  1. **Authoritative Concurrency on All Configuration Mutations (F01)**:
+     - Require valid `baseVersion` precondition on all `system.config.update` calls when config exists; reject omission with HTTP 400.
+     - Evaluate concurrency inside Firestore transaction; merge non-conflicting fields and reject overlapping edits with HTTP 409 Conflict.
+     - In `app/superadmin/config/page.tsx`, `handleAddDocType` and `handleDeleteDocType` submit minimal payloads (`documentTypes`, `documentFees`, `customDocumentTypes`, `templates`) with `baseVersion` and `changedFields`; on 409 conflict, preserve unsaved state and keep dialog open.
+  2. **Decouple Confirmation from Issuance (F02)**:
+     - Establish `request.confirmBeneficiary` as the sole authoritative operation for staff confirmation.
+     - In `request.markGenerated`, strictly require that represented requests possess authoritative persisted staff review (`beneficiaryReviewStatus === "confirmed"`, `beneficiaryConfirmedAt`, `confirmedBeneficiaryAddress`); client generation payloads cannot manufacture confirmation.
+     - Persist immutable issuance snapshot (`issuanceBeneficiaryAddress`, `issuanceBeneficiaryAge`, `issuanceBeneficiaryName`); preserve original `generatedAt` on reprint.
+  3. **Dynamic Invalidation of Stale Confirmation Badges (F03)**:
+     - Update `resolveDocumentSubject` in `lib/document-catalog.ts` to compare active form inputs against persisted confirmed values.
+     - Transition review status to `"modified"` with `Modified — Requires Reconfirmation` badge when local edits differ from confirmed values; restore `"confirmed"` status if inputs revert to match.
+     - Guard Download PDF and Print handlers in `app/admin/generate/page.tsx` to strictly block issuance while in `"modified"` state.
+  4. **Single Shared Beneficiary Validation Policy (F04)**:
+     - Consolidate validation into `validateBeneficiaryDetails(input, options)` in `lib/document-catalog.ts`.
+     - Enforce consistent constraints: address presence and length (max 300), age range (finite integer 0–130) when required or provided, name length (max 150), notes length (max 500), and reject unapproved payload fields across all endpoints.
+  5. **Hermetic Test Fixture Isolation (F05)**:
+     - Wrap all fixture-creating Playwright tests in `try...finally` teardown blocks to delete test-created document requests, media registry records, and notifications.
+  6. **Real PDF Stream & Output Verification (F06)**:
+     - Exercise actual Download PDF button in Playwright, capture browser download event, read stream, and verify valid PDF magic bytes (`%PDF-`).
+     - Test partial failure behavior where PDF downloads to user's device but server database recording fails: display truthful warning toast, preserve downloaded file, and keep user in generator.
+- **Consequences**:
+  - Configuration mutations cannot bypass version-aware concurrency checks.
+  - Represented-person certificates cannot be issued without authoritative staff review.
+  - Active form modifications immediately invalidate confirmed status.
+  - Validation rules are unified across all endpoints.
+  - Test suites execute cleanly without leaving lingering records.
+  - PDF generation and partial failures are fully verified against real browser downloads.

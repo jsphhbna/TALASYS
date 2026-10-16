@@ -1,6 +1,48 @@
 # TALASYS Project State
 
-## Current Active Milestone — 16 October 2026 (R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop)
+## Current Active Milestone — 17 October 2026 (Final Concurrency, Document Issuance & Regression Closure: F01–F06)
+
+- **Working branch**: `main`
+- **Audited baseline**: `bda5f09a0a0a997e955955fccb1f6fffc1e41fd1`
+- **Framework**: DevKit V9 RC10
+- **Status**: COMPLETE & VERIFIED across two consecutive clean stability passes (Loop D).
+- **Verification Metrics (Two Consecutive Clean Passes)**:
+  - `npm test`: 273/273 pass (31 suites, including 23 new F01–F06 unit/integration assertions)
+  - `npm run test:rules`: 87/87 pass (Firebase Auth & Firestore emulators)
+  - `npm run test:e2e:auth`: 40/40 pass (Playwright authenticated suite, Scenarios A–F including F06 download/partial failure)
+  - `npm run typecheck` & `npm run typecheck:test`: 0 errors
+  - `npm run lint`: 0 errors (910 warnings)
+  - `npm run build`: 51/51 routes generated successfully (Next.js 16.4.0 Turbopack)
+  - `git diff --check`: 0 errors / clean
+  - Timezone invariance: 35/35 pass across UTC, Asia/Manila, America/Los_Angeles
+  - Multi-viewport responsiveness: 360x800, 390x844, 768x1024, 1280x800, 1440x900 verified
+- **Scope & Resolutions**:
+  - **F01 (High)**: Add/Delete Document Type bypasses configuration concurrency protection.
+    * Enforced server-authoritative precondition requiring `baseVersion` in `system.config.update`; rejects missing `baseVersion` with HTTP 400.
+    * Transactionally verifies `baseVersion === currentVersion`; safely merges non-overlapping field modifications; rejects overlapping edits with HTTP 409 Conflict and reports `conflictingFields`.
+    * In `app/superadmin/config/page.tsx`, `handleAddDocType` and `handleDeleteDocType` submit minimal payloads (`documentTypes`, `documentFees`, `customDocumentTypes`, `templates`) with `baseVersion` and `changedFields`; on 409 conflict, preserves unsaved inputs, leaves modal open, and notifies Super Admin.
+  - **F02 (High)**: Document generation implicitly confirms beneficiary data without explicit staff confirmation.
+    * Decoupled `request.confirmBeneficiary` as the sole authoritative operation for staff confirmation.
+    * In `request.markGenerated`, strictly verified that represented requests possess authoritative persisted staff review (`before.beneficiaryReviewStatus === "confirmed"`, `before.beneficiaryConfirmedAt`, `before.confirmedBeneficiaryAddress`); rejects unconfirmed or direct-override attempts with HTTP 400.
+    * Direct API calls cannot manufacture confirmation.
+    * Recorded authoritative immutable issuance snapshot (`issuanceBeneficiaryAddress`, `issuanceBeneficiaryAge`, `issuanceBeneficiaryName`) upon generation; preserved original `generatedAt` on reprint.
+  - **F03 (Medium)**: Edited beneficiary values retain an outdated Confirmed badge.
+    * In `lib/document-catalog.ts`, `resolveDocumentSubject` compares active form input values against authoritative persisted confirmation.
+    * Transitions to `"modified"` with `Modified — Requires Reconfirmation` badge whenever address or age is altered locally; restores `"confirmed"` badge if inputs are reverted to match confirmed values.
+    * In `app/admin/generate/page.tsx`, Download PDF and Print buttons strictly block document issuance when review status is `"modified"`.
+  - **F04 (Medium)**: Generation accepts beneficiary data without shared validation required by confirmation.
+    * Consolidated validation into single shared production validator `validateBeneficiaryDetails(input, options)` in `lib/document-catalog.ts`.
+    * Enforces address presence and length (max 300), age range (finite integer 0–130) when required or provided, name length (max 150), notes length (max 500), and rejects unapproved payload fields.
+    * Applied consistently in `request.confirmBeneficiary` and frontend handlers.
+  - **F05 (Medium)**: Playwright tests leave created requests, media registry records, and notifications behind.
+    * Wrapped all fixture-creating test scenarios (`Milestone 9 - P01 & P05`, `R07 Scenario A & B`, `R07 Scenario C`, `R07 Scenario F`, `F06 Scenario`) in `try...finally` teardown blocks.
+    * Ensures test-created document requests, media registry records, and notification documents are deleted after every test run, regardless of success or failure.
+  - **F06 (Medium)**: New browser tests do not sufficiently verify actual PDF generation and full issuance consistency.
+    * In Playwright test `R07 Scenario A & B`, exercised the actual "Download PDF" button, captured the browser `download` event, read the file stream, and verified valid PDF magic bytes (`%PDF-`).
+    * In `F06 Scenario`, tested partial failure where browser PDF download succeeds but server operation fails: verified truthful warning toast, preserved downloaded file, and kept user in generator without false success.
+    * Verified popup blocked behavior and print window preparation in `R07 Scenario C`.
+
+## Prior Milestone — 16 October 2026 (R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop)
 
 - **Working branch**: `main`
 - **Audited baseline**: `fe66f7c44a2520e08493fecd3a80b0c1e16553bc`

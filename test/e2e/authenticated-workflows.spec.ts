@@ -348,6 +348,16 @@ test.afterAll(async () => {
   await Promise.all(getApps().filter(app => app.name === "e2e-seed").map(app => deleteApp(app)))
 })
 
+test.beforeEach(async ({ page }) => {
+  await page.route("https://res.cloudinary.com/**", async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"),
+    })
+  })
+})
+
 async function login(page: Page, identity: string, expectSuccess = true, expectedUrl: RegExp = /\/admin\/dashboard/) {
   await page.addInitScript(() => localStorage.setItem("adminSecurityDisclaimerShownForever", "true"))
   await page.goto("/auth/login")
@@ -1357,76 +1367,87 @@ test("Milestone 9 - P01 & P05: Admin generation separates beneficiary identity a
 
   const originalTimestamp = 1727481600000 // Sept 28, 2024
   const reqId = "e2e-req-p01-p05-verify"
+  const reqDocRef = db.collection("documentRequests").doc(reqId)
 
-  // Seed a represented request that was already generated once on Sept 28
-  await db.collection("documentRequests").doc(reqId).set({
-    id: reqId,
-    residentId: "e2e-active-resident",
-    residentName: "Maria Clara Santos",
-    documentType: "Barangay Clearance",
-    purpose: "Employment",
-    requestFor: "other",
-    requestedByName: "Pedro Penduko",
-    relationship: "Brother",
-    requestedByContact: "09998887777",
-    representedAddress: "456 Pedro St., Manila",
-    representedAge: 28,
-    status: "Approved",
-    paymentStatus: "paid",
-    hasGenerated: true,
-    generatedAt: originalTimestamp,
-    createdAt: originalTimestamp - 3600000,
-  })
+  try {
+    // Seed a represented request that was already confirmed and generated once on Sept 28
+    await reqDocRef.set({
+      id: reqId,
+      residentId: "e2e-active-resident",
+      residentName: "Maria Clara Santos",
+      documentType: "Barangay Clearance",
+      purpose: "Employment",
+      requestFor: "other",
+      requestedByName: "Pedro Penduko",
+      relationship: "Brother",
+      requestedByContact: "09998887777",
+      representedAddress: "456 Pedro St., Manila",
+      representedAge: 28,
+      status: "Approved",
+      paymentStatus: "paid",
+      beneficiaryReviewStatus: "confirmed",
+      beneficiaryConfirmedBy: "E2E Staff",
+      beneficiaryConfirmedAt: originalTimestamp,
+      confirmedBeneficiaryAddress: "456 Pedro St., Manila",
+      confirmedBeneficiaryAge: 28,
+      hasGenerated: true,
+      generatedAt: originalTimestamp,
+      createdAt: originalTimestamp - 3600000,
+    })
 
-  // Log in as Full Access admin
-  await login(page, "full")
-  await page.goto(`/admin/generate?requestId=${reqId}`)
-  await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
+    // Log in as Full Access admin
+    await login(page, "full")
+    await page.goto(`/admin/generate?requestId=${reqId}`)
+    await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
 
-  // 1. P01: Admin Review Banner displays correct separation of identities
-  await expect(page.getByText(/Representation Request:/i)).toBeVisible()
-  await expect(page.getByText("Pedro Penduko").first()).toBeVisible()
-  await expect(page.getByText("PEDRO PENDUKO").first()).toBeVisible()
+    // 1. P01: Admin Review Banner displays correct separation of identities
+    await expect(page.getByText(/Representation Request:/i)).toBeVisible()
+    await expect(page.getByText("Pedro Penduko").first()).toBeVisible()
+    await expect(page.getByText("PEDRO PENDUKO").first()).toBeVisible()
 
-  // 2. Beneficiary address and age inputs match Pedro's data, NOT Maria's data
-  const beneficiaryAddress = page.getByPlaceholder("Enter verified beneficiary address...")
-  await expect(beneficiaryAddress).toBeVisible()
-  await expect(beneficiaryAddress).toHaveValue("456 Pedro St., Manila")
+    // 2. Beneficiary address and age inputs match Pedro's data, NOT Maria's data
+    const beneficiaryAddress = page.getByPlaceholder("Enter verified beneficiary address...")
+    await expect(beneficiaryAddress).toBeVisible()
+    await expect(beneficiaryAddress).toHaveValue("456 Pedro St., Manila")
 
-  const beneficiaryAge = page.getByPlaceholder("Beneficiary age...")
-  await expect(beneficiaryAge).toBeVisible()
-  await expect(beneficiaryAge).toHaveValue("28")
+    const beneficiaryAge = page.getByPlaceholder("Beneficiary age...")
+    await expect(beneficiaryAge).toBeVisible()
+    await expect(beneficiaryAge).toHaveValue("28")
 
-  // 3. Document preview contains Pedro's details, not Maria's
-  const preview = page.locator("[contenteditable]").first()
-  await expect(preview).toBeVisible()
-  const previewText = await preview.textContent()
-  expect(previewText).toContain("PEDRO PENDUKO")
-  expect(previewText).toContain("456 Pedro St., Manila")
-  expect(previewText).not.toContain("123 Barangay Street")
+    // 3. Document preview contains Pedro's details, not Maria's
+    const preview = page.locator("[contenteditable]").first()
+    await expect(preview).toBeVisible()
+    const previewText = await preview.textContent()
+    expect(previewText).toContain("PEDRO PENDUKO")
+    expect(previewText).toContain("456 Pedro St., Manila")
+    expect(previewText).not.toContain("123 Barangay Street")
 
-  // 4. P05: Trigger reprint via server operation and verify original timestamp preservation
-  const adminIdToken = await getIdTokenForUser("full@example.test")
-  const reprintRes = await fetch("http://127.0.0.1:3000/api/admin/operations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${adminIdToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      operation: "request.markGenerated",
-      operationId: `op-reprint-${Date.now()}`,
-      targetId: reqId,
-      payload: {},
-    }),
-  })
-  expect(reprintRes.ok).toBe(true)
+    // 4. P05: Trigger reprint via server operation and verify original timestamp preservation
+    const adminIdToken = await getIdTokenForUser("full@example.test")
+    const reprintRes = await fetch("http://127.0.0.1:3000/api/admin/operations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${adminIdToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        operation: "request.markGenerated",
+        operationId: `op-reprint-${Date.now()}`,
+        targetId: reqId,
+        payload: {},
+      }),
+    })
+    expect(reprintRes.ok).toBe(true)
 
-  // Verify in Firestore: generatedAt MUST remain Sept 28, 2024
-  const updatedReq = (await db.collection("documentRequests").doc(reqId).get()).data()
-  expect(updatedReq?.generatedAt).toBe(originalTimestamp)
-  expect(updatedReq?.reprintCount).toBe(1)
-  expect(updatedReq?.lastReprintedAt).toBeGreaterThan(originalTimestamp)
+    // Verify in Firestore: generatedAt MUST remain Sept 28, 2024
+    const updatedReq = (await reqDocRef.get()).data()
+    expect(updatedReq?.generatedAt).toBe(originalTimestamp)
+    expect(updatedReq?.reprintCount).toBe(1)
+    expect(updatedReq?.lastReprintedAt).toBeGreaterThan(originalTimestamp)
+  } finally {
+    // F05: Ensure fixture isolation teardown
+    await reqDocRef.delete().catch(() => {})
+  }
 })
 
 test("Milestone 9 - P02 & P06: Super Admin config handles disabling all document types and protects unsaved branding/template edits from Firestore snapshot overwrites", async ({ page }) => {
@@ -1497,14 +1518,16 @@ test("R07 Scenario A & B: Resident representation submission, admin confirmation
   // 1. Submit represented-person request through production API
   const residentIdToken = await getIdTokenForUser("active-resident@example.test")
   const idempotencyKey = `r07-rep-${Date.now()}`
-
-  // Seed authorized letter asset in media registry for representation requirement
-  const authLetterUrl = `https://res.cloudinary.com/${testCloudName}/image/authenticated/s--authletter--/v1/talasys/letters/e2e-active-resident/auth-letter.jpg`
-  await db.collection("mediaRegistry").doc(mediaRegistryDocumentId(
+  const mediaDocId = mediaRegistryDocumentId(
     testCloudName,
     "image",
     "talasys/letters/e2e-active-resident/auth-letter",
-  )).set({
+  )
+  const mediaDocRef = db.collection("mediaRegistry").doc(mediaDocId)
+
+  // Seed authorized letter asset in media registry for representation requirement
+  const authLetterUrl = `https://res.cloudinary.com/${testCloudName}/image/authenticated/s--authletter--/v1/talasys/letters/e2e-active-resident/auth-letter.jpg`
+  await mediaDocRef.set({
     cloudName: testCloudName,
     resourceType: "image",
     deliveryType: "authenticated",
@@ -1516,73 +1539,186 @@ test("R07 Scenario A & B: Resident representation submission, admin confirmation
     claimedAt: Date.now(),
   })
 
-  const submitRes = await fetch("http://127.0.0.1:3000/api/resident/requests/create", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${residentIdToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  let reqDocRef: any = null
+
+  try {
+    const submitRes = await fetch("http://127.0.0.1:3000/api/resident/requests/create", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${residentIdToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        documentType: "Barangay Clearance",
+        purpose: "Scholarship",
+        requestFor: "other",
+        requestedByName: "Elena Santos Represented",
+        requestedByContact: "09123456789",
+        relationship: "Daughter",
+        authorizationLetter: authLetterUrl,
+        representedAddress: "Block 10 Lot 12, Barangay Compound",
+        representedAge: 19,
+        paymentMethod: "cash",
+        idempotencyKey,
+      }),
+    })
+    expect(submitRes.ok).toBe(true)
+
+    // Verify in Firestore that representation details are persisted
+    const residentDoc = (await db.collection("users").where("email", "==", "active-resident@example.test").get()).docs[0]
+    const residentUid = residentDoc.id
+    reqDocRef = db.collection("documentRequests").doc(`req_${residentUid}_${idempotencyKey}`)
+    const reqDoc = await reqDocRef.get()
+    expect(reqDoc.exists).toBe(true)
+    const reqData = reqDoc.data()!
+    expect(reqData.requestFor).toBe("other")
+    expect(reqData.requestedByName).toBe("Elena Santos Represented")
+    expect(reqData.representedAddress).toBe("Block 10 Lot 12, Barangay Compound")
+    expect(reqData.representedAge).toBe(19)
+
+    // Transition request to Approved so official document can be generated
+    await reqDocRef.update({
+      status: "Approved",
+      paymentStatus: "paid",
+    })
+
+    // 2. Admin logs in and opens Generator for this request
+    await login(page, "full")
+    await page.goto(`/admin/generate?requestId=${reqDoc.id}`)
+    await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
+
+    // 3. Inspect truthful review badge: shows "Provided (Unreviewed)", not "Verified" (R05)
+    await expect(page.getByText("Provided (Unreviewed)").first()).toBeVisible()
+    const addrInput = page.getByPlaceholder("Enter verified beneficiary address...")
+    await expect(addrInput).toHaveValue("Block 10 Lot 12, Barangay Compound")
+
+    // 4. Admin clicks "Confirm Details" to persistently confirm beneficiary (R06)
+    await page.getByRole("button", { name: "Confirm Details" }).click()
+    await expect(page.getByText(/Beneficiary details confirmed/i)).toBeVisible()
+    await expect(page.getByText("✓ Confirmed by Staff").first()).toBeVisible()
+
+    // Verify Firestore has confirmed issuance details persisted
+    const confirmedDoc = (await reqDocRef.get()).data()!
+    expect(confirmedDoc.beneficiaryReviewStatus).toBe("confirmed")
+    expect(confirmedDoc.confirmedBeneficiaryAddress).toBe("Block 10 Lot 12, Barangay Compound")
+    expect(confirmedDoc.confirmedBeneficiaryAge).toBe(19)
+
+    // 5. Verify Document Preview: multi-paragraph structure, no unresolved tokens, Elena's address (R01, R05, R06)
+    const preview = page.locator("[contenteditable]").first()
+    await expect(preview).toBeVisible()
+    const previewText = await preview.textContent()
+    expect(previewText).toContain("ELENA SANTOS REPRESENTED")
+    expect(previewText).toContain("Block 10 Lot 12, Barangay Compound")
+    expect(previewText).not.toContain("{{")
+
+    // 6. F03 Verification: Invalidate badge when editing address
+    await addrInput.fill("Block 10 Lot 99 Edited Address")
+    await expect(page.getByText("Modified — Requires Reconfirmation").first()).toBeVisible()
+
+    // Attempting issuance without reconfirmation is blocked
+    await page.getByRole("button", { name: "Download PDF" }).click()
+    await expect(page.getByText(/Beneficiary details were edited and require reconfirmation/i)).toBeVisible()
+
+    // Revert back to confirmed address: badge restores to confirmed
+    await addrInput.fill("Block 10 Lot 12, Barangay Compound")
+    await expect(page.getByText("✓ Confirmed by Staff").first()).toBeVisible()
+
+    // 7. F06 Verification: Exercise actual Download PDF button, capture browser download event
+    const downloadPromise = page.waitForEvent("download")
+    await page.getByRole("button", { name: "Download PDF" }).click()
+    const download = await downloadPromise
+
+    // Verify suggested filename
+    expect(download.suggestedFilename()).toContain("Elena_Santos_Represented.pdf")
+
+    // Read download stream and verify valid PDF magic bytes '%PDF-' (F06)
+    const stream = await download.createReadStream()
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk))
+    }
+    const pdfBuffer = Buffer.concat(chunks)
+    expect(pdfBuffer.length).toBeGreaterThan(1000)
+    expect(pdfBuffer.subarray(0, 5).toString("utf-8")).toBe("%PDF-")
+
+    // Verify success toast
+    await expect(page.getByText("Document downloaded successfully.")).toBeVisible()
+
+    // Verify authoritative Firestore state reflects issuance snapshot (F02, F06)
+    const issuedDoc = (await reqDocRef.get()).data()!
+    expect(issuedDoc.hasGenerated).toBe(true)
+    expect(typeof issuedDoc.generatedAt).toBe("number")
+    expect(issuedDoc.issuanceBeneficiaryAddress).toBe("Block 10 Lot 12, Barangay Compound")
+    expect(issuedDoc.issuanceBeneficiaryAge).toBe(19)
+    expect(issuedDoc.issuanceBeneficiaryName).toBe("Elena Santos Represented")
+  } finally {
+    // F05 Teardown: Clean up both media registry and document requests
+    await mediaDocRef.delete().catch(() => {})
+    if (reqDocRef) {
+      await reqDocRef.delete().catch(() => {})
+    }
+  }
+})
+
+test("F06 Scenario: PDF download partial server failure provides truthful warning and preserves download", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+
+  const reqId = `e2e-partial-fail-${Date.now()}`
+  const reqDocRef = db.collection("documentRequests").doc(reqId)
+
+  try {
+    await reqDocRef.set({
+      id: reqId,
+      residentId: "e2e-active-resident",
+      residentName: "Maria Clara Santos",
       documentType: "Barangay Clearance",
-      purpose: "Scholarship",
-      requestFor: "other",
-      requestedByName: "Elena Santos Represented",
-      requestedByContact: "09123456789",
-      relationship: "Daughter",
-      authorizationLetter: authLetterUrl,
-      representedAddress: "Block 10 Lot 12, Barangay Compound",
-      representedAge: 19,
-      paymentMethod: "cash",
-      idempotencyKey,
-    }),
-  })
-  expect(submitRes.ok).toBe(true)
+      purpose: "Employment",
+      requestFor: "myself",
+      status: "Approved",
+      paymentStatus: "paid",
+      hasGenerated: false,
+      createdAt: Date.now(),
+    })
 
-  // Verify in Firestore that representation details are persisted
-  const residentDoc = (await db.collection("users").where("email", "==", "active-resident@example.test").get()).docs[0]
-  const residentUid = residentDoc.id
-  const reqDoc = await db.collection("documentRequests").doc(`req_${residentUid}_${idempotencyKey}`).get()
-  expect(reqDoc.exists).toBe(true)
-  const reqData = reqDoc.data()!
-  expect(reqData.requestFor).toBe("other")
-  expect(reqData.requestedByName).toBe("Elena Santos Represented")
-  expect(reqData.representedAddress).toBe("Block 10 Lot 12, Barangay Compound")
-  expect(reqData.representedAge).toBe(19)
+    await login(page, "full")
+    await page.goto(`/admin/generate?requestId=${reqId}`)
+    await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
 
-  // Transition request to Approved so official document can be generated
-  await db.collection("documentRequests").doc(reqDoc.id).update({
-    status: "Approved",
-    paymentStatus: "paid",
-  })
+    const preview = page.locator("[contenteditable]").first()
+    await expect(preview).toBeVisible()
+    await expect(preview).toContainText("E2E ACTIVE RESIDENT")
 
-  // 2. Admin logs in and opens Generator for this request
-  await login(page, "full")
-  await page.goto(`/admin/generate?requestId=${reqDoc.id}`)
-  await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
+    // Intercept /api/admin/operations to simulate server failure on request.markGenerated
+    await page.route("**/api/admin/operations", async route => {
+      const postData = route.request().postDataJSON()
+      if (postData?.operation === "request.markGenerated") {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Simulated database connection failure" }),
+        })
+      } else {
+        await route.continue()
+      }
+    })
 
-  // 3. Inspect truthful review badge: shows "Provided (Unreviewed)", not "Verified" (R05)
-  await expect(page.getByText("Provided (Unreviewed)").first()).toBeVisible()
-  const addrInput = page.getByPlaceholder("Enter verified beneficiary address...")
-  await expect(addrInput).toHaveValue("Block 10 Lot 12, Barangay Compound")
+    const downloadPromise = page.waitForEvent("download")
+    await page.getByRole("button", { name: "Download PDF" }).click()
+    const download = await downloadPromise
 
-  // 4. Admin clicks "Confirm Details" to persistently confirm beneficiary (R06)
-  await page.getByRole("button", { name: "Confirm Details" }).click()
-  await expect(page.getByText(/Beneficiary details confirmed/i)).toBeVisible()
-  await expect(page.getByText("✓ Confirmed by Staff").first()).toBeVisible()
+    // PDF was downloaded successfully
+    expect(download.suggestedFilename()).toContain(".pdf")
 
-  // Verify Firestore has confirmed issuance details persisted
-  const confirmedDoc = (await db.collection("documentRequests").doc(reqDoc.id).get()).data()!
-  expect(confirmedDoc.beneficiaryReviewStatus).toBe("confirmed")
-  expect(confirmedDoc.confirmedBeneficiaryAddress).toBe("Block 10 Lot 12, Barangay Compound")
-  expect(confirmedDoc.confirmedBeneficiaryAge).toBe(19)
+    // Truthful warning toast is shown explaining the partial outcome
+    await expect(page.getByText(/PDF was downloaded to your device, but recording official issuance in the database failed/i)).toBeVisible({ timeout: 10000 })
 
-  // 5. Verify Document Preview: multi-paragraph structure, no unresolved tokens, Elena's address (R01, R05, R06)
-  const preview = page.locator("[contenteditable]").first()
-  await expect(preview).toBeVisible()
-  const previewText = await preview.textContent()
-  expect(previewText).toContain("ELENA SANTOS REPRESENTED")
-  expect(previewText).toContain("Block 10 Lot 12, Barangay Compound")
-  expect(previewText).not.toContain("{{")
+    // User is NOT navigated away, allowing retry or manual action
+    expect(page.url()).toContain("/admin/generate")
+  } finally {
+    await page.unroute("**/api/admin/operations").catch(() => {})
+    await reqDocRef.delete().catch(() => {})
+  }
 })
 
 test("R07 Scenario C: Print workflow pop-up preparation and generation status update", async ({ page }) => {
@@ -1590,48 +1726,55 @@ test("R07 Scenario C: Print workflow pop-up preparation and generation status up
   const db = getFirestore(app)
 
   const printReqId = `e2e-req-print-${Date.now()}`
-  await db.collection("documentRequests").doc(printReqId).set({
-    id: printReqId,
-    residentId: "e2e-active-resident",
-    residentName: "Maria Clara Santos",
-    documentType: "Barangay Clearance",
-    purpose: "Job Application",
-    requestFor: "myself",
-    status: "Approved",
-    paymentStatus: "paid",
-    hasGenerated: false,
-    createdAt: Date.now(),
-  })
+  const printDocRef = db.collection("documentRequests").doc(printReqId)
 
-  await login(page, "full")
-  await page.goto(`/admin/generate?requestId=${printReqId}`)
-  await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
+  try {
+    await printDocRef.set({
+      id: printReqId,
+      residentId: "e2e-active-resident",
+      residentName: "Maria Clara Santos",
+      documentType: "Barangay Clearance",
+      purpose: "Job Application",
+      requestFor: "myself",
+      status: "Approved",
+      paymentStatus: "paid",
+      hasGenerated: false,
+      createdAt: Date.now(),
+    })
 
-  // 1. Verify pop-up blocked handling: when window.open returns null, user receives informative error toast (R07 C)
-  await page.evaluate(() => {
-    window.open = () => null
-  })
-  await page.getByRole("button", { name: "Print Document" }).click()
-  await expect(page.getByText(/Pop-up window was blocked by your browser/i)).toBeVisible({ timeout: 10000 })
+    await login(page, "full")
+    await page.goto(`/admin/generate?requestId=${printReqId}`)
+    await expect(page.getByRole("heading", { name: "Generate Documents" })).toBeVisible()
 
-  // 2. Verify print preparation success when pop-up is allowed:
-  await page.evaluate(() => {
-    window.open = () => ({
-      document: {
-        write: () => {},
-        close: () => {},
-      },
-    } as any)
-  })
-  await page.getByRole("button", { name: "Print Document" }).click()
+    // 1. Verify pop-up blocked handling: when window.open returns null, user receives informative error toast (R07 C)
+    await page.evaluate(() => {
+      window.open = () => null
+    })
+    await page.getByRole("button", { name: "Print Document" }).click()
+    await expect(page.getByText(/Pop-up window was blocked by your browser/i)).toBeVisible({ timeout: 10000 })
 
-  // Wait for success toast notification
-  await expect(page.getByText(/Document printed successfully/i)).toBeVisible({ timeout: 10000 })
+    // 2. Verify print preparation success when pop-up is allowed:
+    await page.evaluate(() => {
+      window.open = () => ({
+        document: {
+          write: () => {},
+          close: () => {},
+        },
+      } as any)
+    })
+    await page.getByRole("button", { name: "Print Document" }).click()
 
-  // Verify in Firestore that hasGenerated is true and generatedAt is recorded (P05)
-  const updatedReq = (await db.collection("documentRequests").doc(printReqId).get()).data()!
-  expect(updatedReq.hasGenerated).toBe(true)
-  expect(typeof updatedReq.generatedAt).toBe("number")
+    // Wait for success toast notification
+    await expect(page.getByText(/Document printed successfully/i)).toBeVisible({ timeout: 10000 })
+
+    // Verify in Firestore that hasGenerated is true and generatedAt is recorded (P05)
+    const updatedReq = (await printDocRef.get()).data()!
+    expect(updatedReq.hasGenerated).toBe(true)
+    expect(typeof updatedReq.generatedAt).toBe("number")
+  } finally {
+    // F05 Teardown: Clean up print request record
+    await printDocRef.delete().catch(() => {})
+  }
 })
 
 test("R07 Scenario D: Concurrent configuration conflict rejection with HTTP 409", async ({ page }) => {
@@ -1711,33 +1854,40 @@ test("R07 Scenario F: View Only admin opening notification preview does not trig
 
   // Seed an unread notification targeted to admin
   const notifId = `e2e-notif-viewonly-${Date.now()}`
-  await db.collection("notifications").doc(notifId).set({
-    targetId: "admin",
-    type: "info",
-    title: "System Maintenance Notice",
-    message: "Scheduled maintenance will occur tonight at 11 PM.",
-    timestamp: "10m ago",
-    isRead: false,
-    createdAt: Date.now(),
-  })
+  const notifDocRef = db.collection("notifications").doc(notifId)
 
-  // Log in as View Only
-  await login(page, "viewer")
-  await page.goto("/admin/notifications")
-  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible()
+  try {
+    await notifDocRef.set({
+      targetId: "admin",
+      type: "info",
+      title: "System Maintenance Notice",
+      message: "Scheduled maintenance will occur tonight at 11 PM.",
+      timestamp: "10m ago",
+      isRead: false,
+      createdAt: Date.now(),
+    })
 
-  // 1. Verify mutation controls are hidden for View Only (R04)
-  await expect(page.getByRole("button", { name: "Broadcast Message" })).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Mark all as read" })).toHaveCount(0)
+    // Log in as View Only
+    await login(page, "viewer")
+    await page.goto("/admin/notifications")
+    await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible()
 
-  // 2. Click the notification card to open preview
-  await page.getByText("System Maintenance Notice").first().click()
+    // 1. Verify mutation controls are hidden for View Only (R04)
+    await expect(page.getByRole("button", { name: "Broadcast Message" })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "Mark all as read" })).toHaveCount(0)
 
-  // 3. Modal opens with notification details
-  await expect(page.getByRole("heading", { name: "Notification Details" })).toBeVisible()
-  await expect(page.getByRole("dialog").getByText("Scheduled maintenance will occur tonight at 11 PM.")).toBeVisible()
+    // 2. Click the notification card to open preview
+    await page.getByText("System Maintenance Notice").first().click()
 
-  // 4. Verify in Firestore: isRead is STILL false! (No forbidden Firestore write attempted - R04)
-  const notifDoc = await db.collection("notifications").doc(notifId).get()
-  expect(notifDoc.data()?.isRead).toBe(false)
+    // 3. Modal opens with notification details
+    await expect(page.getByRole("heading", { name: "Notification Details" })).toBeVisible()
+    await expect(page.getByRole("dialog").getByText("Scheduled maintenance will occur tonight at 11 PM.")).toBeVisible()
+
+    // 4. Verify in Firestore: isRead is STILL false! (No forbidden Firestore write attempted - R04)
+    const notifDoc = await notifDocRef.get()
+    expect(notifDoc.data()?.isRead).toBe(false)
+  } finally {
+    // F05 Teardown: Clean up notification record
+    await notifDocRef.delete().catch(() => {})
+  }
 })

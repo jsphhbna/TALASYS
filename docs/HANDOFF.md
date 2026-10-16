@@ -1,6 +1,44 @@
 # TALASYS Remediation Handoff
 
-## Active handoff — 2026-10-17 (R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop)
+## Active handoff — 2026-10-17 (Final Concurrency, Document Issuance & Regression Closure: F01–F06)
+
+Working branch: `main`. Baseline SHA: `bda5f09a0a0a997e955955fccb1f6fffc1e41fd1`.
+
+This milestone successfully closes the post-R01–R07 audit findings (F01–F06) without reopening or destabilizing prior milestones:
+1. **F01 (Enforce Concurrency on Every Configuration Mutation)**:
+   - Unified configuration concurrency contract in `app/api/admin/operations/route.ts` requiring `baseVersion`; transactionally compares `baseVersion === currentVersion`, merges safe non-overlapping field modifications, and rejects overlapping concurrent updates with HTTP 409 Conflict and `conflictingFields`.
+   - Updated `app/superadmin/config/page.tsx` (`handleAddDocType` and `handleDeleteDocType`) to submit minimal payloads with `baseVersion` and `changedFields`; on 409 conflict, preserves unsaved inputs, leaves modal open, and provides safe reconciliation.
+2. **F02 (Require Explicit Beneficiary Confirmation Before Document Issuance)**:
+   - Established `request.confirmBeneficiary` as the sole authoritative operation for staff confirmation.
+   - Enforced in `request.markGenerated` that represented-person requests strictly require authoritative persisted staff confirmation (`before.beneficiaryReviewStatus === "confirmed"`, `before.beneficiaryConfirmedAt`, `before.confirmedBeneficiaryAddress`); client payloads cannot manufacture confirmation.
+   - Immutably recorded issuance snapshot (`issuanceBeneficiaryAddress`, `issuanceBeneficiaryAge`, `issuanceBeneficiaryName`); preserved original `generatedAt` on reprint.
+3. **F03 (Invalidate Stale Beneficiary Confirmation)**:
+   - Updated `resolveDocumentSubject` in `lib/document-catalog.ts` to evaluate active input overrides against authoritative persisted confirmation.
+   - Automatically transitions review status to `"modified"` with `Modified — Requires Reconfirmation` badge whenever address or age is altered; restores `"confirmed"` badge if reverted to match persisted values.
+   - Guarded Download PDF and Print handlers in `app/admin/generate/page.tsx` to strictly block issuance while in `"modified"` state.
+4. **F04 (Use One Shared Beneficiary Validation Policy)**:
+   - Consolidated beneficiary validation into `validateBeneficiaryDetails(input, options)` in `lib/document-catalog.ts`.
+   - Enforces uniform constraints (address presence and max length 300, finite integer age 0–130 when required/provided, name max length 150, notes max length 500, unapproved field rejection) across all API routes and UI actions.
+5. **F05 (Repair Test Fixture Isolation)**:
+   - Wrapped all fixture-creating Playwright tests in `try...finally` teardown blocks to delete test-created document requests, media registry records, and notifications.
+   - Verified that repeated and unordered test execution does not accumulate persistent records.
+6. **F06 (Verify Actual PDF and Print Workflows)**:
+   - Exercised actual Download PDF button in Playwright, verified downloaded file stream contains valid PDF magic bytes (`%PDF-`), and verified Firestore issuance snapshot.
+   - Implemented truthful partial failure feedback in `app/admin/generate/page.tsx` when PDF download succeeds but server database update fails: warns user with actionable toast, preserves downloaded file, and retains UI state.
+   - Verified pop-up window preparation and print error handling.
+
+Evidence is verified across two consecutive clean stability passes (Loop D):
+- 273 unit/integration tests (PASS, 31 suites, including 23 new F01–F06 tests)
+- 87 Auth/Firestore emulator tests (PASS, 6 suites)
+- 40 authenticated Playwright E2E tests (PASS, Scenarios A–F and F06 partial failure)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 910 legacy warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Clean `git diff --check` (0 whitespace errors)
+- Timezone verification: 35/35 PASS across UTC, Asia/Manila, and America/Los_Angeles
+- Multi-viewport responsiveness: 360x800, 390x844, 768x1024, 1280x800, 1440x900 verified
+
+## Prior handoff — 2026-10-17 (R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop)
 
 Working branch: `main`. Audited baseline: `fe66f7c44a2520e08493fecd3a80b0c1e16553bc`.
 

@@ -336,6 +336,8 @@ function GenerateDocumentsContent() {
                               </label>
                               {subject.isSubjectAddressMissing ? (
                                 <span className="text-[10px] font-bold text-red-600 bg-red-100 dark:bg-red-950/50 px-1.5 py-0.5 rounded">Missing — Required</span>
+                              ) : subject.isAddressModified ? (
+                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-1.5 py-0.5 rounded">Modified — Requires Reconfirmation</span>
                               ) : subject.isBeneficiaryConfirmed ? (
                                 <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">✓ Confirmed by Staff</span>
                               ) : (
@@ -362,6 +364,8 @@ function GenerateDocumentsContent() {
                               </label>
                               {subject.isSubjectAgeMissing ? (
                                 <span className="text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">Optional</span>
+                              ) : subject.isAgeModified ? (
+                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-1.5 py-0.5 rounded">Modified — Requires Reconfirmation</span>
                               ) : subject.isBeneficiaryConfirmed ? (
                                 <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">✓ Confirmed by Staff</span>
                               ) : (
@@ -386,7 +390,11 @@ function GenerateDocumentsContent() {
 
                         <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/60 flex items-center justify-between">
                           <div className="text-[10px] text-purple-700 dark:text-purple-400">
-                            {subject.isBeneficiaryConfirmed ? (
+                            {subject.beneficiaryReviewStatus === "modified" ? (
+                              <span className="font-semibold text-amber-800 dark:text-amber-300">
+                                ⚠ Edited values differ from saved confirmation. Reconfirmation required before issuance.
+                              </span>
+                            ) : subject.isBeneficiaryConfirmed ? (
                               <span>
                                 Confirmed by <strong className="font-semibold">{matchedReq.beneficiaryConfirmedBy || "Staff"}</strong>
                                 {matchedReq.beneficiaryConfirmedAt ? ` on ${new Date(matchedReq.beneficiaryConfirmedAt).toLocaleDateString()}` : ""}
@@ -419,7 +427,7 @@ function GenerateDocumentsContent() {
                             className="h-7 px-3 text-2xs bg-white dark:bg-purple-900 border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-200 hover:bg-purple-50"
                           >
                             {isConfirmingBeneficiary ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
-                            {subject.isBeneficiaryConfirmed ? "Update Confirmation" : "Confirm Details"}
+                            {subject.beneficiaryReviewStatus === "modified" ? "Update Confirmation" : subject.isBeneficiaryConfirmed ? "Update Confirmation" : "Confirm Details"}
                           </Button>
                         </div>
                       </div>
@@ -503,12 +511,6 @@ function GenerateDocumentsContent() {
                       try {
                         if (requiredSignaturesLoading) throw new Error("Protected signatures are still loading. Please wait before exporting.")
                         if (requiredSignatureError) throw new Error(`Protected signature unavailable: ${requiredSignatureError}`)
-                        const now = Date.now();
-                        if (now - lastDownload < 5000) {
-                          toast.error("You are clicking too fast! Please try again in 5 seconds.");
-                          return;
-                        }
-                        setLastDownload(now);
 
                         const resolvedType = resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)
                         const docLabel = resolvedType?.label || selectedDocType
@@ -533,6 +535,14 @@ function GenerateDocumentsContent() {
                             toast.error("Beneficiary age is required for this certificate before generating official documents. Please enter and confirm the verified age.")
                             return
                           }
+                          if (subject.beneficiaryReviewStatus === "modified") {
+                            toast.error("Beneficiary details were edited and require reconfirmation before issuance. Click 'Update Confirmation'.")
+                            return
+                          }
+                          if (!subject.isBeneficiaryConfirmed) {
+                            toast.error("Beneficiary details must be explicitly reviewed and confirmed by staff before issuance. Click 'Confirm Details'.")
+                            return
+                          }
                         } else {
                           if (subject.isSubjectAddressMissing) {
                             toast.error("Resident address is missing. Please ensure resident profile contains an address.")
@@ -544,16 +554,26 @@ function GenerateDocumentsContent() {
                           }
                         }
 
+                        const now = Date.now();
+                        if (now - lastDownload < 5000) {
+                          toast.error("You are clicking too fast! Please try again in 5 seconds.");
+                          return;
+                        }
+                        setLastDownload(now);
+
                         setIsGenerating(true)
                         const element = document.getElementById("pdf-preview-container")
                         if (!element) return
 
                         const scale = 2
+                        const transparentPixel = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
                         const imgData = await toPng(element, {
                           quality: 1,
                           pixelRatio: scale,
                           backgroundColor: 'white',
-                          style: { transform: 'scale(1)', transformOrigin: 'top left' }
+                          style: { transform: 'scale(1)', transformOrigin: 'top left' },
+                          imagePlaceholder: transparentPixel,
+                          onImageErrorHandler: () => transparentPixel,
                         })
 
                         const pdf = new jsPDF("p", "mm", "a4")
@@ -572,15 +592,13 @@ function GenerateDocumentsContent() {
 
                         if (pendingReq) {
                            try {
-                             await updateRequestGenerated(pendingReq.id, {
-                               confirmedAddress: beneficiaryAddressOverride.trim() || undefined,
-                               confirmedAge: beneficiaryAgeOverride.trim() ? Number(beneficiaryAgeOverride.trim()) : undefined,
-                             })
+                             await updateRequestGenerated(pendingReq.id)
                              isEditingBeneficiaryRef.current = false
                              toast.success("Document downloaded successfully.")
                              if (processingRequestId) router.push("/admin/requests")
                            } catch (err: any) {
-                             toast.error(err?.message || "Failed to mark document as generated.")
+                             console.error("Failed to mark document as generated after download:", err)
+                             toast.warning("PDF was downloaded to your device, but recording official issuance in the database failed. Please retry or update the request status manually.", { duration: 6000 })
                            }
                         } else {
                            toast.success("Document generated successfully.")
@@ -631,6 +649,14 @@ function GenerateDocumentsContent() {
                           toast.error("Beneficiary age is required for this certificate before printing official documents. Please enter and confirm the verified age.")
                           return
                         }
+                        if (subject.beneficiaryReviewStatus === "modified") {
+                          toast.error("Beneficiary details were edited and require reconfirmation before issuance. Click 'Update Confirmation'.")
+                          return
+                        }
+                        if (!subject.isBeneficiaryConfirmed) {
+                          toast.error("Beneficiary details must be explicitly reviewed and confirmed by staff before issuance. Click 'Confirm Details'.")
+                          return
+                        }
                       } else {
                         if (subject.isSubjectAddressMissing) {
                           toast.error("Resident address is missing. Please ensure resident profile contains an address.")
@@ -662,15 +688,13 @@ function GenerateDocumentsContent() {
 
                       if (pendingReq) {
                         try {
-                          await updateRequestGenerated(pendingReq.id, {
-                            confirmedAddress: beneficiaryAddressOverride.trim() || undefined,
-                            confirmedAge: beneficiaryAgeOverride.trim() ? Number(beneficiaryAgeOverride.trim()) : undefined,
-                          })
+                          await updateRequestGenerated(pendingReq.id)
                           isEditingBeneficiaryRef.current = false
                           toast.success("Document printed successfully.")
                           if (processingRequestId) router.push("/admin/requests")
                         } catch (err: any) {
-                          toast.error(err?.message || "Failed to mark document as generated.")
+                          console.error("Failed to mark document as generated after print:", err)
+                          toast.warning("Document was sent to the print preview, but recording official issuance in the database failed. Please retry or update request status.", { duration: 6000 })
                         }
                       } else {
                         toast.success("Document printed successfully.")

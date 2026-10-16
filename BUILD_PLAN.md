@@ -1,12 +1,39 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06)
 
-## R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop — CURRENT PASS
+## Final Concurrency, Document Issuance & Regression Closure (F01–F06) — CURRENT PASS
 
-- **Status**: COMPLETED & VERIFIED (across two consecutive clean stability passes, Loops A–D)
+- **Status**: COMPLETED (Two Clean Consecutive Verification Passes)
 - **Branch**: `main`
-- **Audited baseline**: `fe66f7c44a2520e08493fecd3a80b0c1e16553bc`
-- **Execution mode**: Structured milestones + continuous root-cause analysis + recursive regression checking
+- **Audited baseline**: `bda5f09a0a0a997e955955fccb1f6fffc1e41fd1`
+- **Execution mode**: Targeted remediation + recurring-defect detection + two clean verification passes
 - **Development framework**: DevKit V9 RC10
+
+### Findings Classification Matrix
+
+| Finding | Priority | Category | Status | Affected Files | Root Cause & Targeted Remediation |
+|---|---|---|---|---|---|
+| **F01** | High | **CONCURRENCY** / **PERSISTENCE** | **Resolved** | `app/superadmin/config/page.tsx`, `app/api/admin/operations/route.ts`, `hooks/superadmin/use-superadmin-data.ts` | Add/Delete Document Type submitted full `...formData` without concurrency metadata, and backend omitted version checks when `baseVersion` was omitted. Remediation: Enforced authoritative server precondition requiring `baseVersion`; transactionally compared with `currentVersion`; merged non-overlapping field updates or returned HTTP 409 conflict; submitted minimal payloads from UI (`documentTypes`, `documentFees`, `customDocumentTypes`, `templates`); preserved local unsaved state and modal on conflict. |
+| **F02** | High | **DOCUMENT** / **LIFECYCLE** / **SECURITY** | **Resolved** | `app/api/admin/operations/route.ts`, `app/admin/generate/page.tsx`, `hooks/admin/use-admin-data.ts` | `request.markGenerated` accepted arbitrary beneficiary inputs and synthesized confirmation status, bypassing staff review. Remediation: Established `request.confirmBeneficiary` as the sole authoritative confirmation operation; required explicit persisted staff confirmation before generation of represented-person requests; rejected unconfirmed represented document generation with HTTP 400; disallowed client generation overrides from overriding confirmed records; recorded authoritative issuance snapshot; preserved standard resident generation. |
+| **F03** | Medium | **UI** / **STATE** / **CONTRACT** | **Resolved** | `lib/document-catalog.ts`, `app/admin/generate/page.tsx` | Admin generator derived Confirmed badge solely from persisted metadata without comparing active input overrides, displaying false "Confirmed by Staff" on unsaved/modified data. Remediation: Implemented 4-state review status (`missing`, `provided`, `confirmed`, `modified`); compared active inputs against authoritative persisted values; changing address/age immediately invalidates confirmation badge to "Modified — Requires Reconfirmation"; reverting restores "Confirmed"; blocked document issuance until reconfirmed. |
+| **F04** | Medium | **VALIDATION** / **CONTRACT** | **Resolved** | `lib/document-catalog.ts`, `app/api/admin/operations/route.ts`, `app/admin/generate/page.tsx` | Inconsistent validation across endpoints: `confirmBeneficiary` checked age range, but `markGenerated` accepted arbitrary fields without validation. Remediation: Exported single shared validator `validateBeneficiaryDetails` in `lib/document-catalog.ts`; enforced strict validation (address presence/length, age 0–130 finite integer when required/provided, name max length, notes max length, unapproved field rejection) across all endpoints. |
+| **F05** | Medium | **TEST** / **ISOLATION** | **Resolved** | `test/e2e/authenticated-workflows.spec.ts` | Playwright tests restored shared configuration in some scenarios but left created requests, media registry records, and notifications behind. Remediation: Wrapped all fixture-creating test scenarios in `try...finally` teardown; deleted test-created document requests, media registry items, and notifications; verified zero persistent record accumulation. |
+| **F06** | Medium | **TEST** / **E2E** / **OUTPUT** | **Resolved** | `test/e2e/authenticated-workflows.spec.ts`, `app/admin/generate/page.tsx` | E2E browser tests verified preview text but did not exercise actual PDF download, inspect binary output `%PDF-`, or test partial generation failure handling. Remediation: Tested actual Playwright PDF download event, verified valid PDF magic bytes and content, inspected Firestore issuance snapshot, tested popup blocked printing, and provided truthful partial failure notifications when download succeeds but subsequent server update fails. |
+
+### Execution Milestones
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **Milestone 1** | F01: Enforce Concurrency on Every Configuration Mutation | COMPLETED | Backend requires `baseVersion`; merges non-conflicting field edits and rejects overlapping edits with HTTP 409; UI submits minimal payloads for add/delete document type; modal stays open and draft preserved on conflict. Verified in unit tests and Playwright. |
+| **Milestone 2** | F02: Require Explicit Beneficiary Confirmation Before Document Issuance | COMPLETED | Represented requests require persisted staff confirmation before generation; `markGenerated` cannot manufacture confirmation; direct resident requests remain functional; immutable issuance snapshot recorded. Verified in unit tests and Playwright. |
+| **Milestone 3** | F03: Invalidate Stale Beneficiary Confirmation | COMPLETED | Input edits immediately switch badge from "Confirmed" to "Modified — Requires Reconfirmation"; reverting restores status; generation blocked until reconfirmed; switching requests resets context. Verified in unit tests and Playwright. |
+| **Milestone 4** | F04: Use One Shared Beneficiary Validation Policy | COMPLETED | Shared `validateBeneficiaryDetails` enforces uniform constraints; rejects negative age, out-of-range (>130), non-finite numbers, empty addresses, malformed payloads across all endpoints. Verified in unit tests and Playwright. |
+| **Milestone 5** | F05: Repair Test Fixture Isolation | COMPLETED | All Playwright tests clean up owned fixtures via `try...finally`; created document requests, media registry records, and notifications deleted; repeated runs do not accumulate records. Verified in Playwright suite. |
+| **Milestone 6** | F06: Verify Actual PDF and Print Workflows | COMPLETED | Real PDF download exercised via Playwright; valid `%PDF-` file verified; issuance reflected in Firestore; truthful partial failure feedback if server update fails after download. Verified in Playwright. |
+| **Milestone 7** | Recurring Defect Detection Loop (A, B, C, D) | COMPLETED | Loops A (root cause), B (alternate paths & bypasses), C (independent review), D (two clean stability passes). Verified across 2 full passes. |
+| **Milestone 8** | Final Verification Gate & Documentation | COMPLETED | Full test suites (unit 273/273, rules 87/87, E2E auth 40/40, types 0 errors, lint 0 errors, build 51 routes, timezones 35/35, multi-viewport) 100% PASS across two consecutive passes. |
+| **Milestone 9** | Clean Git Commit, Origin/Main Push & Completion Report | COMPLETED | Working tree clean, 0/0 ahead/behind, comprehensive completion report delivered. |
+
+## R01–R07 Remediation, Recurring Defect Detection & Continuous Verification Loop — PRIOR PASS
 
 ### Findings Classification Matrix
 

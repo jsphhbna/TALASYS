@@ -329,6 +329,12 @@ export default function SystemConfig() {
     setIsAddingDoc(true)
     try {
       const docId = newDocName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")
+      const baseline = baselineConfigRef.current || systemConfig
+      const baseCustomDocs = baseline.customDocumentTypes || []
+      const baseDocTypes = Array.isArray(baseline.documentTypes) ? baseline.documentTypes : BUILT_IN_DOCUMENT_TYPES.map(d => d.label)
+      const baseFees = baseline.documentFees || DEFAULT_DOCUMENT_FEES
+      const baseTemplates = baseline.templates || {}
+
       const newDocTypes = [...effectiveDocumentTypes, newDocName.trim()]
       const newFees = { ...effectiveDocumentFees, [newDocName.trim()]: parseFloat(newDocFee) || 0 }
       const newCustomDocTypes = [
@@ -336,13 +342,32 @@ export default function SystemConfig() {
         { id: docId, name: newDocName.trim(), icon: newDocIcon, fee: parseFloat(newDocFee) || 0, header: newDocHeader }
       ]
       const newTemplates = { ...(formData.templates || {}), [docId]: newDocTemplate }
-      await updateConfig({
-        ...formData,
+
+      const updates = {
         documentTypes: newDocTypes,
         documentFees: newFees,
         customDocumentTypes: newCustomDocTypes,
-        templates: newTemplates
+        templates: newTemplates,
+      }
+      const baseConfig = {
+        documentTypes: baseDocTypes,
+        documentFees: baseFees,
+        customDocumentTypes: baseCustomDocs,
+        templates: baseTemplates,
+      }
+      const changedFields = ["documentTypes", "documentFees", "customDocumentTypes", "templates"]
+
+      await updateConfig(updates, {
+        baseVersion: baseline.version || 1,
+        baseConfig,
+        changedFields,
       })
+
+      baselineConfigRef.current = {
+        ...baseline,
+        ...updates,
+        version: (baseline.version || 1) + 1,
+      }
       setStagedDocumentTypes(null)
       setStagedDocumentFees(null)
       setIsDirty(false)
@@ -355,7 +380,12 @@ export default function SystemConfig() {
       setNewDocTemplate("This is to certify that {{name}} is a bonafide resident of {{barangay_name}}, with postal address at {{address}}.\n\nThis Certification is issued upon the request of the above-named person for {{purpose}} purposes.\n\nCity of Manila, {{date_issued}}.")
       toast.success("Document type added successfully")
     } catch (err: any) {
-      toast.error(err?.message || "Failed to add document type")
+      if (err?.status === 409 || err?.statusCode === 409 || err?.message?.includes("conflict")) {
+        setExternalChangeDetected(true)
+        toast.error(err?.message || "Configuration conflict: Another administrator made conflicting changes. Please review.")
+      } else {
+        toast.error(err?.message || "Failed to add document type")
+      }
     } finally {
       setIsAddingDoc(false)
     }
@@ -366,26 +396,56 @@ export default function SystemConfig() {
       return
     }
     try {
+      const baseline = baselineConfigRef.current || systemConfig
+      const baseCustomDocs = baseline.customDocumentTypes || []
+      const baseDocTypes = Array.isArray(baseline.documentTypes) ? baseline.documentTypes : BUILT_IN_DOCUMENT_TYPES.map(d => d.label)
+      const baseFees = baseline.documentFees || DEFAULT_DOCUMENT_FEES
+      const baseTemplates = baseline.templates || {}
+
       const newDocTypes = effectiveDocumentTypes.filter(t => t !== docName)
       const newFees = { ...effectiveDocumentFees }
       delete newFees[docName]
       const newCustomDocTypes = (systemConfig.customDocumentTypes || []).filter((d: any) => d.name !== docName)
       const newTemplates = { ...(formData.templates || {}) }
       delete newTemplates[docId]
-      await updateConfig({
-        ...formData,
+
+      const updates = {
         documentTypes: newDocTypes,
         documentFees: newFees,
         customDocumentTypes: newCustomDocTypes,
-        templates: newTemplates
+        templates: newTemplates,
+      }
+      const baseConfig = {
+        documentTypes: baseDocTypes,
+        documentFees: baseFees,
+        customDocumentTypes: baseCustomDocs,
+        templates: baseTemplates,
+      }
+      const changedFields = ["documentTypes", "documentFees", "customDocumentTypes", "templates"]
+
+      await updateConfig(updates, {
+        baseVersion: baseline.version || 1,
+        baseConfig,
+        changedFields,
       })
+
+      baselineConfigRef.current = {
+        ...baseline,
+        ...updates,
+        version: (baseline.version || 1) + 1,
+      }
       setStagedDocumentTypes(null)
       setStagedDocumentFees(null)
       setIsDirty(false)
       setFormData(prev => ({ ...prev, templates: newTemplates }))
       toast.success("Document type deleted")
     } catch (err: any) {
-      toast.error(err?.message || "Failed to delete document type")
+      if (err?.status === 409 || err?.statusCode === 409 || err?.message?.includes("conflict")) {
+        setExternalChangeDetected(true)
+        toast.error(err?.message || "Configuration conflict: Another administrator made conflicting changes. Please review.")
+      } else {
+        toast.error(err?.message || "Failed to delete document type")
+      }
     }
   }
 
