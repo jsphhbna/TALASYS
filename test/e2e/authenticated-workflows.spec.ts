@@ -1193,3 +1193,101 @@ test("Milestone E2 Workflow D: Denied registration remains visible in verificati
   // The denied record is visible in the breakdown
   await expect(page.getByText(/Permanently Denied|Denied/i).first()).toBeVisible()
 })
+
+test("Milestone E02: Active open resident session is authoritatively revoked in real-time when registration is denied", async ({ browser }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed") || initializeApp({ projectId }, "e2e-seed")
+  const auth = getAuth(app)
+  const db = getFirestore(app)
+
+  const liveUid = "e2e-live-revoked-resident"
+  const liveEmail = "live-revoked@example.test"
+  const liveVerifId = "e2e-live-revoked-verif"
+
+  // 1. Create a legitimate Pending resident with a verified email
+  try {
+    await auth.createUser({ uid: liveUid, email: liveEmail, password, emailVerified: true })
+  } catch (error: any) {
+    if (error.code !== "auth/uid-already-exists") throw error
+  }
+
+  await db.collection("users").doc(liveUid).set({
+    name: "E2E Live Revoked Resident",
+    email: liveEmail,
+    role: "resident",
+    status: "Pending",
+    isVerified: false,
+    hasPendingVerification: true,
+    pendingVerificationId: liveVerifId,
+    createdAt: Date.now(),
+  })
+
+  await db.collection("verifications").doc(liveVerifId).set({
+    residentId: liveUid,
+    userId: liveUid,
+    name: "E2E Live Revoked Resident",
+    email: liveEmail,
+    status: "pending",
+    type: "registration",
+    submittedDate: "Today",
+    createdAt: Date.now(),
+    documents: [],
+  })
+
+  await db.collection("residentVerificationLocks").doc(liveUid).set({
+    residentId: liveUid,
+    activeVerificationId: liveVerifId,
+    activeVerificationStatus: "pending",
+    createdAt: Date.now(),
+  })
+
+  // 2. Open the resident's authenticated application session
+  const residentContext = await browser.newContext()
+  const residentPage = await residentContext.newPage()
+  await residentPage.goto("/auth/login")
+  await residentPage.getByLabel("Username or Email").fill(liveEmail)
+  await residentPage.locator("#password").fill(password)
+  await residentPage.getByRole("button", { name: "Sign In" }).click()
+
+  // 3. Confirm the session is active in resident workspace
+  await expect(residentPage).toHaveURL(/\/resident\/dashboard/)
+  await expect(residentPage.locator("body")).toBeVisible()
+
+  // 4. In another authorized session, Super Admin permanently denies the registration via server-authoritative route
+  const superIdToken = await getIdTokenForUser("super@example.test")
+  const denyReason = "Fabricated government ID proof detected during security audit."
+  const denyRes = await fetch("http://127.0.0.1:3000/api/admin/operations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${superIdToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      operation: "verification.denyRegistration",
+      operationId: `op-live-deny-${Date.now()}`,
+      targetId: liveVerifId,
+      payload: { reason: denyReason },
+    }),
+  })
+  expect(denyRes.ok).toBe(true)
+
+  // 5 & 6. Live session is revoked in real-time, redirecting to login page
+  await expect(residentPage).toHaveURL(/\/auth\/login/, { timeout: 15000 })
+
+  // 7. Verify protected Resident routes are inaccessible
+  await residentPage.goto("/resident/dashboard")
+  await expect(residentPage).toHaveURL(/\/auth\/login/)
+  await residentPage.goto("/resident/history")
+  await expect(residentPage).toHaveURL(/\/auth\/login/)
+
+  // 8. Verify no stale privileged UI remains interactive
+  await expect(residentPage.getByRole("button", { name: "Sign In" })).toBeVisible()
+
+  // 9 & 10. Attempt login: rejected with truthful explanation
+  await residentPage.getByLabel("Username or Email").fill(liveEmail)
+  await residentPage.locator("#password").fill(password)
+  await residentPage.getByRole("button", { name: "Sign In" }).click()
+  await expect(residentPage).toHaveURL(/\/auth\/login/)
+  await expect(residentPage.getByText(/permanently denied|deactivated|permission-denied/i)).toBeVisible()
+
+  await residentContext.close()
+})

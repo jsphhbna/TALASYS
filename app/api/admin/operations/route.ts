@@ -94,7 +94,7 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
 
     if (operation === "resident.update") {
       if (before.role !== "resident") throw httpError("Target is not a resident.", 403)
-      if (before.registrationDenied || before.deniedAt || (!before.isVerified && before.status === "Deleted")) {
+      if (before.registrationDenied || before.deniedAt || (!before.isVerified && (before.status === "Deleted" || before.status === "Expired"))) {
         throw httpError("Cannot update resident whose registration was permanently denied.", 409)
       }
       const updates = exactFields(safeObject(payload.updates), RESIDENT_PROFILE_FIELDS)
@@ -104,7 +104,7 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       transaction.update(targetRef, after)
     } else if (["resident.delete", "resident.deactivate", "resident.activate"].includes(operation)) {
       if (before.role !== "resident") throw httpError("Target is not a resident.", 403)
-      if (before.registrationDenied || before.deniedAt || (!before.isVerified && before.status === "Deleted")) {
+      if (before.registrationDenied || before.deniedAt || (!before.isVerified && (before.status === "Deleted" || before.status === "Expired"))) {
         if (operation === "resident.activate") {
           throw httpError("Cannot activate resident whose registration was permanently denied.", 409)
         }

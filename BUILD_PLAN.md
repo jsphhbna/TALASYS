@@ -1,6 +1,49 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, & Registration Denial Lifecycle)
 
-## Final Registration Lifecycle Hardening & Functional Regression Closure (D01–D05) — CURRENT PASS
+## Final Denied-Account Authorization & Functional Consistency Closure (E01–E05) — CURRENT PASS
+
+- **Status**: VERIFIED
+- **Branch**: `main`
+- **Audited baseline**: `0e1469c1210f7c1a1475ca9657c82e0fd4600591`
+- **Target findings & remediations**:
+  1. **E01 (Firestore Rules: Denied Accounts Must Fail Closed)**:
+     - In `firestore.rules`, tightened `isActiveAccount()` to verify `user.get('role', 'none') != 'Deleted'`, `user.get('registrationDenied', false) != true`, `!('deniedAt' in user)`, and `!(user.get('isVerified', false) == false && (status == 'Deleted' || status == 'Expired'))`.
+     - Required `isActiveAccount()` for resident reads and deletes in `documentRequests`.
+     - Required `isActiveAccount()` for resident reads and deletes in `verifications`.
+     - Required `isActiveAccount()` for resident reads, creates, updates, and deletes in `notifications`.
+     - Required `isActiveAccount()` for authenticated reads of `systemAlerts` and `systemConfig`.
+     - Verified all 16 client SDK permission invariants via emulator tests in `test/emulator/firestore-rules.test.ts`.
+  2. **E02 (Live Session Revocation Must Fail Closed)**:
+     - In `lib/auth/auth-context.tsx`, updated the real-time `users/{uid}` snapshot listener error callback: when encountering a confirmed authorization revocation error (`permission-denied` or `unauthenticated`), it immediately triggers `firebaseSignOut(auth)`, clears `user` state, resets Firebase Storage, clears administrative disclaimer storage, sets `isReady(true)`, and navigates to `/auth/login`.
+     - Disqualified unverified `Expired` accounts from active sessions in both the snapshot observer and `use-auth-guard.ts`.
+     - In `lib/auth/auth-context.tsx` login flow, caught client profile fetch `permission-denied` errors, rejected with informative permanent denial and deactivation feedback, and signed out.
+     - Added Playwright browser test (test 31 in `test/e2e/authenticated-workflows.spec.ts`) verifying an already open resident session is authoritatively revoked in real-time when denied by Super Admin.
+  3. **E03 (Correct D02 Regression Test Evidence)**:
+     - In `test/emulator/registration-denial-lifecycle.test.ts`, imported canonical production helper `registrationOperationDocumentId` from `lib/security/registration-finalization.ts`.
+     - Updated test fixtures to persist completed operations under their authoritative document ID (`registrationOperationDocumentId(uid, operationId)`).
+     - Added authoritative test demonstrating that normal operation recovery works prior to denial, but permanent denial takes strict precedence over completed operations once the account is denied.
+  4. **E04 (Remove Misleading Verification Decision-Date Fallbacks)**:
+     - In `lib/security/verification-history-policy.ts`, removed unsafe `?? verification.updatedAt` fallbacks across `denied`, `rejected`, and `approved` terminal verification states.
+     - Enforced that decisions are attributed strictly to authoritative event timestamps (`deniedAt`, `rejectedAt`, `approvedAt`).
+     - Handled unknown-date records honestly by returning `null` instead of fabricating dates.
+     - Added 5 new scenario tests to `test/verification-history-date-attribution.test.ts` covering cross-year dates, Manila midnight boundaries, and missing decision timestamps.
+  5. **E05 (Consistent Denied-Account Authorization in Adjacent Paths)**:
+     - Strictly audited and confirmed denial guards across `app/api/admin/operations/route.ts`, `app/api/admin/verifications/approve/route.ts`, `app/api/admin/update-resident-email/route.ts`, `app/api/media/view/route.ts`, `lib/security/media-auth.ts`, `app/api/resident/requests/create/route.ts`, and `lib/security/registration-resubmission.ts`.
+     - Hardened operations and approval routes against unverified expired accounts in addition to deleted/denied accounts.
+
+| Milestone | Status | Verified Evidence |
+|---|---|---|
+| E01: Firestore Rules Active-Account Eligibility | VERIFIED | `firestore.rules` requires `isActiveAccount()` across documentRequests, verifications, notifications, systemAlerts, systemConfig, and users; comprehensive 16-assertion unit test suite in `test/emulator/firestore-rules.test.ts` PASS (85/85 emulator tests). |
+| E02: Live Session Revocation & Fail-Closed Guard | VERIFIED | In `lib/auth/auth-context.tsx`, snapshot listener handles `permission-denied` and unverified Expired states by signing out and redirecting to `/auth/login`; Playwright test in `test/e2e/authenticated-workflows.spec.ts` proves live open session revocation (31/31 PASS). |
+| E03: Corrected D02 Registration Precedence Fixture | VERIFIED | Used canonical `registrationOperationDocumentId`; verified normal operation recovery before denial, then permanent denial precedence over completed operations in `test/emulator/registration-denial-lifecycle.test.ts`. |
+| E04: Remove Misleading Decision-Date Fallbacks | VERIFIED | Removed `updatedAt` fallback in `lib/security/verification-history-policy.ts`; decision dates attribute solely to authoritative event timestamps (`deniedAt`, `rejectedAt`, `approvedAt`); 5 new scenario tests in `test/verification-history-date-attribution.test.ts` PASS (12/12). |
+| E05: Adjacent Denied-Account Consistency | VERIFIED | Hardened `approve`, `operations`, `update-resident-email`, and `media/view` against unverified expired and denied accounts; verified verified residents and pending applicants retain legitimate permissions. |
+| E06: Full Regression Protection & Four-Layer Verification | VERIFIED | Layer 1 Unit: 210/210 PASS; Layer 2 Emulators: 85/85 PASS; Layer 3 Playwright: 31/31 PASS; Layer 4 Adversarial: token retention, inconsistent status, permission revocation, and client mutation attempts blocked. |
+| E07: Full Verification Suite Execution | VERIFIED | `npm test` (210/210); `npm run test:rules` (85/85); `npm run test:e2e:auth` (31/31); `npm run typecheck` (0 errors); `npm run typecheck:test` (0 errors); `npm run lint` (0 errors); `npm run build` (51/51 routes); timezone matrix (UTC, Asia/Manila, America/Los_Angeles: 18/18 per zone); `git diff --check` (clean). |
+| E08: Continuous Self-Audit & Independent Review | VERIFIED | All caller chains, rules, and tests reviewed; no privilege escalation; emulator proof established for all rules. |
+| E09: Documentation & Git Synchronization | VERIFIED | Updated `BUILD_PLAN.md`, `docs/PROJECT_STATE.md`, `docs/HANDOFF.md`, `docs/DECISIONS.md` (ADR-026), and `docs/EVIDENCE_LEDGER.md` (E60). |
+
+## Final Registration Lifecycle Hardening & Functional Regression Closure (D01–D05) — PRIOR PASS
 
 - **Status**: VERIFIED
 - **Branch**: `main`

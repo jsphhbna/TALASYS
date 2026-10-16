@@ -64,15 +64,15 @@ export function getAuthoritativeVerificationDecisionTimestamp(
   const status = verification.status
 
   if (status === "denied") {
-    return normalizeTimestamp(verification.deniedAt ?? verification.updatedAt)
+    return normalizeTimestamp(verification.deniedAt)
   }
 
   if (status === "rejected") {
-    return normalizeTimestamp(verification.rejectedAt ?? verification.reviewedAt ?? verification.updatedAt)
+    return normalizeTimestamp(verification.rejectedAt ?? verification.reviewedAt)
   }
 
   if (status === "approved") {
-    return normalizeTimestamp(verification.approvedAt ?? verification.reviewedAt ?? verification.updatedAt)
+    return normalizeTimestamp(verification.approvedAt ?? verification.reviewedAt)
   }
 
   return null

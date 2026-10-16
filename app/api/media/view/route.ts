@@ -77,7 +77,7 @@ export function createMediaViewHandler(injected?: { auth?: any; db?: any }) {
     const callerRole = (callerData.role as string | undefined) || "resident"
     const callerStatus = callerData.status as string | undefined
 
-    if (callerData.registrationDenied || Boolean(callerData.deniedAt) || callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerRole === "Deleted") {
+    if (callerData.registrationDenied || Boolean(callerData.deniedAt) || callerStatus === "Locked" || callerStatus === "Deleted" || callerStatus === "Deleted by Resident" || callerRole === "Deleted" || (!callerData.isVerified && callerStatus === "Expired")) {
       return NextResponse.json({ error: "Account is inactive, locked, or registration was denied. Media access forbidden." }, { status: 403 })
     }
 

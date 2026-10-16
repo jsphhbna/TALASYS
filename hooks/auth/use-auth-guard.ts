@@ -20,7 +20,8 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
     user?.status === "Deleted by Resident" ||
     user?.role === "Deleted" ||
     user?.registrationDenied === true ||
-    Boolean(user?.deniedAt)
+    Boolean(user?.deniedAt) ||
+    (!user?.isVerified && user?.status === "Expired")
   )
 
   const isAuthorized = Boolean(

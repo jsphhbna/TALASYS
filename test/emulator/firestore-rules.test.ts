@@ -309,3 +309,219 @@ test("A11/A12 production cursor adapter returns complete queues, periods, and no
   assert.equal(rejection.actor.name, "Fresh Admin")
   assert.equal(rejection.targetId, "resident")
 })
+
+// =========================================================================
+// MILESTONE E01: Comprehensive Denied-Account Firestore Client Authorization
+// =========================================================================
+test("Milestone E01: Denied accounts fail closed across all direct Firestore client operations", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore()
+
+    // 1. Seed permanently denied resident (status: Deleted, registrationDenied: true, deniedAt set)
+    await setDoc(doc(db, "users", "denied-resident"), {
+      name: "Denied Resident",
+      role: "resident",
+      status: "Deleted",
+      isVerified: false,
+      registrationDenied: true,
+      deniedAt: Date.now() - 100000,
+      denialReason: "Fraudulent records",
+    })
+
+    // 2. Seed denied resident with status Expired (legacy inconsistency from D01, registrationDenied: true)
+    await setDoc(doc(db, "users", "expired-denied-resident"), {
+      name: "Expired Denied Resident",
+      role: "resident",
+      status: "Expired",
+      isVerified: false,
+      registrationDenied: true,
+      deniedAt: Date.now() - 200000,
+      denialReason: "Fabricated identity",
+    })
+
+    // 3. Seed ordinary legitimate pending applicant
+    await setDoc(doc(db, "users", "pending-applicant"), {
+      name: "Pending Applicant",
+      role: "resident",
+      status: "Pending",
+      isVerified: false,
+      registrationDenied: false,
+      hasPendingVerification: true,
+      pendingVerificationId: "verif-pending-app",
+    })
+
+    // 4. Seed correctably rejected applicant
+    await setDoc(doc(db, "users", "rejected-applicant"), {
+      name: "Rejected Applicant",
+      role: "resident",
+      status: "Pending",
+      isVerified: false,
+      registrationDenied: false,
+      hasPendingVerification: false,
+    })
+
+    // 5. Seed requests for denied resident
+    await setDoc(doc(db, "documentRequests", "denied-pending-req"), {
+      residentId: "denied-resident",
+      status: "Pending",
+      documentType: "Barangay Clearance",
+    })
+    await setDoc(doc(db, "documentRequests", "denied-cancelled-req"), {
+      residentId: "denied-resident",
+      status: "Cancelled",
+      documentType: "Barangay Clearance",
+    })
+
+    // 6. Seed verifications for denied resident
+    await setDoc(doc(db, "verifications", "denied-reg-verif"), {
+      residentId: "denied-resident",
+      userId: "denied-resident",
+      type: "registration",
+      status: "denied",
+      denialReason: "Fraudulent records",
+    })
+    await setDoc(doc(db, "verifications", "denied-profile-edit"), {
+      residentId: "denied-resident",
+      userId: "denied-resident",
+      type: "profile-edit",
+      status: "pending",
+    })
+    await setDoc(doc(db, "verifications", "denied-reactivation"), {
+      residentId: "denied-resident",
+      userId: "denied-resident",
+      type: "reactivation",
+      status: "pending",
+    })
+
+    // 7. Seed notifications for denied resident
+    await setDoc(doc(db, "notifications", "denied-notif"), {
+      targetId: "denied-resident",
+      type: "alert",
+      title: "Notice of Denial",
+      message: "Application denied",
+      isRead: false,
+    })
+
+    // 8. Seed verifications and notifications for pending and rejected applicants
+    await setDoc(doc(db, "verifications", "verif-pending-app"), {
+      residentId: "pending-applicant",
+      userId: "pending-applicant",
+      type: "registration",
+      status: "pending",
+    })
+    await setDoc(doc(db, "notifications", "pending-notif"), {
+      targetId: "pending-applicant",
+      type: "info",
+      title: "Application Received",
+      isRead: false,
+    })
+    await setDoc(doc(db, "verifications", "verif-rejected-app"), {
+      residentId: "rejected-applicant",
+      userId: "rejected-applicant",
+      type: "registration",
+      status: "rejected",
+      rejectionReason: "Blurry document",
+    })
+    await setDoc(doc(db, "notifications", "rejected-notif"), {
+      targetId: "rejected-applicant",
+      type: "warning",
+      title: "Please Resubmit Documents",
+      isRead: false,
+    })
+
+    // 9. System config and alerts
+    await setDoc(doc(db, "systemConfig", "global"), { active: true, baranggay: "Barangay Test" })
+    await setDoc(doc(db, "systemAlerts", "global"), { message: "System maintenance upcoming" })
+  })
+
+  const deniedDb = environment.authenticatedContext("denied-resident").firestore()
+  const expiredDeniedDb = environment.authenticatedContext("expired-denied-resident").firestore()
+  const pendingDb = environment.authenticatedContext("pending-applicant").firestore()
+  const rejectedDb = environment.authenticatedContext("rejected-applicant").firestore()
+  const verifiedResidentDb = environment.authenticatedContext("resident").firestore()
+  const superAdminDb = environment.authenticatedContext("superadmin").firestore()
+
+  // 1. Denied resident cannot read their ordinary profile document
+  await assertFails(getDoc(doc(deniedDb, "users", "denied-resident")))
+
+  // 2. Denied resident cannot read their existing document requests
+  await assertFails(getDoc(doc(deniedDb, "documentRequests", "denied-pending-req")))
+
+  // 3. Denied resident cannot delete a Pending document request
+  await assertFails(deleteDoc(doc(deniedDb, "documentRequests", "denied-pending-req")))
+
+  // 4. Denied resident cannot delete a Cancelled document request
+  await assertFails(deleteDoc(doc(deniedDb, "documentRequests", "denied-cancelled-req")))
+
+  // 5. Denied resident cannot read ordinary verification records
+  await assertFails(getDoc(doc(deniedDb, "verifications", "denied-reg-verif")))
+
+  // 6. Denied resident cannot withdraw profile-edit or reactivation verifications
+  await assertFails(deleteDoc(doc(deniedDb, "verifications", "denied-profile-edit")))
+  await assertFails(deleteDoc(doc(deniedDb, "verifications", "denied-reactivation")))
+
+  // 7. Denied resident cannot create Admin-targeted notifications
+  await assertFails(setDoc(doc(deniedDb, "notifications", "forged-denied-notif"), {
+    targetId: "admin",
+    type: "alert",
+    title: "Denied applicant forged notification",
+  }))
+
+  // 8. Denied resident cannot update or delete their existing notifications
+  await assertFails(updateDoc(doc(deniedDb, "notifications", "denied-notif"), { isRead: true }))
+  await assertFails(deleteDoc(doc(deniedDb, "notifications", "denied-notif")))
+
+  // 9. Denied resident cannot access system resources (systemAlerts, systemConfig)
+  await assertFails(getDoc(doc(deniedDb, "systemAlerts", "global")))
+  await assertFails(getDoc(doc(deniedDb, "systemConfig", "global")))
+
+  // 10. A denied resident with status = "Expired" but registrationDenied = true remains blocked across all collections
+  await assertFails(getDoc(doc(expiredDeniedDb, "users", "expired-denied-resident")))
+  await assertFails(getDoc(doc(expiredDeniedDb, "documentRequests", "denied-pending-req")))
+  await assertFails(getDoc(doc(expiredDeniedDb, "verifications", "denied-reg-verif")))
+  await assertFails(getDoc(doc(expiredDeniedDb, "notifications", "denied-notif")))
+  await assertFails(getDoc(doc(expiredDeniedDb, "systemConfig", "global")))
+  await assertFails(setDoc(doc(expiredDeniedDb, "notifications", "forged-exp-notif"), {
+    targetId: "admin",
+    type: "reactivation",
+    title: "Attempted reactivation on denied account",
+  }))
+
+  // 11. An ordinary Pending applicant retains legitimate permissions
+  await assertSucceeds(getDoc(doc(pendingDb, "users", "pending-applicant")))
+  await assertSucceeds(getDoc(doc(pendingDb, "verifications", "verif-pending-app")))
+  await assertSucceeds(getDoc(doc(pendingDb, "notifications", "pending-notif")))
+  await assertSucceeds(getDoc(doc(pendingDb, "systemConfig", "global")))
+  await assertSucceeds(getDoc(doc(pendingDb, "systemAlerts", "global")))
+
+  // 12. A rejected applicant retains legitimate permissions to inspect profile and verification
+  await assertSucceeds(getDoc(doc(rejectedDb, "users", "rejected-applicant")))
+  await assertSucceeds(getDoc(doc(rejectedDb, "verifications", "verif-rejected-app")))
+  await assertSucceeds(getDoc(doc(rejectedDb, "notifications", "rejected-notif")))
+
+  // 13. A verified resident retains normal permissions
+  await assertSucceeds(getDoc(doc(verifiedResidentDb, "users", "resident")))
+  await assertSucceeds(getDoc(doc(verifiedResidentDb, "documentRequests", "existing")))
+  await assertSucceeds(getDoc(doc(verifiedResidentDb, "systemConfig", "global")))
+
+  // 14. Authorized Super Admin permissions remain intact
+  await assertSucceeds(getDoc(doc(superAdminDb, "users", "denied-resident")))
+  await assertSucceeds(getDoc(doc(superAdminDb, "documentRequests", "denied-pending-req")))
+  await assertSucceeds(getDoc(doc(superAdminDb, "verifications", "denied-reg-verif")))
+  await assertSucceeds(deleteDoc(doc(superAdminDb, "verifications", "denied-profile-edit")))
+
+  // 15. A resident cannot access another resident's data
+  await assertFails(getDoc(doc(pendingDb, "users", "resident")))
+  await assertFails(getDoc(doc(pendingDb, "documentRequests", "existing")))
+  await assertFails(getDoc(doc(pendingDb, "verifications", "denied-reg-verif")))
+  await assertFails(getDoc(doc(pendingDb, "notifications", "denied-notif")))
+
+  // 16. A denied resident cannot clear registrationDenied or alter server-managed lifecycle fields
+  await assertFails(updateDoc(doc(deniedDb, "users", "denied-resident"), {
+    registrationDenied: false,
+  }))
+  await assertFails(updateDoc(doc(deniedDb, "users", "denied-resident"), {
+    status: "Active",
+    isVerified: true,
+  }))
+})

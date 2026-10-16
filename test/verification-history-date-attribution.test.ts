@@ -184,4 +184,82 @@ test("D05: Verification History Decision Date Accuracy & Attribution", async (t)
     assert.equal(denGroup?.data[0].count, 1)
     assert.equal(denGroup?.data[0].total, 1)
   })
+
+  // E04: Elimination of misleading updatedAt fallbacks & strict decision timestamp semantics
+  await t.test("E04 Scenario 1: Denied Jan 3, updated March 10 -> attributed to Jan", () => {
+    const deniedJan3 = new Date("2027-01-03T10:00:00Z").getTime()
+    const updatedMarch10 = new Date("2027-03-10T14:00:00Z").getTime()
+    const record: VerificationRecordLike = {
+      id: "v-e04-1",
+      status: "denied",
+      deniedAt: deniedJan3,
+      updatedAt: updatedMarch10,
+    }
+    const ts = getAuthoritativeVerificationDecisionTimestamp(record)
+    assert.equal(ts, deniedJan3)
+    assert.equal(getManilaEventMonth(ts), "Jan")
+  })
+
+  await t.test("E04 Scenario 2: Rejected Dec 2026, subsequently edited Jan 2027 -> attributed to Dec 2026", () => {
+    const rejectedDec2026 = new Date("2026-12-28T08:00:00Z").getTime()
+    const editedJan2027 = new Date("2027-01-15T09:00:00Z").getTime()
+    const record: VerificationRecordLike = {
+      id: "v-e04-2",
+      status: "rejected",
+      rejectedAt: rejectedDec2026,
+      updatedAt: editedJan2027,
+      rejectionReason: "Invalid proof of residency",
+    }
+    const ts = getAuthoritativeVerificationDecisionTimestamp(record)
+    assert.equal(ts, rejectedDec2026)
+    assert.equal(isVerificationInDecisionYear(record, 2026), true)
+    assert.equal(isVerificationInDecisionYear(record, 2027), false)
+    assert.equal(getManilaEventMonth(ts), "Dec")
+  })
+
+  await t.test("E04 Scenario 3: Approved Feb 14, updated later -> attributed to Feb", () => {
+    const approvedFeb = new Date("2027-02-14T11:00:00Z").getTime()
+    const updatedLater = new Date("2027-08-01T12:00:00Z").getTime()
+    const record: VerificationRecordLike = {
+      id: "v-e04-3",
+      status: "approved",
+      approvedAt: approvedFeb,
+      updatedAt: updatedLater,
+    }
+    const ts = getAuthoritativeVerificationDecisionTimestamp(record)
+    assert.equal(ts, approvedFeb)
+    assert.equal(getManilaEventMonth(ts), "Feb")
+  })
+
+  await t.test("E04 Scenario 4: Missing authoritative decision timestamp but valid updatedAt remains unknown date", () => {
+    const record: VerificationRecordLike = {
+      id: "v-e04-4",
+      status: "denied",
+      updatedAt: Date.now(),
+      createdAt: Date.now() - 100000,
+    }
+    // When deniedAt is missing, must NOT fall back to updatedAt
+    assert.equal(getAuthoritativeVerificationDecisionTimestamp(record), null)
+    assert.equal(isVerificationInDecisionYear(record, 2026), false)
+    assert.equal(isVerificationInDecisionYear(record, 2027), false)
+  })
+
+  await t.test("E04 Scenario 5: Mixed timestamp representations (Firestore Timestamp object, ISO, epoch seconds)", () => {
+    const ms = 1768478400000 // 2026-01-15 20:00:00 Manila (UTC+8)
+    const firestoreTimestampObj = { seconds: Math.floor(ms / 1000), nanoseconds: 0 }
+    const firestoreTimestampWithMillis = { toMillis: () => ms }
+    const isoString = "2026-01-15T12:00:00.000Z"
+    const epochSeconds = Math.floor(ms / 1000)
+
+    const rec1: VerificationRecordLike = { id: "m1", status: "denied", deniedAt: firestoreTimestampObj }
+    const rec2: VerificationRecordLike = { id: "m2", status: "rejected", rejectedAt: firestoreTimestampWithMillis }
+    const rec3: VerificationRecordLike = { id: "m3", status: "approved", approvedAt: isoString }
+    const rec4: VerificationRecordLike = { id: "m4", status: "denied", deniedAt: epochSeconds }
+
+    assert.equal(getAuthoritativeVerificationDecisionTimestamp(rec1), ms)
+    assert.equal(getAuthoritativeVerificationDecisionTimestamp(rec2), ms)
+    assert.equal(getAuthoritativeVerificationDecisionTimestamp(rec3), ms)
+    assert.equal(getAuthoritativeVerificationDecisionTimestamp(rec4), ms)
+    assert.equal(getManilaEventMonth(getAuthoritativeVerificationDecisionTimestamp(rec1)), "Jan")
+  })
 })

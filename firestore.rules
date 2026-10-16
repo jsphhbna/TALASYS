@@ -34,7 +34,10 @@ service cloud.firestore {
         status != 'Locked' &&
         status != 'Deleted' &&
         status != 'Deleted by Resident' &&
-        user.get('registrationDenied', false) != true;
+        user.get('role', 'none') != 'Deleted' &&
+        user.get('registrationDenied', false) != true &&
+        !('deniedAt' in user) &&
+        !(user.get('isVerified', false) == false && (status == 'Deleted' || status == 'Expired'));
     }
 
     function isUnverifiedResident() {
@@ -133,10 +136,13 @@ service cloud.firestore {
     // DOCUMENT REQUESTS COLLECTION
     // ==============================================================
     match /documentRequests/{requestId} {
-      // Admins can see all. Residents see their own.
-      allow read: if isAnyAdmin() || (isAuthenticated() && resource.data.residentId == request.auth.uid);
+      // Admins can see all. Active residents see their own.
+      allow read: if isAnyAdmin() || (
+        isAuthenticated() &&
+        isActiveAccount() &&
+        resource.data.residentId == request.auth.uid
+      );
       
-      // Creation:
       // Creation:
       // Direct client creation by residents is blocked to prevent fee tampering and forged waivers (#56).
       // Residents must create requests via the protected server route /api/resident/requests/create.
@@ -176,6 +182,7 @@ service cloud.firestore {
       // - Residents can ONLY delete requests if still Pending or Cancelled (cannot delete processed/receipted requests) (#56).
       allow delete: if (
         isAuthenticated() &&
+        isActiveAccount() &&
         resource.data.residentId == request.auth.uid &&
         resource.data.status in ['Pending', 'Cancelled']
       );
@@ -187,6 +194,7 @@ service cloud.firestore {
     match /verifications/{verificationId} {
       allow read: if isAnyAdmin() || (
         isAuthenticated() && 
+        isActiveAccount() &&
         (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid)
       );
       
@@ -223,6 +231,7 @@ service cloud.firestore {
         resource.data.type != 'registration' && (
           isSuperAdmin() || (
             isAuthenticated() &&
+            isActiveAccount() &&
             (resource.data.residentId == request.auth.uid || resource.data.userId == request.auth.uid) &&
             (
               (resource.data.status == 'pending' && resource.data.type in ['profile-edit', 'reactivation']) ||
@@ -237,9 +246,9 @@ service cloud.firestore {
     // NOTIFICATIONS COLLECTION
     // ==============================================================
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && (
-        resource.data.targetId == request.auth.uid || 
-        (resource.data.targetId == 'admin' && isAnyAdmin())
+      allow read: if (
+        (isAnyAdmin() && (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid)) ||
+        (isAuthenticated() && isActiveAccount() && resource.data.targetId == request.auth.uid)
       );
       
       // Creation:
@@ -247,14 +256,17 @@ service cloud.firestore {
       // - Residents can ONLY create notification with targetId == 'admin' (#58 impersonation defense).
       // - Registration notifications are emitted solely by trusted server registration operations.
       allow create: if (
-        isAuthenticated() &&
-        request.resource.data.targetId == 'admin' &&
-        request.resource.data.type in ['info', 'alert', 'reactivation']
+        isAnyAdmin() || (
+          isAuthenticated() &&
+          isActiveAccount() &&
+          request.resource.data.targetId == 'admin' &&
+          request.resource.data.type in ['info', 'alert', 'reactivation']
+        )
       );
       
-      allow update, delete: if isAuthenticated() && (
-        resource.data.targetId == request.auth.uid || 
-        (resource.data.targetId == 'admin' && isAnyAdmin())
+      allow update, delete: if (
+        (isAnyAdmin() && (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid)) ||
+        (isAuthenticated() && isActiveAccount() && resource.data.targetId == request.auth.uid)
       );
     }
 
@@ -289,12 +301,12 @@ service cloud.firestore {
     // SYSTEM ALERTS & SYSTEM CONFIG
     // ==============================================================
     match /systemAlerts/{alertId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && isActiveAccount();
       allow create, update, delete: if false;
     }
 
     match /systemConfig/{configId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && isActiveAccount();
       allow create, update, delete: if false;
     }
 

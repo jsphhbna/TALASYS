@@ -1,6 +1,46 @@
 # TALASYS Remediation Handoff
 
-## Current handoff — 2026-10-16 (Final Registration Lifecycle Hardening & Regression Closure: D01–D05)
+## Current handoff — 2026-10-16 (Final Denied-Account Authorization & Functional Consistency Closure: E01–E05)
+
+Working branch: `main`. Audited baseline: `0e1469c1210f7c1a1475ca9657c82e0fd4600591`.
+
+This pass performs the final targeted remediation of the five authorization and functional consistency gaps (E01–E05) identified after D01–D05:
+1. **E01 (Firestore Rules: Denied Accounts Must Fail Closed)**:
+   - In `firestore.rules`, tightened `isActiveAccount()` to verify `role != 'Deleted'`, `registrationDenied != true`, `!('deniedAt' in user)`, and blocking unverified accounts with `Deleted` or `Expired` status.
+   - Enforced `isActiveAccount()` across `documentRequests` (reads, deletes), `verifications` (reads, deletes), `notifications` (reads, creates, updates, deletes), `systemAlerts` (reads), and `systemConfig` (reads).
+   - Validated via comprehensive 16-assertion unit test suite in `test/emulator/firestore-rules.test.ts` that permanently denied accounts fail closed when attempting client operations with a retained Firebase token.
+2. **E02 (Live Session Revocation Must Fail Closed)**:
+   - In `lib/auth/auth-context.tsx`, the real-time user snapshot listener error callback treats `permission-denied` and `unauthenticated` errors as authoritative revocation, calling `firebaseSignOut(auth)`, clearing session and storage, and redirecting to `/auth/login`.
+   - Disqualified unverified `Expired` accounts from retaining active sessions.
+   - Handled client `permission-denied` on login with a clear denial and deactivation explanation.
+   - Playwright test 31 in `test/e2e/authenticated-workflows.spec.ts` proves an open resident session is revoked in real-time when registration is denied by an administrator.
+3. **E03 (Correct D02 Regression Test Evidence)**:
+   - In `test/emulator/registration-denial-lifecycle.test.ts`, imported canonical `registrationOperationDocumentId` and updated test fixtures to persist completed operations under their authoritative document ID.
+   - Proved normal operation recovery works prior to denial, and permanent denial takes strict precedence over completed operations once the account is denied.
+4. **E04 (Remove Misleading Decision-Date Fallbacks)**:
+   - In `lib/security/verification-history-policy.ts`, removed unsafe `?? verification.updatedAt` fallbacks across terminal verification states.
+   - Event dates attribute strictly to authoritative event timestamps (`deniedAt`, `rejectedAt`, `approvedAt`) in Asia/Manila calendar time, leaving missing decision dates as unknown date without fabricating timestamps.
+   - Verified in `test/verification-history-date-attribution.test.ts` (12/12 PASS).
+5. **E05 (Consistent Denied-Account Authorization in Adjacent Paths)**:
+   - Confirmed denial and unverified expiration guards across `app/api/admin/operations/route.ts`, `app/api/admin/verifications/approve/route.ts`, `app/api/admin/update-resident-email/route.ts`, and `app/api/media/view/route.ts`.
+
+Evidence is provided by:
+- 210 unit/integration tests (PASS, 31 suites)
+- 85 Auth/Firestore emulator tests (PASS, 6 suites)
+- 31 authenticated Playwright Chromium E2E tests (PASS)
+- Both TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 867 legacy warnings)
+- Production build (51/51 routes successfully generated with Next.js 16.4.0 Turbopack)
+- Timezone matrix across UTC, Asia/Manila, and America/Los_Angeles (18/18 PASS per zone)
+- Clean `git diff --check`
+
+Required Production Rollout:
+- Publish updated `firestore.rules` to Firebase project (`firebase deploy --only firestore:rules`).
+- Deploy updated Next.js application.
+- Recommended order: Deploy application first, then publish Firestore rules (backward-compatible; active resident operations unaffected).
+- Post-deployment verification: test normal resident login, denied resident login rejection, and verify denied client permissions fail closed.
+
+## Prior handoff — 2026-10-16 (Final Registration Lifecycle Hardening & Regression Closure: D01–D05)
 
 Working branch: `main`. Audited baseline: `ca5308e9d51d7ec95a9db9942765bd397f2457ce`.
 

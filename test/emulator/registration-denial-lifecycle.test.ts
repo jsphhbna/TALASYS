@@ -10,6 +10,7 @@ import { createRegistrationStatusHandler } from "../../app/api/resident/registra
 import { createUpdateResidentEmailHandler } from "../../app/api/admin/update-resident-email/route.ts"
 import { createResidentRequestHandler } from "../../app/api/resident/requests/create/route.ts"
 import { createMediaViewHandler } from "../../app/api/media/view/route.ts"
+import { registrationOperationDocumentId } from "../../lib/security/registration-finalization.ts"
 
 process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = "denial-lifecycle-cloud"
 process.env.CLOUDINARY_API_SECRET = "denial-lifecycle-secret"
@@ -667,10 +668,11 @@ test("Milestone E1: Comprehensive Registration Denial Lifecycle and Governance",
     assert.equal((await adminDb.collection("users").doc(approvedResident.uid).get()).data()?.status, "Active")
   })
 
-  // D02: Registration status recovery prioritizes current authoritative account state
+  // D02/E03: Registration status recovery prioritizes current authoritative account state with correct production document ID
   await t.test("D02: Registration status returns denied even when supplied with completed operationId", async () => {
-    // Record a completed operation in registrationOperations for the denied resident
-    await adminDb.collection("registrationOperations").doc(denyOpId).set({
+    // Record a completed operation in registrationOperations using the canonical document ID derivation (E03)
+    const opDocId = registrationOperationDocumentId(residentApplicant.uid, denyOpId)
+    await adminDb.collection("registrationOperations").doc(opDocId).set({
       operationId: denyOpId,
       uid: residentApplicant.uid,
       status: "completed",
@@ -692,8 +694,9 @@ test("Milestone E1: Comprehensive Registration Denial Lifecycle and Governance",
   await t.test("D02: Auth-only incomplete applicant recovers pending status via registration operation", async () => {
     const incompleteIdentity = await createIdentity("incomplete-app")
     const incOpId = `op-inc-${randomUUID()}`
+    const incDocId = registrationOperationDocumentId(incompleteIdentity.uid, incOpId)
 
-    await adminDb.collection("registrationOperations").doc(incOpId).set({
+    await adminDb.collection("registrationOperations").doc(incDocId).set({
       operationId: incOpId,
       uid: incompleteIdentity.uid,
       status: "pending",
@@ -709,6 +712,82 @@ test("Milestone E1: Comprehensive Registration Denial Lifecycle and Governance",
     const json = await res.json()
     assert.equal(json.success, true)
     assert.equal(json.status, "incomplete")
+  })
+
+  await t.test("E03: Correctly keyed registration operation recovers completed prior to denial, then denied after permanent denial", async () => {
+    const liveApplicant = await createIdentity("e03-applicant")
+    const liveOpId = `op-e03-${randomUUID()}`
+    const liveVerifId = `verif-e03-${randomUUID()}`
+    const liveDocId = registrationOperationDocumentId(liveApplicant.uid, liveOpId)
+
+    // 1. Initial pending applicant state
+    await adminDb.collection("users").doc(liveApplicant.uid).set({
+      role: "resident",
+      status: "Pending",
+      isVerified: false,
+      hasPendingVerification: true,
+      pendingVerificationId: liveVerifId,
+      createdAt: Date.now(),
+    })
+    await adminDb.collection("verifications").doc(liveVerifId).set({
+      residentId: liveApplicant.uid,
+      userId: liveApplicant.uid,
+      type: "registration",
+      status: "pending",
+      name: "E03 Applicant",
+      email: liveApplicant.email,
+      createdAt: Date.now(),
+    })
+    await adminDb.collection("residentVerificationLocks").doc(liveApplicant.uid).set({
+      residentId: liveApplicant.uid,
+      activeVerificationId: liveVerifId,
+      activeVerificationStatus: "pending",
+      createdAt: Date.now(),
+    })
+
+    // 2. Persist completed operation under its authoritative document ID
+    await adminDb.collection("registrationOperations").doc(liveDocId).set({
+      operationId: liveOpId,
+      uid: liveApplicant.uid,
+      status: "completed",
+      verificationId: liveVerifId,
+      updatedAt: Date.now(),
+    })
+
+    // 3. Normal recovery returns completed before denial
+    const beforeReq = new Request(`http://localhost/api/resident/registration/status?operationId=${liveOpId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${liveApplicant.uid}` },
+    })
+    const beforeRes = await regStatusHandler(liveApplicant.uid)(beforeReq)
+    assert.equal(beforeRes.status, 200)
+    const beforeJson = await beforeRes.json()
+    assert.equal(beforeJson.status, "completed")
+
+    // 4. Super Admin permanently denies applicant
+    const liveDenialReason = "Disqualified: Altered official barangay clearance documents submitted."
+    const denyRes = await adminOps(superAdmin.uid)(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${superAdmin.uid}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "verification.denyRegistration",
+        operationId: `op-deny-e03-${randomUUID()}`,
+        targetId: liveVerifId,
+        payload: { reason: liveDenialReason },
+      }),
+    }))
+    assert.equal(denyRes.status, 200)
+
+    // 5. Query status using the same operationId -> denial takes precedence over completed operation!
+    const afterReq = new Request(`http://localhost/api/resident/registration/status?operationId=${liveOpId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${liveApplicant.uid}` },
+    })
+    const afterRes = await regStatusHandler(liveApplicant.uid)(afterReq)
+    assert.equal(afterRes.status, 200)
+    const afterJson = await afterRes.json()
+    assert.equal(afterJson.status, "denied")
+    assert.equal(afterJson.denialReason, liveDenialReason)
   })
 
   // D03: Identity lock coordination during registration denial

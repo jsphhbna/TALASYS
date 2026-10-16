@@ -1,6 +1,42 @@
 # TALASYS Project State
 
-## Current Verified State — 16 October 2026 (Final Registration Lifecycle Hardening & Regression Closure: D01–D05)
+## Current Verified State — 16 October 2026 (Denied-Account Authorization & Functional Consistency Closure: E01–E05)
+
+- **Working branch**: `main`
+- **Audited baseline**: `0e1469c1210f7c1a1475ca9657c82e0fd4600591`
+- **Status**: The five functional consistency and authorization gaps (E01–E05) are fully remediated, verified, and self-audited.
+  1. **E01 (Firestore Rules: Denied Accounts Fail Closed)**:
+     - `firestore.rules` defines `isActiveAccount()` requiring `hasAuthoritativeUserProfile()`, non-locked/non-deleted status, `role != 'Deleted'`, `registrationDenied != true`, `!('deniedAt' in user)`, and blocking unverified accounts with `Deleted` or `Expired` status.
+     - All resident reads and deletes on `documentRequests` and `verifications` require `isActiveAccount()`.
+     - Resident access (reads, creates, updates, deletes) on `notifications` requires `isActiveAccount()`.
+     - Authenticated reads on `systemAlerts` and `systemConfig` require `isActiveAccount()`.
+     - Verified with 16 emulator assertions in `test/emulator/firestore-rules.test.ts` proving denied accounts cannot read, create, update, or delete across collections through the client SDK.
+  2. **E02 (Live Session Revocation Fail Closed)**:
+     - `lib/auth/auth-context.tsx`: Snapshot error listener catches `permission-denied` and `unauthenticated` errors, signs out Firebase Auth, clears `user` state and Storage, and navigates to `/auth/login`.
+     - Snapshot listener also revokes unverified `Expired` accounts.
+     - Login handler catches `permission-denied` from client profile reads and rejects with a truthful permanent denial and account deactivation message.
+     - Playwright browser test in `test/e2e/authenticated-workflows.spec.ts` proves that an open resident session is revoked in real-time when registration is denied by an administrator.
+  3. **E03 (Correct D02 Registration-Status Recovery Evidence)**:
+     - In `test/emulator/registration-denial-lifecycle.test.ts`, updated test fixtures to derive operation document IDs using production `registrationOperationDocumentId(uid, opId)`.
+     - Proves normal operation recovery works before denial, and permanent denial takes strict precedence over completed operations after denial.
+  4. **E04 (Remove Misleading Decision-Date Fallbacks)**:
+     - In `lib/security/verification-history-policy.ts`, removed unsafe `?? verification.updatedAt` fallbacks across terminal verification states.
+     - Event dates are attributed strictly to authoritative decision timestamps (`deniedAt`, `rejectedAt`, `approvedAt`) in Asia/Manila calendar time, leaving records with missing decision dates as unknown date.
+     - Verified in `test/verification-history-date-attribution.test.ts` (12/12 PASS).
+  5. **E05 (Consistent Denied-Account Authorization in Adjacent Paths)**:
+     - Confirmed denial and unverified expiration guards across `app/api/admin/operations/route.ts`, `app/api/admin/verifications/approve/route.ts`, `app/api/admin/update-resident-email/route.ts`, and `app/api/media/view/route.ts`.
+  6. **Verification Metrics**:
+     - `npm test`: PASS 210/210 across 31 suites.
+     - `npm run test:rules`: PASS 85/85 against Auth & Firestore emulators (6 emulator test suites).
+     - `npm run test:e2e:auth`: PASS 31/31 across Chromium authenticated workflows.
+     - `npm run typecheck` & `npm run typecheck:test`: PASS (0 errors).
+     - `npm run lint`: PASS (0 errors, 867 legacy warnings).
+     - `npm run build`: PASS (51/51 routes with Next.js 16.4.0 Turbopack).
+     - Timezone matrix: PASS across UTC, Asia/Manila, and America/Los_Angeles (18/18 per zone).
+     - `git diff --check`: PASS (clean).
+- **Evidence boundary**: Local emulators and controlled provider adapters only. No unauthorized production deployment or live rules publication performed.
+
+## Prior Verified State — 16 October 2026 (Final Registration Lifecycle Hardening & Regression Closure: D01–D05)
 
 - **Working branch**: `main`
 - **Audited baseline**: `ca5308e9d51d7ec95a9db9942765bd397f2457ce`

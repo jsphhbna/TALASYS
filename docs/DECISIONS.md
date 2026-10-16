@@ -407,3 +407,35 @@
   - Identity coordination locks prevent race conditions between registration denial and background reconciliation or approvals.
   - Verification history and audit trails remain permanently intact.
   - Verification reports accurately attribute reasons and actions to their decision periods.
+## ADR-026: Denied-Account Authorization, Live Session Revocation, and Test Evidence Alignment (E01–E05)
+
+- **Status**: Accepted / Verified
+- **Date**: 16 October 2026
+- **Context**:
+  - Following the implementation of D01–D05, five final authorization and functional consistency items were identified:
+    1. **E01 (High)**: While `firestore.rules` defined `isActiveAccount()`, multiple collections (`documentRequests`, `verifications`, `notifications`, `systemAlerts`, `systemConfig`) relied on `isAuthenticated()` or ownership without requiring an active account, allowing permanently denied residents retaining valid Firebase Auth tokens to read or mutate resources directly through the client SDK.
+    2. **E02 (High)**: In `lib/auth/auth-context.tsx`, the `users/{uid}` snapshot listener logged errors without revoking the authenticated state when receiving `permission-denied` errors, creating a risk that a denied user's browser session remained active using stale privileges.
+    3. **E03 (Medium)**: The D02 regression test seeded a completed registration operation under the raw `operationId` rather than the canonical `registrationOperationDocumentId(uid, operationId)`, failing to test realistic production operation recovery.
+    4. **E04 (Low–Medium)**: `lib/security/verification-history-policy.ts` utilized `?? verification.updatedAt` as a fallback for decision dates, risking false attribution of historical decisions to subsequent update dates.
+    5. **E05 (Medium)**: Directly affected client/backend paths required verification to guarantee consistent denial enforcement across all endpoints.
+- **Decisions**:
+  1. **Strict Active-Account Invariant in Firestore Rules (E01)**:
+     - Tightened `isActiveAccount()` to block `role == 'Deleted'`, `registrationDenied == true`, `'deniedAt' in user`, and unverified accounts with `Deleted` or `Expired` status.
+     - Required `isActiveAccount()` for resident operations on `documentRequests`, `verifications`, and `notifications`.
+     - Required `isActiveAccount()` for reads on `systemAlerts` and `systemConfig`.
+  2. **Fail-Closed Real-Time Session Revocation (E02)**:
+     - Handled `permission-denied` and `unauthenticated` errors in `onSnapshot` listener: executed `firebaseSignOut(auth)`, cleared `user` state, cleared Storage and disclaimer tokens, and redirected to `/auth/login`.
+     - Caught client profile fetch `permission-denied` on login, rejected with informative deactivation notice.
+  3. **Canonical Operation ID in Regression Tests (E03)**:
+     - Imported and used `registrationOperationDocumentId` from `lib/security/registration-finalization.ts` in test fixtures.
+     - Verified normal operation recovery works before denial, and denial takes strict precedence after denial.
+  4. **Removal of Misleading Decision-Date Fallbacks (E04)**:
+     - Removed `?? verification.updatedAt` fallback across `denied`, `rejected`, and `approved` states in `lib/security/verification-history-policy.ts`.
+     - Maintained honest unknown-date handling when authoritative event timestamps are missing.
+  5. **Adjacent Route Hardening (E05)**:
+     - Enforced denial and unverified expiration checks across `operations`, `approve`, `update-resident-email`, and `media/view`.
+- **Consequences**:
+  - Permanently denied accounts fail closed even with valid Auth tokens across direct Firestore client operations and backend routes.
+  - Active browser sessions are authoritatively revoked in real time when registration is denied.
+  - Test fixtures faithfully mirror production key derivation.
+  - Verification history metrics accurately reflect original decision events.

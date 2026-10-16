@@ -77,19 +77,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (snapshot.exists()) {
               const userData = { id: snapshot.id, ...snapshot.data() } as AuthUser
               
-              // Immediately revoke active session if locked, deleted, or permanently denied (#30, D01)
+              // Immediately revoke active session if locked, deleted, or permanently denied (#30, D01, E02)
               if (
                 userData.role === "Deleted" ||
                 userData.status === "Deleted" ||
                 userData.status === "Deleted by Resident" ||
                 userData.status === "Locked" ||
                 userData.registrationDenied === true ||
-                Boolean(userData.deniedAt)
+                Boolean(userData.deniedAt) ||
+                (!userData.isVerified && userData.status === "Expired")
               ) {
-                await firebaseSignOut(auth)
+                try {
+                  await firebaseSignOut(auth)
+                } catch (signOutErr) {
+                  console.error("Firebase signout failed on session revocation:", signOutErr)
+                }
                 setUser(null)
                 initializeFirebaseStorage(null, null)
+                sessionStorage.removeItem("adminSecurityDisclaimerShown")
                 setIsReady(true)
+                router.push("/auth/login")
                 return
               }
 
@@ -101,8 +108,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               initializeFirebaseStorage(null, null)
             }
             setIsReady(true)
-          }, (err) => {
+          }, async (err: any) => {
             console.error("Firestore user snapshot error:", err)
+            // Confirmed authorization or permission revocation error (account denied/deleted and firestore.rules blocks read) (E02)
+            if (err?.code === "permission-denied" || err?.code === "unauthenticated") {
+              try {
+                await firebaseSignOut(auth)
+              } catch (signOutErr) {
+                console.error("Firebase signout failed on permission revocation:", signOutErr)
+              }
+              setUser(null)
+              initializeFirebaseStorage(null, null)
+              sessionStorage.removeItem("adminSecurityDisclaimerShown")
+              setIsReady(true)
+              router.push("/auth/login")
+              return
+            }
+            // For transient network errors, keep existing state and mark ready without destroying legitimate session
             setIsReady(true)
           })
         } catch (error) {
@@ -124,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userDocUnsubscribe()
       }
     }
-  }, [])
+  }, [router])
 
   /**
    * Authenticates a user by username or email.
@@ -137,7 +159,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password)
       const userDocRef = doc(db, "users", userCredential.user.uid)
-      const userDoc = await fetchDocumentWithRetry(userDocRef)
+      let userDoc: any
+      try {
+        userDoc = await fetchDocumentWithRetry(userDocRef)
+      } catch (docErr: any) {
+        await firebaseSignOut(auth)
+        if (docErr?.code === "permission-denied") {
+          return { _error: "This registration application has been permanently denied and account deactivated. Please contact administration." } as any
+        }
+        throw docErr
+      }
       
       if (!userDoc.exists()) {
         await firebaseSignOut(auth)
@@ -146,10 +177,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const userData = { id: userDoc.id, ...(userDoc.data() as any) } as AuthUser
       
-      // Block login immediately for permanently denied accounts (D01)
-      if (userData.registrationDenied === true || Boolean(userData.deniedAt)) {
+      // Block login immediately for permanently denied accounts (D01, E02)
+      if (
+        userData.registrationDenied === true ||
+        Boolean(userData.deniedAt) ||
+        (!userData.isVerified && (userData.status === "Deleted" || userData.status === "Expired"))
+      ) {
         await firebaseSignOut(auth)
-        return { _error: "This registration application has been permanently denied. Please contact administration." } as any
+        return { _error: "This registration application has been permanently denied and account deactivated. Please contact administration." } as any
       }
 
       // Block login immediately for soft-deleted accounts

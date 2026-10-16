@@ -51,7 +51,7 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
         if (!authorized || ["Locked", "Deleted", "Deleted by Resident"].includes(caller.status)) throw Object.assign(new Error("Caller is not authorized to modify resident identities."), { status: 403 })
         if (!residentSnapshot.exists || residentSnapshot.data()?.role !== "resident") throw Object.assign(new Error("Target resident record not found."), { status: 404 })
         const targetResident = residentSnapshot.data() || {}
-        if (targetResident.registrationDenied || Boolean(targetResident.deniedAt) || (!targetResident.isVerified && targetResident.status === "Deleted")) {
+        if (targetResident.registrationDenied || Boolean(targetResident.deniedAt) || (!targetResident.isVerified && (targetResident.status === "Deleted" || targetResident.status === "Expired"))) {
           throw Object.assign(new Error("Cannot modify email for a permanently denied resident."), { status: 409 })
         }
         const existing = operationSnapshot.exists ? operationSnapshot.data() : null
