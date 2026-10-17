@@ -140,7 +140,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                 <div key={item.name}>
                   <button
                     onClick={() => setIsDocOpen(v => !v)}
-                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
+                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
                     style={{ width: 'calc(100% - 16px)' }}
                   >
                     <div className="flex items-center gap-3">
@@ -172,7 +172,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                             href={sub.href}
                             onClick={(e) => handleNavClick(e, sub.href)}
                             className={`flex items-center justify-between mx-1 mb-0.5 px-3 py-2 text-xs transition-colors rounded-md relative ${
-                              isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5"
+                              isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5 font-medium"
                             }`}
                           >
                             <div className="flex items-center gap-2.5">
@@ -199,7 +199,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                 <div key={item.name}>
                   <button
                     onClick={() => setIsResidentsOpen(v => !v)}
-                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
+                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
                     style={{ width: 'calc(100% - 16px)' }}
                   >
                     <div className="flex items-center gap-3">
@@ -219,7 +219,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                             href={sub.href}
                             onClick={(e) => handleNavClick(e, sub.href)}
                             className={`flex items-center gap-2.5 mx-1 mb-0.5 px-3 py-2 text-xs transition-colors rounded-md relative ${
-                              isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5"
+                              isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5 font-medium"
                             }`}
                           >
                             {isSubActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-[#C5A55A] rounded-r-full" />}
@@ -241,7 +241,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                   {/* Accordion Toggle */}
                   <button
                     onClick={() => setIsVerifOpen(v => !v)}
-                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5"
+                    className="w-full flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
                     style={{ width: 'calc(100% - 16px)' }}
                   >
                     <div className="flex items-center gap-3">
@@ -275,7 +275,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                             href={sub.href}
                             onClick={(e) => handleNavClick(e, sub.href)}
                             className={`flex items-center justify-between mx-1 mb-0.5 px-3 py-2 text-xs transition-colors rounded-md relative ${
-                              isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5"
+                              isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5 font-medium"
                             }`}
                           >
                             <div className="flex items-center gap-2.5">
@@ -306,7 +306,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                   "flex items-center justify-between mx-2 mb-0.5 px-4 py-2.5 text-sm-minus transition-colors rounded-md relative",
                   isActive
                     ? "bg-white/10 text-white font-medium"
-                    : "text-blue-200/60 hover:text-white hover:bg-white/5",
+                    : "text-blue-200/60 hover:text-white hover:bg-white/5 font-medium",
                 )}
               >
                 {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#C5A55A] rounded-r-full" />}

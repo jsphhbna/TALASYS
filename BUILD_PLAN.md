@@ -1,6 +1,39 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07)
 
-## DevKit V10 System Reliability & UI/UX Modernization (UX-A01–UX-N01) — CURRENT PASS
+## DevKit V10 Final UI/UX Remediation & Independent Verification (FX-01–FX-07) — CURRENT PASS
+
+- **Status**: COMPLETED & INDEPENDENTLY VERIFIED
+- **Branch**: `main`
+- **Audited baseline**: `441d8a6fdbe1109a3ba8a3d0ecf02517079129a1`
+- **Execution mode**: Targeted correction → Production-path validation → Independent verification → Manual testing readiness
+- **Development framework**: DevKit V10 (Alpha 3 / Adaptive Intelligence)
+
+### Findings Classification Matrix
+
+| Finding | Priority | Category | Status | Affected Files | Root Cause & Targeted Remediation |
+|---|---|---|---|---|---|
+| **FX-01** | Critical | **FEEDBACK** / **ASYNC_STATE** | **VERIFIED FIXED** | `components/admin/resident-profile-modal.tsx` | Profile save handler did not connect `isSaving`, `saveError`, `validationError`, or `isSubmittingRef`. Native `alert()` used. Remediation: Connected complete async lifecycle: synchronous `isSubmittingRef` duplicate guard, inline `validationError` on missing reason, `isSaving(true)` spinner and "Saving Changes…" label, disabled submission/cancel/removal buttons during flight, modal dismiss lock during flight, dynamic error catch, and lock release in `finally`. Verified photo state reconciliation and draft preservation on failure. |
+| **FX-02** | High | **CONTROLS** / **PAGINATION** | **VERIFIED FIXED** | `app/admin/logs/page.tsx` | Activity Logs rendered full `filteredLogs.map()` without pagination, hardcoded page 1, and nonfunctional arrow buttons. Remediation: Implemented client-side pagination with `pageSize = 15`, safe page calculation (`totalPages`, `safeCurrentPage`), sliced rendering `paginatedLogs.map()`, functional Previous/Next buttons with disabled boundaries and accessible labels, and truthful range display `Showing X–Y of Z actions`. |
+| **FX-03** | Medium | **AUDIT_INTEGRITY** / **AUTHORITATIVE** | **VERIFIED FIXED** | `hooks/admin/use-admin-data.ts`, `lib/security/audit-utils.ts` | Photo removal audit classification varied depending on submitted fields; combined profile and photo updates were inconsistently classified or dropped under resident action type. Remediation: `use-admin-data.ts` routes photo-only removals directly to `resident.profilePhoto.remove`; `audit-utils.ts` normalizes all photo removal actions (`resident.profilePhoto.remove`, `Removed Resident Profile Picture`, `Updated Resident Identity & Removed Photo`, `Updated Resident Profile and Removed Photo`) under `actionType: "resident"` with structured reason and changes in details. |
+| **FX-04** | High | **NOTIFICATION** / **E2E_VERIFICATION** | **VERIFIED FIXED** | `test/emulator/photo-removal-notification-emulator.test.ts` | Verification previously only tested string formatting instead of end-to-end delivery from admin removal to resident subscription. Remediation: Created Level 2 Firebase emulator integration suite testing actual Firestore mutation, canonical audit event creation, resident notification document creation with reason and `read: false`, negative assertions (unrelated resident receives 0 notifications, missing reason returns 400, view-only returns 403, duplicate operationId idempotency), and resident mark-as-read persistence. |
+| **FX-05** | Medium | **LAYOUT_BOUNDARIES** / **FOOTER** | **VERIFIED FIXED** | `components/layout/footer.tsx`, `app/(landing)/layout.tsx`, `app/(landing)/page.tsx` | Footer retained placeholder social-media links (Twitter, Facebook, LinkedIn) and was rendered by entire landing route group layout rather than strictly `/`. Remediation: Removed placeholder social links from `footer.tsx`; removed `<Footer />` from `app/(landing)/layout.tsx`; rendered `<Footer />` strictly within `app/(landing)/page.tsx`. Verified absence on all other routes. |
+| **FX-06** | Medium | **LANDING_PAGE** / **INSTITUTIONAL_ACCURACY** | **VERIFIED FIXED** | `components/landing/services-section.tsx`, `components/landing/how-it-works-section.tsx` | Landing page advertised capabilities not verified in implementation (household information management, official document watermarks, dry-seal processing guarantee). Remediation: Replaced with verified TALASYS capabilities: Resident Profile & Representation, Official Barangay Certification, and direct resident portal download or Barangay Hall pickup for stamped copies. |
+| **FX-07** | High | **RESPONSIVE_DESIGN** / **LAYOUT_STABILITY** | **VERIFIED FIXED** | `components/admin/layout/admin-sidebar.tsx`, `components/layout/sidebar.tsx`, `components/layout/main-content-stage.tsx` | Active nav items switched font weights causing visual jumps and text width shifting; lack of scrollbar gutter caused layout shifts. Remediation: Standardized navigation typography across all states to constant `font-medium`; added `scrollbarGutter: "stable"` to `#main-scroll-stage`. Verified stable bounding boxes and responsiveness across laptop (1024x768, 1280x800, 1366x768, 1440x900, 1920x1080) and mobile (320px–430px) viewports with zero horizontal overflow. |
+
+### Execution Milestones
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **Milestone FX-01** | Complete Profile Photo Removal UI | COMPLETED | Async save lifecycle with `isSaving`, "Saving Changes…", double-click prevention via ref, inline validation error, disabled controls, modal dismiss lock during flight, recoverable draft on failure. |
+| **Milestone FX-02** | Repair Activity Log Pagination | COMPLETED | Stateful client pagination with `pageSize = 15`, sliced rendering, functional Previous/Next buttons, boundary-disabled states, and truthful range display `Showing X–Y of Z actions`. |
+| **Milestone FX-03** | Standardize Profile Photo Audit Events | COMPLETED | Canonical `resident.profilePhoto.remove` routing and normalization under `actionType: "resident"` with structured reason and changed fields in details. |
+| **Milestone FX-04** | Verify Actual Resident Notification Delivery | COMPLETED | Production-path Level 2 integration test with real Firebase emulators proving notification delivery to target resident, correct reason, negative boundary checks, and mark-as-read persistence. |
+| **Milestone FX-05** | Finish Public Footer Correction | COMPLETED | Placeholder social media links removed; footer rendered strictly on `/` via `app/(landing)/page.tsx`; absent on authenticated and public sub-routes. |
+| **Milestone FX-06** | Correct Unverified Landing Page Claims | COMPLETED | Unverified claims (household management, document watermarks, mandatory dry seal) removed and replaced with verified TALASYS functionality. |
+| **Milestone FX-07** | Prove Responsive Improvements with Real Browser Evidence | COMPLETED | Constant `font-medium` navigation typography, stable scrollbar gutter, zero horizontal overflow across 320px–430px mobile viewports, comfortable laptop density across 1024x768, 1280x800, 1366x768, 1440x900. |
+| **Milestone FX-VERIFY** | Automated Verification & Full Stability Passes | COMPLETED | Two consecutive clean passes across 8 commands (`npm test` 302/302, `npm run test:rules` 90/90, `npm run test:e2e:auth` 41/41, `typecheck` 0, `typecheck:test` 0, `lint` 0, `build` 51 routes, `git diff --check` 0). |
+
+## DevKit V10 System Reliability & UI/UX Modernization (UX-A01–UX-N01) — PRIOR PASS
 
 - **Status**: COMPLETED
 - **Branch**: `main`

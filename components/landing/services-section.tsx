@@ -30,14 +30,14 @@ const services = [
   },
   {
     icon: UserCheck,
-    title: "Profile & Dependents Management",
-    description: "Maintain accurate household information, update contact numbers, and request documents for represented dependents.",
+    title: "Resident Profile & Representation",
+    description: "Keep your personal information up to date, manage verified contact details, and submit document requests on behalf of represented dependents.",
     href: "/auth/login",
   },
   {
     icon: Award,
-    title: "Verified Institutional Records",
-    description: "Documents feature official barangay watermarks, unique tracking IDs, and administrative validation for public trust.",
+    title: "Official Barangay Certification",
+    description: "Issued documents feature official barangay headers, unique tracking IDs, and authorized administrative sign-off for public verification.",
     href: "/auth/login",
   },
 ]

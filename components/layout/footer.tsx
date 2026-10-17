@@ -1,14 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { showToastPreset } from "@/lib/app-toast"
 
 export function Footer() {
-  const handleComingSoon = (e: React.MouseEvent) => {
-    e.preventDefault()
-    showToastPreset("actionRequired")
-  }
-
   return (
     <footer className="bg-[#0C2340] dark:bg-slate-800 text-slate-100 py-8 px-6 border-t border-[#1a3a5c]/50" role="contentinfo">
       <div className="w-full" suppressHydrationWarning>
@@ -86,19 +80,9 @@ export function Footer() {
         <div className="border-t border-white/10 my-6" />
 
         {/* Bottom Section */}
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          <p className="text-xs text-blue-200/40 mb-4 md:mb-0">© 2025 TALASYS. All rights reserved.</p>
-          <div className="flex gap-6">
-            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-200/40 hover:text-white transition-colors">
-              Twitter
-            </a>
-            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-200/40 hover:text-white transition-colors">
-              Facebook
-            </a>
-            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-200/40 hover:text-white transition-colors">
-              LinkedIn
-            </a>
-          </div>
+        <div className="flex flex-col md:flex-row items-center justify-between text-xs text-blue-200/40">
+          <p>© 2025 TALASYS — Barangay 634, Zone 64, City of Manila. All rights reserved.</p>
+          <p className="mt-2 md:mt-0">Official Digital Services Portal</p>
         </div>
       </div>
     </footer>

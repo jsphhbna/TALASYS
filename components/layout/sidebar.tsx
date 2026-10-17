@@ -81,8 +81,8 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 mx-2 mb-0.5 pl-5 pr-4 py-2.5 rounded-md text-sm-minus relative transition-colors",
                   isActive
-                    ? "bg-white/10 text-white font-semibold"
-                    : "text-blue-200/60 hover:text-white hover:bg-white/5",
+                    ? "bg-white/10 text-white font-medium"
+                    : "text-blue-200/60 hover:text-white hover:bg-white/5 font-medium",
                 )}
               >
                 {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#C5A55A] rounded-r-full" />}

@@ -281,8 +281,20 @@ export function normalizeAuditLog(raw: any): CanonicalAuditLog {
       action = `Updated Request to ${newStatus || "On Process"}`
       actionType = "request"
     }
-  } else if (rawAction === "resident.profilePhoto.remove") {
+  } else if (rawAction === "resident.profilePhoto.remove" || rawAction === "Removed Resident Profile Picture") {
     action = "Removed Resident Profile Picture"
+    actionType = "resident"
+  } else if (rawAction === "Updated Resident Identity & Removed Photo" || rawAction === "Updated Resident Identity and Removed Photo") {
+    action = "Updated Resident Identity and Removed Photo"
+    actionType = "resident"
+  } else if (rawAction === "Updated Resident Identity") {
+    action = "Updated Resident Identity"
+    actionType = "resident"
+  } else if (rawAction === "Updated Resident Profile and Removed Photo") {
+    action = "Updated Resident Profile and Removed Photo"
+    actionType = "resident"
+  } else if (rawAction === "Updated Resident Profile") {
+    action = "Updated Resident Profile"
     actionType = "resident"
   } else if (rawAction === "resident.update") {
     const isPhotoRemoval = (after?.profilePicture === "" || after?.profilePicture === null) && Boolean(before?.profilePicture)
@@ -319,6 +331,8 @@ export function normalizeAuditLog(raw: any): CanonicalAuditLog {
     else if (/generate/i.test(rawAction)) actionType = "generated"
     else if (/verif/i.test(rawAction)) actionType = "verified"
     else if (/sent|notif/i.test(rawAction)) actionType = "sent"
+    else if (raw?.actionType === "resident" || /resident/i.test(rawAction)) actionType = "resident"
+    else if (raw?.actionType === "admin" || /admin/i.test(rawAction)) actionType = "admin"
     else actionType = "other"
   }
 
@@ -340,9 +354,15 @@ export function normalizeAuditLog(raw: any): CanonicalAuditLog {
       details = `Status set to ${after.status}`
     } else if (rawAction === "admin.create" && after?.email) {
       details = `New admin: ${after.name || "Admin"} (${after.role || "Admin"})`
-    } else if (rawAction === "resident.profilePhoto.remove") {
-      const reason = after?.removePhotoReason || raw?.removePhotoReason
+    } else if (action === "Removed Resident Profile Picture" || rawAction === "resident.profilePhoto.remove") {
+      const reason = after?.removePhotoReason || raw?.removePhotoReason || raw?.reason
       details = reason ? `Reason: "${reason}"` : "Profile picture removed"
+    } else if (action === "Updated Resident Identity and Removed Photo") {
+      const reason = after?.removePhotoReason || raw?.removePhotoReason || raw?.reason
+      const email = after?.email ? `Email: ${after.email}` : (before?.email ? `Email: ${before.email}` : "")
+      details = reason ? (email ? `${email}; Reason: "${reason}"` : `Reason: "${reason}"`) : (email || "Identity updated and photo removed")
+    } else if (action === "Updated Resident Identity") {
+      details = after?.email ? `Email: ${after.email}` : "Resident identity updated"
     } else if (rawAction === "resident.update" && after) {
       const changed = Object.keys(after).filter(k => k !== "updatedAt" && k !== "removePhotoReason")
       if (after?.removePhotoReason) {

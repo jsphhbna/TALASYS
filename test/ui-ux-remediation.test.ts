@@ -353,3 +353,150 @@ test("UX-E01: Activity Logs pagination bounds and slices behave accurately", () 
   const emptyTotalPages = Math.max(1, Math.ceil(emptyLogs.length / pageSize))
   assert.equal(emptyTotalPages, 1)
 })
+
+test("FX-02: Pagination handles 0, 1, 15, 16, and 42 records with truthful range calculation", () => {
+  const pageSize = 15
+
+  const calculatePagination = (totalRecords: number, page: number) => {
+    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize))
+    const safePage = Math.min(Math.max(1, page), totalPages)
+    const startIndex = (safePage - 1) * pageSize
+    const endIndex = Math.min(startIndex + pageSize, totalRecords)
+    const displayRange = totalRecords === 0
+      ? "Showing 0 of 0 actions"
+      : `Showing ${startIndex + 1}–${endIndex} of ${totalRecords} actions`
+    return { totalPages, safePage, startIndex, endIndex, displayRange }
+  }
+
+  // 0 records
+  const p0 = calculatePagination(0, 1)
+  assert.equal(p0.totalPages, 1)
+  assert.equal(p0.safePage, 1)
+  assert.equal(p0.startIndex, 0)
+  assert.equal(p0.endIndex, 0)
+  assert.equal(p0.displayRange, "Showing 0 of 0 actions")
+
+  // 1 record
+  const p1 = calculatePagination(1, 1)
+  assert.equal(p1.totalPages, 1)
+  assert.equal(p1.safePage, 1)
+  assert.equal(p1.displayRange, "Showing 1–1 of 1 actions")
+
+  // Exactly 15 records
+  const p15 = calculatePagination(15, 1)
+  assert.equal(p15.totalPages, 1)
+  assert.equal(p15.safePage, 1)
+  assert.equal(p15.displayRange, "Showing 1–15 of 15 actions")
+
+  // 16 records - Page 1
+  const p16_1 = calculatePagination(16, 1)
+  assert.equal(p16_1.totalPages, 2)
+  assert.equal(p16_1.safePage, 1)
+  assert.equal(p16_1.displayRange, "Showing 1–15 of 16 actions")
+
+  // 16 records - Page 2
+  const p16_2 = calculatePagination(16, 2)
+  assert.equal(p16_2.totalPages, 2)
+  assert.equal(p16_2.safePage, 2)
+  assert.equal(p16_2.displayRange, "Showing 16–16 of 16 actions")
+
+  // 42 records - Page 2
+  const p42_2 = calculatePagination(42, 2)
+  assert.equal(p42_2.totalPages, 3)
+  assert.equal(p42_2.safePage, 2)
+  assert.equal(p42_2.displayRange, "Showing 16–30 of 42 actions")
+
+  // Reconcile/clamping when results shrink: user on page 3, result count drops to 8
+  const pShrunk = calculatePagination(8, 3)
+  assert.equal(pShrunk.totalPages, 1)
+  assert.equal(pShrunk.safePage, 1) // Safely clamped to page 1
+  assert.equal(pShrunk.displayRange, "Showing 1–8 of 8 actions")
+})
+
+test("FX-03: normalizeAuditLog standardizes all photo and identity mutations under Resident Ops", async () => {
+  const { normalizeAuditLog } = await import("../lib/security/audit-utils.ts")
+
+  // 1. Photo-only removal via resident.profilePhoto.remove
+  const photoOnly = normalizeAuditLog({
+    id: "log-1",
+    action: "resident.profilePhoto.remove",
+    after: { removePhotoReason: "Unclear face photo" },
+    residentName: "Juan Dela Cruz",
+  })
+  assert.equal(photoOnly.action, "Removed Resident Profile Picture")
+  assert.equal(photoOnly.actionType, "resident")
+  assert.equal(photoOnly.details, 'Reason: "Unclear face photo"')
+
+  // 2. Identity & Photo removal via update-resident-email route
+  const identityAndPhoto = normalizeAuditLog({
+    id: "log-2",
+    action: "Updated Resident Identity & Removed Photo",
+    after: { email: "new@example.com", removePhotoReason: "Changed identity and portrait" },
+    residentName: "Elena Santos",
+  })
+  assert.equal(identityAndPhoto.action, "Updated Resident Identity and Removed Photo")
+  assert.equal(identityAndPhoto.actionType, "resident")
+  assert.ok(identityAndPhoto.details.includes("new@example.com"))
+  assert.ok(identityAndPhoto.details.includes('Reason: "Changed identity and portrait"'))
+
+  // 3. Identity update without photo removal
+  const identityOnly = normalizeAuditLog({
+    id: "log-3",
+    action: "Updated Resident Identity",
+    after: { email: "updated@example.com" },
+    residentName: "Pedro Penduko",
+  })
+  assert.equal(identityOnly.action, "Updated Resident Identity")
+  assert.equal(identityOnly.actionType, "resident")
+  assert.equal(identityOnly.details, "Email: updated@example.com")
+
+  // 4. Combined profile update and photo removal via resident.update
+  const profileAndPhoto = normalizeAuditLog({
+    id: "log-4",
+    action: "resident.update",
+    before: { profilePicture: "https://example.com/old.jpg" },
+    after: { profilePicture: "", contactNumber: "09171234567", removePhotoReason: "Invalid format" },
+    residentName: "Maria Clara",
+  })
+  assert.equal(profileAndPhoto.action, "Updated Resident Profile and Removed Photo")
+  assert.equal(profileAndPhoto.actionType, "resident")
+  assert.ok(profileAndPhoto.details.includes("contactNumber"))
+  assert.ok(profileAndPhoto.details.includes('Reason: "Invalid format"'))
+
+  // 5. Standard profile update without photo removal
+  const profileOnly = normalizeAuditLog({
+    id: "log-5",
+    action: "resident.update",
+    before: { address: "Old Addr" },
+    after: { address: "New Addr" },
+    residentName: "Jose Rizal",
+  })
+  assert.equal(profileOnly.action, "Updated Resident Profile")
+  assert.equal(profileOnly.actionType, "resident")
+  assert.ok(profileOnly.details.includes("address"))
+})
+
+test("FX-05 & FX-06: Public footer and landing page content assertions", async () => {
+  const fs = await import("node:fs")
+
+  // FX-05: Footer does not contain generic placeholder links
+  const footerSource = fs.readFileSync("components/layout/footer.tsx", "utf-8")
+  assert.ok(!footerSource.includes("https://twitter.com"), "Placeholder twitter link must be removed")
+  assert.ok(!footerSource.includes("https://facebook.com"), "Placeholder facebook link must be removed")
+  assert.ok(!footerSource.includes("https://linkedin.com"), "Placeholder linkedin link must be removed")
+
+  // FX-05: Landing layout does not render Footer; Landing page renders Footer
+  const landingLayout = fs.readFileSync("app/(landing)/layout.tsx", "utf-8")
+  assert.ok(!landingLayout.includes("<Footer"), "Footer must not be rendered by landing route layout")
+  const landingPage = fs.readFileSync("app/(landing)/page.tsx", "utf-8")
+  assert.ok(landingPage.includes("<Footer />"), "Footer must be rendered strictly on landing page")
+
+  // FX-06: Landing page claims corrected
+  const servicesSource = fs.readFileSync("components/landing/services-section.tsx", "utf-8")
+  assert.ok(!servicesSource.includes("household information"), "Unverified household information claim must be removed")
+  assert.ok(!servicesSource.includes("official barangay watermarks"), "Unverified watermarks claim must be removed")
+
+  const howItWorksSource = fs.readFileSync("components/landing/how-it-works-section.tsx", "utf-8")
+  assert.ok(howItWorksSource.includes("Download your verified document directly from your resident portal"), "Step 5 must advertise direct digital download and on-site pickup")
+  assert.ok(!howItWorksSource.includes("dry seal at the Barangay Hall"), "Step 5 must not require dry-seal claiming exclusively")
+})

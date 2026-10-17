@@ -7,6 +7,7 @@ import { HowItWorksSection } from "@/components/landing/how-it-works-section"
 import { OfficialsSection } from "@/components/landing/officials-section"
 import { MissionVisionSection } from "@/components/landing/mission-vision"
 import { ContactSection } from "@/components/landing/contact-section"
+import { Footer } from "@/components/layout/footer"
 
 export default function HomePage() {
   return (
@@ -18,6 +19,7 @@ export default function HomePage() {
       <OfficialsSection />
       <MissionVisionSection />
       <ContactSection />
+      <Footer />
     </main>
   )
 }

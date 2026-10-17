@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test"
 
+const testPort = process.env.PLAYWRIGHT_PORT || process.env.PORT || "3000"
+const baseURL = `http://127.0.0.1:${testPort}`
+
 export default defineConfig({
   testDir: "./test/e2e",
   fullyParallel: false,
@@ -7,12 +10,12 @@ export default defineConfig({
   retries: 0,
   reporter: "line",
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL,
     trace: "retain-on-failure",
   },
   webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER ? undefined : {
-    command: "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
-    url: "http://127.0.0.1:3000",
+    command: `node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${testPort}`,
+    url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,
   },

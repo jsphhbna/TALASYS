@@ -54,6 +54,13 @@ export default function ActivityLogs() {
     return matchesFilter && matchesSearch
   })
 
+  const totalFiltered = filteredLogs.length
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize))
+  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+  const startIndex = (safePage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, totalFiltered)
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex)
+
   const approvedCount = normalizedLogs.filter(l => l.actionType === "approved").length
   const rejectedCount = normalizedLogs.filter(l => l.actionType === "rejected").length
   const generatedCount = normalizedLogs.filter(l => l.actionType === "generated").length
@@ -184,7 +191,7 @@ export default function ActivityLogs() {
                 </div>
               </td>
             </tr>
-          ) : filteredLogs.map((log) => (
+          ) : paginatedLogs.map((log) => (
             <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
               <td className="px-6 py-3.5 whitespace-nowrap">
                 <div className="flex flex-col text-xs-plus text-slate-500 dark:text-slate-400 font-mono">
@@ -240,11 +247,45 @@ export default function ActivityLogs() {
         </table>
         </div>
         <div className="px-6 py-3.5 flex items-center justify-between border-t border-slate-200 dark:border-slate-700">
-          <p className="text-2xs text-slate-500 dark:text-slate-400">Showing {filteredLogs.length} of {activityLogs.length} actions</p>
+          <p className="text-2xs text-slate-500 dark:text-slate-400">
+            Showing {totalFiltered === 0 ? 0 : startIndex + 1}–{endIndex} of {totalFiltered} actions
+          </p>
           <div className="flex items-center gap-1.5">
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">‹</span></button>
-            <button className="w-7 h-7 flex items-center justify-center bg-[#0C2340] dark:bg-slate-800 text-white text-2xs rounded">1</button>
-            <button className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:bg-slate-950"><span className="text-slate-500 dark:text-slate-400 text-xs">›</span></button>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              aria-label="Previous page"
+            >
+              <span className="text-slate-500 dark:text-slate-400 text-xs">‹</span>
+            </button>
+            {Array.from({ length: totalPages }).slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2)).map((_, i) => {
+              const pageNum = Math.max(0, safePage - 3) + i + 1
+              const isActive = pageNum === safePage
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-7 h-7 flex items-center justify-center text-2xs rounded font-medium ${
+                    isActive
+                      ? "bg-[#0C2340] dark:bg-slate-800 text-white"
+                      : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  }`}
+                  aria-label={`Page ${pageNum}`}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="w-7 h-7 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              aria-label="Next page"
+            >
+              <span className="text-slate-500 dark:text-slate-400 text-xs">›</span>
+            </button>
           </div>
         </div>
       </Card>

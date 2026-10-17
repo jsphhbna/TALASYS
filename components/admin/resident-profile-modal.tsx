@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Loader2, AlertCircle, Undo2 } from "lucide-react"
 import { showToastPreset } from "@/lib/app-toast"
+import { toast } from "@/hooks/use-toast"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -104,14 +105,63 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
   if (!isOpen || !resident) return null
 
   const handleSave = async () => {
-    if (resident.profilePicture && formData.profilePicture === "" && removePhotoReason.trim() === "") {
-      alert("Please provide a reason for removing the profile picture.")
+    if (isSubmittingRef.current || isSaving) return
+    isSubmittingRef.current = true
+
+    // Synchronous inline validation for photo removal reason
+    const isRemovingPhoto = Boolean(resident.profilePicture && formData.profilePicture === "")
+    const trimmedReason = removePhotoReason.trim()
+    if (isRemovingPhoto && !trimmedReason) {
+      setValidationError("Please provide a reason for removing the profile picture.")
+      isSubmittingRef.current = false
       return
     }
 
-    await updateResident(resident.id, formData, adminName, resident.name, removePhotoReason)
-    setIsEditMode(false)
-    setRemovePhotoReason("")
+    setValidationError(null)
+    setSaveError(null)
+    setIsSaving(true)
+
+    try {
+      // Determine actually changed fields to avoid unnecessary writes
+      const updates: Partial<AdminResident> = {}
+      if (formData.name !== resident.name) updates.name = formData.name
+      if (formData.contactNumber !== resident.contactNumber) updates.contactNumber = formData.contactNumber
+      if (formData.email !== resident.email) updates.email = formData.email
+      if (formData.dateOfBirth !== resident.dateOfBirth) updates.dateOfBirth = formData.dateOfBirth
+      if (formData.address !== resident.address) updates.address = formData.address
+      if (formData.profilePicture !== (resident.profilePicture || "")) updates.profilePicture = formData.profilePicture
+
+      if (Object.keys(updates).length === 0) {
+        showToastPreset("noChangesDetected")
+        setIsEditMode(false)
+        setRemovePhotoReason("")
+        return
+      }
+
+      await updateResident(resident.id, updates, adminName, resident.name, trimmedReason)
+
+      if (updates.profilePicture === "") {
+        showToastPreset("residentPhotoRemoved")
+      } else {
+        showToastPreset("residentProfileUpdated")
+      }
+      setIsEditMode(false)
+      setRemovePhotoReason("")
+      setSaveError(null)
+      setValidationError(null)
+    } catch (err: any) {
+      console.error("Failed to update resident profile:", err)
+      const errorMsg = err?.message || "Failed to save profile changes. Please try again."
+      setSaveError(errorMsg)
+      toast({
+        title: "Update failed",
+        description: errorMsg,
+        variant: "destructive",
+      })
+    } finally {
+      isSubmittingRef.current = false
+      setIsSaving(false)
+    }
   }
 
   const canEdit = userRole === "SuperAdmin" || userRole === "Super Admin" || userRole === "Full Access" || userRole === "admin" || userRole === "Resident Management"
@@ -152,6 +202,8 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               <Button onClick={() => {
                 setIsEditMode(false)
                 setRemovePhotoReason("")
+                setValidationError(null)
+                setSaveError(null)
                 setFormData({
                   name: resident.name,
                   contactNumber: resident.contactNumber,
@@ -160,7 +212,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                   address: resident.address,
                   profilePicture: resident.profilePicture || "",
                 })
-              }} variant="outline" size="sm" className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
+              }} disabled={isSaving} variant="outline" size="sm" className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
                 Cancel
               </Button>
             )}
@@ -189,8 +241,10 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               )}
               {isEditMode && resident.profilePicture && formData.profilePicture !== "" && (
                 <button 
+                  type="button"
+                  disabled={isSaving}
                   onClick={() => setFormData({ ...formData, profilePicture: "" })}
-                  className="mt-2 text-2xs text-red-500 font-semibold hover:text-red-600 uppercase tracking-wider"
+                  className="mt-2 text-2xs text-red-500 font-semibold hover:text-red-600 uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Remove Photo
                 </button>
@@ -199,23 +253,43 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
             
             <div className="flex-1 min-w-0 pt-1">
               {isEditMode && resident.profilePicture && formData.profilePicture === "" && (
-                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-lg">
-                  <label className="block text-2xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider mb-1">
+                <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="text-xs font-bold text-amber-800 dark:text-amber-200">
+                      Photo Removal Pending
+                    </span>
+                  </div>
+                  <label className="block text-2xs font-semibold text-amber-900 dark:text-amber-300 uppercase tracking-wider mb-1">
                     Reason for Photo Removal (Required)
                   </label>
                   <Input 
                     value={removePhotoReason} 
-                    onChange={e => setRemovePhotoReason(e.target.value)}
+                    onChange={e => {
+                      setRemovePhotoReason(e.target.value)
+                      if (validationError && e.target.value.trim()) setValidationError(null)
+                    }}
+                    disabled={isSaving}
                     placeholder="e.g., Inappropriate content, not a face" 
-                    className="h-8 text-xs bg-white dark:bg-slate-900 border-red-200 dark:border-red-800" 
+                    className={`h-8 text-xs bg-white dark:bg-slate-900 ${validationError ? "border-red-500 focus-visible:ring-red-500" : "border-amber-200 dark:border-amber-800"}`}
                   />
+                  {validationError && (
+                    <p className="text-2xs text-red-600 dark:text-red-400 font-medium mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {validationError}
+                    </p>
+                  )}
                   <button 
+                    type="button"
+                    disabled={isSaving}
                     onClick={() => {
                       setFormData({ ...formData, profilePicture: resident.profilePicture })
                       setRemovePhotoReason("")
+                      setValidationError(null)
                     }}
-                    className="mt-2 text-2xs text-slate-500 hover:text-slate-700 font-medium"
+                    className="mt-2 text-2xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-medium inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
+                    <Undo2 className="w-3 h-3" />
                     Undo Removal
                   </button>
                 </div>
@@ -352,22 +426,40 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
         {/* Footer */}
         {isEditMode && (
           <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3 shrink-0">
-            <Button variant="outline" onClick={() => {
-              setIsEditMode(false)
-              setRemovePhotoReason("")
-              setFormData({
-                name: resident.name,
-                contactNumber: resident.contactNumber,
-                email: resident.email,
-                dateOfBirth: resident.dateOfBirth,
-                address: resident.address,
-                profilePicture: resident.profilePicture || "",
-              })
-            }} className="h-9 text-xs font-medium border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+            <Button
+              variant="outline"
+              disabled={isSaving}
+              onClick={() => {
+                setIsEditMode(false)
+                setRemovePhotoReason("")
+                setValidationError(null)
+                setSaveError(null)
+                setFormData({
+                  name: resident.name,
+                  contactNumber: resident.contactNumber,
+                  email: resident.email,
+                  dateOfBirth: resident.dateOfBirth,
+                  address: resident.address,
+                  profilePicture: resident.profilePicture || "",
+                })
+              }}
+              className="h-9 text-xs font-medium border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+            >
               Discard Changes
             </Button>
-            <Button onClick={handleSave} className="h-9 text-xs font-medium bg-[#0C2340] hover:bg-[#0a1c33] dark:bg-blue-600 dark:hover:bg-blue-700 text-white shadow-sm">
-              Save & Log Changes
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="h-9 text-xs font-medium bg-[#0C2340] hover:bg-[#0a1c33] dark:bg-blue-600 dark:hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving Changes…</span>
+                </>
+              ) : (
+                "Save & Log Changes"
+              )}
             </Button>
           </div>
         )}
@@ -410,12 +502,13 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
           <p className="text-white/50 text-xs">Judge if the photo is appropriate before deciding to remove it.</p>
           {canEdit && (
             <button
+              disabled={isSaving}
               onClick={() => {
                 setFormData({ ...formData, profilePicture: "" })
                 setIsPhotoLightboxOpen(false)
                 if (!isEditMode) setIsEditMode(true)
               }}
-              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors shadow"
+              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors shadow disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
               Remove Photo

@@ -17,6 +17,8 @@ const env = {
   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "talasys-test-cloud",
   NEXT_PUBLIC_CLOUDINARY_API_KEY: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || "talasys-test-key",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "talasys-test-secret-123456789",
+  PORT: process.env.PORT || "3000",
+  PLAYWRIGHT_PORT: process.env.PLAYWRIGHT_PORT || "3000",
 }
 const firebaseCli = "node_modules/firebase-tools/lib/bin/firebase.js"
 const command = "node node_modules/@playwright/test/cli.js test test/e2e/authenticated-workflows.spec.ts --project=chromium"

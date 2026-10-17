@@ -28,6 +28,9 @@ async function getIdTokenForUser(email: string): Promise<string> {
   return data.idToken
 }
 
+const testPort = process.env.PLAYWRIGHT_PORT || process.env.PORT || "3000"
+const apiBase = `http://127.0.0.1:${testPort}`
+
 test.beforeAll(async () => {
   const app = getApps().find(candidate => candidate.name === "e2e-seed") || initializeApp({ projectId }, "e2e-seed")
   const auth = getAuth(app)
@@ -1267,7 +1270,7 @@ test("Milestone E02: Active open resident session is authoritatively revoked in 
   // 4. In another authorized session, Super Admin permanently denies the registration via server-authoritative route
   const superIdToken = await getIdTokenForUser("super@example.test")
   const denyReason = "Fabricated government ID proof detected during security audit."
-  const denyRes = await fetch("http://127.0.0.1:3000/api/admin/operations", {
+  const denyRes = await fetch(`${apiBase}/api/admin/operations`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${superIdToken}`,
@@ -1424,7 +1427,7 @@ test("Milestone 9 - P01 & P05: Admin generation separates beneficiary identity a
 
     // 4. P05: Trigger reprint via server operation and verify original timestamp preservation
     const adminIdToken = await getIdTokenForUser("full@example.test")
-    const reprintRes = await fetch("http://127.0.0.1:3000/api/admin/operations", {
+    const reprintRes = await fetch(`${apiBase}/api/admin/operations`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${adminIdToken}`,
@@ -1542,7 +1545,7 @@ test("R07 Scenario A & B: Resident representation submission, admin confirmation
   let reqDocRef: any = null
 
   try {
-    const submitRes = await fetch("http://127.0.0.1:3000/api/resident/requests/create", {
+    const submitRes = await fetch(`${apiBase}/api/resident/requests/create`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${residentIdToken}`,

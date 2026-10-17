@@ -256,13 +256,26 @@ export function useAdminData() {
             if (isEmailChanged) {
                 await updateResidentIdentity(id, targetEmail, profileUpdates, removePhotoReason)
             } else {
-                await callAdminOperation("resident.update", {
-                    targetId: id,
-                    payload: {
-                        updates: profileUpdates,
-                        removePhotoReason
-                    }
-                })
+                const isPhotoOnlyRemoval = (profileUpdates.profilePicture === "" || profileUpdates.profilePicture === null) &&
+                    Object.keys(profileUpdates).length === 1 &&
+                    Boolean(removePhotoReason)
+
+                if (isPhotoOnlyRemoval) {
+                    await callAdminOperation("resident.profilePhoto.remove", {
+                        targetId: id,
+                        payload: {
+                            removePhotoReason
+                        }
+                    })
+                } else {
+                    await callAdminOperation("resident.update", {
+                        targetId: id,
+                        payload: {
+                            updates: profileUpdates,
+                            removePhotoReason
+                        }
+                    })
+                }
             }
         }, [residents]),
         deleteResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {

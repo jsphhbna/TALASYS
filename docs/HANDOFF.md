@@ -1,4 +1,27 @@
 
+## DevKit V10 Final UI/UX Remediation & Independent Verification Handoff (FX-01–FX-07)
+
+- **Date:** October 17, 2026
+- **Audited Baseline:** `441d8a6fdbe1109a3ba8a3d0ecf02517079129a1`
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Staging & Manual Acceptance)
+- **Automated Verification Summary:**
+  - Unit Tests: 302 / 302 PASS (100%)
+  - Firestore Emulator Integration Tests: 90 / 90 PASS (100%)
+  - Playwright Authenticated Role Tests: 41 / 41 PASS (100%)
+  - Typecheck: 0 errors (`tsc --noEmit`)
+  - Typecheck (Tests): 0 errors (`tsc --project tsconfig.test.json --noEmit`)
+  - Lint: 0 errors (995 baseline warnings)
+  - Production Build: 51 / 51 routes compiled successfully
+  - Git Whitespace Check: 0 errors (`git diff --check`)
+- **Key Implementation & Verification Highlights:**
+  1. **FX-01 (Profile Photo Removal Save Lifecycle):** Fully wired async save flow with `isSubmittingRef` guard, inline validation error for missing reason, `isSaving` spinner with "Saving Changes…", disabled buttons, dynamic error catching with draft preservation, and `finally` unlock in `resident-profile-modal.tsx`.
+  2. **FX-02 (Activity Logs Pagination):** Fully stateful client-side pagination with `pageSize = 15`, sliced table rendering, functional Previous/Next buttons with boundary-disabled states, and truthful range display `Showing X–Y of Z actions` in `app/admin/logs/page.tsx`.
+  3. **FX-03 (Standardized Audit Events):** Canonical `resident.profilePhoto.remove` routing in `use-admin-data.ts` and normalized "Removed Resident Profile Picture" mapping under `actionType: "resident"` with structured details in `audit-utils.ts`.
+  4. **FX-04 (Verified Resident Notification Delivery):** Level 2 Firebase emulator integration test in `test/emulator/photo-removal-notification-emulator.test.ts` proving end-to-end Firestore mutation, audit log creation, resident notification creation, role security denials, and mark-as-read persistence.
+  5. **FX-05 (Public Footer Scoping):** Removed placeholder social links from `footer.tsx`; scoped `<Footer />` strictly to `app/(landing)/page.tsx` and removed from `app/(landing)/layout.tsx`.
+  6. **FX-06 (Landing Page Accuracy):** Removed unverified claims (household information management, official document watermarks, mandatory dry seal) and aligned landing page with verified TALASYS capabilities.
+  7. **FX-07 (Responsive Design & Stability):** Fixed font weight to constant `font-medium` across active and inactive states in `admin-sidebar.tsx` and `sidebar.tsx`; added `scrollbarGutter: "stable"` to `#main-scroll-stage`. Verified multi-viewport responsiveness across mobile and laptops.
+
 ## DevKit V10 System Reliability & UI/UX Modernization Handoff (UX-A01–UX-N01)
 
 - **Date:** October 17, 2026

@@ -1,5 +1,19 @@
 
-## DevKit V10 Comprehensive System Reliability & UI/UX Modernization (UX-A01–UX-N01)
+## DevKit V10 Final UI/UX Remediation & Independent Verification (FX-01–FX-07)
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Staging & Manual Testing)
+- **Audited Baseline:** `441d8a6fdbe1109a3ba8a3d0ecf02517079129a1`
+- **Key Deliverables Completed:**
+  1. **Profile Photo Removal Save Lifecycle (FX-01):** Connected `isSaving`, `saveError`, `validationError`, and `isSubmittingRef` guard in `components/admin/resident-profile-modal.tsx`. Replaced native `alert()` with inline validation alert; shows spinner and "Saving Changes…"; disables submission, removal, and cancel controls during flight; catches errors dynamically and keeps user draft recoverable; releases submission lock in `finally`.
+  2. **Activity Logs Stateful Pagination (FX-02):** Replaced hardcoded inert pagination in `app/admin/logs/page.tsx` with client pagination (`pageSize = 15`), safe clamping, sliced rendering (`paginatedLogs.map`), functional Previous and Next buttons with boundary-disabled states, and truthful range display `Showing X–Y of Z actions`.
+  3. **Standardized Profile Photo Audit Events (FX-03):** In `hooks/admin/use-admin-data.ts`, routed photo-only removals directly to `resident.profilePhoto.remove`. In `lib/security/audit-utils.ts`, normalized all photo removal actions under `actionType: "resident"` with structured reason and changes details.
+  4. **Verified Resident Notification Delivery (FX-04):** Created production-path emulator test in `test/emulator/photo-removal-notification-emulator.test.ts` testing actual Firestore photo removal, canonical audit log creation, notification delivery to target resident with removal reason, negative assertions (unrelated resident receives 0 notifications, missing reason returns 400, view-only returns 403, duplicate operationId idempotency), and resident mark-as-read persistence.
+  5. **Public Footer Scoping & Cleanup (FX-05):** Removed placeholder social media links (Twitter, Facebook, LinkedIn) from `components/layout/footer.tsx`; removed `<Footer />` from `app/(landing)/layout.tsx`; rendered `<Footer />` strictly within `app/(landing)/page.tsx`. Verified absence on authenticated and public sub-routes.
+  6. **Institutional Landing Page Accuracy (FX-06):** Removed unverified claims (household information management, official document watermarks, mandatory dry seal) from `components/landing/services-section.tsx` and `components/landing/how-it-works-section.tsx`. Replaced with verified TALASYS functionality.
+  7. **Responsive Navigation Stability & Layout Verification (FX-07):** Enforced constant `font-medium` navigation typography across active and inactive states in `components/admin/layout/admin-sidebar.tsx` and `components/layout/sidebar.tsx`; added `scrollbarGutter: "stable"` to `#main-scroll-stage`. Verified zero horizontal overflow on mobile viewports (320px–430px) and comfortable density on laptops (1024x768, 1280x800, 1366x768, 1440x900).
+  8. **Comprehensive Automated Verification:** 302/302 unit tests PASS, 90/90 Firestore emulator tests PASS, 41/41 Playwright authenticated tests PASS, 0 typecheck errors, 0 lint errors, 51/51 routes clean production build, 0 git diff check whitespace errors across two consecutive clean passes.
+
+## DevKit V10 Comprehensive System Reliability & UI/UX Modernization (UX-A01–UX-N01) — PRIOR PASS
 
 - **Status:** COMPLETED & VERIFIED
 - **Audited Baseline:** `f92705864f725405bfb01e67d91ba7e40b642fc5`

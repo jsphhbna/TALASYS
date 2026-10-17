@@ -1,11 +1,11 @@
 # TALASYS — Hands-On Acceptance Test Plan
 
-**Document Version:** 1.1.0 (MT01–MT03 Pre-Manual Testing Readiness)
+**Document Version:** 1.2.0 (FX-01–FX-07 UI/UX Remediation & Independent Verification)
 **Target Environment:** Local Staging / Deployed Acceptance Environment
 **Repository:** `jsphhbna/TALASYS`
 **Branch:** `main`
-**Baseline Verified Commit:** `e83f35c776e98669f713c9db43269723710d31a1`
-**Framework:** DevKit V9 RC10
+**Baseline Verified Commit:** `441d8a6fdbe1109a3ba8a3d0ecf02517079129a1`
+**Framework:** DevKit V10 (Alpha 3 / Adaptive Intelligence)
 **Testing Execution Model:** Human manual execution with tabular evidence capture
 
 ---
@@ -18,10 +18,10 @@ Before human testers execute manual acceptance tests, the project lifecycle must
 
 | Readiness Gate | Definition | Current Status | Verification Criteria |
 |---|---|---|---|
-| **Stage 1: Source Ready** | The code is committed, working tree is clean, and application builds without errors. | **VERIFIED** | `git status` clean, `npm run build` exits 0, no syntax or compilation defects. |
-| **Stage 2: Locally Verified** | Required automated unit, integration, emulator, and E2E regression test suites pass cleanly. | **VERIFIED** | `npm test` (293/293), `npm run test:rules` (24/24), emulator tests (89/89), `npm run test:e2e:auth`, `npm run typecheck` (0 errors), `npm run lint` pass. |
+| **Stage 1: Source Ready** | The code is committed, working tree is clean, and application builds without errors. | **VERIFIED** | `git status` clean, `npm run build` exits 0 (51/51 routes), no syntax or compilation defects. |
+| **Stage 2: Locally Verified** | Required automated unit, integration, emulator, and E2E regression test suites pass cleanly. | **VERIFIED** | `npm test` (302/302), `npm run test:rules` (90/90), `npm run test:e2e:auth` (41/41), `npm run typecheck` (0 errors), `npm run typecheck:test` (0 errors), `npm run lint` (0 errors) pass across two consecutive clean stability passes. |
 | **Stage 3: Staging Ready** | The tested application, Firestore database/emulator, Cloudinary storage, and test accounts are provisioned in the intended staging environment. | **PENDING STAGING PROVISIONING** | Staging environment spun up; environment variables configured; Firestore rules deployed; Cloudinary upload preset operational. |
-| **Stage 4: Manual Testing Started** | Human testers have actively executed test cases across resident, administrative, and superadmin roles. | **NOT STARTED** | Manual testers begin stepping through scenarios in Sections B through F. |
+| **Stage 4: Manual Testing Started** | Human testers have actively executed test cases across resident, administrative, and superadmin roles. | **NOT STARTED** | Manual testers begin stepping through scenarios in Sections B through H. |
 | **Stage 5: Acceptance Passed** | All required manual scenarios have passed or have formally documented, accepted limitations approved by stakeholders. | **PENDING** | All test cases in this plan have recorded `Status: PASS` or approved `Accepted Limitation` in `docs/HANDS_ON_DEFECT_REGISTER.md`. |
 
 > [!IMPORTANT]
@@ -289,4 +289,20 @@ Testers must inspect key pages across the following 5 standardized screen resolu
    - For all passing tests, record `Status: PASS` and note date/tester initials in `Actual Result`.
    - For any failing test, record `Status: FAIL`, assign severity (Critical / High / Medium / Low), capture screenshot or screen recording, and immediately log a defect entry in [`docs/HANDS_ON_DEFECT_REGISTER.md`](file:///c:/Users/Administrator/Downloads/TALASYS/docs/HANDS_ON_DEFECT_REGISTER.md).
 3. **Non-Destructive Testing:** Test only with designated test accounts (`@talasys.test`). Do not attempt live destructive actions against institutional data.
-4. **Acceptance Threshold:** All 56 test cases (15 Resident + 13 Admin + 12 Super Admin + 11 Negative + 5 Viewport) must reach `PASS` or documented `Accepted Limitation` before final institutional deployment.
+4. **Acceptance Threshold:** All 56 test cases (15 Resident + 13 Admin + 12 Super Admin + 11 Negative + 5 Viewport) plus 7 Remediated Scenarios must reach `PASS` or documented `Accepted Limitation` before final institutional deployment.
+
+---
+
+## SECTION H — REMEDIATED WORKFLOW SPECIFIC SCENARIOS (FX-01–FX-07)
+
+Testers must manually execute the following 7 targeted scenarios to verify the FX remediation:
+
+| Scenario ID | Test Workflow | Steps | Expected Result | Status |
+|---|---|---|---|---|
+| **TC-MAN-01** | Admin removes Resident profile picture (FX-01) | 1. Log in using an authorized Admin account.<br>2. Navigate to Resident Management (`/admin/residents`).<br>3. Open a Resident profile modal with an existing photo.<br>4. Select Edit Profile.<br>5. Click Remove Photo.<br>6. Verify a clear "Photo Removal Pending" banner appears with an amber theme.<br>7. Attempt saving without a reason; verify inline validation error appears (no native `alert()`).<br>8. Enter a removal reason.<br>9. Click Save & Log Changes.<br>10. Verify "Saving Changes…" and spinner appear immediately.<br>11. Confirm all controls become disabled and repeated rapid clicks are prevented.<br>12. Verify success feedback and photo is removed.<br>13. Refresh the page; confirm photo remains removed. | Save lifecycle displays active spinner, prevents duplicate clicks, validates reason inline, and authoritatively removes photo. | NOT RUN |
+| **TC-MAN-02** | Audit verification for photo removal (FX-03) | 1. Open Admin Activity Logs (`/admin/logs`).<br>2. Locate the photo-removal event.<br>3. Verify actor, target resident, timestamp, and removal reason are present.<br>4. Filter by "Resident Ops".<br>5. Search for the event.<br>6. Sign in as Super Admin and inspect Super Admin Audit Logs (`/superadmin/audit`).<br>7. Verify the event is discoverable under Resident Ops. | Photo removal event is classified under `actionType: "resident"` ("Removed Resident Profile Picture") and visible in Admin and Super Admin logs with reason. | NOT RUN |
+| **TC-MAN-03** | Resident notification delivery (FX-04) | 1. Sign in as the affected Resident.<br>2. Open Notifications (`/resident/notifications`).<br>3. Locate "Profile Picture Removed" warning notification.<br>4. Confirm the removal reason matches the admin input.<br>5. Verify unread status indicator.<br>6. Mark the notification as read.<br>7. Refresh the page; confirm read status persists. | Resident receives dedicated warning notification with reason; unread/read state transitions persist. | NOT RUN |
+| **TC-MAN-04** | Activity Logs pagination (FX-02) | 1. Ensure more than 15 audit entries exist.<br>2. Open Admin Activity Logs (`/admin/logs`).<br>3. Verify only 15 records are displayed on Page 1.<br>4. Verify the range indicator displays `Showing 1–15 of X actions`.<br>5. Click Next (`›`).<br>6. Confirm records 16–30 appear and page indicator reads `Page 2 of Y`.<br>7. Click Previous (`‹`); confirm Page 1 records reappear.<br>8. Apply a search/filter; verify page count and range indicator recalculate dynamically. | Pagination slices records at 15 items per page; navigation buttons change pages smoothly; boundary buttons disable appropriately. | NOT RUN |
+| **TC-MAN-05** | Laptop display density & nav stability (FX-07) | 1. Set browser zoom to 100% on a 1366 × 768 or 1280 × 800 viewport.<br>2. Navigate between Admin Dashboard, Resident Management, and Document Requests.<br>3. Verify readable density, compact cards, and accessible controls.<br>4. Repeat for Super Admin Dashboard, Admin Management, and Audit Logs.<br>5. Observe sidebar navigation items during route transitions: confirm font weight remains constant (`font-medium`) and nav items do not shift or resize. | Layout fits comfortably without horizontal scrolling; navigation items produce zero text expansion or visual jumping. | NOT RUN |
+| **TC-MAN-06** | Resident mobile experience (FX-07) | 1. Emulate or open on mobile viewports (360 × 800 and 390 × 844).<br>2. Step through Resident registration, login, document request, payment controls, history, notifications, and profile editing.<br>3. Verify touch targets are >= 44px.<br>4. Confirm zero unintended horizontal scrolling across all screens. | Mobile resident experience is fluid, fully responsive, and free of horizontal overflow. | NOT RUN |
+| **TC-MAN-07** | Public landing page factual integrity & footer scoping (FX-05, FX-06) | 1. Open `/`.<br>2. Verify Barangay 634 institutional presentation, Available Services, and How It Works steps.<br>3. Confirm no unsupported features (household management, document watermarks, mandatory dry seals) are advertised.<br>4. Inspect the footer on `/`: verify absence of placeholder Twitter/Facebook/LinkedIn links.<br>5. Navigate to `/legal`, `/auth/login`, and `/resident/dashboard`.<br>6. Confirm the public footer is strictly absent on all sub-pages and authenticated workspaces. | Public landing page is factual and authentic; footer is strictly scoped to `/` and contains valid institutional information. | NOT RUN |

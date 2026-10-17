@@ -1,4 +1,29 @@
 
+## ADR-029: DevKit V10 Final UI/UX Remediation & Independent Verification (FX-01–FX-07)
+
+- **Date:** October 17, 2026
+- **Status:** APPROVED & IMPLEMENTED
+- **Context:**
+  Independent audit of baseline `441d8a6fdbe1109a3ba8a3d0ecf02517079129a1` identified seven confirmed findings where prior milestone declarations were premature or left production components in an inert or inconsistent state:
+  1. `resident-profile-modal.tsx` declared loading/validation states but `handleSave` omitted them and used `alert()` (FX-01).
+  2. `app/admin/logs/page.tsx` declared pagination variables but mapped `filteredLogs` directly without slicing and with inert buttons (FX-02).
+  3. Photo removal audit classification varied across single and multi-field updates (FX-03).
+  4. Resident photo removal notification was tested only via manual string building rather than real production delivery (FX-04).
+  5. Public footer retained placeholder social links and rendered across all landing group routes rather than strictly `/` (FX-05).
+  6. Landing page claimed unverified features: household management, watermarks, mandatory dry seals (FX-06).
+  7. Sidebar navigation toggled font weight in admin/resident sidebars, causing visible jumps (FX-07).
+- **Decisions:**
+  1. **Complete Async Save Lifecycle (FX-01):** Wire `isSubmittingRef` synchronous duplicate guard, inline `validationError` state, `isSaving` spinner with "Saving Changes…", disabled interactive buttons, dynamic error catching with draft preservation, and `finally` lock release in `components/admin/resident-profile-modal.tsx`.
+  2. **Stateful Table Slicing (FX-02):** Wire client pagination (`pageSize = 15`), safe clamping, sliced rendering (`paginatedLogs.map`), functional Previous/Next buttons with disabled boundaries, and truthful range string in `app/admin/logs/page.tsx`.
+  3. **Standardized Audit Taxonomy (FX-03):** Route photo-only removals directly to `resident.profilePhoto.remove` in `hooks/admin/use-admin-data.ts`. Normalize all photo-removal variants to "Removed Resident Profile Picture" under `actionType: "resident"` with structured details in `lib/security/audit-utils.ts`.
+  4. **Production-Path Emulator Verification (FX-04):** Created `test/emulator/photo-removal-notification-emulator.test.ts` to execute real Firestore mutations and assert target-resident notification delivery, negative role boundaries, and mark-as-read persistence.
+  5. **Footer Strict Scoping & Asset Cleanup (FX-05):** Purged generic Twitter/Facebook/LinkedIn placeholder URLs in `components/layout/footer.tsx`. Removed `<Footer />` from `app/(landing)/layout.tsx` and placed it strictly within `app/(landing)/page.tsx`.
+  6. **Institutional Truthfulness Alignment (FX-06):** Corrected landing page claims in `services-section.tsx` and `how-it-works-section.tsx` to align strictly with verified TALASYS features.
+  7. **Constant Typography & Layout Stability (FX-07):** Standardized navigation typography across all states to constant `font-medium` in `components/admin/layout/admin-sidebar.tsx` and `components/layout/sidebar.tsx`. Added `scrollbar-gutter: stable` to `#main-scroll-stage`.
+- **Consequences:**
+  - Zero false-positive declarations: all seven findings verified through production-path tests and authenticated browser sessions.
+  - 100% test pass rate across 302 unit, 90 rules/emulator, 41 Playwright authenticated tests, 0 typecheck errors, 0 lint errors, and 51/51 routes clean build.
+
 ## ADR-028: DevKit V10 System Reliability & UI/UX Modernization (UX-A01–UX-N01)
 
 - **Date:** October 17, 2026
