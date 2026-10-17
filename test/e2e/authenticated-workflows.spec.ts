@@ -1891,3 +1891,67 @@ test("R07 Scenario F: View Only admin opening notification preview does not trig
     await notifDocRef.delete().catch(() => {})
   }
 })
+test("MT01 E2E: Admin can open and reprint completed document request with snapshot fidelity", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+
+  const originalTimestamp = 1727481600000
+  const reqId = `e2e-req-mt01-completed-${Date.now()}`
+  const reqDocRef = db.collection("documentRequests").doc(reqId)
+
+  try {
+    await reqDocRef.set({
+      id: reqId,
+      residentId: "e2e-active-resident",
+      residentName: "Maria Clara Santos",
+      documentType: "Barangay Clearance",
+      purpose: "Employment",
+      status: "Completed",
+      paymentStatus: "paid",
+      hasGenerated: true,
+      generatedAt: originalTimestamp,
+      issuanceDate: new Date(originalTimestamp).toISOString(),
+      issuanceBeneficiaryAddress: "123 Historic Completed St, Barangay San Nicolas",
+      issuanceBeneficiaryAge: 30,
+      issuanceBeneficiaryName: "Maria Clara Santos",
+      reprintCount: 0,
+      createdAt: originalTimestamp - 86400000,
+    })
+
+    await login(page, "full")
+    await page.goto("/admin/requests")
+    await expect(page.getByRole("heading", { name: "Document Requests" })).toBeVisible()
+
+    await page.getByRole("button", { name: "Completed" }).click()
+
+    const row = page.locator(`tr:has-text("${reqId.substring(0, 8).toUpperCase()}")`)
+    await expect(row).toBeVisible({ timeout: 10000 })
+    await expect(row.getByRole("button", { name: "Reprint" })).toBeVisible()
+    await row.getByRole("button", { name: "Reprint" }).click()
+
+    await page.waitForURL(new RegExp(`/admin/generate\\?requestId=${reqId}`))
+    await expect(page.getByText("Reprint Document")).toBeVisible()
+    await expect(page.getByText("Archival Reprint Notice (Reconstructed Copy)")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Download Reprint PDF" })).toBeVisible()
+
+    const downloadPromise = page.waitForEvent("download")
+    await page.getByRole("button", { name: "Download Reprint PDF" }).click()
+    const download = await downloadPromise
+    const downloadPath = await download.path()
+    expect(downloadPath).toBeTruthy()
+
+    const fs = await import("fs")
+    const pdfBuffer = fs.readFileSync(downloadPath!)
+    expect(pdfBuffer.slice(0, 5).toString()).toBe("%PDF-")
+
+    await expect(page.getByText("Document reprinted and downloaded successfully.")).toBeVisible({ timeout: 10000 })
+
+    const updatedDoc = (await reqDocRef.get()).data()
+    expect(updatedDoc?.status).toBe("Completed")
+    expect(updatedDoc?.reprintCount).toBe(1)
+    expect(updatedDoc?.generatedAt).toBe(originalTimestamp)
+    expect(updatedDoc?.issuanceBeneficiaryAddress).toBe("123 Historic Completed St, Barangay San Nicolas")
+  } finally {
+    await reqDocRef.delete().catch(() => {})
+  }
+})

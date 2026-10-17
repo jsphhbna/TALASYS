@@ -29,7 +29,7 @@ import {
 function GenerateDocumentsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus, updateRequestGenerated, confirmBeneficiaryDetails } = useAdminData()
+  const { residents: allResidents, documentRequests: adminDocumentRequests, updateRequestStatus, updateRequestGenerated, reprintDocumentRequest, confirmBeneficiaryDetails } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const { user } = useAuth()
   const isAuthorized = canManageRequestsRole(user?.role)
@@ -53,6 +53,13 @@ function GenerateDocumentsContent() {
   const editorRef = useRef<HTMLDivElement>(null)
   const loadedRequestIdRef = useRef<string | null>(null)
   const isEditingBeneficiaryRef = useRef(false)
+
+  const currentReq = processingRequestId
+    ? adminDocumentRequests.find(r => r.id === processingRequestId)
+    : (selectedResident && selectedDocType
+        ? adminDocumentRequests.find(r => r.residentId === selectedResident.id && r.documentType === (resolveDocumentType(selectedDocType, systemConfig?.customDocumentTypes)?.label || selectedDocType) && (r.status === "Pending" || r.status === "On Process" || r.status === "Ready for Pick Up" || r.status === "Approved"))
+        : undefined)
+  const isReprint = Boolean(currentReq?.hasGenerated && currentReq?.generatedAt)
 
   useEffect(() => {
     const requestId = searchParams.get("requestId")
@@ -196,8 +203,19 @@ function GenerateDocumentsContent() {
     <AdminPageShell>
       <div className="mb-6 flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Generate Documents</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Create and print official barangay documents</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 tracking-tight">Generate Documents</h1>
+            {isReprint && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 border border-blue-300 dark:border-blue-700">
+                Reprint Document
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            {isReprint
+              ? `Archival reprint of previously issued official document${currentReq?.status === "Completed" ? " (Completed Request)" : ""}`
+              : "Create and print official barangay documents"}
+          </p>
         </div>
         {processingRequestId && (
           <Button variant="outline" onClick={() => router.push("/admin/requests")} className="h-9 px-4 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -271,12 +289,37 @@ function GenerateDocumentsContent() {
 
         {/* PDF Preview */}
         <Card className="col-span-7 shadow-sm p-0 gap-0 overflow-hidden">
-          <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
-            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">Document Preview</h3>
+          <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[#0C2340] dark:text-blue-50">
+              {isReprint ? "Document Preview (Archival Copy)" : "Document Preview"}
+            </h3>
+            {isReprint && (
+              <span className="text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                Reprint Mode — Snapshot Preserved
+              </span>
+            )}
           </div>
           <div className="p-6">
             {selectedResident && selectedDocType ? (
               <div className="space-y-2">
+                {isReprint && (
+                  <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-900 dark:text-blue-200 space-y-1">
+                    <div className="flex items-center justify-between font-semibold">
+                      <span>Archival Reprint Notice (Reconstructed Copy)</span>
+                      <span className="text-[10px] text-blue-700 dark:text-blue-300 font-mono">
+                        Issued: {currentReq?.generatedAt ? new Date(currentReq.generatedAt).toLocaleDateString() : "Original Date"} | Reprints: {((currentReq?.reprintCount as number) || 0)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-blue-800 dark:text-blue-300">
+                      This document preview preserves the authoritative original issuance details (Beneficiary: <strong className="font-semibold">{currentReq?.issuanceBeneficiaryName || selectedResident?.name}</strong>, Address: <strong className="font-semibold">{currentReq?.issuanceBeneficiaryAddress || selectedResident?.address || "Original Address"}</strong>). Document layout is reconstructed using current template configuration.
+                    </p>
+                    {currentReq?.isCorrectedIssuance && (
+                      <p className="text-[10px] text-purple-700 dark:text-purple-300 pt-1 border-t border-blue-200/50">
+                        ℹ Corrected Issuance: Reissued on {currentReq.lastCorrectedAt ? new Date(currentReq.lastCorrectedAt).toLocaleDateString() : "earlier"} by {currentReq.lastCorrectedBy || "Staff"}. Reason: {currentReq.lastCorrectionReason || "N/A"}.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                   <span className="text-2xs text-slate-500 dark:text-slate-400 font-semibold mr-2 uppercase tracking-wider">Edit Document:</span>
                   <button
@@ -598,16 +641,22 @@ function GenerateDocumentsContent() {
 
                         if (pendingReq) {
                            try {
-                             await updateRequestGenerated(pendingReq.id)
-                             isEditingBeneficiaryRef.current = false
-                             toast.success("Document downloaded successfully.")
+                             if (isReprint) {
+                               await reprintDocumentRequest(pendingReq.id)
+                               isEditingBeneficiaryRef.current = false
+                               toast.success("Document reprinted and downloaded successfully.")
+                             } else {
+                               await updateRequestGenerated(pendingReq.id)
+                               isEditingBeneficiaryRef.current = false
+                               toast.success("Document downloaded successfully.")
+                             }
                              if (processingRequestId) router.push("/admin/requests")
                            } catch (err: any) {
                              console.error("Failed to mark document as generated after download:", err)
                              toast.warning("PDF was downloaded to your device, but recording official issuance in the database failed. Please retry or update the request status manually.", { duration: 6000 })
                            }
                         } else {
-                           toast.success("Document generated successfully.")
+                           toast.success(isReprint ? "Document reprinted and downloaded successfully." : "Document generated successfully.")
                         }
                       } catch (error: any) {
                         console.error("PDF Generation failed:", error)
@@ -620,7 +669,7 @@ function GenerateDocumentsContent() {
                     className="flex-1 min-w-[160px] h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
                   >
                     {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Download PDF
+                    {isReprint ? "Download Reprint PDF" : "Download PDF"}
                   </Button>
                   <Button
                     variant="outline"
@@ -694,21 +743,27 @@ function GenerateDocumentsContent() {
 
                       if (pendingReq) {
                         try {
-                          await updateRequestGenerated(pendingReq.id)
-                          isEditingBeneficiaryRef.current = false
-                          toast.success("Document printed successfully.")
+                          if (isReprint) {
+                            await reprintDocumentRequest(pendingReq.id)
+                            isEditingBeneficiaryRef.current = false
+                            toast.success("Document reprinted and sent to print preview successfully.")
+                          } else {
+                            await updateRequestGenerated(pendingReq.id)
+                            isEditingBeneficiaryRef.current = false
+                            toast.success("Document printed successfully.")
+                          }
                           if (processingRequestId) router.push("/admin/requests")
                         } catch (err: any) {
                           console.error("Failed to mark document as generated after print:", err)
                           toast.warning("Document was sent to the print preview, but recording official issuance in the database failed. Please retry or update request status.", { duration: 6000 })
                         }
                       } else {
-                        toast.success("Document printed successfully.")
+                        toast.success(isReprint ? "Document reprinted and sent to print preview successfully." : "Document printed successfully.")
                       }
                     }}
                     className={`flex-1 h-10 ${processingRequestId ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-0' : 'bg-transparent'}`}
                   >
-                    Print Document
+                    {isReprint ? "Print Reprint" : "Print Document"}
                   </Button>
                 </div>
               </div>

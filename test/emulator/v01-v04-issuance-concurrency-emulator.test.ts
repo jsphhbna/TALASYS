@@ -277,6 +277,53 @@ test("Emulator V02/V03/V04: Real Firestore confirmation, generation snapshot, re
     assert.equal(correctedDoc?.issuanceHistory?.length, 1)
     assert.equal(correctedDoc?.issuanceHistory[0].beneficiaryAddress, "Address A - 100 Historic St")
     assert.equal(correctedDoc?.issuanceHistory[0].correctionReason, "Resident presented updated proof of residency and deed of sale")
+
+    // 8. MT01: Completed request supports authorized reprint without altering status or original generation time
+    await reqRef.update({ status: "Completed" })
+    const completedReprintRes = await handler(new Request("http://localhost/api/admin/operations", {
+      method: "POST",
+      headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "request.reprint",
+        operationId: "op-em-completed-reprint",
+        targetId: reqId,
+      }),
+    }))
+    assert.equal(completedReprintRes.status, 200)
+
+    const completedDoc = (await reqRef.get()).data()
+    assert.equal(completedDoc?.status, "Completed", "Status must remain Completed")
+    assert.equal(completedDoc?.reprintCount, 2, "reprintCount increments from 1 to 2")
+    assert.equal(completedDoc?.generatedAt, originalGeneratedAt, "Original generatedAt unchanged")
+    assert.equal(completedDoc?.issuanceBeneficiaryAddress, "Address C - 300 Officially Corrected Ave", "Preserves latest archival snapshot")
+
+    // 9. MT01: Concurrent reprints execute transactionally in real Firestore without lost increments
+    const [concRes1, concRes2] = await Promise.all([
+      handler(new Request("http://localhost/api/admin/operations", {
+        method: "POST",
+        headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "request.markGenerated",
+          operationId: "op-em-conc-reprint-1",
+          targetId: reqId,
+        }),
+      })),
+      handler(new Request("http://localhost/api/admin/operations", {
+        method: "POST",
+        headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "request.reprint",
+          operationId: "op-em-conc-reprint-2",
+          targetId: reqId,
+        }),
+      })),
+    ])
+    assert.equal(concRes1.status, 200)
+    assert.equal(concRes2.status, 200)
+
+    const postConcDoc = (await reqRef.get()).data()
+    assert.equal(postConcDoc?.status, "Completed")
+    assert.equal(postConcDoc?.reprintCount, 4, "Two concurrent reprints transactionally increment counter (2 + 2 = 4)")
   } finally {
     // Cleanup
     await reqRef.delete()
@@ -286,5 +333,8 @@ test("Emulator V02/V03/V04: Real Firestore confirmation, generation snapshot, re
     await adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId("op-em-gen-initial")).delete()
     await adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId("op-em-reprint")).delete()
     await adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId("op-em-reissue-corrected")).delete()
+    await adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId("op-em-completed-reprint")).delete()
+    await adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId("op-em-conc-reprint-1")).delete()
+    await adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(operationDocumentId("op-em-conc-reprint-2")).delete()
   }
 })

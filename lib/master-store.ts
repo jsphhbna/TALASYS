@@ -118,8 +118,25 @@ export interface MasterDocumentRequest {
   beneficiaryConfirmedBy?: string
   beneficiaryConfirmedByUid?: string
   beneficiaryConfirmationNotes?: string
+  issuanceBeneficiaryName?: string
   issuanceBeneficiaryAddress?: string
   issuanceBeneficiaryAge?: number | string
+  issuanceDate?: string
+  isCorrectedIssuance?: boolean
+  lastCorrectedAt?: number
+  lastCorrectedBy?: string
+  lastCorrectionReason?: string
+  issuanceHistory?: Array<{
+    issuedAt?: number
+    issuanceDate?: string
+    beneficiaryName?: string
+    beneficiaryAddress?: string
+    beneficiaryAge?: number | null
+    supersededAt?: number
+    supersededBy?: string
+    supersededByUid?: string
+    correctionReason?: string
+  }>
 
   // Payment fields
   documentFee?: number

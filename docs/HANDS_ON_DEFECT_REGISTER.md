@@ -1,10 +1,31 @@
 # TALASYS — Hands-On Defect Register
 
+**Document Version:** 1.1.0 (MT01–MT03 Pre-Manual Testing Readiness)
+**Target Environment:** Local Staging / Deployed Acceptance Environment
+**Repository:** `jsphhbna/TALASYS`
+**Branch:** `main`
+**Baseline Verified Commit:** `e83f35c776e98669f713c9db43269723710d31a1`
+**Associated Test Plan:** [`docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md`](file:///c:/Users/Administrator/Downloads/TALASYS/docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md)
+
 This register tracks all observable defects, functional failures, UI regressions, and unexpected edge behaviors discovered during hands-on acceptance testing of TALASYS.
 
 ---
 
-## 1. Defect Status Definitions
+## 1. Readiness Gate & Baseline Status
+
+Prior to human testing, the project is gated by the 5-stage readiness framework defined in Section A of [`docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md`](file:///c:/Users/Administrator/Downloads/TALASYS/docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md):
+
+| Stage | Name | Status | Summary |
+|---|---|---|---|
+| **Stage 1** | **Source Ready** | **VERIFIED** | Code committed on `main`, clean working tree, clean build (`npm run build`). |
+| **Stage 2** | **Locally Verified** | **VERIFIED** | All automated suites pass: unit (293/293), rules (24/24), emulator (89/89), E2E auth, typecheck (0 errors), lint clean. |
+| **Stage 3** | **Staging Ready** | **PENDING** | Requires tester to provision staging instance, verify Firebase project, and confirm test accounts exist. |
+| **Stage 4** | **Manual Testing Started** | **NOT STARTED** | Awaiting tester execution of 56 test cases across Resident, Admin, Super Admin, Negative, and Viewport suites. |
+| **Stage 5** | **Acceptance Passed** | **PENDING** | All test cases executed with `PASS` or approved `Accepted Limitation`. |
+
+---
+
+## 2. Defect Status Definitions
 
 | Status | Meaning |
 |---|---|
@@ -19,7 +40,7 @@ This register tracks all observable defects, functional failures, UI regressions
 
 ---
 
-## 2. Defect Handling Contract
+## 3. Defect Handling Contract
 
 When testers report an issue, the following lifecycle contract must be strictly followed:
 
@@ -45,27 +66,28 @@ graph TD
 
 ---
 
-## 3. Active Defect Ledger
+## 4. Active Defect Ledger
 
-*(Initial state: Clean baseline with V01–V04 closed. All new findings from human acceptance testing will be recorded below.)*
+*(Initial baseline: V01–V04 and MT01 remediations are closed and verified clean in automated tests. Zero open defects prior to manual testing.)*
 
 | Defect ID | Test Case ID | Role | Page / URL | Action Performed | Expected Behavior | Actual Behavior | Severity | Status | Root Cause | Fix Commit | Retest Result |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| *None* | — | — | — | — | — | — | — | **No open defects** | Baseline verified | `HEAD` | PASS |
+| *DEF-BASE-01* | TC-ADM-10 | Document Processor | `/admin/generate` | Reprint completed request | Allow authorized reprint of already-generated completed request | Previously returned 409 "Cannot transition terminal request" | High | **Closed** | `request.markGenerated` rejected Completed status without checking `isReprint` and prior issuance | MT01 Commit | PASS (Automated unit, emulator & E2E) |
+| *DEF-BASE-02* | TC-RES-07, TC-RES-12 | Resident | `/resident/requests` | Navigate to new request or request history | Open valid pages | Routes were misdocumented as `/resident/requests/new` and `/resident/requests` | Medium | **Closed** | Mismatched documentation of App Router paths | MT02 Commit | PASS (Verified against real App Router pages) |
 
 ---
 
-## 4. Defect Submission Template for Human Testers
+## 5. Defect Submission Template for Human Testers
 
 When submitting a new defect, testers must provide the following information:
 
 ```markdown
 ### Defect Report: [Short Title]
-- **Test Case ID:** (e.g., TC-RES-07, TC-ADM-10, TC-SA-08)
-- **Role:** Resident / Admin (Role) / Super Admin / Anonymous
-- **Page / URL:** (e.g., /admin/generate, /superadmin/config)
+- **Test Case ID:** (e.g., TC-RES-07, TC-ADM-10, TC-SA-08, TC-NEG-11)
+- **Role:** Resident / Admin: View Only / Admin: Verification / Admin: Document Processing / Admin: Manager / Admin: Full Access / Super Admin
+- **Page / URL:** (e.g., /admin/generate, /superadmin/config, /resident/request, /resident/history)
 - **Action Performed:** (Exact click, input, or submission)
-- **Expected Behavior:** (What should have occurred)
+- **Expected Behavior:** (What should have occurred per test plan)
 - **Actual Behavior:** (What was observed instead)
 - **Reproduction Steps:**
   1. ...

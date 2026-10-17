@@ -1,6 +1,32 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03)
 
-## Final V01–V04 Closure & Hands-On Acceptance Testing Preparation — CURRENT PASS
+## Final Pre-Manual Testing Patch & Acceptance Readiness (MT01–MT03) — CURRENT PASS
+
+- **Status**: COMPLETED
+- **Branch**: `main`
+- **Audited baseline**: `e83f35c776e98669f713c9db43269723710d31a1`
+- **Execution mode**: Focused correction → Regression validation → Manual testing readiness
+- **Development framework**: DevKit V9 RC10
+
+### Findings Classification Matrix
+
+| Finding | Priority | Category | Status | Affected Files | Root Cause & Targeted Remediation |
+|---|---|---|---|---|---|
+| **MT01** | High | **DOCUMENT** / **LIFECYCLE** / **REPRINT** | **Resolved** | `app/api/admin/operations/route.ts`, `lib/security/audit-utils.ts`, `lib/master-store.ts`, `hooks/admin/use-admin-data.ts`, `app/admin/requests/page.tsx`, `app/admin/requests/history/document-history-content.tsx`, `app/admin/generate/page.tsx` | `request.markGenerated` unconditionally rejected `status: "Completed"` requests, preventing authorized reprinting of already-issued documents after completion. Remediation: Supported reprinting of completed requests only when an original document was previously issued (`hasGenerated === true` / `before.generatedAt` exists); preserved `status: "Completed"` and original `generatedAt`; transactionally incremented `reprintCount`; preserved original issuance snapshot; denied unissued completed requests (HTTP 409/400) and terminal Rejected/Cancelled requests (HTTP 409); added explicit `request.reprint` operation with audit logging; added "Completed" tab to Admin Requests and "Reprint" actions to table/history/dialog; updated Document Generator UI to clearly display reprint status, archival notices, and distinct button labels. |
+| **MT02** | High | **DOCS** / **TEST_PLAN** / **ALIGNMENT** | **Resolved** | `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md` | Test plan contained outdated Next.js App Router paths (`/resident/requests/new` vs `/resident/request`, `/resident/requests` vs `/resident/history`), nonexistent button labels ("Generate Document" vs "Download PDF" / "Print Document"), an inaccurate resident Pay Later form expectation (Pay Later is an administrative workflow), preprinted letterhead discrepancies, and missing reprint verification on completed requests. Remediation: Updated routes to match actual production App Router paths; corrected control labels; clarified preprinted stationery letterhead conventions; documented administrative Pay Later workflow in TC-RES-10; added comprehensive 8-step completed request reprint scenario (TC-ADM-10); verified all 56 manual test cases against actual production code. |
+| **MT03** | High | **DOCS** / **READINESS** / **DEFECT_REGISTER** | **Resolved** | `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md`, `docs/HANDS_ON_DEFECT_REGISTER.md` | Manual test readiness lacked formalized stage progression and pre-testing operational verification gates. Remediation: Established 5-stage readiness framework (`Source Ready`, `Locally Verified`, `Staging Ready`, `Manual Testing Started`, `Acceptance Passed`); added 10-point operational readiness checklist for human testers; closed DEF-BASE-01 (MT01) and DEF-BASE-02 (MT02) in defect register; verified 0 open defects. |
+
+### Execution Milestones
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **Milestone 1** | MT01: Support Reprinting Completed Document Requests | COMPLETED | Completed + previously generated requests support authorized reprinting; `status: "Completed"` preserved; `generatedAt` unchanged; `reprintCount` incremented; unissued completed requests denied; terminal Rejected/Cancelled requests denied; Admin UI exposes reprint actions and clear feedback. |
+| **Milestone 2** | MT02: Correct Hands-On Acceptance Test Plan Documentation | COMPLETED | All test routes aligned with App Router (`/resident/request`, `/resident/history`); button names aligned with real controls ("Download PDF", "Print Document"); administrative Pay Later workflow clarified; preprinted letterhead documented; 56 total test cases verified. |
+| **Milestone 3** | MT03: Final Hands-On Test Readiness & Defect Register | COMPLETED | 5-stage readiness framework defined; 10-point tester checklist established; defect register updated with 0 open defects and clear bug reporting protocol. |
+| **Milestone 4** | Verification & Full Test Suite Execution | COMPLETED | `npm test` (293/293), `npm run test:rules` (89/89), `npm run test:e2e:auth` (41/41), `typecheck` (0 errors), `typecheck:test` (0 errors), `lint` (0 errors), `build` (51/51 routes), timezones UTC/Manila/LA (32/32) all 100% PASS. |
+| **Milestone 5** | Git Handoff & Completion Report | COMPLETED | Clean working tree, committed, pushed to `origin/main`, ahead 0 / behind 0, detailed completion report delivered. |
+
+## Final V01–V04 Closure & Hands-On Acceptance Testing Preparation — PRIOR PASS
 
 - **Status**: COMPLETED
 - **Branch**: `main`

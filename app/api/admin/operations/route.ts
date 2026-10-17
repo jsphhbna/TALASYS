@@ -339,16 +339,30 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
         updatedAt: now,
       }
       transaction.update(targetRef, after)
-    } else if (operation === "request.markGenerated") {
-      if (["Cancelled", "Rejected", "Completed"].includes(before.status)) {
-        throw httpError(`Cannot mark generated for request in terminal state '${before.status}'.`, 409)
-      }
-      if (before.status === "Pending") {
-        throw httpError("Cannot mark generated for an unapproved request in Pending status.", 409)
+    } else if (operation === "request.markGenerated" || operation === "request.reprint") {
+      const isReprint = Boolean(before.hasGenerated && before.generatedAt)
+
+      if (operation === "request.reprint") {
+        if (["Cancelled", "Rejected"].includes(before.status)) {
+          throw httpError(`Cannot reprint document for request in terminal state '${before.status}'.`, 409)
+        }
+        if (!isReprint) {
+          throw httpError("Cannot reprint document: Document has not been generated previously. Use standard generation.", 400)
+        }
+      } else {
+        if (["Cancelled", "Rejected"].includes(before.status)) {
+          throw httpError(`Cannot mark generated for request in terminal state '${before.status}'.`, 409)
+        }
+        if (before.status === "Completed" && !isReprint) {
+          throw httpError("Cannot mark generated for request in terminal state 'Completed'.", 409)
+        }
+        if (before.status === "Pending") {
+          throw httpError("Cannot mark generated for an unapproved request in Pending status.", 409)
+        }
       }
 
-      // Enforce explicit staff confirmation for represented-person requests (F02, F04)
-      if (before.requestFor === "other") {
+      // Enforce explicit staff confirmation for represented-person requests on first generation (F02, F04)
+      if (before.requestFor === "other" && !isReprint) {
         if (
           before.beneficiaryReviewStatus !== "confirmed" ||
           !before.beneficiaryConfirmedAt ||
@@ -364,8 +378,6 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
           throw httpError(`Invalid stored beneficiary confirmation: ${validation.error}`, 400)
         }
       }
-
-      const isReprint = Boolean(before.hasGenerated && before.generatedAt)
 
       // V02 & V03: Capture immutable issuance snapshot on first generation; strictly preserve on reprint
       let issuanceAddress = before.issuanceBeneficiaryAddress || null

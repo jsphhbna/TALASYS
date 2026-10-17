@@ -1,6 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { useAuthGuard } from "@/hooks/auth"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -9,6 +12,8 @@ import { useSuperAdminData } from "@/hooks/superadmin"
 import { FileText, Search } from "lucide-react"
 
 export function DocumentHistoryContent() {
+  const router = useRouter()
+  const { user } = useAuthGuard()
   const { residents, documentRequests } = useAdminData()
   const { systemConfig } = useSuperAdminData()
   const [activeFilter, setActiveFilter] = useState("all")
@@ -147,6 +152,7 @@ export function DocumentHistoryContent() {
                 <th className="px-6 py-3 font-bold whitespace-nowrap">PROCESSED DATE</th>
                 <th className="px-6 py-3 font-bold whitespace-nowrap">COMPLETED DATE</th>
                 <th className="px-6 py-3 font-bold whitespace-nowrap">STATUS</th>
+                <th className="px-6 py-3 font-bold whitespace-nowrap text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -211,13 +217,25 @@ export function DocumentHistoryContent() {
                     </span>
                     </div>
                   </td>
+                  <td className="px-6 py-3.5 whitespace-nowrap text-right">
+                    {user?.role !== "View Only" && request.status === "Completed" && (request as any).hasGenerated && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2.5 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-[#0C2340] dark:text-blue-50"
+                        onClick={() => router.push(`/admin/generate?requestId=${request.id}`)}
+                      >
+                        Reprint
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               )
             })}
             
             {filteredRequests.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-slate-400">
+                <td colSpan={7} className="py-12 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center">
                     <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
                     <p className="text-sm">No document history found</p>

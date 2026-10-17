@@ -721,3 +721,281 @@ test("V04: createAdminOperationsHandler supports explicit request.reissueCorrect
   assert.equal(doc.issuanceHistory[0].supersededAt, correctionTime)
   assert.equal(doc.issuanceHistory[0].supersededBy, "Admin Officer")
 })
+// ---------------------------------------------------------------------------
+// MT01: Authorized Reprinting of Completed Requests Tests
+// ---------------------------------------------------------------------------
+
+test("MT01: Completed + previously generated request supports authorized reprint (status remains Completed)", async () => {
+  const origGenTime = 1729000000000
+  const db = createMockFirestoreDb({
+    "users/admin-1": { role: "admin", status: "Active", name: "Admin Officer" },
+    "documentRequests/req-completed-gen": {
+      id: "req-completed-gen",
+      requestFor: "myself",
+      residentName: "Elena Ramos",
+      status: "Completed",
+      hasGenerated: true,
+      generatedAt: origGenTime,
+      issuanceDate: new Date(origGenTime).toISOString(),
+      issuanceBeneficiaryAddress: "789 Completed St",
+      issuanceBeneficiaryAge: 35,
+      issuanceBeneficiaryName: "Elena Ramos",
+      reprintCount: 0,
+    },
+  })
+
+  const reprintTime = origGenTime + 200000
+  const handler = createAdminOperationsHandler({
+    auth: mockAuth as any,
+    db: db as any,
+    now: () => reprintTime,
+  })
+
+  const res = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.markGenerated",
+      operationId: "op-mt01-reprint-completed",
+      targetId: "req-completed-gen",
+    }),
+  }))
+  assert.equal(res.status, 200)
+
+  const doc = db.rawStore.get("documentRequests/req-completed-gen")
+  assert.equal(doc.status, "Completed", "Status must strictly remain Completed")
+  assert.equal(doc.generatedAt, origGenTime, "Original generatedAt must be preserved")
+  assert.equal(doc.lastReprintedAt, reprintTime, "lastReprintedAt must be recorded")
+  assert.equal(doc.reprintCount, 1, "reprintCount must increment to 1")
+  assert.equal(doc.issuanceBeneficiaryAddress, "789 Completed St", "Original issuance address preserved")
+  assert.equal(doc.issuanceBeneficiaryAge, 35, "Original issuance age preserved")
+  assert.equal(doc.issuanceBeneficiaryName, "Elena Ramos", "Original issuance name preserved")
+})
+
+test("MT01: Completed + never generated request denies reprint (HTTP 409 on markGenerated, HTTP 400 on reprint)", async () => {
+  const db = createMockFirestoreDb({
+    "users/admin-1": { role: "admin", status: "Active", name: "Admin Officer" },
+    "documentRequests/req-completed-ungen": {
+      id: "req-completed-ungen",
+      requestFor: "myself",
+      residentName: "Unissued Resident",
+      status: "Completed",
+      hasGenerated: false,
+    },
+  })
+
+  const handler = createAdminOperationsHandler({
+    auth: mockAuth as any,
+    db: db as any,
+  })
+
+  const res1 = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.markGenerated",
+      operationId: "op-mt01-ungen-1",
+      targetId: "req-completed-ungen",
+    }),
+  }))
+  assert.equal(res1.status, 409)
+  assert.match((await res1.json()).error, /terminal state 'Completed'/i)
+
+  const res2 = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.reprint",
+      operationId: "op-mt01-ungen-2",
+      targetId: "req-completed-ungen",
+    }),
+  }))
+  assert.equal(res2.status, 400)
+  assert.match((await res2.json()).error, /not been generated previously/i)
+})
+
+test("MT01: Rejected and Cancelled requests deny reprint under existing policy (HTTP 409)", async () => {
+  const db = createMockFirestoreDb({
+    "users/admin-1": { role: "admin", status: "Active", name: "Admin Officer" },
+    "documentRequests/req-rejected": {
+      id: "req-rejected",
+      status: "Rejected",
+      hasGenerated: true,
+      generatedAt: 1729000000000,
+    },
+    "documentRequests/req-cancelled": {
+      id: "req-cancelled",
+      status: "Cancelled",
+      hasGenerated: true,
+      generatedAt: 1729000000000,
+    },
+  })
+
+  const handler = createAdminOperationsHandler({
+    auth: mockAuth as any,
+    db: db as any,
+  })
+
+  const resRej = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.markGenerated",
+      operationId: "op-mt01-rej",
+      targetId: "req-rejected",
+    }),
+  }))
+  assert.equal(resRej.status, 409)
+
+  const resCan = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.reprint",
+      operationId: "op-mt01-can",
+      targetId: "req-cancelled",
+    }),
+  }))
+  assert.equal(resCan.status, 409)
+})
+
+test("MT01: Explicit request.reprint operation succeeds and increments reprintCount transactionally", async () => {
+  const origGenTime = 1729000000000
+  const db = createMockFirestoreDb({
+    "users/admin-1": { role: "admin", status: "Active", name: "Admin Officer" },
+    "documentRequests/req-reprint-op": {
+      id: "req-reprint-op",
+      status: "Completed",
+      hasGenerated: true,
+      generatedAt: origGenTime,
+      issuanceDate: new Date(origGenTime).toISOString(),
+      issuanceBeneficiaryAddress: "456 Archival St",
+      issuanceBeneficiaryAge: 40,
+      issuanceBeneficiaryName: "Archival Resident",
+      reprintCount: 2,
+    },
+  })
+
+  const reprintTime = origGenTime + 300000
+  const handler = createAdminOperationsHandler({
+    auth: mockAuth as any,
+    db: db as any,
+    now: () => reprintTime,
+  })
+
+  const res = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.reprint",
+      operationId: "op-mt01-explicit-reprint",
+      targetId: "req-reprint-op",
+    }),
+  }))
+  assert.equal(res.status, 200)
+
+  const doc = db.rawStore.get("documentRequests/req-reprint-op")
+  assert.equal(doc.status, "Completed")
+  assert.equal(doc.reprintCount, 3)
+  assert.equal(doc.lastReprintedAt, reprintTime)
+  assert.equal(doc.generatedAt, origGenTime)
+
+  // Retrying with identical operationId does NOT increment count twice (idempotency)
+  const resRetry = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.reprint",
+      operationId: "op-mt01-explicit-reprint",
+      targetId: "req-reprint-op",
+    }),
+  }))
+  assert.equal(resRetry.status, 200)
+  const docAfterRetry = db.rawStore.get("documentRequests/req-reprint-op")
+  assert.equal(docAfterRetry.reprintCount, 3, "Idempotent retry must not increment count twice")
+})
+
+test("MT01: View Only role attempting reprint is denied with HTTP 403", async () => {
+  const db = createMockFirestoreDb({
+    "users/admin-viewonly": { role: "View Only", status: "Active", name: "View Only Staff" },
+    "documentRequests/req-issued": {
+      id: "req-issued",
+      status: "Completed",
+      hasGenerated: true,
+      generatedAt: 1729000000000,
+    },
+  })
+
+  const viewOnlyAuth = {
+    verifyIdToken: async (token: string) => {
+      if (token === "viewonly-token") return { uid: "admin-viewonly" }
+      throw new Error("Invalid token")
+    },
+  }
+
+  const handler = createAdminOperationsHandler({
+    auth: viewOnlyAuth as any,
+    db: db as any,
+  })
+
+  const res = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer viewonly-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.reprint",
+      operationId: "op-mt01-viewonly-reprint",
+      targetId: "req-issued",
+    }),
+  }))
+  assert.equal(res.status, 403)
+  assert.match((await res.json()).error, /not authorized/i)
+})
+
+test("MT01: Reprint after profile change strictly preserves original issuance snapshot", async () => {
+  const origTime = 1729000000000
+  const db = createMockFirestoreDb({
+    "users/admin-1": { role: "admin", status: "Active", name: "Admin Officer" },
+    "users/resident-1": {
+      role: "resident",
+      status: "Active",
+      name: "Resident A",
+      address: "New Address 2026 (Updated in Profile)",
+      age: 35,
+    },
+    "documentRequests/req-profile-change": {
+      id: "req-profile-change",
+      residentId: "resident-1",
+      requestFor: "myself",
+      residentName: "Resident A",
+      status: "Completed",
+      hasGenerated: true,
+      generatedAt: origTime,
+      issuanceBeneficiaryAddress: "Original Historical Address 2024",
+      issuanceBeneficiaryAge: 33,
+      issuanceBeneficiaryName: "Resident A",
+      reprintCount: 0,
+    },
+  })
+
+  const handler = createAdminOperationsHandler({
+    auth: mockAuth as any,
+    db: db as any,
+    now: () => origTime + 500000,
+  })
+
+  const res = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-token", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.reprint",
+      operationId: "op-mt01-profile-change-reprint",
+      targetId: "req-profile-change",
+    }),
+  }))
+  assert.equal(res.status, 200)
+
+  const doc = db.rawStore.get("documentRequests/req-profile-change")
+  assert.equal(doc.issuanceBeneficiaryAddress, "Original Historical Address 2024", "Must not substitute newer profile address")
+  assert.equal(doc.issuanceBeneficiaryAge, 33, "Must not substitute newer profile age")
+  assert.equal(doc.generatedAt, origTime, "Original generatedAt unchanged")
+})

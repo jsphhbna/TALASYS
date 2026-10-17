@@ -638,3 +638,37 @@
   - Reprints reliably reproduce original issuance artifacts.
   - Stored beneficiary names and document subjects cannot disagree.
   - Tests prove actual production code invariants without simulation drift.
+
+
+## ADR-026: Authorized Completed Document Reprinting Lifecycle & Acceptance Test Plan Grounding (MT01–MT03)
+- **Context**:
+  Independent pre-manual testing review identified three critical issues requiring resolution before hands-on testing:
+  1. **MT01 (High)**: `request.markGenerated` in `app/api/admin/operations/route.ts` rejected requests in `status: "Completed"`, preventing administrators from reprinting official documents that had already been legitimately issued and completed.
+  2. **MT02 (High)**: The hands-on acceptance test plan (`docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md`) contained mismatched routes (`/resident/requests/new` vs actual `/resident/request`, `/resident/requests` vs actual `/resident/history`), nonexistent button names ("Generate Document" vs "Download PDF" / "Print Document"), a hypothetical resident-facing Pay Later expectation (Pay Later is an administrative workflow), preprinted letterhead discrepancies, and omitted completed-reprint testing.
+  3. **MT03 (High)**: Test readiness lacked formal stage boundaries, and the defect register required alignment with the verified codebase.
+- **Decisions**:
+  1. **Authorized Completed Document Reprinting (MT01)**:
+     - Allow authorized reprinting of `status: "Completed"` requests ONLY when an original document was previously issued (`hasGenerated === true` / `before.generatedAt` exists).
+     - Maintain strict denial for `status: "Completed"` requests that were never previously issued (HTTP 409 on markGenerated, HTTP 400 on reprint).
+     - Maintain existing terminal-state protections: Rejected and Cancelled requests remain strictly ineligible for reprinting (HTTP 409).
+     - Support two semantic operations: initial generation (requires nonterminal eligible request, captures original issuance snapshot, sets `generatedAt`) and reprint (requires issued document, preserves `status: "Completed"`, preserves original `generatedAt`, preserves historical issuance snapshot, increments `reprintCount`, and records audit event).
+     - Add explicit `request.reprint` operation in `app/api/admin/operations/route.ts` and map to `action: "Reprinted Document"` in `lib/security/audit-utils.ts`.
+     - In Admin UI, add "Completed" tab to `app/admin/requests/page.tsx`, add Reprint action buttons in table rows, View Details dialog, and Document History table.
+     - In `app/admin/generate/page.tsx`, display "Reprint Document" badge, Archival Reprint Notice banner, distinct "Download Reprint PDF" and "Print Reprint" button labels, and specific reprint toasts.
+  2. **Hands-On Test Plan Grounding (MT02)**:
+     - Align all routes in `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md` with actual Next.js App Router paths: `/resident/request` and `/resident/history`.
+     - Update button expectations to match real UI: "Download PDF" and "Print Document".
+     - Ground payment expectations: clarify that Pay Later is an administrative workflow (TC-RES-10), rejecting scope expansion into a resident-facing toggle.
+     - Clarify preprinted stationery letterhead conventions in TC-ADM-06 and TC-ADM-08.
+     - Document that `request.reissueCorrected` is currently a backend-only administrative operation (TC-NEG-10).
+     - Add 8-step completed request reprint scenario (TC-ADM-10) and unissued completed reprint denial (TC-NEG-11), bringing total manual test cases to 56.
+  3. **Formal Readiness Progression Gate (MT03)**:
+     - Define 5 formal stages: Stage 1 (Source Ready), Stage 2 (Locally Verified), Stage 3 (Staging Ready), Stage 4 (Manual Testing Started), Stage 5 (Acceptance Passed).
+     - Require human tester to verify 10 operational checklist items before beginning manual test execution.
+     - Close DEF-BASE-01 and DEF-BASE-02 in `docs/HANDS_ON_DEFECT_REGISTER.md`.
+- **Consequences**:
+  - Administrators can reprint documents for completed requests without corrupting request status or generation timestamps.
+  - Historical issuance details are immutably preserved on reprints.
+  - Unissued completed requests and terminal cancelled/rejected requests cannot bypass security gates.
+  - The manual acceptance test plan accurately reflects the real application, preventing false bug reports during human testing.
+  - Progress towards release is objectively tracked across formal readiness stages.

@@ -249,9 +249,17 @@ export function normalizeAuditLog(raw: any): CanonicalAuditLog {
   } else if (rawAction === "verification.reject" || /rejected?\s+verif/i.test(rawAction)) {
     action = "Rejected Verification"
     actionType = "rejected"
-  } else if (rawAction === "request.markGenerated" || /generate/i.test(rawAction)) {
-    action = "Generated Document"
+  } else if (rawAction === "request.reprint" || /reprint/i.test(rawAction)) {
+    action = "Reprinted Document"
     actionType = "generated"
+  } else if (rawAction === "request.markGenerated" || /generate/i.test(rawAction)) {
+    if (after?.lastReprintedAt || (after?.reprintCount && after.reprintCount > 0)) {
+      action = "Reprinted Document"
+      actionType = "generated"
+    } else {
+      action = "Generated Document"
+      actionType = "generated"
+    }
   } else if (rawAction === "request.confirmPayment" || /confirm.*payment/i.test(rawAction)) {
     action = "Confirmed Payment"
     actionType = "approved"

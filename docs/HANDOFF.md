@@ -1,6 +1,44 @@
 # TALASYS Remediation Handoff
 
-## Active handoff — 2026-10-17 (Final V01–V04 Closure & Hands-On Acceptance Testing Preparation)
+## Active handoff — 2026-10-17 (Final Pre-Manual Testing Patch & Acceptance Readiness: MT01–MT03)
+
+Working branch: `main`. Baseline SHA: `e83f35c776e98669f713c9db43269723710d31a1`.
+
+This milestone successfully executes the final pre-manual testing corrections (MT01–MT03) before human acceptance testing:
+1. **MT01 (Support Reprinting Completed Document Requests)**:
+   - In `app/api/admin/operations/route.ts`, enabled authorized reprinting of already-completed requests when an original document was previously issued (`hasGenerated === true` / `before.generatedAt` exists).
+   - Created dedicated `request.reprint` operation with transactional `reprintCount` increment, preserving `status: "Completed"`, original `generatedAt`, and historical issuance snapshot.
+   - Preserved terminal protections: unissued Completed requests (HTTP 409/400) and Cancelled/Rejected requests (HTTP 409) remain strictly denied.
+   - In `lib/security/audit-utils.ts`, mapped `request.reprint` to audit action "Reprinted Document".
+   - Exported `reprintDocumentRequest` in `hooks/admin/use-admin-data.ts`.
+   - In `app/admin/requests/page.tsx`, added "Completed" tab and table filter, and "Reprint" action buttons in the row and View Details dialog.
+   - In `app/admin/requests/history/document-history-content.tsx`, added "Actions" column with "Reprint" button linking directly to the Document Generator.
+   - In `app/admin/generate/page.tsx`, added "Reprint Document" badge, Archival Reprint Notice banner, "Download Reprint PDF" and "Print Reprint" action labels, and distinct reprint success toasts.
+2. **MT02 (Correct Hands-On Acceptance Test Plan Documentation)**:
+   - Updated `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md` to version 1.1.0.
+   - Corrected all route discrepancies: `/resident/request` (formerly `/resident/requests/new`) and `/resident/history` (formerly `/resident/requests`).
+   - Corrected control labels ("Download PDF" and "Print Document").
+   - Grounded payment expectations: clarified in TC-RES-10 that Pay Later is an administrative workflow rather than a resident-facing option.
+   - Documented preprinted stationery letterhead conventions in TC-ADM-06 and TC-ADM-08.
+   - Documented backend-only nature of `request.reissueCorrected` in TC-NEG-10.
+   - Added 8-step completed request reprint scenario in TC-ADM-10 and unissued completed reprint denial in TC-NEG-11. Total manual test cases: 56.
+3. **MT03 (Final Hands-On Test Readiness & Defect Register)**:
+   - Established 5-stage readiness framework: Stage 1 (Source Ready), Stage 2 (Locally Verified), Stage 3 (Staging Ready), Stage 4 (Manual Testing Started), Stage 5 (Acceptance Passed). Current state: Stage 2 (Locally Verified).
+   - Formulated 10-point operational readiness checklist for human testers in `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md`.
+   - Updated `docs/HANDS_ON_DEFECT_REGISTER.md` to version 1.1.0, resolving DEF-BASE-01 and DEF-BASE-02 with 0 open defects.
+
+Evidence verified across two consecutive clean stability passes (Loop D):
+- 293 unit/integration tests (PASS, 31 suites, 0 failures)
+- 89 Auth/Firestore emulator tests (PASS, 6 suites, 0 failures)
+- 41 authenticated Playwright E2E tests (PASS, 0 failures, including new MT01 reprint browser test)
+- TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 987 legacy warnings)
+- Production build (51/51 routes generated successfully with Next.js 16.4.0 Turbopack)
+- Clean `git diff --check` (0 whitespace errors)
+- Timezone verification: 32/32 PASS across UTC, Asia/Manila, and America/Los_Angeles
+- Multi-viewport responsiveness: 360x800, 390x844, 768x1024, 1280x800, 1440x900 verified
+
+## Prior handoff — 2026-10-17 (Final V01–V04 Closure & Hands-On Acceptance Testing Preparation)
 
 Working branch: `main`. Baseline SHA: `62aa7598fe1233283d28e3e38b1faef340f4c1ab`.
 

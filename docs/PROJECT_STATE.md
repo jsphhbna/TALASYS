@@ -1,6 +1,42 @@
 # TALASYS Project State
 
-## Current Active Milestone — 17 October 2026 (Final V01–V04 Closure & Hands-On Acceptance Testing Preparation)
+## Current Active Milestone — 17 October 2026 (Final Pre-Manual Testing Patch & Acceptance Readiness: MT01–MT03)
+
+- **Working branch**: `main`
+- **Audited baseline**: `e83f35c776e98669f713c9db43269723710d31a1`
+- **Framework**: DevKit V9 RC10
+- **Status**: COMPLETE & VERIFIED across two consecutive clean stability passes (Loop D)
+- **Readiness State**: LOCALLY VERIFIED (Stage 2/5) — All automated regression suites pass; ready for Staging Deployment & Manual Testing.
+- **Verification Metrics (Two Consecutive Clean Passes)**:
+  - `npm test`: 293/293 pass (31 suites, including 6 new MT01 completed-reprint production tests)
+  - `npm run test:rules`: 89/89 pass (Firebase Auth & Firestore emulators, including completed reprint transaction validation)
+  - `npm run test:e2e:auth`: 41/41 pass (Playwright authenticated suite, including full completed request reprint E2E browser scenario)
+  - `npm run typecheck` & `npm run typecheck:test`: 0 errors
+  - `npm run lint`: 0 errors (987 baseline warnings)
+  - `npm run build`: 51/51 routes generated successfully (Next.js 16.4.0 Turbopack)
+  - `git diff --check`: 0 errors / clean
+  - Timezone invariance: 32/32 pass across UTC, Asia/Manila, America/Los_Angeles
+  - Multi-viewport responsiveness: 360x800, 390x844, 768x1024, 1280x800, 1440x900 verified
+- **Scope & Resolutions**:
+  - **MT01 (High)**: Support authorized reprinting of already-completed document requests.
+    * Extended `request.markGenerated` in `app/api/admin/operations/route.ts` to accept `status: "Completed"` when `isReprint === true` and `before.generatedAt` exists.
+    * Implemented dedicated `request.reprint` backend operation with strict issuance prerequisites and dedicated audit logging (`action: "Reprinted Document"`).
+    * Strictly preserved `status: "Completed"`, original `generatedAt`, and historical issuance snapshot; transactionally incremented `reprintCount`.
+    * Enforced terminal state security: denied unissued Completed requests (HTTP 409/400), Rejected requests (HTTP 409), and Cancelled requests (HTTP 409).
+    * Enhanced Admin frontend: added "Completed" tab to `app/admin/requests/page.tsx`; added Reprint actions to requests table, View Details dialog, and Document History table (`document-history-content.tsx`); updated Document Generator (`app/admin/generate/page.tsx`) to display "Reprint Document" badge, Archival Reprint Notice, and "Download Reprint PDF" / "Print Reprint" actions.
+  - **MT02 (High)**: Correct hands-on acceptance test plan documentation.
+    * Aligned all routes in `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md` with actual Next.js App Router paths (`/resident/request`, `/resident/history`).
+    * Aligned control labels with real UI controls ("Download PDF", "Print Document").
+    * Grounded payment expectations: clarified in TC-RES-10 that Pay Later is an administrative workflow, not a resident form option.
+    * Documented preprinted stationery letterhead conventions in TC-ADM-06 and TC-ADM-08.
+    * Clarified that `request.reissueCorrected` is currently a backend-only administrative operation (TC-NEG-10).
+    * Added comprehensive 8-step completed request reprint scenario (TC-ADM-10) and unissued completed reprint denial (TC-NEG-11). Total manual test cases: 56.
+  - **MT03 (High)**: Final hands-on test readiness & defect register.
+    * Formalized 5-stage readiness framework (`Source Ready`, `Locally Verified`, `Staging Ready`, `Manual Testing Started`, `Acceptance Passed`).
+    * Added 10-point operational pre-flight checklist for human testers in `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md`.
+    * Closed base defects DEF-BASE-01 and DEF-BASE-02 in `docs/HANDS_ON_DEFECT_REGISTER.md` with 0 open defects remaining.
+
+## Prior Milestone — 17 October 2026 (Final V01–V04 Closure & Hands-On Acceptance Testing Preparation)
 
 - **Working branch**: `main`
 - **Audited baseline**: `62aa7598fe1233283d28e3e38b1faef340f4c1ab`

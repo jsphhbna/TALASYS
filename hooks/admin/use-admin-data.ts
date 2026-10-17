@@ -324,6 +324,11 @@ export function useAdminData() {
                 }
             })
         }, []),
+        reprintDocumentRequest: useCallback(async (id: string) => {
+            await callAdminOperation("request.reprint", {
+                targetId: id,
+            })
+        }, []),
         confirmBeneficiaryDetails: useCallback(async (id: string, details: { confirmedAddress: string; confirmedAge?: number; notes?: string }) => {
             await callAdminOperation("request.confirmBeneficiary", {
                 targetId: id,

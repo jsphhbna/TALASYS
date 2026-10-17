@@ -234,17 +234,29 @@ test("UI03: request.markGenerated and request.updateStatus enforce prerequisites
   assert.equal(completeValid.status, 200)
   assert.equal((await targetRef.get()).data()?.status, "Completed")
 
-  // 6. Terminal status (Completed) cannot be marked generated again
-  const markCompleted = await handler(new Request("http://localhost/api/admin/operations", {
+  // 6. MT01: Completed request with prior issuance supports authorized reprint; status remains Completed
+  const reprintCompleted = await handler(new Request("http://localhost/api/admin/operations", {
     method: "POST",
     headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
     body: JSON.stringify({ operation: "request.markGenerated", operationId: "op-mark-completed", targetId }),
   }))
-  assert.equal(markCompleted.status, 409)
+  assert.equal(reprintCompleted.status, 200)
+  const completedDoc = (await targetRef.get()).data()
+  assert.equal(completedDoc?.status, "Completed")
+  assert.equal(completedDoc?.reprintCount, 1)
+
+  // 7. MT01: Completed request that was never generated rejects markGenerated with 409
+  await targetRef.update({ hasGenerated: false, generatedAt: null })
+  const ungeneratedCompleted = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer emulator-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ operation: "request.markGenerated", operationId: "op-mark-ungen-completed", targetId }),
+  }))
+  assert.equal(ungeneratedCompleted.status, 409)
 
   // Clean up
   await targetRef.delete()
-  const cleanOps = ["op-mark-pending", "op-mark-approved", "op-complete-unpaid", "op-complete-notgen", "op-complete-valid", "op-mark-completed"]
+  const cleanOps = ["op-mark-pending", "op-mark-approved", "op-complete-unpaid", "op-complete-notgen", "op-complete-valid", "op-mark-completed", "op-mark-ungen-completed"]
   for (const op of cleanOps) {
     await adminDb.collection("activityLogs").doc(operationDocumentId(op)).delete().catch(() => {})
   }

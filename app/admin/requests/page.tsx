@@ -59,7 +59,8 @@ function DocumentRequestsContent() {
     { id: "all", label: "All Active" },
     { id: "pending", label: "🕐 Awaiting Approval" },
     { id: "processing", label: "⚙️ In Process" },
-    { id: "ready", label: "📦 Ready for Pick Up" }
+    { id: "ready", label: "📦 Ready for Pick Up" },
+    { id: "completed", label: "Completed" }
   ]
 
   const docTypeOptions = [
@@ -70,13 +71,15 @@ function DocumentRequestsContent() {
     }))
   ]
 
-  const filteredRequests = activeRequests.filter(r => {
+  const filteredRequests = adminDocumentRequests.filter(r => {
     // 1. Tab Filtering
     let matchesTab = true;
-    if (activeTab === "pending") matchesTab = r.status === "Pending";
+    if (activeTab === "all") matchesTab = r.status !== "Completed" && r.status !== "Rejected" && r.status !== "Cancelled";
+    else if (activeTab === "pending") matchesTab = r.status === "Pending";
     else if (activeTab === "payments") matchesTab = r.status === "Awaiting Payment" || (r as any).paymentStatus === "pending_verification";
     else if (activeTab === "processing") matchesTab = r.status === "On Process" || r.status === "Approved";
     else if (activeTab === "ready") matchesTab = r.status === "Ready for Pick Up";
+    else if (activeTab === "completed") matchesTab = r.status === "Completed";
 
     // 2. Doc Type Filtering
     const matchesDocType = docTypeFilter === "all" || r.documentType === docTypeFilter;
@@ -298,9 +301,22 @@ function DocumentRequestsContent() {
                       )}
                     </>
                   )}
-                  {(request.status === "Completed" || request.status === "Rejected") && (
-                    <span className="text-2xs text-slate-400">Processed</span>
-                  )}
+                      {user?.role !== "View Only" && request.status === "Completed" && (request as any).hasGenerated && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/admin/generate?requestId=${request.id}`)
+                          }}
+                          className="h-6 px-3 text-2xs border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-[#0C2340] dark:text-blue-50"
+                        >
+                          Reprint
+                        </Button>
+                      )}
+                      {(request.status === "Rejected" || (request.status === "Completed" && (!(request as any).hasGenerated || user?.role === "View Only"))) && (
+                        <span className="text-2xs text-slate-400">Processed</span>
+                      )}
                   </div>
                 </td>
               </tr>
@@ -442,7 +458,20 @@ function DocumentRequestsContent() {
                   </>
                 )}
               </div>
-              <Button onClick={() => setShowViewDialog(false)} className="w-full h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-900 dark:text-slate-100">Close</Button>
+              <div className="flex gap-2">
+                {user?.role !== "View Only" && selectedRequest.status === "Completed" && (selectedRequest as any).hasGenerated && (
+                  <Button
+                    onClick={() => {
+                      setShowViewDialog(false)
+                      router.push(`/admin/generate?requestId=${selectedRequest.id}`)
+                    }}
+                    className="flex-1 h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#1a3a5c] text-white"
+                  >
+                    Reprint Document
+                  </Button>
+                )}
+                <Button onClick={() => setShowViewDialog(false)} className={`h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-900 dark:text-slate-100 ${user?.role !== "View Only" && selectedRequest.status === "Completed" && (selectedRequest as any).hasGenerated ? "flex-1" : "w-full"}`}>Close</Button>
+              </div>
             </div>
           </Card>
         </ModalOverlay>
