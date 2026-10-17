@@ -5,7 +5,7 @@ import { isFullAdminRole, isSuperAdminRole } from "../../../../lib/auth/auth-typ
 import { coordinateIdentityEmailUpdate, type IdentityEmailDependencies, type IdentityEmailOperation, type IdentityEmailStatus } from "../../../../lib/admin/identity-email-operation.ts"
 import { evaluateIdentityClaim } from "../../../../lib/admin/identity-coordination-policy.ts"
 import { extractClientIp } from "../../../../lib/security/request-ip.ts"
-import { COLLECTION_ACTIVITY_LOGS, COLLECTION_USERS } from "../../../../lib/constants.ts"
+import { COLLECTION_ACTIVITY_LOGS, COLLECTION_NOTIFICATIONS, COLLECTION_USERS } from "../../../../lib/constants.ts"
 
 const PROFILE_FIELDS = new Set(["name", "dateOfBirth", "contactNumber", "address", "statuses", "profilePicture"])
 
@@ -36,7 +36,7 @@ async function changeOwnedState(db: any, operation: IdentityEmailOperation, stat
 export function createIdentityEmailDependencies(): IdentityEmailDependencies {
   if (!adminDb || !adminAuth) throw Object.assign(new Error("Server authentication service unavailable"), { status: 503 })
   return {
-    async claim({ operationId, residentId, newEmail, profileUpdates, actorUid, attemptId, ipAddress, now }) {
+    async claim({ operationId, residentId, newEmail, profileUpdates, removePhotoReason, actorUid, attemptId, ipAddress, now }) {
       return adminDb.runTransaction(async (transaction: any) => {
         const callerRef = adminDb.collection(COLLECTION_USERS).doc(actorUid)
         const residentRef = adminDb.collection(COLLECTION_USERS).doc(residentId)
@@ -81,10 +81,13 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
         }
         const oldEmail = String(existing?.oldEmail || residentSnapshot.data()?.email || "").trim().toLowerCase()
         if (!oldEmail) throw Object.assign(new Error("Target resident has no authoritative email."), { status: 409 })
+        if (oldEmail === newEmail) {
+          throw Object.assign(new Error("Email address is unchanged. Identity update workflow is not required for identical email."), { status: 400 })
+        }
         if (existing && (existing.residentId !== residentId || existing.newEmail !== newEmail || JSON.stringify(existing.profileUpdates || {}) !== JSON.stringify(profileUpdates))) throw Object.assign(new Error("Operation ID was already used for different input."), { status: 409 })
         const effectiveNow = now || Date.now()
         const effectiveIp = ipAddress || "Unknown"
-        const operation: IdentityEmailOperation = { id: operationId, residentId, actorUid, actorName: caller.name || "Administrator", attemptId, oldEmail, newEmail, profileUpdates, status: "claimed" }
+        const operation: IdentityEmailOperation = { id: operationId, residentId, actorUid, actorName: caller.name || "Administrator", attemptId, oldEmail, newEmail, profileUpdates, ...(removePhotoReason ? { removePhotoReason } : {}), status: "claimed" }
         transaction.set(operationRef, { ...operation, ipAddress: effectiveIp, createdAt: existing?.createdAt || effectiveNow, updatedAt: effectiveNow })
         transaction.set(lockRef, { operationId, attemptId, residentId, operationType: "resident-email-update", status: "claimed", actorUid, actorName: caller.name || "Administrator", oldEmail, newEmail, ipAddress: effectiveIp, updatedAt: effectiveNow })
         return { outcome: "claimed" as const, operation }
@@ -161,9 +164,25 @@ export function createIdentityEmailDependencies(): IdentityEmailDependencies {
         const currentEmail = String(residentSnapshot.data()?.email || "").trim().toLowerCase()
         if (currentEmail !== operation.oldEmail && currentEmail !== operation.newEmail) throw Object.assign(new Error("Resident email changed during identity update."), { status: 409 })
         transaction.update(residentRef, { ...operation.profileUpdates, email: operation.newEmail, updatedAt: now })
+
+        const isPhotoRemoval = Boolean(operation.removePhotoReason) || (operation.profileUpdates?.profilePicture === "" && Boolean(residentSnapshot.data()?.profilePicture))
+        if (isPhotoRemoval) {
+          const reason = operation.removePhotoReason || "Removed by administrator"
+          transaction.set(adminDb.collection(COLLECTION_NOTIFICATIONS).doc(`resident-photo-${operation.id}`), {
+            targetId: operation.residentId,
+            type: "warning",
+            title: "Profile Picture Removed",
+            message: `Your profile picture was removed by the barangay administration. Reason: ${reason}. You may review your profile for more information.`,
+            timestamp: "Just now",
+            isRead: false,
+            createdAt: now,
+            operationId: operation.id,
+          })
+        }
+
         transaction.set(adminDb.collection(COLLECTION_ACTIVITY_LOGS).doc(`resident-identity-${operation.id}`), {
-          actor: { id: operation.actorUid, name: operation.actorName }, action: "Updated Resident Identity", actionType: "Resident Edit",
-          targetId: operation.residentId, targetCollection: COLLECTION_USERS, before: { email: operation.oldEmail }, after: { email: operation.newEmail, changedFields: Object.keys(operation.profileUpdates) },
+          actor: { id: operation.actorUid, name: operation.actorName }, action: isPhotoRemoval ? "Updated Resident Identity & Removed Photo" : "Updated Resident Identity", actionType: "resident",
+          targetId: operation.residentId, targetCollection: COLLECTION_USERS, before: { email: operation.oldEmail, ...(isPhotoRemoval ? { profilePicture: residentSnapshot.data()?.profilePicture } : {}) }, after: { email: operation.newEmail, changedFields: Object.keys(operation.profileUpdates), ...(isPhotoRemoval ? { profilePicture: "", removePhotoReason: operation.removePhotoReason } : {}) },
           operationId: operation.id, ipAddress: stored?.ipAddress || "Unknown", timestamp: now, createdAt: now, authoritative: true,
         })
         transaction.update(operationRef, { status: "completed", completedAt: now, leaseUntil: 0, updatedAt: now })
@@ -191,8 +210,9 @@ export function createUpdateResidentEmailHandler(injected?: { auth?: typeof admi
       if (!residentId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return NextResponse.json({ error: "Valid residentId and newEmail are required" }, { status: 400 })
       const operationId = typeof body.operationId === "string" && body.operationId ? body.operationId : (injected?.uuid || randomUUID)()
       const attemptId = typeof body.attemptId === "string" && body.attemptId ? body.attemptId : (injected?.uuid || randomUUID)()
+      const removePhotoReason = typeof body.removePhotoReason === "string" ? body.removePhotoReason.trim() : undefined
       const result = await coordinateIdentityEmailUpdate(injected?.dependencies || createIdentityEmailDependencies(), {
-        operationId, residentId, newEmail, profileUpdates: cleanProfileUpdates(body.profileUpdates), actorUid: decoded.uid, attemptId, ipAddress: extractClientIp(req),
+        operationId, residentId, newEmail, profileUpdates: cleanProfileUpdates(body.profileUpdates), removePhotoReason, actorUid: decoded.uid, attemptId, ipAddress: extractClientIp(req),
       })
       return NextResponse.json({ success: true, operationId, ...result })
     } catch (error: any) {

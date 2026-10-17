@@ -1,6 +1,50 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01)
 
-## Final Pre-Manual Testing Patch & Acceptance Readiness (MT01–MT03) — CURRENT PASS
+## DevKit V10 System Reliability & UI/UX Modernization (UX-A01–UX-N01) — CURRENT PASS
+
+- **Status**: COMPLETED
+- **Branch**: `main`
+- **Audited baseline**: `f92705864f725405bfb01e67d91ba7e40b642fc5`
+- **Execution mode**: Evidence-based investigation → Root-cause correction → System-wide recurrence detection → Regression testing
+- **Development framework**: DevKit V10 (Alpha 3 / Adaptive Intelligence)
+
+### Findings Classification Matrix
+
+| Finding | Priority | Category | Status | Affected Files | Root Cause & Targeted Remediation |
+|---|---|---|---|---|---|
+| **UX-A01** | High | **MUTATION_ROUTING** / **IDENTITY** | **VERIFIED** | `hooks/admin/use-admin-data.ts`, `app/api/admin/update-resident-email/route.ts`, `app/api/admin/operations/route.ts` | Form submits nonempty existing email; `use-admin-data.ts` incorrectly routed ordinary updates and photo removals to `updateResidentIdentity`, bypassing photo reason, notifications, and structured audit. Remediation: authoritatively distinguish actual email changes from ordinary profile edits; unchanged email routes to `resident.update`; support simultaneous email change and photo removal; avoid unnecessary writes when values are unchanged. |
+| **UX-B01** | High | **FEEDBACK** / **ASYNC_STATE** | **VERIFIED** | `components/admin/resident-profile-modal.tsx` | Photo removal button modifies draft state without clear staged status; save action lacks spinner, loading labels, disabled controls, double-click guards, and uses native `alert()`. Remediation: stage removal locally with "Photo Removal Pending" banner; validate reason in UI and server; display "Saving Changes…", disable double-clicks, keep dialog stable during flight; clear failure and retry feedback. |
+| **UX-C01** | High | **AUDIT_INTEGRITY** / **AUTHORITATIVE** | **VERIFIED** | `app/api/admin/operations/route.ts`, `lib/security/audit-utils.ts`, `app/admin/logs/page.tsx`, `app/superadmin/audit/page.tsx` | Photo removal lacked distinct canonical audit classification. Remediation: record `resident.profilePhoto.remove` action with actor, target, timestamp, removal reason, and before/after photo state; update `normalizeAuditLog` and ensure visibility in Admin Activity Logs and Super Admin Audit Logs under Resident Ops. |
+| **UX-D01** | High | **NOTIFICATION** / **LIFECYCLE** | **VERIFIED** | `app/api/admin/operations/route.ts`, `hooks/resident/use-resident-data.ts`, `firestore.rules` | Affected resident did not receive an in-app notification when photo was removed. Remediation: write atomic notification with official text: "Your profile picture was removed by the barangay administration. Reason: [reason]. You may review your profile for more information."; verify resident real-time subscription, read status, and display. |
+| **UX-E01** | Medium | **CONTROLS** / **PAGINATION** | **VERIFIED** | `app/admin/logs/page.tsx` | Activity Logs table rendered inert pagination chevrons and page numbers with no functional handlers. Remediation: implement functional pagination (page size, previous/next, active page, total records); eliminate inert controls across admin tables. |
+| **UX-G01** | High | **LAYOUT** / **STABILITY** | **VERIFIED** | `components/superadmin/layout/superadmin-sidebar.tsx`, `components/admin/layout/admin-sidebar.tsx` | Active nav items switched to `font-semibold`, causing text expansion and apparent visual jumping/resizing upon route selection. Remediation: enforce fixed font-weight with background/indicator styling; ensure fixed sidebar width and stable headers across all routes. |
+| **UX-H01** | High | **LAPTOP_DENSITY** / **INFORMATION_ARCH** | **VERIFIED** | Shared admin/superadmin layouts, cards, KPI strips, tables | Excessive spacing and card dimensions forced laptop users (1280x800, 1366x768) at 100% zoom to zoom out. Remediation: optimize density, KPI heights, chart containers, table padding, and spacing tokens for compact laptop screens. |
+| **UX-I01** | High | **MOBILE_UX** / **RESIDENT** | **VERIFIED** | `app/resident/*`, `components/resident/*` | Resident workflows required horizontal scroll and had suboptimal touch targets on small mobile viewports (320px–430px). Remediation: eliminate horizontal overflow, ensure 44px+ touch targets, optimize document request stepper and payment upload usability. |
+| **UX-J01** | Medium | **STAFF_ADVISORY** / **RESPONSIVE** | **VERIFIED** | `components/admin/layout/staff-mobile-advisory.tsx`, `app/admin/layout.tsx`, `app/superadmin/layout.tsx` | Missing small-screen advisory for staff accessing desktop-oriented Admin/Super Admin workspaces on phones. Remediation: non-blocking, dismissible advisory ("For a Better Experience") shown once per session when viewport < 768px. |
+| **UX-K01** | Medium | **LAYOUT_BOUNDARIES** / **FOOTER** | **VERIFIED** | `app/layout.tsx`, `app/(landing)/layout.tsx`, `components/layout/footer.tsx` | Shared public footer rendered in root layout, appearing inside authenticated workspaces. Remediation: move footer to `app/(landing)/layout.tsx`; purge generic placeholder social media links. |
+| **UX-L01** | High | **LANDING_PAGE** / **INSTITUTIONAL** | **VERIFIED** | `components/landing/*`, `app/(landing)/page.tsx` | Landing page lacked cohesive institutional Philippine barangay identity for Barangay 634. Remediation: redesign with credible public-service identity, clear CTAs, services catalog, how-it-works process, verified officials, mission/vision, and official contact details. |
+| **UX-M01** | High | **DESIGN_CONSISTENCY** / **WCAG** | **VERIFIED** | `app/globals.css`, shared UI components | Inconsistent component tokens across workspaces. Remediation: standardize typography, spacing tokens, button variants, status badges, WCAG 2.2 AA accessibility, and dark mode contrast. |
+| **UX-N01** | High | **VERIFICATION** / **REGRESSION** | **VERIFIED** | Playwright suites, unit tests, multi-viewport audit | Comprehensive verification across desktop laptops and mobile screens with two consecutive clean passes. |
+
+### Execution Milestones
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **Milestone A** | UX-A01: Operation Routing for Profile & Identity Updates | COMPLETED | Unchanged email routes to `resident.update`; actual email change routes to identity update; combined email + photo removal audited and notified; no unnecessary writes on no-op. |
+| **Milestone B** | UX-B01: Transparent & Reliable Photo Removal Interaction | COMPLETED | Staged removal state, spinner feedback, disabled controls during submission, no native `alert()`, double-click protection, clear error recovery. |
+| **Milestone C** | UX-C01: Authoritative Profile Photo Removal Audit Logging | COMPLETED | Canonical `resident.profilePhoto.remove` audit record with removal reason and before/after photo state; discoverable in Admin Activity Logs and Super Admin Audit Logs under Resident Ops. |
+| **Milestone D** | UX-D01: Verify Resident Notification Delivery | COMPLETED | In-app notification with official barangay wording delivered to resident; visible in notification list; real-time subscription and read/unread status verified. |
+| **Milestone E** | UX-E01: System-Wide Interaction Reliability & Pagination Repair | COMPLETED | Real pagination in Activity Logs; elimination of inert controls across tables; consistent async submission feedback. |
+| **Milestone G** | UX-G01: System-Wide Design & Layout Audit (Nav Stability) | COMPLETED | Bounding boxes of sidebar, header, and nav items remain strictly stable during route transitions; eliminate nav label resizing. |
+| **Milestone H** | UX-H01: Laptop-First Admin & Super Admin Optimization | COMPLETED | Comfortable information density at 1280x800 and 1366x768 at 100% zoom without zooming out; compact tables and KPI cards. |
+| **Milestone I** | UX-I01: Mobile-First Resident Experience | COMPLETED | Zero horizontal overflow across 320px–430px; seamless document request and verification flows on mobile. |
+| **Milestone J** | UX-J01: Friendly Small-Screen Advisory for Staff | COMPLETED | Dismissible, non-blocking advisory displayed once per session for staff on screens < 768px; no interference with resident or landing pages. |
+| **Milestone K** | UX-K01: Remove Footer from Authenticated Workspaces | COMPLETED | Public footer rendered strictly within landing routes via `app/(landing)/layout.tsx`; hidden in resident, admin, superadmin, and auth screens. |
+| **Milestone L** | UX-L01: Professional Barangay 634 Landing Page Redesign | COMPLETED | Institutional local-government portal design; genuine service categories; 5-step process; verified officials and contact info; no placeholder social links. |
+| **Milestone M** | UX-M01: System-Wide Design Tokens & WCAG Accessibility | COMPLETED | Standardized design tokens; WCAG 2.2 AA compliance; robust dark mode contrast. |
+| **Milestone N** | UX-N01: Visual & Responsive Regression Verification | COMPLETED | Multi-viewport automated tests; Playwright authenticated role tests; 2 consecutive clean passes. |
+
+## Final Pre-Manual Testing Patch & Acceptance Readiness (MT01–MT03) — PRIOR PASS
 
 - **Status**: COMPLETED
 - **Branch**: `main`

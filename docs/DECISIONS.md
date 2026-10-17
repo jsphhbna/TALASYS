@@ -1,3 +1,28 @@
+
+## ADR-028: DevKit V10 System Reliability & UI/UX Modernization (UX-A01–UX-N01)
+
+- **Date:** October 17, 2026
+- **Status:** APPROVED & IMPLEMENTED
+- **Context:**
+  Hands-on testing revealed usability and interaction defects in TALASYS, specifically surrounding administrative removal of resident profile pictures (dropped reasons, missing audit, missing resident notification, lack of loading feedback, double-clicks). Concurrently, system-wide layout issues were identified: active navigation items resized glyphs on selection due to font-weight toggling, staff desktop layouts felt oversized on compact laptops, the global footer leaked into authenticated workspaces, and the public landing page lacked cohesive Philippine local-government service branding.
+- **Decisions:**
+  1. **Authoritative Operation Routing (UX-A01):** In `hooks/admin/use-admin-data.ts`, authoritatively compare form email against existing resident email. Only call `updateResidentIdentity` when the email actually changes; route ordinary profile updates and photo removals to `callAdminOperation('resident.update', ...)`. In `app/api/admin/update-resident-email/route.ts`, reject unchanged emails with HTTP 400 and support `removePhotoReason` when email change and photo removal occur together.
+  2. **Photo Removal Interaction Model (UX-B01):** In `components/admin/resident-profile-modal.tsx`, stage photo removal locally with an explicit "Photo Removal Pending Confirmation" banner and reason input. Display in-flight spinner ("Saving Changes…"), disable conflicting buttons, use an in-flight ref to prevent double-click submissions, eliminate native `alert()` in favor of styled validation, and provide safe retry on network error.
+  3. **Canonical Audit Classification (UX-C01):** In `app/api/admin/operations/route.ts`, support `resident.profilePhoto.remove` and map photo removal to this canonical action. In `lib/security/audit-utils.ts`, normalize `resident.profilePhoto.remove` to "Removed Resident Profile Picture" under actionType "resident" with details displaying the removal reason. Add Resident Ops filter in Super Admin audit logs.
+  4. **Resident Notification Contract (UX-D01):** Atomically deliver in-app notification to affected resident with official wording: *"Your profile picture was removed by the barangay administration. Reason: [reason]. You may review your profile for more information."*
+  5. **Activity Logs Pagination (UX-E01):** In `app/admin/logs/page.tsx`, implement client pagination with `pageSize = 15`, total page calculation, and boundary-disabled previous/next controls.
+  6. **Navigation Typography Stability (UX-G01):** In `superadmin-sidebar.tsx` and `admin-sidebar.tsx`, standardize navigation item typography to constant `font-medium` across active and inactive states. Differentiate active state via gold indicator bar (`w-[3px] h-5 bg-[#C5A55A]`) and contrast background (`bg-white/10 text-white`) without font-weight shifting.
+  7. **Footer Scope Boundary (UX-K01):** Relocate `<Footer />` from root layout (`app/layout.tsx`) to `app/(landing)/layout.tsx`. Purge placeholder Twitter/Facebook/LinkedIn links in `components/layout/footer.tsx`.
+  8. **Staff Mobile Advisory (UX-J01):** In `components/admin/layout/staff-mobile-advisory.tsx`, provide a professional, non-blocking, dismissible advisory for staff accessing Admin or Super Admin workspaces on screens < 768px.
+  9. **Institutional Landing Page (UX-L01):** Redesign Barangay 634 landing page with official local-government identity, active service catalog, 5-step process, verified officials, office hours, and clean contact information.
+- **Consequences:**
+  - Administrative mutations have transparent state transitions, double-click guards, and authoritative persistence.
+  - Audit trails and resident notifications for photo removals are reliable and discoverable.
+  - Navigation between pages produces zero visual resizing or layout jumps.
+  - Authenticated workspaces are clean and free of public footer clutter.
+  - 100% automated test coverage (299 unit, 89 emulator, 41 Playwright auth, 0 typecheck errors, 0 lint errors).
+
+
 # TALASYS Architecture & Remediation Decisions (ADR)
 
 ## ADR-001: Canonical Administrative Role Matrix
@@ -672,3 +697,34 @@
   - Unissued completed requests and terminal cancelled/rejected requests cannot bypass security gates.
   - The manual acceptance test plan accurately reflects the real application, preventing false bug reports during human testing.
   - Progress towards release is objectively tracked across formal readiness stages.
+
+## ADR-027: Comprehensive Interaction Reliability, Authoritative Photo Removal Routing & UI/UX Modernization (UX-A01–UX-N01)
+- **Context**:
+  Field testing and source audit revealed:
+  1. Administrative profile photo removal was routed into updateResidentIdentity whenever the form included an existing unchanged email, bypassing resident.update, dropping the removal reason, failing to notify the resident, and omitting structured audit events.
+  2. Photo removal staged state was ambiguous, save actions lacked loading feedback/spinners and double-click protection, and errors used native alert().
+  3. Photo removals lacked a dedicated canonical audit action identifier (resident.profilePhoto.remove) and taxonomy classification.
+  4. Activity Logs table rendered inert pagination controls with no click handlers or state.
+  5. Active sidebar navigation switched to font-semibold, causing text expansion and apparent visual jumping/resizing upon selection.
+  6. Admin/SuperAdmin dashboards were overly loose on compact laptops (1280x800, 1366x768 at 100% zoom).
+  7. Public footer leaked into authenticated resident, admin, and superadmin workspaces from root app/layout.tsx.
+  8. Landing page lacked institutional Philippine barangay identity for Barangay 634 and included placeholder social media links.
+- **Decisions**:
+  1. **Authoritative Operation Routing (UX-A01)**: In hooks/admin/use-admin-data.ts, authoritatively compare form email against existing resident email. Only call updateResidentIdentity when the email actually changes; route ordinary profile updates and photo removals to callAdminOperation('resident.update', ...). In app/api/admin/update-resident-email/route.ts, support removePhotoReason when email change and photo removal occur together, and verify server-side that unchanged emails avoid Firebase Auth mutation.
+  2. **Transparent Photo Removal Interaction (UX-B01)**: In components/admin/resident-profile-modal.tsx, provide a clear staged 'Photo Removal Pending' banner with required removal reason input and 'Undo Removal' button. Display 'Saving Changes…' with a button spinner; disable controls during flight; add double-click guards; replace alert() with styled validation alert; keep modal open with retry on failure.
+  3. **Authoritative Photo Removal Audit Logging (UX-C01)**: In app/api/admin/operations/route.ts, write canonical audit action resident.profilePhoto.remove with actor, target resident UID, timestamp, removal reason, and before/after photo state. Map in normalizeAuditLog() to readable 'Removed Resident Profile Picture' under actionType: 'resident'.
+  4. **Resident Notification Delivery (UX-D01)**: Persist an in-app notification to the affected resident upon photo removal with official text: 'Your profile picture was removed by the barangay administration. Reason: [reason]. You may review your profile for more information.' Verify real-time subscription and read/unread behavior.
+  5. **Functional Table Pagination (UX-E01)**: In app/admin/logs/page.tsx, implement functional pagination with currentPage, pageSize, totalPages, disabled boundary chevrons, and active page numbers.
+  6. **Stable Shared Navigation (UX-G01)**: In SuperAdminSidebarNav and AdminSidebarNav, standardize typography to fixed font weight (font-medium) with background highlighting and an active indicator bar to eliminate layout shifts upon route selection.
+  7. **Laptop-First Optimization (UX-H01)**: Standardize spacing and density tokens across Admin and Super Admin workspaces to fit 1280x800 and 1366x768 at 100% zoom without horizontal scrolling or manual zooming out.
+  8. **Mobile-First Resident Experience (UX-I01)**: Enforce zero horizontal page scrolling on mobile viewports (320px–430px) and ensure touch targets >= 44x44px.
+  9. **Staff Small-Screen Advisory (UX-J01)**: Create components/admin/layout/staff-mobile-advisory.tsx, showing a non-blocking, dismissible advisory ('For a Better Experience') once per session when viewport < 768px in staff workspaces.
+  10. **Relocate Public Footer (UX-K01)**: Remove <Footer /> from root app/layout.tsx and place it in app/(landing)/layout.tsx, making it strictly visible on public landing pages and hidden in authenticated workspaces. Purge generic placeholder social links.
+  11. **Institutional Landing Page Redesign (UX-L01)**: Redesign landing page with authentic Barangay 634, Zone 64, District VI, City of Manila institutional identity, public service CTAs, genuine online services catalog, 5-step application process, verified officials, mission/vision, and official contact channels.
+- **Consequences**:
+  - Administrative photo removal is reliable, audited, and delivers timely notifications to residents.
+  - Action buttons and controls provide truthful asynchronous feedback and prevent duplicate mutations.
+  - Sidebar and headers remain strictly stable during navigation without visual jumps.
+  - Staff workspaces are optimized for laptops; residents enjoy a comfortable mobile experience.
+  - Authenticated workspaces are clean and uncluttered without leaking the public footer.
+  - The public landing page communicates authentic institutional credibility for Barangay 634.

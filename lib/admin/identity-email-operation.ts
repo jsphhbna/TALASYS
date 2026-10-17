@@ -19,6 +19,7 @@ export interface IdentityEmailOperation {
   oldEmail: string
   newEmail: string
   profileUpdates: Record<string, unknown>
+  removePhotoReason?: string
   status: IdentityEmailStatus
 }
 
@@ -28,6 +29,7 @@ export interface IdentityEmailDependencies {
     residentId: string
     newEmail: string
     profileUpdates: Record<string, unknown>
+    removePhotoReason?: string
     actorUid: string
     attemptId: string
     ipAddress: string
@@ -54,13 +56,14 @@ export async function coordinateIdentityEmailUpdate(deps: IdentityEmailDependenc
   residentId: string
   newEmail: string
   profileUpdates?: Record<string, unknown>
+  removePhotoReason?: string
   actorUid: string
   attemptId: string
   ipAddress: string
   now?: () => number
 }) {
   const now = (input.now || Date.now)()
-  const claim = await deps.claim({ ...input, profileUpdates: input.profileUpdates || {}, now })
+  const claim = await deps.claim({ ...input, profileUpdates: input.profileUpdates || {}, removePhotoReason: input.removePhotoReason, now })
   if (claim.outcome === "completed") return { outcome: "completed" as const, idempotent: true }
   if (claim.outcome === "reconciliation-required") {
     throw Object.assign(new Error("Identity state requires reconciliation before retry."), { status: 409, requiresReconciliation: true, residentId: input.residentId })

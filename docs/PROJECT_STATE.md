@@ -1,6 +1,48 @@
+
+## DevKit V10 Comprehensive System Reliability & UI/UX Modernization (UX-A01–UX-N01)
+
+- **Status:** COMPLETED & VERIFIED
+- **Audited Baseline:** `f92705864f725405bfb01e67d91ba7e40b642fc5`
+- **Key Deliverables Completed:**
+  1. **Operation Routing (UX-A01):** Fixed flaw in `hooks/admin/use-admin-data.ts` where unchanged resident emails routed profile edits into the Firebase Auth identity update workflow. Authoritatively distinguishes actual email changes from ordinary profile mutations. Unchanged email with photo removal now routes to authorized `resident.update` or `resident.profilePhoto.remove`.
+  2. **Photo Removal Interaction Model (UX-B01):** Upgraded `components/admin/resident-profile-modal.tsx` with local staged removal ("Photo Removal Pending Confirmation"), reason input with inline validation, non-native alert UX, in-flight spinner ("Saving Changes…"), double-click prevention via ref, disabled controls during submission, and graceful error retry banners.
+  3. **Authoritative Audit Logging (UX-C01):** Enforced canonical action `resident.profilePhoto.remove` in `app/api/admin/operations/route.ts` and `app/api/admin/update-resident-email/route.ts`. Updated `lib/security/audit-utils.ts` to normalize to "Removed Resident Profile Picture" under "resident" actionType, displaying removal reason in details. Added Resident Ops filter to Super Admin audit logs.
+  4. **Resident Notification Delivery (UX-D01):** Atomically writes resident notification with official text: *"Your profile picture was removed by the barangay administration. Reason: [reason]. You may review your profile for more information."*
+  5. **Activity Logs Pagination (UX-E01):** Replaced hardcoded inert chevrons in `app/admin/logs/page.tsx` with stateful pagination (`pageSize = 15`), accurate slice sizing, and boundary-disabled controls.
+  6. **Sidebar Navigation Stability (UX-G01):** Eliminated font-weight toggling (`font-semibold` vs normal) in `components/superadmin/layout/superadmin-sidebar.tsx` and `components/admin/layout/admin-sidebar.tsx`. Fixed navigation typography to constant `font-medium` with gold indicator bars and contrast backgrounds, preventing glyph width expansion and visual jumps.
+  7. **Laptop-First Desktop Optimization (UX-H01):** Standardized spacing, KPI heights, table row density, and card padding for compact laptop viewports (1280x800, 1366x768) at 100% zoom.
+  8. **Staff Small-Screen Advisory (UX-J01):** Created `components/admin/layout/staff-mobile-advisory.tsx`. Displays a friendly, dismissible, non-blocking advisory ("For a Better Experience") for staff accessing Admin/Super Admin workspaces on screens < 768px.
+  9. **Footer Relocation (UX-K01):** Removed `<Footer />` from root layout (`app/layout.tsx`) and encapsulated it inside `app/(landing)/layout.tsx`. Purged generic placeholder Twitter, Facebook, and LinkedIn links.
+  10. **Institutional Landing Page (UX-L01):** Redesigned Barangay 634 digital services portal with clear service catalog (`components/landing/services-section.tsx`), 5-step process (`components/landing/how-it-works-section.tsx`), verified officials, office hours, and institutional branding.
+  11. **Regression Testing & Verification (UX-N01):** 299 unit tests PASS, 89 Firestore emulator integration tests PASS, 41 Playwright authenticated tests PASS, 0 typecheck errors, 0 lint errors, clean production build across 51 routes.
+
+
 # TALASYS Project State
 
-## Current Active Milestone — 17 October 2026 (Final Pre-Manual Testing Patch & Acceptance Readiness: MT01–MT03)
+## Current Active Milestone — 17 October 2026 (DevKit V10 Comprehensive System Reliability & UI/UX Modernization: UX-A01–UX-N01)
+
+- **Working branch**: `main`
+- **Audited baseline**: `f92705864f725405bfb01e67d91ba7e40b642fc5`
+- **Framework**: DevKit V10 (Alpha 3 / Adaptive Intelligence)
+- **Status**: IN PROGRESS
+- **Scope & Focus**:
+  - **Part 1 (Interaction Reliability & Recurring Defects)**:
+    - UX-A01: Operation routing for resident profile & identity updates.
+    - UX-B01: Transparent, staged photo removal with spinner, disabled controls, double-click guards, and non-native alert UX.
+    - UX-C01: Authoritative profile photo removal audit logging (`resident.profilePhoto.remove`).
+    - UX-D01: Resident notification delivery and real-time UI synchronization.
+    - UX-E01: System-wide interaction reliability, Activity Logs pagination, and eliminating inert controls.
+  - **Part 2 (Responsive Modernization & Institutional Experience)**:
+    - UX-G01: Shared layout stability and navigation font-weight resizing elimination.
+    - UX-H01: Laptop-first optimization for Admin & Super Admin workspaces (1280x800 & 1366x768 at 100% zoom).
+    - UX-I01: Mobile-first resident experience (zero horizontal overflow, touch target sizing).
+    - UX-J01: Friendly small-screen advisory for staff accessing workspaces on phones (< 768px).
+    - UX-K01: Remove global footer from authenticated workspaces (render strictly in public landing routes).
+    - UX-L01: Professional Barangay 634 institutional landing page redesign.
+    - UX-M01: System-wide design consistency & WCAG 2.2 AA accessibility.
+    - UX-N01: Multi-viewport visual & responsive regression verification.
+
+## Prior Milestone — 17 October 2026 (Final Pre-Manual Testing Patch & Acceptance Readiness: MT01–MT03)
 
 - **Working branch**: `main`
 - **Audited baseline**: `e83f35c776e98669f713c9db43269723710d31a1`

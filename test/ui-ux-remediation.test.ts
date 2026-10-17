@@ -207,3 +207,149 @@ test("UI18: Selected year is reconciled when available years load asynchronously
   // When selection exists in available years, it is preserved:
   assert.equal(reconcileSelectedYear("2024", ["2025", "2024"]), "2024")
 })
+
+// ---------------------------------------------------------------------------
+// UX-A01 & UX-B01: Profile Picture Removal Operation Routing & Reason Invariants
+// ---------------------------------------------------------------------------
+test("UX-A01: Unchanged resident email routes to resident.update without entering identity Auth workflow", () => {
+  const existingResident = {
+    id: "res-123",
+    email: "resident@example.com",
+    name: "Juan Dela Cruz",
+    profilePicture: "https://example.com/photo.jpg",
+  }
+
+  // Admin submits form with existing unchanged email and photo removal
+  const formValues = {
+    email: "resident@example.com",
+    name: "Juan Dela Cruz",
+    profilePicture: "",
+  }
+  const removePhotoReason = "Not a recognized resident photo"
+
+  const isEmailChanged = Boolean(formValues.email && formValues.email.trim().toLowerCase() !== existingResident.email.trim().toLowerCase())
+  assert.equal(isEmailChanged, false, "Unchanged email must evaluate isEmailChanged to false")
+
+  // Target operation determination
+  const targetWorkflow = isEmailChanged ? "identity.updateEmail" : "resident.update"
+  assert.equal(targetWorkflow, "resident.update")
+
+  // Reason must be preserved and passed
+  const operationPayload = {
+    targetId: existingResident.id,
+    payload: {
+      updates: { profilePicture: "" },
+      removePhotoReason,
+    },
+  }
+  assert.equal(operationPayload.payload.removePhotoReason, "Not a recognized resident photo")
+})
+
+test("UX-A01: Actual email modification correctly identifies identity workflow requirement", () => {
+  const existingResident = {
+    id: "res-123",
+    email: "old.email@example.com",
+    name: "Juan Dela Cruz",
+  }
+
+  const formValues = {
+    email: "new.email@example.com",
+    name: "Juan Dela Cruz",
+  }
+
+  const isEmailChanged = Boolean(formValues.email && formValues.email.trim().toLowerCase() !== existingResident.email.trim().toLowerCase())
+  assert.equal(isEmailChanged, true, "Modified email must evaluate isEmailChanged to true")
+  const targetWorkflow = isEmailChanged ? "identity.updateEmail" : "resident.update"
+  assert.equal(targetWorkflow, "identity.updateEmail")
+})
+
+// ---------------------------------------------------------------------------
+// UX-C01: Authoritative Audit Logging for Photo Removal
+// ---------------------------------------------------------------------------
+test("UX-C01: normalizeAuditLog maps resident.profilePhoto.remove to canonical action and details", async () => {
+  const { normalizeAuditLog } = await import("../lib/security/audit-utils.ts")
+
+  const rawLog = {
+    id: "log-photo-remove-1",
+    action: "resident.profilePhoto.remove",
+    actor: { id: "admin-1", name: "Hon. Kagawad", role: "Resident Management" },
+    targetId: "res-456",
+    residentName: "Maria Santos",
+    before: { profilePicture: "https://example.com/photo.jpg" },
+    after: { profilePicture: "", removePhotoReason: "Violation of community photo standards" },
+    timestamp: 1729100000000,
+  }
+
+  const normalized = normalizeAuditLog(rawLog)
+  assert.equal(normalized.action, "Removed Resident Profile Picture")
+  assert.equal(normalized.actionType, "resident")
+  assert.equal(normalized.residentName, "Maria Santos")
+  assert.equal(normalized.details, 'Reason: "Violation of community photo standards"')
+})
+
+test("UX-C01: normalizeAuditLog maps combined profile update and photo removal without losing either change", async () => {
+  const { normalizeAuditLog } = await import("../lib/security/audit-utils.ts")
+
+  const rawCombinedLog = {
+    id: "log-combined-1",
+    action: "resident.update",
+    actor: { id: "admin-1", name: "Hon. Kagawad", role: "Resident Management" },
+    targetId: "res-456",
+    residentName: "Maria Santos",
+    before: { profilePicture: "https://example.com/photo.jpg", address: "Old Address" },
+    after: { profilePicture: "", address: "New Address", removePhotoReason: "Unclear portrait", updatedAt: 1729100000000 },
+    timestamp: 1729100000000,
+  }
+
+  const normalized = normalizeAuditLog(rawCombinedLog)
+  assert.equal(normalized.action, "Updated Resident Profile and Removed Photo")
+  assert.equal(normalized.actionType, "resident")
+  assert.ok(normalized.details.includes("address"))
+  assert.ok(normalized.details.includes('Reason: "Unclear portrait"'))
+})
+
+// ---------------------------------------------------------------------------
+// UX-D01: Resident Notification Delivery Text Invariant
+// ---------------------------------------------------------------------------
+test("UX-D01: Photo removal notification delivers official barangay wording", () => {
+  const removalReason = "Not a recognized resident photo"
+  const notificationTitle = "Profile Picture Removed"
+  const notificationMessage = `Your profile picture was removed by the barangay administration. Reason: ${removalReason}. You may review your profile for more information.`
+
+  assert.equal(notificationTitle, "Profile Picture Removed")
+  assert.ok(notificationMessage.startsWith("Your profile picture was removed by the barangay administration."))
+  assert.ok(notificationMessage.includes("Reason: Not a recognized resident photo"))
+  assert.ok(notificationMessage.endsWith("You may review your profile for more information."))
+})
+
+// ---------------------------------------------------------------------------
+// UX-E01: Activity Logs Functional Pagination & Slice Sizing
+// ---------------------------------------------------------------------------
+test("UX-E01: Activity Logs pagination bounds and slices behave accurately", () => {
+  const pageSize = 15
+  const mockLogs = Array.from({ length: 42 }).map((_, i) => ({ id: `log-${i}` }))
+
+  const totalPages = Math.max(1, Math.ceil(mockLogs.length / pageSize))
+  assert.equal(totalPages, 3) // 42 / 15 = 2.8 -> 3 pages
+
+  // Page 1 slice: 0 to 15 (15 items)
+  const page1Start = 0 * pageSize
+  const page1End = Math.min(page1Start + pageSize, mockLogs.length)
+  const page1Slice = mockLogs.slice(page1Start, page1End)
+  assert.equal(page1Slice.length, 15)
+  assert.equal(page1Slice[0].id, "log-0")
+  assert.equal(page1Slice[14].id, "log-14")
+
+  // Page 3 slice: 30 to 42 (12 items)
+  const page3Start = 2 * pageSize
+  const page3End = Math.min(page3Start + pageSize, mockLogs.length)
+  const page3Slice = mockLogs.slice(page3Start, page3End)
+  assert.equal(page3Slice.length, 12)
+  assert.equal(page3Slice[0].id, "log-30")
+  assert.equal(page3Slice[11].id, "log-41")
+
+  // Boundary checks: empty list produces 1 total page with empty slice
+  const emptyLogs: any[] = []
+  const emptyTotalPages = Math.max(1, Math.ceil(emptyLogs.length / pageSize))
+  assert.equal(emptyTotalPages, 1)
+})

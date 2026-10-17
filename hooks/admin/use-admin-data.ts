@@ -246,11 +246,25 @@ export function useAdminData() {
         addResident: useCallback(async () => {
             throw new Error("Residents cannot be added manually. They must register through the resident portal to maintain data integrity.")
         }, []),
-        updateResident: useCallback(async (id: string, updates: Partial<AdminResident>, adminName?: string, residentName?: string, removePhotoReason?: string) => {
+        updateResident: useCallback(async (id: string, updates: Partial<AdminResident>, adminName?: string, residentName?: string, removePhotoReason?: string, originalEmail?: string) => {
             const { email, id: _id, role: _role, status: _status, isVerified: _verified, ...profileUpdates } = updates as any
-            if (email) await updateResidentIdentity(id, email, profileUpdates)
-            else await callAdminOperation("resident.update", { targetId: id, payload: { updates: profileUpdates, removePhotoReason } })
-        }, []),
+            const existingResident = residents.find(r => r.id === id)
+            const existingEmail = (originalEmail || existingResident?.email || "").trim().toLowerCase()
+            const targetEmail = typeof email === "string" ? email.trim().toLowerCase() : ""
+            const isEmailChanged = Boolean(targetEmail && existingEmail && targetEmail !== existingEmail)
+
+            if (isEmailChanged) {
+                await updateResidentIdentity(id, targetEmail, profileUpdates, removePhotoReason)
+            } else {
+                await callAdminOperation("resident.update", {
+                    targetId: id,
+                    payload: {
+                        updates: profileUpdates,
+                        removePhotoReason
+                    }
+                })
+            }
+        }, [residents]),
         deleteResident: useCallback(async (id: string, adminName?: string, residentName?: string) => {
             // Soft-delete instead of physical delete: Firebase Auth would let the user log back in
             // and auto-recreate a blank profile if the Firestore document were physically removed.

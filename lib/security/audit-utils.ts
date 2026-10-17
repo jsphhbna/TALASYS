@@ -281,8 +281,18 @@ export function normalizeAuditLog(raw: any): CanonicalAuditLog {
       action = `Updated Request to ${newStatus || "On Process"}`
       actionType = "request"
     }
+  } else if (rawAction === "resident.profilePhoto.remove") {
+    action = "Removed Resident Profile Picture"
+    actionType = "resident"
   } else if (rawAction === "resident.update") {
-    action = "Updated Resident Profile"
+    const isPhotoRemoval = (after?.profilePicture === "" || after?.profilePicture === null) && Boolean(before?.profilePicture)
+    if (isPhotoRemoval && Object.keys(after || {}).filter(k => k !== "updatedAt" && k !== "removePhotoReason").length === 1) {
+      action = "Removed Resident Profile Picture"
+    } else if (isPhotoRemoval) {
+      action = "Updated Resident Profile and Removed Photo"
+    } else {
+      action = "Updated Resident Profile"
+    }
     actionType = "resident"
   } else if (rawAction === "resident.activate") {
     action = "Activated Resident"
@@ -330,9 +340,16 @@ export function normalizeAuditLog(raw: any): CanonicalAuditLog {
       details = `Status set to ${after.status}`
     } else if (rawAction === "admin.create" && after?.email) {
       details = `New admin: ${after.name || "Admin"} (${after.role || "Admin"})`
+    } else if (rawAction === "resident.profilePhoto.remove") {
+      const reason = after?.removePhotoReason || raw?.removePhotoReason
+      details = reason ? `Reason: "${reason}"` : "Profile picture removed"
     } else if (rawAction === "resident.update" && after) {
-      const changed = Object.keys(after).filter(k => k !== "updatedAt")
-      details = changed.length ? `Updated: ${changed.join(", ")}` : "Profile updated"
+      const changed = Object.keys(after).filter(k => k !== "updatedAt" && k !== "removePhotoReason")
+      if (after?.removePhotoReason) {
+        details = changed.length ? `Updated: ${changed.join(", ")}; Reason: "${after.removePhotoReason}"` : `Reason: "${after.removePhotoReason}"`
+      } else {
+        details = changed.length ? `Updated: ${changed.join(", ")}` : "Profile updated"
+      }
     } else {
       details = action
     }

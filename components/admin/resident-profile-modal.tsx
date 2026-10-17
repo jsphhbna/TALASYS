@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { Loader2, AlertCircle, Undo2 } from "lucide-react"
+import { showToastPreset } from "@/lib/app-toast"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +30,10 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
   const [removePhotoReason, setRemovePhotoReason] = useState("")
   const [isFullImageOpen, setIsFullImageOpen] = useState(false)
   const [isPhotoLightboxOpen, setIsPhotoLightboxOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const isSubmittingRef = useRef(false)
 
   // Reset state when opened/closed and guard async race (#39)
   useEffect(() => {
@@ -113,6 +119,19 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose}>
       <Card onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl p-0 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+        {/* Save Error Banner */}
+        {saveError && (
+          <div className="px-6 py-3 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-800 flex items-center justify-between text-xs text-red-700 dark:text-red-300">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{saveError}</span>
+            </div>
+            <Button size="sm" variant="outline" onClick={handleSave} disabled={isSaving} className="h-7 text-xs border-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-700 dark:text-red-300">
+              Retry
+            </Button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50 dark:bg-slate-950">
           <div className="flex items-center gap-3">
@@ -145,7 +164,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                 Cancel
               </Button>
             )}
-            <button onClick={onClose} aria-label="Close modal" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md transition-colors ml-2">✕</button>
+            <button onClick={() => { if (!isSaving) onClose() }} disabled={isSaving} aria-label="Close modal" className={`p-1 rounded-md transition-colors ml-2 ${isSaving ? "opacity-40 cursor-not-allowed text-slate-300" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"}`}>✕</button>
           </div>
         </div>
 

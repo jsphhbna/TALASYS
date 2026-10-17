@@ -15,6 +15,8 @@ export default function ActivityLogs() {
   const { activityLogs, addActivityLog } = useAdminData()
   const [activeFilter, setActiveFilter] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 15
 
   const normalizedLogs = useMemo(() => activityLogs.map(normalizeAuditLog), [activityLogs])
 
@@ -138,7 +140,7 @@ export default function ActivityLogs() {
           {filters.map((filter) => (
             <button
               key={filter.id}
-              onClick={() => setActiveFilter(filter.id)}
+              onClick={() => { setActiveFilter(filter.id); setCurrentPage(1); }}
               className={`px-4 py-2 text-xs rounded-lg transition-colors ${activeFilter === filter.id ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"
                 }`}
             >
@@ -152,7 +154,7 @@ export default function ActivityLogs() {
             type="text"
             placeholder="Search logs..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             className="w-64 pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
           />
         </div>

@@ -93,16 +93,62 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     let after: Record<string, any> | null = null
     let notification: { id: string; value: Record<string, any> } | null = null
 
-    if (operation === "resident.update") {
+    if (operation === "resident.profilePhoto.remove") {
+      if (before.role !== "resident") throw httpError("Target is not a resident.", 403)
+      if (before.registrationDenied || before.deniedAt || (!before.isVerified && (before.status === "Deleted" || before.status === "Expired"))) {
+        throw httpError("Cannot update resident whose registration was permanently denied.", 409)
+      }
+      if (!before.profilePicture) {
+        throw httpError("Resident does not have a profile picture to remove.", 400)
+      }
+      const removePhotoReason = typeof payload.removePhotoReason === "string" ? payload.removePhotoReason.trim() : (typeof payload.reason === "string" ? payload.reason.trim() : "")
+      if (!removePhotoReason) {
+        throw httpError("A reason must be provided to remove a resident's profile picture.", 400)
+      }
+      after = { profilePicture: "", removePhotoReason, updatedAt: now }
+      notification = {
+        id: `resident-photo-${operationDocumentId(operationId)}`,
+        value: {
+          targetId,
+          type: "warning",
+          title: "Profile Picture Removed",
+          message: `Your profile picture was removed by the barangay administration. Reason: ${removePhotoReason}. You may review your profile for more information.`,
+          timestamp: "Just now",
+          isRead: false,
+          createdAt: now,
+          operationId,
+        },
+      }
+      transaction.update(targetRef, { profilePicture: "", updatedAt: now })
+    } else if (operation === "resident.update") {
       if (before.role !== "resident") throw httpError("Target is not a resident.", 403)
       if (before.registrationDenied || before.deniedAt || (!before.isVerified && (before.status === "Deleted" || before.status === "Expired"))) {
         throw httpError("Cannot update resident whose registration was permanently denied.", 409)
       }
       const updates = exactFields(safeObject(payload.updates), RESIDENT_PROFILE_FIELDS)
       if (!Object.keys(updates).length) throw httpError("No supported resident fields were supplied.", 400)
-      after = { ...updates, updatedAt: now }
-      if (typeof payload.removePhotoReason === "string" && payload.removePhotoReason.trim()) notification = { id: `resident-photo-${operationDocumentId(operationId)}`, value: { targetId, type: "warning", title: "Profile Picture Removed", message: `Your profile picture was removed by an administrator. Reason: ${payload.removePhotoReason.trim()}`, timestamp: "Just now", isRead: false, createdAt: now, operationId } }
-      transaction.update(targetRef, after)
+      const isPhotoRemoval = (updates.profilePicture === "" || updates.profilePicture === null) && Boolean(before.profilePicture)
+      const removePhotoReason = typeof payload.removePhotoReason === "string" ? payload.removePhotoReason.trim() : ""
+      if (isPhotoRemoval && !removePhotoReason) {
+        throw httpError("A reason must be provided to remove a resident's profile picture.", 400)
+      }
+      after = { ...updates, ...(isPhotoRemoval && removePhotoReason ? { removePhotoReason } : {}), updatedAt: now }
+      if (isPhotoRemoval && removePhotoReason) {
+        notification = {
+          id: `resident-photo-${operationDocumentId(operationId)}`,
+          value: {
+            targetId,
+            type: "warning",
+            title: "Profile Picture Removed",
+            message: `Your profile picture was removed by the barangay administration. Reason: ${removePhotoReason}. You may review your profile for more information.`,
+            timestamp: "Just now",
+            isRead: false,
+            createdAt: now,
+            operationId,
+          },
+        }
+      }
+      transaction.update(targetRef, updates.profilePicture === null ? { ...updates, profilePicture: "", updatedAt: now } : { ...updates, updatedAt: now })
     } else if (["resident.delete", "resident.deactivate", "resident.activate"].includes(operation)) {
       if (before.role !== "resident") throw httpError("Target is not a resident.", 403)
       if (before.registrationDenied || before.deniedAt || (!before.isVerified && (before.status === "Deleted" || before.status === "Expired"))) {
@@ -592,7 +638,8 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
     }
 
     if (notification) transaction.set(db.collection(COLLECTION_NOTIFICATIONS).doc(notification.id), notification.value)
-    transaction.create(auditRef, auditEvent(actor, operation, operationId, targetId, ipAddress, before, after, now, payloadHash))
+    const effectiveAuditAction = (operation === "resident.profilePhoto.remove" || (operation === "resident.update" && before?.profilePicture && (after?.profilePicture === "" || after?.profilePicture === null) && Object.keys(safeObject(payload.updates)).length === 1)) ? "resident.profilePhoto.remove" : operation
+    transaction.create(auditRef, auditEvent(actor, effectiveAuditAction, operationId, targetId, ipAddress, before, after, now, payloadHash))
     return { idempotent: false }
   })
 }

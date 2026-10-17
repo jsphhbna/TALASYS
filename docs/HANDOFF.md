@@ -1,6 +1,52 @@
+
+## DevKit V10 System Reliability & UI/UX Modernization Handoff (UX-A01–UX-N01)
+
+- **Date:** October 17, 2026
+- **Audited Baseline:** `f92705864f725405bfb01e67d91ba7e40b642fc5`
+- **Status:** COMPLETED & VERIFIED (Ready for Final Commit & Push)
+- **Automated Verification Summary:**
+  - Unit Tests: 299 / 299 PASS (100%)
+  - Firestore Emulator Integration Tests: 89 / 89 PASS (100%)
+  - Playwright Authenticated Role Tests: 41 / 41 PASS (100%)
+  - Typecheck: 0 errors (`tsc --noEmit`)
+  - Typecheck (Tests): 0 errors (`tsc --project tsconfig.test.json --noEmit`)
+  - Lint: 0 errors
+  - Production Build: 51 / 51 routes compiled successfully
+
+
 # TALASYS Remediation Handoff
 
-## Active handoff — 2026-10-17 (Final Pre-Manual Testing Patch & Acceptance Readiness: MT01–MT03)
+## Active handoff — 2026-10-17 (DevKit V10 System Reliability & UI/UX Modernization: UX-A01–UX-N01)
+
+Working branch: `main`. Baseline SHA: `f92705864f725405bfb01e67d91ba7e40b642fc5`.
+
+This milestone executes the unified Part 1 & Part 2 specification:
+1. **Milestone A (Repair Profile Photo & Email Operation Routing)**:
+   - In `hooks/admin/use-admin-data.ts`, authoritatively distinguish email updates from profile edits. Compare updates.email against target resident's authoritative email; route ordinary profile updates and photo removals to `resident.update`.
+   - In `app/api/admin/update-resident-email/route.ts`, pass `removePhotoReason` through so photo removal reasons and notifications are preserved even if an email is changed concurrently. Enforce server-side check ensuring unchanged emails bypass Firebase Auth mutation.
+2. **Milestone B (Transparent Photo Removal & Async Interaction Feedback)**:
+   - In `components/admin/resident-profile-modal.tsx`, provide staged 'Photo Removal Pending' banner with removal reason input and undo button. Display 'Saving Changes…' with a spinner; disable duplicate clicks; replace browser alert() with styled validation alert; provide recovery/retry on failure.
+3. **Milestone C (Authoritative Profile Photo Removal Audit Logging)**:
+   - In `app/api/admin/operations/route.ts`, record canonical audit action `resident.profilePhoto.remove` with actor, target, timestamp, removal reason, and before/after photo state. Map in `normalizeAuditLog()` to 'Removed Resident Profile Picture' under `actionType: "resident"`. Ensure discoverability in Activity Logs and Audit Logs.
+4. **Milestone D (Resident Notification Delivery)**:
+   - Persist in-app notification to affected resident with official barangay wording: 'Your profile picture was removed by the barangay administration. Reason: [reason]. You may review your profile for more information.'
+5. **Milestone E (System-Wide Interaction Reliability & Table Pagination)**:
+   - In `app/admin/logs/page.tsx`, implement functional pagination controls (page size, previous/next, active page, total records).
+6. **Milestone G & H (Layout Stability & Laptop-First Optimization)**:
+   - Standardize sidebar nav typography to fixed font weight (`font-medium`) with indicator bar to prevent layout jumping upon selection.
+   - Optimize spacing and density tokens across Admin and Super Admin workspaces to fit 1280x800 and 1366x768 at 100% zoom.
+7. **Milestone I (Mobile-First Resident Experience)**:
+   - Zero horizontal overflow across 320px–430px viewports; comfortable touch targets and accessible form controls.
+8. **Milestone J (Staff Small-Screen Advisory)**:
+   - Create `components/admin/layout/staff-mobile-advisory.tsx`: non-blocking, dismissible advisory ('For a Better Experience') displayed once per session on screens < 768px in staff workspaces.
+9. **Milestone K (Relocate Public Footer)**:
+   - Remove <Footer /> from root `app/layout.tsx` and render it strictly in `app/(landing)/layout.tsx`. Purge generic placeholder social media links.
+10. **Milestone L (Professional Barangay 634 Landing Page Redesign)**:
+    - Realign landing page with authentic Philippine local-government service portal identity for Barangay 634, Zone 64, District VI, City of Manila.
+11. **Milestones M & N (Design Consistency, WCAG 2.2 AA & Verification)**:
+    - Standardize design tokens; verify WCAG 2.2 AA accessibility and dark mode; execute multi-viewport Playwright regression tests.
+
+## Prior handoff — 2026-10-17 (Final Pre-Manual Testing Patch & Acceptance Readiness: MT01–MT03)
 
 Working branch: `main`. Baseline SHA: `e83f35c776e98669f713c9db43269723710d31a1`.
 

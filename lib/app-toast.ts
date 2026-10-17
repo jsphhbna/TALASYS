@@ -107,6 +107,23 @@ const presets = {
     description: "You are clicking too fast! Please wait 5 seconds.",
     variant: "destructive",
   },
+  residentPhotoRemoved: {
+    title: "Profile picture removed",
+    description: "The resident profile picture was removed and logged successfully.",
+  },
+  residentProfileUpdated: {
+    title: "Profile updated",
+    description: "Resident profile changes were saved successfully.",
+  },
+  noChangesDetected: {
+    title: "No changes",
+    description: "No profile changes were detected.",
+  },
+  photoRemovalReasonRequired: {
+    title: "Removal reason required",
+    description: "Please provide a reason for removing the profile picture.",
+    variant: "destructive",
+  },
 } as const satisfies Record<string, ToastPreset>
 
 export type ToastPresetKey = keyof typeof presets

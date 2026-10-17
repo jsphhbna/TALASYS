@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useAuthGuard } from "@/hooks/auth/use-auth-guard"
 import { useInactivityTimeout } from "@/hooks/auth"
 import { AdminSecurityDisclaimer } from "@/components/admin/admin-security-disclaimer"
+import { StaffMobileAdvisory } from "@/components/admin/layout/staff-mobile-advisory"
 import { isRouteAllowedForRole, getAllowedLandingPage } from "@/lib/auth"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <>
       <AdminSecurityDisclaimer />
+      <StaffMobileAdvisory />
       {children}
     </>
   )

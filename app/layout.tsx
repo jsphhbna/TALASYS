@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/lib/auth"
 import { NavigationLoadingProvider } from "@/components/providers/navigation-loading-provider"
-import { Footer } from "@/components/layout/footer"
 import { ResidentMobileNavGate } from "@/components/resident/layout/resident-mobile-nav-gate"
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "sonner"
@@ -46,7 +45,6 @@ export default function RootLayout({
             <NavigationLoadingProvider>
               <div className="flex-1 flex flex-col page-transition" suppressHydrationWarning>{children}</div>
               <ResidentMobileNavGate />
-              <Footer />
               <Toaster />
               <SonnerToaster richColors position="top-right" />
             </NavigationLoadingProvider>

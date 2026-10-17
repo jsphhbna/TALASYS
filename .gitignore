@@ -37,6 +37,8 @@ next-env.d.ts
 # ai entry point
 GEMINI.md
 AGENTS.md
+scripts
+v10
 
 # audit 
 TALASYS-combined-audit.md
