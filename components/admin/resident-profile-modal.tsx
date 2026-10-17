@@ -35,22 +35,56 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
   const [saveError, setSaveError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const isSubmittingRef = useRef(false)
+  const isMountedRef = useRef(true)
+  const currentResidentIdRef = useRef<string | null>(null)
 
-  // Reset state when opened/closed and guard async race (#39)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // Authoritative dismissal guard preventing any close event while a save is in flight
+  const isOperationLocked = isSaving || isSubmittingRef.current
+  const handleSafeClose = () => {
+    if (isSaving || isSubmittingRef.current) return
+    onClose()
+  }
+
+  // Reset state when opened/closed and guard async race (#39, R01)
   useEffect(() => {
     let isCurrent = true
     if (isOpen && resident) {
-      setIsEditMode(false)
-      setDocuments([])
-      setValidIdUrl(null)
-      setFormData({
-        name: resident.name,
-        contactNumber: resident.contactNumber,
-        email: resident.email,
-        dateOfBirth: resident.dateOfBirth,
-        address: resident.address,
-        profilePicture: resident.profilePicture || "",
-      })
+      const isNewResident = currentResidentIdRef.current !== resident.id
+      currentResidentIdRef.current = resident.id
+
+      if (isNewResident) {
+        setIsEditMode(false)
+        setDocuments([])
+        setValidIdUrl(null)
+        setRemovePhotoReason("")
+        setValidationError(null)
+        setSaveError(null)
+        setFormData({
+          name: resident.name,
+          contactNumber: resident.contactNumber,
+          email: resident.email,
+          dateOfBirth: resident.dateOfBirth,
+          address: resident.address,
+          profilePicture: resident.profilePicture || "",
+        })
+      } else if (!isEditMode && !isSaving && !isSubmittingRef.current) {
+        // Authoritative background snapshot for current resident only applies when not editing or saving
+        setFormData({
+          name: resident.name,
+          contactNumber: resident.contactNumber,
+          email: resident.email,
+          dateOfBirth: resident.dateOfBirth,
+          address: resident.address,
+          profilePicture: resident.profilePicture || "",
+        })
+      }
       
       // Fetch documents (Valid ID) from verifications collection
       const fetchDocs = async () => {
@@ -93,6 +127,9 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       }
       fetchDocs()
     } else {
+      if (!isOpen) {
+        currentResidentIdRef.current = null
+      }
       setDocuments([])
       setValidIdUrl(null)
     }
@@ -100,7 +137,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
     return () => {
       isCurrent = false
     }
-  }, [isOpen, resident])
+  }, [isOpen, resident, isEditMode, isSaving])
 
   if (!isOpen || !resident) return null
 
@@ -117,6 +154,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       return
     }
 
+    const savingResidentId = resident.id
     setValidationError(null)
     setSaveError(null)
     setIsSaving(true)
@@ -138,7 +176,12 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
         return
       }
 
-      await updateResident(resident.id, updates, adminName, resident.name, trimmedReason)
+      await updateResident(savingResidentId, updates, adminName, resident.name, trimmedReason)
+
+      // Guard against race condition: if component unmounted or resident switched during flight, do not mutate state
+      if (!isMountedRef.current || currentResidentIdRef.current !== savingResidentId) {
+        return
+      }
 
       if (updates.profilePicture === "") {
         showToastPreset("residentPhotoRemoved")
@@ -151,6 +194,9 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       setValidationError(null)
     } catch (err: any) {
       console.error("Failed to update resident profile:", err)
+      if (!isMountedRef.current || currentResidentIdRef.current !== savingResidentId) {
+        return
+      }
       const errorMsg = err?.message || "Failed to save profile changes. Please try again."
       setSaveError(errorMsg)
       toast({
@@ -160,14 +206,16 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       })
     } finally {
       isSubmittingRef.current = false
-      setIsSaving(false)
+      if (isMountedRef.current) {
+        setIsSaving(false)
+      }
     }
   }
 
   const canEdit = userRole === "SuperAdmin" || userRole === "Super Admin" || userRole === "Full Access" || userRole === "admin" || userRole === "Resident Management"
 
   return (
-    <ModalOverlay isOpen={isOpen} onClose={onClose}>
+    <ModalOverlay isOpen={isOpen} onClose={handleSafeClose}>
       <Card onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl p-0 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         {/* Save Error Banner */}
         {saveError && (
@@ -194,12 +242,13 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
           </div>
           <div className="flex items-center gap-2">
             {canEdit && !isEditMode && (
-              <Button onClick={() => setIsEditMode(true)} variant="outline" size="sm" className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+              <Button onClick={() => setIsEditMode(true)} disabled={isSaving} variant="outline" size="sm" className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
                 Edit Profile
               </Button>
             )}
             {isEditMode && (
               <Button onClick={() => {
+                if (isOperationLocked) return
                 setIsEditMode(false)
                 setRemovePhotoReason("")
                 setValidationError(null)
@@ -216,7 +265,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                 Cancel
               </Button>
             )}
-            <button onClick={() => { if (!isSaving) onClose() }} disabled={isSaving} aria-label="Close modal" className={`p-1 rounded-md transition-colors ml-2 ${isSaving ? "opacity-40 cursor-not-allowed text-slate-300" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"}`}>✕</button>
+            <button onClick={handleSafeClose} disabled={isSaving} aria-label="Close modal" className={`p-1 rounded-md transition-colors ml-2 ${isSaving ? "opacity-40 cursor-not-allowed text-slate-300" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"}`}>✕</button>
           </div>
         </div>
 
@@ -283,6 +332,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                     type="button"
                     disabled={isSaving}
                     onClick={() => {
+                      if (isOperationLocked) return
                       setFormData({ ...formData, profilePicture: resident.profilePicture })
                       setRemovePhotoReason("")
                       setValidationError(null)
@@ -298,12 +348,13 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                 <input 
                   type="text" 
                   value={formData.name || ''} 
+                  disabled={isSaving}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 bg-transparent border-b-2 border-slate-200 dark:border-slate-700 focus:border-[#0C2340] dark:focus:border-blue-400 outline-none w-full max-w-sm mb-1 px-1 -ml-1 transition-colors"
+                  className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 bg-transparent border-b-2 border-slate-200 dark:border-slate-700 focus:border-[#0C2340] dark:focus:border-blue-400 outline-none w-full max-w-sm mb-1 px-1 -ml-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Full Name"
                 />
               ) : (
-                <h2 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 truncate">{resident.name}</h2>
+                <h2 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 truncate">{formData.name || resident.name}</h2>
               )}
               
               <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -333,9 +384,9 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                 <div>
                   <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Date of Birth</label>
                   {isEditMode ? (
-                    <Input type="date" value={formData.dateOfBirth || ''} onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })} className="h-8 text-xs px-2" />
+                    <Input type="date" value={formData.dateOfBirth || ''} disabled={isSaving} onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })} className="h-8 text-xs px-2 disabled:opacity-50 disabled:cursor-not-allowed" />
                   ) : (
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{resident.dateOfBirth || "N/A"}</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{formData.dateOfBirth || resident.dateOfBirth || "N/A"}</p>
                   )}
                 </div>
                 <div>
@@ -347,9 +398,9 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               <div>
                 <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Address</label>
                 {isEditMode ? (
-                  <Input value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} className="h-8 text-xs px-2" />
+                  <Input value={formData.address || ''} disabled={isSaving} onChange={e => setFormData({ ...formData, address: e.target.value })} className="h-8 text-xs px-2 disabled:opacity-50 disabled:cursor-not-allowed" />
                 ) : (
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{resident.address || "N/A"}</p>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{formData.address || resident.address || "N/A"}</p>
                 )}
               </div>
             </div>
@@ -362,9 +413,9 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                 <div>
                   <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Contact Number</label>
                   {isEditMode ? (
-                    <Input value={formData.contactNumber || ''} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} className="h-8 text-xs px-2" maxLength={11} />
+                    <Input value={formData.contactNumber || ''} disabled={isSaving} onChange={e => setFormData({ ...formData, contactNumber: e.target.value })} className="h-8 text-xs px-2 disabled:opacity-50 disabled:cursor-not-allowed" maxLength={11} />
                   ) : (
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{resident.contactNumber || "N/A"}</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{formData.contactNumber || resident.contactNumber || "N/A"}</p>
                   )}
                 </div>
                 <div>
@@ -376,9 +427,9 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
               <div>
                 <label className="block text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Email Address</label>
                 {isEditMode ? (
-                  <Input type="email" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} className="h-8 text-xs px-2" />
+                  <Input type="email" value={formData.email || ''} disabled={isSaving} onChange={e => setFormData({ ...formData, email: e.target.value })} className="h-8 text-xs px-2 disabled:opacity-50 disabled:cursor-not-allowed" />
                 ) : (
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{resident.email || "N/A"}</p>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{formData.email || resident.email || "N/A"}</p>
                 )}
               </div>
             </div>
@@ -408,7 +459,11 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
                         recordId={doc.verificationId}
                         recordType="verification"
                         className="w-full h-auto object-cover max-h-48 bg-slate-100 dark:bg-slate-800"
-                        onZoom={(signedUrl) => { setValidIdUrl(signedUrl); setIsFullImageOpen(true) }}
+                        onZoom={(signedUrl) => {
+                          if (isSaving) return
+                          setValidIdUrl(signedUrl)
+                          setIsFullImageOpen(true)
+                        }}
                       />
                     </div>
                   </div>
@@ -427,9 +482,11 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
         {isEditMode && (
           <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3 shrink-0">
             <Button
+              type="button"
               variant="outline"
               disabled={isSaving}
               onClick={() => {
+                if (isOperationLocked) return
                 setIsEditMode(false)
                 setRemovePhotoReason("")
                 setValidationError(null)
@@ -466,10 +523,11 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       </Card>
 
       {/* Full Image Modal */}
-      <ModalOverlay isOpen={isFullImageOpen && !!validIdUrl} onClose={() => setIsFullImageOpen(false)} className="bg-black/90 z-[60]">
+      <ModalOverlay isOpen={isFullImageOpen && !!validIdUrl} onClose={() => { if (!isSaving) setIsFullImageOpen(false) }} className="bg-black/90 z-[60]">
         <button 
-          onClick={() => setIsFullImageOpen(false)}
-          className="absolute top-4 right-4 text-white hover:text-slate-300 p-2 rounded-full bg-black/50 hover:bg-black/80 transition-colors"
+          onClick={() => { if (!isSaving) setIsFullImageOpen(false) }}
+          disabled={isSaving}
+          className="absolute top-4 right-4 text-white hover:text-slate-300 p-2 rounded-full bg-black/50 hover:bg-black/80 transition-colors disabled:opacity-40"
         >
           ✕
         </button>
@@ -481,10 +539,11 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       </ModalOverlay>
 
       {/* Profile Photo Lightbox */}
-      <ModalOverlay isOpen={isPhotoLightboxOpen && !!validIdUrl} onClose={() => setIsPhotoLightboxOpen(false)} className="bg-black/90 z-[70] flex-col">
+      <ModalOverlay isOpen={isPhotoLightboxOpen && !!validIdUrl} onClose={() => { if (!isSaving) setIsPhotoLightboxOpen(false) }} className="bg-black/90 z-[70] flex-col">
         <button
-          onClick={() => setIsPhotoLightboxOpen(false)}
-          className="absolute top-4 right-4 text-white hover:text-slate-300 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+          onClick={() => { if (!isSaving) setIsPhotoLightboxOpen(false) }}
+          disabled={isSaving}
+          className="absolute top-4 right-4 text-white hover:text-slate-300 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-40"
         >
           ✕
         </button>
@@ -504,6 +563,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
             <button
               disabled={isSaving}
               onClick={() => {
+                if (isOperationLocked) return
                 setFormData({ ...formData, profilePicture: "" })
                 setIsPhotoLightboxOpen(false)
                 if (!isEditMode) setIsEditMode(true)

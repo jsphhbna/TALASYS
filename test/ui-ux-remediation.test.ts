@@ -497,6 +497,7 @@ test("FX-05 & FX-06: Public footer and landing page content assertions", async (
   assert.ok(!servicesSource.includes("official barangay watermarks"), "Unverified watermarks claim must be removed")
 
   const howItWorksSource = fs.readFileSync("components/landing/how-it-works-section.tsx", "utf-8")
-  assert.ok(howItWorksSource.includes("Download your verified document directly from your resident portal"), "Step 5 must advertise direct digital download and on-site pickup")
+  assert.ok(howItWorksSource.includes("Track your request online and follow the barangay's instructions for collecting your signed official copy at the Barangay Hall"), "Step 5 reflects truthful on-site document claiming")
+  assert.ok(!howItWorksSource.includes("Download your verified document directly from your resident portal"), "Unsupported direct resident portal download claim must be removed")
   assert.ok(!howItWorksSource.includes("dry seal at the Barangay Hall"), "Step 5 must not require dry-seal claiming exclusively")
 })

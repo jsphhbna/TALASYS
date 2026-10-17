@@ -1,10 +1,10 @@
 # TALASYS — Hands-On Acceptance Test Plan
 
-**Document Version:** 1.2.0 (FX-01–FX-07 UI/UX Remediation & Independent Verification)
+**Document Version:** 1.3.0 (R01–R04 Final Focused Defect Closure & Hands-On Testing Readiness)
 **Target Environment:** Local Staging / Deployed Acceptance Environment
 **Repository:** `jsphhbna/TALASYS`
 **Branch:** `main`
-**Baseline Verified Commit:** `441d8a6fdbe1109a3ba8a3d0ecf02517079129a1`
+**Baseline Verified Commit:** `a4dc9bbf0860b8852162e92d5cf8b25c928c9715`
 **Framework:** DevKit V10 (Alpha 3 / Adaptive Intelligence)
 **Testing Execution Model:** Human manual execution with tabular evidence capture
 
@@ -19,9 +19,9 @@ Before human testers execute manual acceptance tests, the project lifecycle must
 | Readiness Gate | Definition | Current Status | Verification Criteria |
 |---|---|---|---|
 | **Stage 1: Source Ready** | The code is committed, working tree is clean, and application builds without errors. | **VERIFIED** | `git status` clean, `npm run build` exits 0 (51/51 routes), no syntax or compilation defects. |
-| **Stage 2: Locally Verified** | Required automated unit, integration, emulator, and E2E regression test suites pass cleanly. | **VERIFIED** | `npm test` (302/302), `npm run test:rules` (90/90), `npm run test:e2e:auth` (41/41), `npm run typecheck` (0 errors), `npm run typecheck:test` (0 errors), `npm run lint` (0 errors) pass across two consecutive clean stability passes. |
+| **Stage 2: Locally Verified** | Required automated unit, integration, emulator, and E2E regression test suites pass cleanly. | **VERIFIED** | `npm test` (302/302), `npm run test:rules` (90/90), `npm run test:e2e:auth` (44/44), `npm run typecheck` (0 errors), `npm run typecheck:test` (0 errors), `npm run lint` (0 errors) pass across two consecutive clean stability passes. |
 | **Stage 3: Staging Ready** | The tested application, Firestore database/emulator, Cloudinary storage, and test accounts are provisioned in the intended staging environment. | **PENDING STAGING PROVISIONING** | Staging environment spun up; environment variables configured; Firestore rules deployed; Cloudinary upload preset operational. |
-| **Stage 4: Manual Testing Started** | Human testers have actively executed test cases across resident, administrative, and superadmin roles. | **NOT STARTED** | Manual testers begin stepping through scenarios in Sections B through H. |
+| **Stage 4: Manual Testing Started** | Human testers have actively executed test cases across resident, administrative, and superadmin roles. | **NOT STARTED** | Manual testers begin stepping through scenarios in Sections B through I. |
 | **Stage 5: Acceptance Passed** | All required manual scenarios have passed or have formally documented, accepted limitations approved by stakeholders. | **PENDING** | All test cases in this plan have recorded `Status: PASS` or approved `Accepted Limitation` in `docs/HANDS_ON_DEFECT_REGISTER.md`. |
 
 > [!IMPORTANT]
@@ -306,3 +306,16 @@ Testers must manually execute the following 7 targeted scenarios to verify the F
 | **TC-MAN-05** | Laptop display density & nav stability (FX-07) | 1. Set browser zoom to 100% on a 1366 × 768 or 1280 × 800 viewport.<br>2. Navigate between Admin Dashboard, Resident Management, and Document Requests.<br>3. Verify readable density, compact cards, and accessible controls.<br>4. Repeat for Super Admin Dashboard, Admin Management, and Audit Logs.<br>5. Observe sidebar navigation items during route transitions: confirm font weight remains constant (`font-medium`) and nav items do not shift or resize. | Layout fits comfortably without horizontal scrolling; navigation items produce zero text expansion or visual jumping. | NOT RUN |
 | **TC-MAN-06** | Resident mobile experience (FX-07) | 1. Emulate or open on mobile viewports (360 × 800 and 390 × 844).<br>2. Step through Resident registration, login, document request, payment controls, history, notifications, and profile editing.<br>3. Verify touch targets are >= 44px.<br>4. Confirm zero unintended horizontal scrolling across all screens. | Mobile resident experience is fluid, fully responsive, and free of horizontal overflow. | NOT RUN |
 | **TC-MAN-07** | Public landing page factual integrity & footer scoping (FX-05, FX-06) | 1. Open `/`.<br>2. Verify Barangay 634 institutional presentation, Available Services, and How It Works steps.<br>3. Confirm no unsupported features (household management, document watermarks, mandatory dry seals) are advertised.<br>4. Inspect the footer on `/`: verify absence of placeholder Twitter/Facebook/LinkedIn links.<br>5. Navigate to `/legal`, `/auth/login`, and `/resident/dashboard`.<br>6. Confirm the public footer is strictly absent on all sub-pages and authenticated workspaces. | Public landing page is factual and authentic; footer is strictly scoped to `/` and contains valid institutional information. | NOT RUN |
+
+---
+
+## SECTION I — FINAL DEFECT CLOSURE SPECIFIC SCENARIOS (R01–R04)
+
+Testers must manually execute the following 4 targeted scenarios to verify the final defect closure:
+
+| Scenario ID | Test Workflow | Steps | Expected Result | Status |
+|---|---|---|---|---|
+| **TC-R01-01** | Modal in-flight dismissal guard & input locking (R01) | 1. Log in as an Admin (`/admin/residents`).<br>2. Open a Resident profile modal and click Edit Profile.<br>3. Click Remove Photo, enter removal reason.<br>4. Click Save Changes.<br>5. While "Saving Changes…" spinner is active, immediately:<br>   a. Click the modal backdrop.<br>   b. Press the Escape key.<br>   c. Click the `✕` close button.<br>   d. Click Cancel / Discard Changes.<br>   e. Attempt to edit the Name or Address inputs.<br>   f. Click Save again.<br>6. Verify all dismissal attempts are completely blocked, all inputs are disabled, and exactly one save operation executes.<br>7. Confirm the modal refreshes and displays updated data once save completes. | Modal remains locked on screen throughout save flight; all inputs are non-editable; modal safely closes only after completion. | NOT RUN |
+| **TC-R02-01** | Authenticated Admin-to-Resident notification delivery (R02) | 1. Log in as Admin and navigate to `/admin/residents`.<br>2. Remove a target Resident's photo with reason: "Automated acceptance test verification".<br>3. Confirm save completes.<br>4. Log out of Admin.<br>5. Log in as the affected Resident.<br>6. Navigate to `/resident/notifications`.<br>7. Confirm notification appears with title "Profile Picture Removed" and includes the exact reason.<br>8. Verify unread indicator.<br>9. Click "Mark all as read".<br>10. Refresh the page.<br>11. Confirm read state persists across page reloads. | End-to-end delivery from Admin removal to Resident UI notification verified with matching reason and persistent read state. | NOT RUN |
+| **TC-R03-01** | Landing page document fulfillment accuracy (R03) | 1. Open public landing page `/`.<br>2. Scroll to "How It Works" section, Step 05.<br>3. Inspect the step title and description.<br>4. Verify the copy states: "Track your request online and follow the barangay's instructions for collecting your signed official copy at the Barangay Hall."<br>5. Confirm that no unsupported direct portal PDF download is promised to residents. | Marketing copy accurately describes physical pickup of signed official documents at the Barangay Hall. | NOT RUN |
+| **TC-R04-01** | Multi-viewport responsive layout stability (R04) | 1. Test laptops: 1024x768, 1280x720, 1280x800, 1366x768, 1440x900, 1920x1080 at 100% zoom and 1366x768 at 125% zoom.<br>2. Open `/admin/logs`, `/admin/dashboard`, `/superadmin/audit`, `/resident/dashboard`.<br>3. Verify zero horizontal overflow on any screen.<br>4. Verify `/admin/logs` filter buttons wrap/scroll cleanly without pushing the stage width.<br>5. Test mobile viewports: 320x568, 360x800, 375x667, 390x844, 412x915, 430x932.<br>6. Verify zero horizontal overflow and comfortable readability across all mobile views. | All pages render with zero horizontal overflow, stable navigation width, and comfortable touch/desktop density. | NOT RUN |

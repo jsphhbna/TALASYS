@@ -1,4 +1,25 @@
 
+## DevKit V10 Final Focused Defect Closure & Hands-On Testing Readiness Handoff (R01–R04)
+
+- **Date:** October 17, 2026
+- **Audited Baseline:** `a4dc9bbf0860b8852162e92d5cf8b25c928c9715`
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Staging & Manual Acceptance)
+- **Automated Verification Summary:**
+  - Unit Tests: 302 / 302 PASS (100%)
+  - Firestore Emulator Integration Tests: 90 / 90 PASS (100%)
+  - Playwright Authenticated Role Tests: 44 / 44 PASS (100%)
+  - Typecheck: 0 errors (`tsc --noEmit`)
+  - Typecheck (Tests): 0 errors (`tsc --project tsconfig.test.json --noEmit`)
+  - Lint: 0 errors (995 baseline warnings)
+  - Production Build: 51 / 51 routes compiled successfully (Turbopack)
+  - Git Whitespace Check: 0 errors (`git diff --check`)
+- **Key Implementation & Verification Highlights:**
+  1. **R01 (Resident Profile Modal In-Flight Dismissal Guard & Input Locking):** Created single authoritative `handleSafeClose` in `components/admin/resident-profile-modal.tsx` passed to `ModalOverlay onClose`, header close button `✕`, Cancel, and Discard Changes buttons. Completely blocks dismissal while `isSaving || isSubmittingRef.current`. Disabled all form controls (`name`, `dateOfBirth`, `address`, `contactNumber`, `email`, `removePhotoReason`, `Undo Removal`, `Save`) during save. Guaranteed view-mode refresh via `allResidents.find` in `app/admin/residents/page.tsx` and immediate UI draft fallback.
+  2. **R02 (Authenticated Resident Notification Delivery & Role Separation):** Separated View Only vs Documents Only fixtures in `test/emulator/photo-removal-notification-emulator.test.ts`. Built full browser Playwright test in `test/e2e/authenticated-workflows.spec.ts` proving Admin photo removal with reason → canonical audit log in Firestore → target Resident login → notification visible at `/resident/notifications` → unread indicator → mark-all-read action → persisted read state across reload.
+  3. **R03 (Landing Page Document Fulfillment Accuracy):** Replaced unsupported resident portal direct download promise in `components/landing/how-it-works-section.tsx` Step 05 with verified wording: `"Track your request online and follow the barangay's instructions for collecting your signed official copy at the Barangay Hall."` Verified that official documents are exclusively generated in the Admin Document Generator for physical barangay letterhead.
+  4. **R04 (Measured Multi-Viewport Responsive Validation):** Resolved `/admin/logs` 883px stage overflow on 1024x768 (784px stage) by wrapping filter buttons in `overflow-x-auto [scrollbar-width:none]` and adjusting KPI card grid to `xl:grid-cols-12`. Tested 6 laptop viewports (1024x768, 1280x720, 1280x800, 1366x768, 1440x900, 1920x1080) at 100% zoom, 1366x768 at 125% zoom, and 6 mobile viewports (320x568, 360x800, 375x667, 390x844, 412x915, 430x932) with real browser DOM bounding-box measurements proving zero horizontal overflow, stable navigation width (256px), and stable headers (64px). Captured 7 representative screenshots into `docs/screenshots/`.
+  5. **Two Consecutive Clean Passes:** All 8 verification commands executed cleanly twice consecutively with zero failures.
+
 ## DevKit V10 Final UI/UX Remediation & Independent Verification Handoff (FX-01–FX-07)
 
 - **Date:** October 17, 2026

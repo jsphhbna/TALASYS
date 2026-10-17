@@ -1,4 +1,26 @@
 
+## ADR-030: DevKit V10 Final Focused Defect Closure & Hands-On Testing Readiness (R01–R04)
+
+- **Date:** October 17, 2026
+- **Status:** APPROVED & IMPLEMENTED
+- **Context:**
+  Independent audit of baseline `a4dc9bbf0860b8852162e92d5cf8b25c928c9715` identified four remaining findings requiring targeted closure and measurable proof before manual testing:
+  1. `components/admin/resident-profile-modal.tsx` still passed the raw `onClose` callback to `ModalOverlay`, enabling dismissal via Escape, backdrop clicks, and container clicks while an asynchronous mutation was in flight. Form controls were also editable during save (R01).
+  2. The photo-removal notification emulator suite verified backend persistence but lacked verified end-to-end delivery into an authenticated Resident browser session, and mislabeled Documents Only test accounts as View Only (R02).
+  3. `components/landing/how-it-works-section.tsx` Step 05 promised resident portal direct PDF downloads of issued official documents, whereas TALASYS generates official certificates exclusively in the Admin generator for physical barangay letterhead stationery (R03).
+  4. Viewport usability claims lacked comprehensive authenticated browser measurements across laptop and mobile viewports, and `/admin/logs` caused horizontal stage expansion on 1024x768 screens (R04).
+- **Decisions:**
+  1. **Authoritative Dismissal Guard & Input Locking (R01):** In `resident-profile-modal.tsx`, wire `handleSafeClose` to intercept all dismissal paths (Escape key, backdrop click, container click, header close button `✕`, Cancel, and Discard Changes). If `isSaving || isSubmittingRef.current`, abort dismissal immediately. Synchronously disable all input fields (`name`, `dateOfBirth`, `address`, `contactNumber`, `email`, `removePhotoReason`, `Undo Removal`, `Save`) during save. Add lifecycle refs `isMountedRef` and `currentResidentIdRef` to protect against unmounting races and resident switching mid-flight. Refresh view mode from updated data or local draft.
+  2. **End-to-End Resident Notification Browser Verification (R02):** In `test/emulator/photo-removal-notification-emulator.test.ts`, separate `View Only` and `Documents Only` fixtures with explicit 403 checks, and add `@firebase/rules-unit-testing` checks for resident read, `isRead: true` update, body immutability, and cross-resident isolation. In `test/e2e/authenticated-workflows.spec.ts`, build an authenticated multi-role browser test: Admin removes resident photo with reason → verifies Firestore mutation and canonical audit log (`normalizeAuditLog`) → Resident logs in → verifies notification displays at `/resident/notifications` with reason and unread state → marks all read → reloads and verifies persistent read state.
+  3. **Truthful Public Fulfillment Messaging (R03):** Maintain institutional honesty without adding a speculative resident-facing PDF delivery engine. Update Step 05 description in `components/landing/how-it-works-section.tsx` to: `"Track your request online and follow the barangay's instructions for collecting your signed official copy at the Barangay Hall."` Update regression tests in `test/ui-ux-remediation.test.ts`.
+  4. **Multi-Viewport Measurement & Activity Logs Sizing (R04):** In `app/admin/logs/page.tsx`, wrap the 7 filter buttons in an `overflow-x-auto [scrollbar-width:none]` container and adjust KPI card grid to `xl:grid-cols-12` so the stage width does not exceed 784px on a 1024x768 screen. In `test/e2e/authenticated-workflows.spec.ts`, measure exact DOM geometry across 6 laptop viewports (1024x768 to 1920x1080 + 1366x768 at 125% zoom) and 6 mobile viewports (320x568 to 430x932), asserting zero horizontal overflow, stable navigation width (256px), and stable headers (64px). Capture 7 representative screenshots into `docs/screenshots/`.
+- **Consequences:**
+  1. Profile modal mutations cannot be dismissed mid-flight by any key or click, preventing inconsistent state or corrupted drafts.
+  2. Resident notification delivery is proven through real authenticated browser interaction from administrative trigger to resident mark-as-read.
+  3. Public claims strictly reflect actual barangay document issuance processes.
+  4. Workspaces are verified responsive and overflow-free across all target laptop and mobile resolutions with screenshot evidence.
+  5. 100% test pass rate across 302 unit, 90 rules/emulator, 44 Playwright authenticated tests, 0 typecheck errors, 0 lint errors, and 51/51 routes clean build across two consecutive passes.
+
 ## ADR-029: DevKit V10 Final UI/UX Remediation & Independent Verification (FX-01–FX-07)
 
 - **Date:** October 17, 2026

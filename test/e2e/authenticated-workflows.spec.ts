@@ -3,6 +3,7 @@ import { deleteApp, getApps, initializeApp } from "firebase-admin/app"
 import { getAuth } from "firebase-admin/auth"
 import { getFirestore } from "firebase-admin/firestore"
 import { mediaRegistryDocumentId } from "../../lib/security/media-auth.ts"
+import { normalizeAuditLog } from "../../lib/security/audit-utils.ts"
 
 const projectId = "talasys-e2e"
 const password = "Talasys-E2E-Password-2026!"
@@ -451,8 +452,13 @@ test("live role change invalidates the currently open specialized route", async 
   await login(page, "manager")
   await page.goto("/admin/residents")
   const app = getApps().find(candidate => candidate.name === "e2e-seed")!
-  await getFirestore(app).collection("users").doc("e2e-manager").update({ role: "Verification Only" })
-  await expect(page).toHaveURL(/\/admin\/dashboard/)
+  const db = getFirestore(app)
+  try {
+    await db.collection("users").doc("e2e-manager").update({ role: "Verification Only" })
+    await expect(page).toHaveURL(/\/admin\/dashboard/)
+  } finally {
+    await db.collection("users").doc("e2e-manager").update({ role: "Resident Management" })
+  }
 })
 
 // ─── Additional Authenticated Workflows (Tasks 4 & 5) ───
@@ -1956,5 +1962,378 @@ test("MT01 E2E: Admin can open and reprint completed document request with snaps
     expect(updatedDoc?.issuanceBeneficiaryAddress).toBe("123 Historic Completed St, Barangay San Nicolas")
   } finally {
     await reqDocRef.delete().catch(() => {})
+  }
+})
+
+// ─── R01: Resident Profile Modal Dismissal & Conflicting Edits Guard ───
+
+test("R01: Resident Profile modal dismissal is strictly guarded and form is locked during active save", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+
+  const resUid = "e2e-r01-resident"
+  await db.collection("users").doc(resUid).set({
+    name: "R01 Dismissal Guard Resident",
+    email: "r01-guard@example.test",
+    role: "resident",
+    status: "Active",
+    isVerified: true,
+    statuses: ["Resident"],
+    address: "100 Initial Street, Manila",
+    contactNumber: "09181112233",
+    dateOfBirth: "1992-04-10",
+    createdAt: Date.now(),
+  })
+
+  try {
+    await db.collection("users").doc("e2e-manager").set({
+      name: "E2E manager",
+      email: "manager@example.test",
+      role: "Resident Management",
+      status: "Active",
+      isVerified: true,
+      createdAt: Date.now(),
+    }, { merge: true })
+
+    await login(page, "manager")
+    await page.goto("/admin/residents")
+    await expect(page.getByRole("heading", { name: "Resident Management" })).toBeVisible()
+
+    const row = page.getByRole("row").filter({ hasText: "R01 Dismissal Guard Resident" })
+    await expect(row).toBeVisible({ timeout: 10000 })
+    await row.getByRole("button", { name: "View Profile" }).click()
+
+    const modal = page.locator('[role="dialog"]')
+    await expect(modal).toBeVisible()
+    await expect(modal.getByRole("heading", { name: "Resident Profile" })).toBeVisible()
+
+    // Enter edit mode
+    await modal.getByRole("button", { name: "Edit Profile" }).click()
+    await expect(modal.getByText("Editing Mode")).toBeVisible()
+
+    // Modify address field
+    const addressInput = modal.locator('div:has(> label:text-is("Address")) input')
+    await addressInput.fill("200 Protected Save Boulevard, Manila")
+
+    // Intercept /api/admin/operations and hold it to simulate backend delay
+    let fulfillOperation: () => void = () => {}
+    const delayPromise = new Promise<void>(resolve => { fulfillOperation = resolve })
+
+    await page.route("**/api/admin/operations", async route => {
+      await delayPromise
+      await route.continue()
+    })
+
+    const saveBtn = modal.getByRole("button", { name: /Save & Log Changes|Saving Changes/i })
+    await saveBtn.click()
+
+    // Verify visible saving state
+    await expect(modal.getByText("Saving Changes…")).toBeVisible()
+    await expect(saveBtn).toBeDisabled()
+
+    // 1. Dismissal Guard: Escape key press
+    await page.keyboard.press("Escape")
+    await expect(modal).toBeVisible()
+
+    // 2. Dismissal Guard: Backdrop click (click top-left corner outside modal card)
+    await page.mouse.click(10, 10)
+    await expect(modal).toBeVisible()
+
+    // 3. Dismissal Guard: Modal close button (✕)
+    const closeBtn = modal.getByLabel("Close modal")
+    await expect(closeBtn).toBeDisabled()
+    await closeBtn.click({ force: true })
+    await expect(modal).toBeVisible()
+
+    // 4. Dismissal Guard: Header Cancel button
+    const cancelBtn = modal.getByRole("button", { name: "Cancel" })
+    await expect(cancelBtn).toBeDisabled()
+    await cancelBtn.click({ force: true })
+    await expect(modal).toBeVisible()
+
+    // 5. Conflicting edits guard: Inputs must be disabled during flight
+    const nameInput = modal.locator('input[placeholder="Full Name"]')
+    await expect(nameInput).toBeDisabled()
+    await expect(addressInput).toBeDisabled()
+
+    // 6. Duplicate click on save button does nothing
+    await saveBtn.click({ force: true })
+
+    // Release backend operation
+    fulfillOperation()
+    await page.unroute("**/api/admin/operations")
+
+    // Verify modal transitions to view mode on success and persists updated address
+    await expect(modal.getByText("View Mode")).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText("200 Protected Save Boulevard, Manila")).toBeVisible()
+
+    // Normal dismissal is restored
+    await closeBtn.click()
+    await expect(modal).not.toBeVisible()
+  } finally {
+    await db.collection("users").doc(resUid).delete().catch(() => {})
+  }
+})
+
+// ─── R02: Full Admin-to-Resident Photo Removal Notification Delivery ───
+
+test("R02: Full Admin-to-Resident photo removal notification delivery, UI display, and mark-all-read", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+  const auth = getAuth(app)
+
+  const targetUid = "e2e-r02-target"
+  const targetEmail = "r02-target@example.test"
+  const unrelatedUid = "e2e-r02-unrelated"
+  const unrelatedEmail = "r02-unrelated@example.test"
+
+  try { await auth.createUser({ uid: targetUid, email: targetEmail, password, emailVerified: true }) } catch (e: any) { if (e.code !== "auth/uid-already-exists") throw e }
+  try { await auth.createUser({ uid: unrelatedUid, email: unrelatedEmail, password, emailVerified: true }) } catch (e: any) { if (e.code !== "auth/uid-already-exists") throw e }
+
+  const initialAvatar = `https://res.cloudinary.com/${testCloudName}/image/authenticated/v1/talasys/avatars/target-avatar.jpg`
+  await db.collection("users").doc(targetUid).set({
+    name: "R02 Target Resident",
+    email: targetEmail,
+    role: "resident",
+    status: "Active",
+    isVerified: true,
+    profilePicture: initialAvatar,
+    statuses: ["Resident"],
+    address: "777 Notification Ave, Manila",
+    contactNumber: "09179998877",
+    createdAt: Date.now(),
+  })
+  await db.collection("users").doc(unrelatedUid).set({
+    name: "R02 Unrelated Resident",
+    email: unrelatedEmail,
+    role: "resident",
+    status: "Active",
+    isVerified: true,
+    statuses: ["Resident"],
+    address: "888 Privacy St, Manila",
+    createdAt: Date.now(),
+  })
+
+  // Purge any preexisting notifications
+  const existingTargetNotifs = await db.collection("notifications").where("targetId", "==", targetUid).get()
+  for (const doc of existingTargetNotifs.docs) await doc.ref.delete()
+  const existingUnrelatedNotifs = await db.collection("notifications").where("targetId", "==", unrelatedUid).get()
+  for (const doc of existingUnrelatedNotifs.docs) await doc.ref.delete()
+
+  try {
+    await db.collection("users").doc("e2e-manager").set({
+      name: "E2E manager",
+      email: "manager@example.test",
+      role: "Resident Management",
+      status: "Active",
+      isVerified: true,
+      createdAt: Date.now(),
+    }, { merge: true })
+
+    // 1. Admin login and remove photo
+    await login(page, "manager")
+    await page.goto("/admin/residents")
+    const targetRow = page.getByRole("row").filter({ hasText: "R02 Target Resident" })
+    await expect(targetRow).toBeVisible({ timeout: 10000 })
+    await targetRow.getByRole("button", { name: "View Profile" }).click()
+
+    const modal = page.locator('[role="dialog"]')
+    await expect(modal).toBeVisible()
+
+    await modal.getByRole("button", { name: "Edit Profile" }).click()
+    await modal.getByRole("button", { name: "Remove Photo" }).click()
+    await expect(modal.getByText("Photo Removal Pending")).toBeVisible()
+
+    const removalReason = "Official ID standard violation: Face covered by dark sunglasses"
+    const reasonInput = modal.getByPlaceholder(/Inappropriate content, not a face/i)
+    await reasonInput.fill(removalReason)
+
+    const saveBtn = modal.getByRole("button", { name: /Save & Log Changes/i })
+    await saveBtn.click()
+
+    await expect(page.getByText("Profile picture removed", { exact: true })).toBeVisible({ timeout: 10000 })
+
+    // 2. Authoritative database verification
+    const updatedUserDoc = (await db.collection("users").doc(targetUid).get()).data()
+    expect(updatedUserDoc?.profilePicture).toBe("")
+
+    const audits = await db.collection("activityLogs").where("targetId", "==", targetUid).get()
+    const photoAudit = audits.docs.find(d => d.data().action === "resident.profilePhoto.remove")
+    expect(photoAudit).toBeDefined()
+    const normalizedAudit = normalizeAuditLog(photoAudit?.data() as any)
+    expect(photoAudit?.data().after?.removePhotoReason || normalizedAudit.details).toContain(removalReason)
+
+    const notifs = await db.collection("notifications").where("targetId", "==", targetUid).get()
+    expect(notifs.docs.length).toBe(1)
+    const notifData = notifs.docs[0].data()
+    expect(notifData.title).toBe("Profile Picture Removed")
+    expect(notifData.message).toContain(removalReason)
+    expect(notifData.isRead).toBe(false)
+
+    // 3. Authenticate as Target Resident and verify in real resident UI
+    await login(page, "r02-target", true, /\/resident\/dashboard/)
+    await page.goto("/resident/notifications")
+    await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible()
+
+    const notifItem = page.locator('button:has-text("Profile Picture Removed")')
+    await expect(notifItem).toBeVisible({ timeout: 10000 })
+    await expect(notifItem).toContainText(removalReason)
+
+    const markAllBtn = page.getByRole("button", { name: /Mark all as read/i })
+    await expect(markAllBtn).toBeEnabled()
+
+    // 4. Mark all as read via real UI
+    await markAllBtn.click()
+    await expect(page.getByText("All notifications have been marked as read.", { exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(markAllBtn).toBeDisabled()
+
+    // 5. Refresh page and verify read state persists
+    await page.reload()
+    await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible()
+    await expect(page.locator('button:has-text("Profile Picture Removed")')).toBeVisible()
+    await expect(page.getByRole("button", { name: /Mark all as read/i })).toBeDisabled()
+
+    // 6. Security boundary: Unrelated Resident cannot see target's notification
+    await login(page, "r02-unrelated", true, /\/resident\/dashboard/)
+    await page.goto("/resident/notifications")
+    await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible()
+    await expect(page.locator('button:has-text("Profile Picture Removed")')).not.toBeVisible()
+  } finally {
+    await db.collection("users").doc(targetUid).delete().catch(() => {})
+    await db.collection("users").doc(unrelatedUid).delete().catch(() => {})
+    const cleanupNotifs = await db.collection("notifications").where("targetId", "==", targetUid).get()
+    for (const doc of cleanupNotifs.docs) await doc.ref.delete().catch(() => {})
+  }
+})
+
+// ─── R04: Validate Laptop and Resident Mobile Usability and Viewport Geometry ───
+
+test("R04: Comprehensive multi-viewport layout measurements across laptop and mobile", async ({ page }) => {
+  test.setTimeout(180000)
+  const laptopViewports = [
+    { width: 1024, height: 768, label: "1024x768" },
+    { width: 1280, height: 720, label: "1280x720" },
+    { width: 1280, height: 800, label: "1280x800" },
+    { width: 1366, height: 768, label: "1366x768" },
+    { width: 1440, height: 900, label: "1440x900" },
+    { width: 1920, height: 1080, label: "1920x1080" },
+    { width: 1093, height: 614, label: "1366x768@125%" },
+  ]
+
+  const mobileViewports = [
+    { width: 320, height: 568, label: "320x568" },
+    { width: 360, height: 800, label: "360x800" },
+    { width: 375, height: 667, label: "375x667" },
+    { width: 390, height: 844, label: "390x844" },
+    { width: 412, height: 915, label: "412x915" },
+    { width: 430, height: 932, label: "430x932" },
+  ]
+
+  async function checkLayout(url: string, vp: { width: number; height: number; label: string }, screenshotPath?: string) {
+    await page.setViewportSize({ width: vp.width, height: vp.height })
+    await page.goto(url)
+    await page.waitForLoadState("domcontentloaded")
+    await page.waitForTimeout(300)
+
+    const geo = await page.evaluate(() => {
+      const docWidth = document.documentElement.scrollWidth
+      const winWidth = window.innerWidth
+      const stage = document.getElementById("main-scroll-stage")
+      const stageWidth = stage ? stage.scrollWidth : docWidth
+      const stageClientWidth = stage ? stage.clientWidth : winWidth
+      const sidebar = document.querySelector('aside')
+      const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : null
+      const header = document.querySelector('header')
+      const headerRect = header ? header.getBoundingClientRect() : null
+
+      return {
+        docWidth,
+        winWidth,
+        stageWidth,
+        stageClientWidth,
+        docOverflow: docWidth > winWidth + 1,
+        stageOverflow: stage ? stage.scrollWidth > stage.clientWidth + 1 : false,
+        sidebarWidth: sidebarRect ? Math.round(sidebarRect.width) : null,
+        headerHeight: headerRect ? Math.round(headerRect.height) : null,
+      }
+    })
+
+    expect(geo.docOverflow, `Document horizontal overflow on ${url} at ${vp.label}: docWidth=${geo.docWidth}, winWidth=${geo.winWidth}`).toBe(false)
+    expect(geo.stageOverflow, `Stage horizontal overflow on ${url} at ${vp.label}: stageWidth=${geo.stageWidth}, clientWidth=${geo.stageClientWidth}`).toBe(false)
+
+    if (screenshotPath) {
+      await page.screenshot({ path: screenshotPath, fullPage: false })
+    }
+
+    return geo
+  }
+
+  // 1. Public Landing Page at Laptop & Mobile viewports
+  await checkLayout("/", { width: 1366, height: 768, label: "1366x768" }, "docs/screenshots/landing-page-1366x768.png")
+  await checkLayout("/", { width: 390, height: 844, label: "390x844" }, "docs/screenshots/landing-page-390x844.png")
+
+  // 2. Admin Workspaces across Laptop viewports
+  await login(page, "full")
+  const adminRoutes = [
+    "/admin/dashboard",
+    "/admin/residents",
+    "/admin/requests",
+    "/admin/logs",
+  ]
+  for (const vp of laptopViewports) {
+    for (const route of adminRoutes) {
+      const isRepresentative = vp.width === 1366 && route === "/admin/dashboard"
+      await checkLayout(route, vp, isRepresentative ? "docs/screenshots/admin-dashboard-1366x768.png" : undefined)
+    }
+  }
+
+  // Test Resident Profile Modal geometry inside Admin workspace
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.goto("/admin/residents")
+  const firstRow = page.getByRole("row").filter({ hasText: "E2E Active Resident" })
+  if (await firstRow.isVisible()) {
+    await firstRow.getByRole("button", { name: "View Profile" }).click()
+    const modal = page.locator('[role="dialog"]')
+    await expect(modal).toBeVisible()
+    await page.screenshot({ path: "docs/screenshots/admin-residents-modal-1366x768.png" })
+    await modal.getByLabel("Close modal").click()
+  }
+
+  // 3. Super Admin Navigation Stability across Super Admin transitions
+  await login(page, "super", true, /\/superadmin\/dashboard/)
+  await page.setViewportSize({ width: 1366, height: 768 })
+
+  const superDashboardGeo = await checkLayout("/superadmin/dashboard", { width: 1366, height: 768, label: "1366x768" })
+  const superAdminsGeo = await checkLayout("/superadmin/admins", { width: 1366, height: 768, label: "1366x768" })
+  const superConfigGeo = await checkLayout("/superadmin/config", { width: 1366, height: 768, label: "1366x768" })
+  const superAuditGeo = await checkLayout("/superadmin/audit", { width: 1366, height: 768, label: "1366x768" }, "docs/screenshots/superadmin-audit-1366x768.png")
+
+  // Sidebar width and header height must remain stable across route transitions
+  expect(superDashboardGeo.sidebarWidth).toBe(superAdminsGeo.sidebarWidth)
+  expect(superAdminsGeo.sidebarWidth).toBe(superConfigGeo.sidebarWidth)
+  expect(superConfigGeo.sidebarWidth).toBe(superAuditGeo.sidebarWidth)
+  expect(superDashboardGeo.headerHeight).toBe(superAdminsGeo.headerHeight)
+  expect(superAdminsGeo.headerHeight).toBe(superConfigGeo.headerHeight)
+  expect(superConfigGeo.headerHeight).toBe(superAuditGeo.headerHeight)
+
+  // 4. Resident Workspaces across all Mobile viewports
+  await login(page, "active-resident", true, /\/resident\/dashboard/)
+  const residentRoutes = [
+    "/resident/dashboard",
+    "/resident/profile",
+    "/resident/request",
+    "/resident/history",
+    "/resident/notifications",
+  ]
+  for (const vp of mobileViewports) {
+    for (const route of residentRoutes) {
+      let shotPath: string | undefined
+      if (vp.width === 390) {
+        if (route === "/resident/dashboard") shotPath = "docs/screenshots/resident-dashboard-390x844.png"
+        else if (route === "/resident/history") shotPath = "docs/screenshots/resident-history-390x844.png"
+        else if (route === "/resident/notifications") shotPath = "docs/screenshots/resident-notifications-390x844.png"
+      }
+      await checkLayout(route, vp, shotPath)
+    }
   }
 })

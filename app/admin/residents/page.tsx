@@ -359,7 +359,7 @@ export default function ResidentManagement() {
       <ResidentProfileModal
         isOpen={showViewDialog}
         onClose={() => setShowViewDialog(false)}
-        resident={selectedResident}
+        resident={allResidents.find(r => r.id === selectedResident?.id) || selectedResident}
         userRole={user?.role}
         adminName={user?.name}
         updateResident={updateResident}

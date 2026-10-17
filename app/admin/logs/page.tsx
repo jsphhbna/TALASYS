@@ -97,8 +97,8 @@ export default function ActivityLogs() {
       </div>
 
       {/* KPI Strip + Frequency Chart */}
-      <div className="grid grid-cols-12 gap-6 mb-6">
-        <div className="col-span-7 grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
+        <div className="col-span-1 xl:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Card className="p-4 shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-[#0C2340]/10 dark:bg-slate-800/[0.06] flex items-center justify-center mb-2">
               <Activity className="w-4 h-4 text-[#0C2340] dark:text-blue-50" />
@@ -128,7 +128,7 @@ export default function ActivityLogs() {
             <p className="text-2xl font-bold text-blue-600">{generatedCount}</p>
           </Card>
         </div>
-        <Card className="col-span-5 p-4 shadow-sm">
+        <Card className="col-span-1 xl:col-span-5 p-4 shadow-sm">
           <h3 className="text-2xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Action Frequency</h3>
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={logActionFrequency} barSize={14}>
@@ -142,35 +142,35 @@ export default function ActivityLogs() {
       </div>
 
       {/* Filters + Search */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex gap-2">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 mb-6">
+        <div className="flex gap-2 overflow-x-auto pb-1 max-w-full [scrollbar-width:none]">
           {filters.map((filter) => (
             <button
               key={filter.id}
               onClick={() => { setActiveFilter(filter.id); setCurrentPage(1); }}
-              className={`px-4 py-2 text-xs rounded-lg transition-colors ${activeFilter === filter.id ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"
+              className={`px-3.5 py-1.5 whitespace-nowrap text-xs rounded-lg transition-colors flex-shrink-0 ${activeFilter === filter.id ? "bg-[#0C2340] dark:bg-slate-800 text-white" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-950"
                 }`}
             >
               {filter.label}
             </button>
           ))}
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <div className="relative flex-shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Search logs..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            className="w-64 pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
+            className="w-full lg:w-64 pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-[#0C2340]"
           />
         </div>
       </div>
 
       {/* Logs Table */}
-      <Card className="shadow-sm overflow-hidden p-0">
+      <Card className="shadow-sm overflow-hidden p-0 max-w-full min-w-0">
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-700 text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-6 py-3 font-bold min-w-[100px]">TIME</th>

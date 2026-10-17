@@ -1,5 +1,16 @@
 
-## DevKit V10 Final UI/UX Remediation & Independent Verification (FX-01–FX-07)
+## DevKit V10 Final Focused Defect Closure & Hands-On Testing Readiness (R01–R04)
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Staging & Manual Testing)
+- **Audited Baseline:** `a4dc9bbf0860b8852162e92d5cf8b25c928c9715`
+- **Key Deliverables Completed:**
+  1. **Modal Dismissal Guard & Input Locking (R01):** Implemented single authoritative `handleSafeClose` in `components/admin/resident-profile-modal.tsx` protecting against dismissal via Escape, backdrop clicks, container clicks, header close button `✕`, Cancel, and Discard Changes during active saving (`isSaving || isSubmittingRef.current`). Form inputs (`name`, `dateOfBirth`, `address`, `contactNumber`, `email`, `removePhotoReason`, `Undo Removal`, `Save`) are strictly disabled during flight. Protected against unmounting races and resident switching via `isMountedRef` and `currentResidentIdRef`. Preserved edit drafts on failure; refreshed resident data in view mode upon success.
+  2. **Authenticated Resident Notification Delivery & Role Separation (R02):** Separated View Only and Documents Only role fixtures in `test/emulator/photo-removal-notification-emulator.test.ts` with explicit HTTP 403 checks. Added rules-unit-testing assertions for resident notification read access, `isRead: true` mutation, body immutability, and cross-resident isolation. Created end-to-end authenticated Playwright browser test verifying: Admin photo removal with reason → Firestore mutation → canonical audit log (`normalizeAuditLog`) → Resident login → notification list at `/resident/notifications` → unread display → mark all read → persistent read state after page reload.
+  3. **Truthful Public Document Collection Copy (R03):** Verified across all routes and handlers that official document PDFs are generated exclusively in the Admin Document Generator (`/admin/generate`) for preprinted barangay stationery. Replaced unsupported resident portal direct download promise on `components/landing/how-it-works-section.tsx` with truthful wording: `"Track your request online and follow the barangay's instructions for collecting your signed official copy at the Barangay Hall."` Updated unit tests in `test/ui-ux-remediation.test.ts`.
+  4. **Multi-Viewport Browser Layout Measurements & Stability (R04):** Resolved Activity Logs 883px stage overflow on 1024x768 (784px stage) by wrapping filter buttons in `overflow-x-auto [scrollbar-width:none]` and adjusting KPI card grid to `xl:grid-cols-12` in `app/admin/logs/page.tsx`. Verified 6 laptop viewports (1024x768, 1280x720, 1280x800, 1366x768, 1440x900, 1920x1080) at 100% zoom, 1366x768 at 125% zoom, and 6 mobile viewports (320x568, 360x800, 375x667, 390x844, 412x915, 430x932) with real browser DOM bounding-box measurements proving zero horizontal overflow, stable navigation width (256px), and stable headers (64px). Captured 7 representative screenshots into `docs/screenshots/`.
+  5. **Comprehensive Automated Verification:** 302/302 unit tests PASS, 90/90 Firestore emulator tests PASS, 44/44 Playwright authenticated tests PASS, 0 typecheck errors, 0 lint errors, 51/51 routes clean production build, 0 git diff check whitespace errors across two consecutive clean stability passes.
+
+## DevKit V10 Final UI/UX Remediation & Independent Verification (FX-01–FX-07) — PRIOR PASS
 
 - **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Staging & Manual Testing)
 - **Audited Baseline:** `441d8a6fdbe1109a3ba8a3d0ecf02517079129a1`

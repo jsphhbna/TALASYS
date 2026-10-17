@@ -31,7 +31,7 @@ const steps = [
     step: "05",
     icon: CheckCircle2,
     title: "Claim Your Document",
-    description: "Download your verified document directly from your resident portal or pick up your signed official copy at the Barangay Hall.",
+    description: "Track your request online and follow the barangay's instructions for collecting your signed official copy at the Barangay Hall.",
   },
 ]
 

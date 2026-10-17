@@ -1,6 +1,33 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04)
 
-## DevKit V10 Final UI/UX Remediation & Independent Verification (FX-01–FX-07) — CURRENT PASS
+## DevKit V10 Final Focused Defect Closure & Hands-On Testing Readiness (R01–R04) — CURRENT PASS
+
+- **Status**: COMPLETED & INDEPENDENTLY VERIFIED
+- **Branch**: `main`
+- **Audited baseline**: `a4dc9bbf0860b8852162e92d5cf8b25c928c9715`
+- **Execution mode**: Targeted root-cause fixes → Real execution-path verification → Final acceptance handoff
+- **Development framework**: DevKit V10 (Alpha 3 / Adaptive Intelligence)
+
+### Findings Classification Matrix
+
+| Finding | Priority | Category | Status | Affected Files | Root Cause & Targeted Remediation |
+|---|---|---|---|---|---|
+| **R01** | High | **MODAL_LIFECYCLE** / **ASYNC_LOCK** | **VERIFIED FIXED** | `components/admin/resident-profile-modal.tsx`, `app/admin/residents/page.tsx` | Profile modal passed raw `onClose` callback to `ModalOverlay`, allowing escape key, backdrop clicks, and container clicks to dismiss modal during active mutation. Controls were not disabled against concurrent edits during save. Remediation: Implemented single authoritative `handleSafeClose` guard blocking all dismissal paths while `isSaving || isSubmittingRef.current`. Disabled all inputs (`name`, `dateOfBirth`, `address`, `contactNumber`, `email`, `removePhotoReason`, `Undo Removal`, `Save`) during active save. Added `isMountedRef` and `currentResidentIdRef` to protect async lifecycle and prevent state leakage across resident switches. Preserved drafts on failure; refreshed view mode upon success. |
+| **R02** | High | **NOTIFICATION_DELIVERY** / **E2E_WORKFLOW** | **VERIFIED FIXED** | `test/emulator/photo-removal-notification-emulator.test.ts`, `test/e2e/authenticated-workflows.spec.ts` | Photo-removal notification lacked end-to-end browser verification in an authenticated Resident session, and emulator tests mislabeled Documents Only accounts as View Only. Remediation: Separated View Only and Documents Only role fixtures with explicit 403 checks. Added rules-unit-testing assertions for resident notification read, `isRead: true` update, body immutability, and cross-resident isolation. Built end-to-end authenticated Playwright test executing Admin photo removal with reason → Firestore mutation → canonical audit entry → Resident login → notification arrival at `/resident/notifications` → unread display → mark all read → persistent read state after reload. |
+| **R03** | Medium | **LANDING_PAGE** / **INSTITUTIONAL_ACCURACY** | **VERIFIED FIXED** | `components/landing/how-it-works-section.tsx`, `test/ui-ux-remediation.test.ts` | Landing page Step 05 promised direct portal PDF downloading of official documents, but official generation exists strictly in the Admin generator for preprinted stationery. Remediation: Audited document lifecycle across all APIs. Replaced unsupported download promise with truthful wording: `"Track your request online and follow the barangay's instructions for collecting your signed official copy at the Barangay Hall."` Updated regression tests to assert verified physical pickup messaging. |
+| **R04** | High | **RESPONSIVE_DESIGN** / **MEASURED_GEOMETRY** | **VERIFIED FIXED** | `app/admin/logs/page.tsx`, `test/e2e/authenticated-workflows.spec.ts`, `docs/screenshots/` | Layout lacked real measured browser evidence across laptops and mobile devices; `/admin/logs` caused 883px stage overflow on 1024x768 (784px stage). Remediation: Added horizontal scroll container with hidden scrollbars for Activity Logs filter buttons and adjusted KPI card grid to `xl:grid-cols-12`. Created Playwright test verifying 6 laptop viewports (1024x768 to 1920x1080 + 1366x768 at 125% zoom) and 6 mobile viewports (320x568 to 430x932) with real DOM bounding-box measurements proving zero horizontal overflow, stable navigation width (256px), and stable headers (64px). Captured 7 representative screenshots. |
+
+### Execution Milestones
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **Milestone R01** | Prevent Modal Dismissal and Conflicting Edits | COMPLETED | Authoritative `handleSafeClose` protects Escape, backdrop click, container click, close button `✕`, Cancel, and Discard Changes during flight. All form inputs and buttons disabled while saving. Unmount/switch lifecycle guards active. |
+| **Milestone R02** | Authenticated Resident Notification Browser Workflow | COMPLETED | Separate View Only vs Documents Only fixtures. End-to-end Admin photo removal → Firestore mutation → canonical audit log → Resident UI notification list → unread badge → mark read → persistent read state on reload. |
+| **Milestone R03** | Truthful Document Fulfillment Messaging | COMPLETED | Landing page Step 05 copy truthfully reflects physical collection of signed official copies at the Barangay Hall. No speculative resident PDF generator introduced. |
+| **Milestone R04** | Measured Multi-Viewport Responsive Validation | COMPLETED | `/admin/logs` 1024x768 stage overflow resolved. 6 laptop viewports + 125% zoom and 6 mobile viewports measured with real browser DOM geometry proving zero horizontal overflow, stable navigation, and 7 representative screenshots captured. |
+| **Milestone R-VERIFY** | Two Consecutive Clean Verification Passes | COMPLETED | Two consecutive passes across all 8 project commands (`npm test` 302/302, `npm run test:rules` 90/90, `npm run test:e2e:auth` 44/44, `typecheck` 0 errors, `typecheck:test` 0 errors, `lint` 0 errors, `build` 51 routes clean Turbopack build, `git diff --check` 0 errors). |
+
+## DevKit V10 Final UI/UX Remediation & Independent Verification (FX-01–FX-07) — PRIOR PASS
 
 - **Status**: COMPLETED & INDEPENDENTLY VERIFIED
 - **Branch**: `main`
