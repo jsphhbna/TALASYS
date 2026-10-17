@@ -330,6 +330,12 @@ export function useAdminData() {
                 payload: details
             })
         }, []),
+        reissueCorrectedDocument: useCallback(async (id: string, details: { address: string; age?: number; correctionReason: string }) => {
+            await callAdminOperation("request.reissueCorrected", {
+                targetId: id,
+                payload: details
+            })
+        }, []),
 
         confirmPayment: useCallback(async (id: string, adminName: string, adminEmail?: string, paymentMethodOverride?: "cash" | "gcash", paymentRefOverride?: string) => {
             await callAdminOperation("request.confirmPayment", { targetId: id, payload: { paymentMethod: paymentMethodOverride, paymentReference: paymentRefOverride } })

@@ -1,12 +1,36 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04)
 
-## Final Concurrency, Document Issuance & Regression Closure (F01–F06) — CURRENT PASS
+## Final V01–V04 Closure & Hands-On Acceptance Testing Preparation — CURRENT PASS
 
-- **Status**: COMPLETED (Two Clean Consecutive Verification Passes)
+- **Status**: COMPLETED
 - **Branch**: `main`
-- **Audited baseline**: `bda5f09a0a0a997e955955fccb1f6fffc1e41fd1`
-- **Execution mode**: Targeted remediation + recurring-defect detection + two clean verification passes
+- **Audited baseline**: `62aa7598fe1233283d28e3e38b1faef340f4c1ab`
+- **Execution mode**: Targeted correction → Regression verification → Stability gate → Hands-on testing handoff
 - **Development framework**: DevKit V9 RC10
+
+### Findings Classification Matrix
+
+| Finding | Priority | Category | Status | Affected Files | Root Cause & Targeted Remediation |
+|---|---|---|---|---|---|
+| **V01** | High | **CONFIG** / **STATE** / **CONCURRENCY** | **Resolved** | `app/superadmin/config/page.tsx`, `hooks/superadmin/use-superadmin-data.ts`, `app/api/admin/operations/route.ts`, `lib/superadmin/config-helpers.ts` | `handleAddDocType()` and `handleDeleteDocType()` persisted catalog fields and unconditionally cleared `isDirty`, causing background Firestore snapshot synchronization to wipe unrelated unsaved branding, contact, signature, or template edits. Remediation: Reliably separated saved authoritative configuration, locally edited draft fields, catalog mutations, and pending unsaved edits. Computed dirty state dynamically (`computeHasUnsavedEdits`) across all editable fields against updated baseline; only update committed catalog fields in `baselineConfigRef.current`; keep `isDirty` true when unrelated edits remain; prevent background snapshots from overwriting active drafts; enforce strict server concurrency. |
+| **V02** | High | **DOCUMENT** / **LIFECYCLE** / **REPRINT** | **Resolved** | `lib/document-catalog.ts`, `app/api/admin/operations/route.ts`, `app/admin/generate/page.tsx`, `hooks/admin/use-admin-data.ts` | Stored original issuance details (`issuanceBeneficiaryAddress`, `issuanceBeneficiaryAge`, `issuanceBeneficiaryName`, `generatedAt`) were bypassed upon document reopening/reprinting, substituting latest confirmed beneficiary details or today's date. Remediation: Established explicit distinction between original issuance, archival reprint, and authorized corrected issuance. Store immutable issuance snapshot on first generation; reprints faithfully use original issuance snapshot details and original issuance date; disallow normal reprint from silently mutating original issuance; introduced explicit authorized, audited `request.reissueCorrected` workflow for intentional changes with historical archiving. |
+| **V03** | Medium | **IDENTITY** / **CONTRACT** / **VALIDATION** | **Resolved** | `lib/document-catalog.ts`, `app/api/admin/operations/route.ts`, `app/admin/generate/page.tsx` | `request.confirmBeneficiary` accepted optional confirmed name, but `resolveDocumentSubject` continued reading `requestedByName`, allowing stored confirmed identity and document subject to disagree. Remediation: Established unified authoritative name contract. Reject identity substitution during routine confirmation (confirmed name must match requested name with HTTP 400); aligned `resolveDocumentSubject` and `request.markGenerated` to respect authoritative name hierarchy and issuance snapshot on reprints. |
+| **V04** | Medium | **TEST** / **PRODUCTION_PATH** | **Resolved** | `test/f01-f06-remediation.test.ts`, `test/v01-v04-production-path.test.ts`, `test/emulator/v01-v04-issuance-concurrency-emulator.test.ts`, `test/e2e/authenticated-workflows.spec.ts` | Unit tests relied on simulated copies of production logic (`simulateConfigUpdateTransaction()`, local `checkIssuanceEligibility()`) rather than executing actual exported production handlers and policies. Remediation: Replaced simulation tests with direct execution of production policies, route handlers (`createAdminOperationsHandler`), and real Firestore transaction semantics; added Playwright assertions verifying PDF content and reprint consistency; enforced strict fixture hygiene via `try...finally`. |
+
+### Execution Milestones
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **Milestone 1** | V01: Prevent Loss of Unsaved Configuration Edits | COMPLETED | Add/Delete Document Type commits only catalog fields; dirty state reflects actual remaining unsaved draft; background Firestore snapshots do not wipe active edits; Save All Changes persists remaining draft; Discard restores server state; concurrency preconditions enforced. |
+| **Milestone 2** | V02: Preserve Original Document Issuance Semantics | COMPLETED | First generation snapshots authoritative subject details and `generatedAt`; reprint reproduces original snapshot values and issuance date; cannot silently alter original issuance; explicit authorized `request.reissueCorrected` preserves history with audit log. |
+| **Milestone 3** | V03: Unify Beneficiary Name Consistency | COMPLETED | Single authoritative identity contract; routine confirmation cannot alter beneficiary name; confirmed name matches generated document subject and issuance snapshot; reprints preserve original issued name. |
+| **Milestone 4** | V04: Replace Simulated Tests with Production-Path Evidence | COMPLETED | Real production endpoints and handlers tested; configuration concurrency and issuance eligibility verified via real production code; Playwright tests verify actual PDF download and reprint consistency. |
+| **Milestone 5** | Phase 1: Recurring Defect Detection Loop (A, B, C, D) | COMPLETED | Traced callers, alternative paths, and verified 2 consecutive clean passes across all test suites. |
+| **Milestone 6** | Phase 2: Final Automated Verification Gate | COMPLETED | Full test suite (`npm test` 287/287, `npm run test:rules` 89/89, `npm run test:e2e:auth` 40/40, `typecheck` 0, `lint` 0, `build` 51 routes, timezones UTC/Manila/LA 26/26) 100% clean. |
+| **Milestone 7** | Phase 3 & 4: Hands-On Acceptance Test Plan & Defect Register | COMPLETED | Detailed, numbered, practical testing checklists for Resident (15), Admin (13), Super Admin (12), Negative (10), and Responsive (5 viewports) in `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md` and `docs/HANDS_ON_DEFECT_REGISTER.md`. |
+| **Milestone 8** | Phase 5: Final Git Commit, Push & Handoff | COMPLETED | Ready for commit, push to `origin/main`, 0/0 ahead/behind, comprehensive completion report. |
+
+## Final Concurrency, Document Issuance & Regression Closure (F01–F06) — PRIOR PASS
 
 ### Findings Classification Matrix
 

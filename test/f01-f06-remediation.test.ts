@@ -5,6 +5,70 @@ import {
   resolveDocumentSubject,
   type BeneficiaryReviewStatus,
 } from "../lib/document-catalog.ts"
+import { createAdminOperationsHandler } from "../app/api/admin/operations/route.ts"
+import {
+  prepareAddDocTypePayload,
+  prepareDeleteDocTypePayload,
+} from "../lib/superadmin/config-helpers.ts"
+
+function createF01MockDb(initialData: Record<string, any>) {
+  const store = new Map<string, any>(Object.entries(initialData))
+  function docRef(path: string) {
+    return {
+      path,
+      id: path.split("/").pop(),
+      async get() {
+        const data = store.get(path)
+        return { exists: data !== undefined && data !== null, data: () => data }
+      },
+    }
+  }
+  function collection(name: string) {
+    return {
+      name,
+      doc(id: string) { return docRef(`${name}/${id}`) },
+    }
+  }
+  async function runTransaction<T>(updateFunction: (transaction: any) => Promise<T>): Promise<T> {
+    const writes: Array<{ type: "set" | "update" | "delete"; path: string; data?: any; options?: any }> = []
+    const transaction = {
+      async get(ref: any) {
+        const val = store.get(ref.path)
+        return { exists: val !== undefined && val !== null, data: () => val }
+      },
+      set(ref: any, data: any, options?: any) { writes.push({ type: "set", path: ref.path, data, options }) },
+      update(ref: any, data: any) { writes.push({ type: "update", path: ref.path, data }) },
+      delete(ref: any) { writes.push({ type: "delete", path: ref.path }) },
+      create(ref: any, data: any) { writes.push({ type: "set", path: ref.path, data }) },
+    }
+    const result = await updateFunction(transaction)
+    for (const w of writes) {
+      if (w.type === "set") {
+        if (w.options?.merge) {
+          const prev = store.get(w.path) || {}
+          store.set(w.path, { ...prev, ...w.data })
+        } else {
+          store.set(w.path, w.data)
+        }
+      } else if (w.type === "update") {
+        const prev = store.get(w.path) || {}
+        store.set(w.path, { ...prev, ...w.data })
+      } else if (w.type === "delete") {
+        store.delete(w.path)
+      }
+    }
+    return result
+  }
+  return { collection, runTransaction, store }
+}
+
+const f01Auth = {
+  verifyIdToken: async (token: string) => {
+    if (token === "superadmin-tok") return { uid: "superadmin-1" }
+    if (token === "admin-tok") return { uid: "admin-1" }
+    throw new Error("Invalid token")
+  },
+}
 
 // ---------------------------------------------------------------------------
 // F04: Shared Beneficiary Validation Policy Tests
@@ -257,91 +321,108 @@ test("F03: Resident-submitted unreviewed beneficiary details produce 'provided' 
 // F02: Authoritative Staff Beneficiary Confirmation Enforcement
 // ---------------------------------------------------------------------------
 
-test("F02: Represented-person requests require explicit staff confirmation before issuance", () => {
-  // Simulate the authoritative backend check in request.markGenerated
-  function checkIssuanceEligibility(request: any) {
-    if (request.requestFor === "other") {
-      const isConfirmed = request.beneficiaryReviewStatus === "confirmed" &&
-        Boolean(request.beneficiaryConfirmedAt) &&
-        Boolean(request.confirmedBeneficiaryAddress?.trim())
+test("F02: Represented-person requests require explicit staff confirmation before issuance", async () => {
+  const db = createF01MockDb({
+    "users/admin-1": { role: "admin", status: "Active", name: "Staff Officer" },
+    "documentRequests/unconfirmed-req": {
+      id: "unconfirmed-req",
+      requestFor: "other",
+      requestedByName: "Elena Represented",
+      representedAddress: "Sample Address",
+      status: "Approved",
+      beneficiaryReviewStatus: "provided",
+    },
+    "documentRequests/confirmed-req": {
+      id: "confirmed-req",
+      requestFor: "other",
+      requestedByName: "Elena Represented",
+      status: "Approved",
+      beneficiaryReviewStatus: "confirmed",
+      beneficiaryConfirmedAt: 1729000000000,
+      beneficiaryConfirmedBy: "Staff Officer",
+      confirmedBeneficiaryAddress: "Block 10 Lot 12, Barangay Compound",
+      confirmedBeneficiaryAge: 19,
+    },
+    "documentRequests/direct-req": {
+      id: "direct-req",
+      requestFor: "myself",
+      residentName: "Juan Dela Cruz",
+      status: "Approved",
+    },
+  })
 
-      if (!isConfirmed) {
-        throw new Error("Represented-person document issuance requires prior explicit staff confirmation of beneficiary details.")
-      }
+  const handler = createAdminOperationsHandler({ auth: f01Auth as any, db: db as any })
 
-      const validation = validateBeneficiaryDetails({
-        confirmedAddress: request.confirmedBeneficiaryAddress,
-        confirmedAge: request.confirmedBeneficiaryAge,
-        name: request.requestedByName,
-      })
-      if (!validation.valid) {
-        throw new Error(`Confirmed beneficiary details fail validation: ${validation.error}`)
-      }
-    }
-    return true
-  }
-
-  // 1. Unconfirmed representation request fails
-  const unconfirmedReq = {
-    requestFor: "other",
-    requestedByName: "Elena Represented",
-    representedAddress: "Sample Address",
-  }
-  assert.throws(() => checkIssuanceEligibility(unconfirmedReq), /requires prior explicit staff confirmation/i)
+  // 1. Unconfirmed representation request fails with HTTP 400
+  const unconfirmedRes = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.markGenerated",
+      operationId: "op-unconfirmed",
+      targetId: "unconfirmed-req",
+    }),
+  }))
+  assert.equal(unconfirmedRes.status, 400)
+  assert.match((await unconfirmedRes.json()).error, /must be explicitly confirmed by staff/i)
 
   // 2. Confirmed representation request succeeds
-  const confirmedReq = {
-    requestFor: "other",
-    requestedByName: "Elena Represented",
-    beneficiaryReviewStatus: "confirmed",
-    beneficiaryConfirmedAt: 1729000000000,
-    beneficiaryConfirmedBy: "Staff Officer",
-    confirmedBeneficiaryAddress: "Block 10 Lot 12, Barangay Compound",
-    confirmedBeneficiaryAge: 19,
-  }
-  assert.doesNotThrow(() => checkIssuanceEligibility(confirmedReq))
+  const confirmedRes = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.markGenerated",
+      operationId: "op-confirmed",
+      targetId: "confirmed-req",
+    }),
+  }))
+  assert.equal(confirmedRes.status, 200)
 
   // 3. Direct resident request succeeds without requiring represented-person confirmation
-  const directReq = {
-    requestFor: "myself",
-    residentName: "Juan Dela Cruz",
-  }
-  assert.doesNotThrow(() => checkIssuanceEligibility(directReq))
+  const directRes = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.markGenerated",
+      operationId: "op-direct",
+      targetId: "direct-req",
+    }),
+  }))
+  assert.equal(directRes.status, 200)
 })
 
-test("F02: Client-supplied payload to markGenerated cannot manufacture confirmation", () => {
-  const unconfirmedReqInDb = {
-    id: "req-123",
-    requestFor: "other",
-    requestedByName: "Elena Represented",
-    beneficiaryReviewStatus: "provided",
-    representedAddress: "Client Submitted Address",
-  }
+test("F02: Client-supplied payload to markGenerated cannot manufacture confirmation", async () => {
+  const db = createF01MockDb({
+    "users/admin-1": { role: "admin", status: "Active", name: "Staff Officer" },
+    "documentRequests/req-123": {
+      id: "req-123",
+      requestFor: "other",
+      requestedByName: "Elena Represented",
+      beneficiaryReviewStatus: "provided",
+      representedAddress: "Client Submitted Address",
+      status: "Approved",
+    },
+  })
 
-  // Client attempts direct API attack sending confirmedAddress to request.markGenerated
-  const maliciousClientPayload = {
-    confirmedAddress: "Hacker manufactured address",
-    confirmedAge: 99,
-  }
+  const handler = createAdminOperationsHandler({ auth: f01Auth as any, db: db as any })
 
-  // Backend must NOT read client payload to establish confirmation
-  function processMarkGenerated(beforeDoc: any, _clientPayload: any) {
-    if (beforeDoc.requestFor === "other") {
-      const isConfirmed = beforeDoc.beneficiaryReviewStatus === "confirmed" &&
-        Boolean(beforeDoc.beneficiaryConfirmedAt) &&
-        Boolean(beforeDoc.confirmedBeneficiaryAddress?.trim())
+  // Client attempts direct API attack sending manufactured confirmation in payload
+  const res = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer admin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "request.markGenerated",
+      operationId: "op-attack",
+      targetId: "req-123",
+      payload: {
+        confirmedAddress: "Hacker manufactured address",
+        confirmedAge: 99,
+      },
+    }),
+  }))
 
-      if (!isConfirmed) {
-        throw new Error("Represented-person document issuance requires prior explicit staff confirmation of beneficiary details.")
-      }
-    }
-  }
-
-  assert.throws(
-    () => processMarkGenerated(unconfirmedReqInDb, maliciousClientPayload),
-    /requires prior explicit staff confirmation/i,
-    "Malicious client markGenerated call must be rejected regardless of payload"
-  )
+  assert.equal(res.status, 400)
+  assert.match((await res.json()).error, /must be explicitly confirmed by staff/i)
 })
 
 test("F02: Issuance snapshot immutably captures confirmed details at generation", () => {
@@ -393,97 +474,55 @@ test("F02: Reprint preserves original generatedAt and increments reprintCount", 
 })
 
 // ---------------------------------------------------------------------------
-// F01: Configuration Concurrency Mutation Invariants
+// F01: Configuration Concurrency Mutation Invariants (Production Handler)
 // ---------------------------------------------------------------------------
 
-interface ConfigState {
-  version: number
-  documentTypes: string[]
-  documentFees: Record<string, number>
-  customDocumentTypes: Array<{ id: string; name: string; fee: number }>
-  templates: Record<string, string>
-  barangayName?: string
-  contactNumber?: string
-  [key: string]: unknown
-}
+test("F01: Missing baseVersion is rejected with HTTP 400 when config exists", async () => {
+  const db = createF01MockDb({
+    "users/superadmin-1": { role: "superadmin", status: "Active", name: "Super Admin" },
+    "systemConfig/global": {
+      version: 3,
+      documentTypes: ["Barangay Clearance"],
+      documentFees: { "Barangay Clearance": 50 },
+      customDocumentTypes: [],
+      templates: {},
+    },
+  })
 
-function simulateConfigUpdateTransaction(
-  before: ConfigState | null,
-  updatePayload: {
-    baseVersion?: number
-    baseConfig?: Record<string, unknown>
-    changedFields?: string[]
-    [key: string]: unknown
-  }
-): ConfigState {
-  if (before) {
-    if (typeof updatePayload.baseVersion !== "number") {
-      throw Object.assign(new Error("Concurrency precondition required: 'baseVersion' must be supplied."), { status: 400 })
-    }
+  const handler = createAdminOperationsHandler({ auth: f01Auth as any, db: db as any })
 
-    const currentVersion = typeof before.version === "number" ? before.version : 1
-    const baseVersion = updatePayload.baseVersion
-    const baseConfig = updatePayload.baseConfig || {}
-
-    if (currentVersion !== baseVersion) {
-      const explicitChangedFields = Array.isArray(updatePayload.changedFields)
-        ? updatePayload.changedFields
-        : Object.keys(updatePayload).filter(k => k !== "baseVersion" && k !== "baseConfig" && k !== "changedFields")
-
-      const overlappingFields = explicitChangedFields.filter(f => {
-        const serverVal = before[f]
-        const baseVal = baseConfig[f]
-        return JSON.stringify(serverVal ?? null) !== JSON.stringify(baseVal ?? null)
-      })
-
-      if (overlappingFields.length > 0) {
-        throw Object.assign(
-          new Error(`Configuration conflict: ${overlappingFields.join(", ")} was modified concurrently.`),
-          { status: 409, conflictingFields: overlappingFields }
-        )
-      }
-    }
-  }
-
-  const { baseVersion, baseConfig, changedFields, ...cleanPayload } = updatePayload
-  const nextVersion = before ? (typeof before.version === "number" ? before.version + 1 : 2) : 1
-
-  return {
-    ...(before || {}),
-    ...cleanPayload,
-    version: nextVersion,
-  } as ConfigState
-}
-
-test("F01: Missing baseVersion is rejected with HTTP 400 when config exists", () => {
-  const currentConfig: ConfigState = {
-    version: 3,
-    documentTypes: ["Barangay Clearance"],
-    documentFees: { "Barangay Clearance": 50 },
-    customDocumentTypes: [],
-    templates: {},
-  }
-
-  assert.throws(
-    () => simulateConfigUpdateTransaction(currentConfig, {
-      documentTypes: ["Barangay Clearance", "New Type"],
-      // baseVersion omitted
+  const res = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer superadmin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "system.config.update",
+      operationId: "op-f01-missing-base",
+      payload: {
+        updates: { documentTypes: ["Barangay Clearance", "New Type"] },
+        // baseVersion omitted!
+      },
     }),
-    /baseVersion.*must be/i
-  )
+  }))
+
+  assert.equal(res.status, 400)
+  assert.match((await res.json()).error, /concurrency precondition required/i)
 })
 
-test("F01: Overlapping concurrent modifications are rejected with HTTP 409", () => {
-  const serverConfig: ConfigState = {
-    version: 5, // Server was bumped to 5 by another admin who deleted custom-cert
-    documentTypes: ["Barangay Clearance"],
-    documentFees: { "Barangay Clearance": 50 },
-    customDocumentTypes: [],
-    templates: {},
-    barangayName: "Server Edited Barangay",
-  }
+test("F01: Overlapping concurrent modifications are rejected with HTTP 409", async () => {
+  const db = createF01MockDb({
+    "users/superadmin-1": { role: "superadmin", status: "Active", name: "Super Admin" },
+    "systemConfig/global": {
+      version: 5, // Server was bumped to 5 by another admin who deleted custom-cert
+      documentTypes: ["Barangay Clearance"],
+      documentFees: { "Barangay Clearance": 50 },
+      customDocumentTypes: [],
+      templates: {},
+      barangayName: "Server Edited Barangay",
+    },
+  })
 
-  // Admin A has baseVersion 4 where custom-cert still existed in baseConfig
+  const handler = createAdminOperationsHandler({ auth: f01Auth as any, db: db as any })
+
   const baseConfig = {
     documentTypes: ["Barangay Clearance"],
     documentFees: { "Barangay Clearance": 50 },
@@ -492,29 +531,41 @@ test("F01: Overlapping concurrent modifications are rejected with HTTP 409", () 
     barangayName: "Old Barangay",
   }
 
-  // Admin A also tries to modify customDocumentTypes
-  assert.throws(
-    () => simulateConfigUpdateTransaction(serverConfig, {
-      baseVersion: 4,
-      baseConfig,
-      changedFields: ["customDocumentTypes"],
-      customDocumentTypes: [{ id: "custom-cert", name: "Custom Cert Edited", fee: 150 }],
+  const res = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer superadmin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "system.config.update",
+      operationId: "op-f01-conflict",
+      payload: {
+        baseVersion: 4,
+        baseConfig,
+        changedFields: ["customDocumentTypes"],
+        updates: { customDocumentTypes: [{ id: "custom-cert", name: "Custom Cert Edited", fee: 150 }] },
+      },
     }),
-    (err: any) => err.status === 409 && err.conflictingFields.includes("customDocumentTypes")
-  )
+  }))
+
+  assert.equal(res.status, 409)
+  const body = await res.json()
+  assert.deepEqual(body.conflictingFields, ["customDocumentTypes"])
 })
 
-test("F01: Non-overlapping concurrent modifications merge safely and increment version", () => {
-  const serverConfig: ConfigState = {
-    version: 5, // Bumped to 5 because Admin B updated branding
-    documentTypes: ["Barangay Clearance"],
-    documentFees: { "Barangay Clearance": 50 },
-    customDocumentTypes: [],
-    templates: {},
-    barangayName: "New Barangay Name by Admin B",
-  }
+test("F01: Non-overlapping concurrent modifications merge safely and increment version", async () => {
+  const db = createF01MockDb({
+    "users/superadmin-1": { role: "superadmin", status: "Active", name: "Super Admin" },
+    "systemConfig/global": {
+      version: 5, // Bumped to 5 because Admin B updated branding
+      documentTypes: ["Barangay Clearance"],
+      documentFees: { "Barangay Clearance": 50 },
+      customDocumentTypes: [],
+      templates: {},
+      barangayName: "New Barangay Name by Admin B",
+    },
+  })
 
-  // Admin A has baseVersion 4 where barangayName was still old, but Admin A is ONLY changing customDocumentTypes and documentTypes
+  const handler = createAdminOperationsHandler({ auth: f01Auth as any, db: db as any })
+
   const baseConfig = {
     documentTypes: ["Barangay Clearance"],
     documentFees: { "Barangay Clearance": 50 },
@@ -523,23 +574,34 @@ test("F01: Non-overlapping concurrent modifications merge safely and increment v
     barangayName: "Old Barangay Name",
   }
 
-  // Admin A's changedFields ("customDocumentTypes", "documentTypes") have NOT changed on server (server still has [] and ["Barangay Clearance"])
-  const result = simulateConfigUpdateTransaction(serverConfig, {
-    baseVersion: 4,
-    baseConfig,
-    changedFields: ["customDocumentTypes", "documentTypes"],
-    customDocumentTypes: [{ id: "solo_parent", name: "Solo Parent", fee: 0 }],
-    documentTypes: ["Barangay Clearance", "Solo Parent"],
-  })
+  const res = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer superadmin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "system.config.update",
+      operationId: "op-f01-non-overlap",
+      payload: {
+        baseVersion: 4,
+        baseConfig,
+        changedFields: ["customDocumentTypes", "documentTypes"],
+        updates: {
+          customDocumentTypes: [{ id: "solo_parent", name: "Solo Parent", fee: 0 }],
+          documentTypes: ["Barangay Clearance", "Solo Parent"],
+        },
+      },
+    }),
+  }))
 
-  assert.equal(result.version, 6)
-  assert.equal(result.barangayName, "New Barangay Name by Admin B", "Admin B's branding must be preserved")
-  assert.equal(result.customDocumentTypes.length, 1)
-  assert.equal(result.customDocumentTypes[0].name, "Solo Parent")
+  assert.equal(res.status, 200)
+  const stored = db.store.get("systemConfig/global")
+  assert.equal(stored.version, 6)
+  assert.equal(stored.barangayName, "New Barangay Name by Admin B", "Admin B's branding must be preserved")
+  assert.equal(stored.customDocumentTypes.length, 1)
+  assert.equal(stored.customDocumentTypes[0].name, "Solo Parent")
 })
 
-test("F01: Minimal payload is constructed for Add and Delete custom document operations", () => {
-  const baseline: ConfigState = {
+test("F01: Minimal payload is constructed for Add and Delete custom document operations", async () => {
+  const baseline = {
     version: 2,
     documentTypes: ["Barangay Clearance"],
     documentFees: { "Barangay Clearance": 50 },
@@ -547,36 +609,79 @@ test("F01: Minimal payload is constructed for Add and Delete custom document ope
     templates: {},
   }
 
-  // Add payload construction
-  const addPayload = {
-    documentTypes: [...baseline.documentTypes, "Health Certificate"],
-    documentFees: { ...baseline.documentFees, "Health Certificate": 75 },
-    customDocumentTypes: [{ id: "health_cert", name: "Health Certificate", fee: 75 }],
-    templates: { ...baseline.templates, health_cert: "Template content" },
-    baseVersion: baseline.version,
-    changedFields: ["documentTypes", "documentFees", "customDocumentTypes", "templates"],
-  }
+  const db = createF01MockDb({
+    "users/superadmin-1": { role: "superadmin", status: "Active", name: "Super Admin" },
+    "systemConfig/global": { ...baseline },
+  })
 
-  assert.equal(addPayload.baseVersion, 2)
-  assert.ok(!("barangayCaptainName" in addPayload), "Unrelated fields should not be sent in minimal payload")
+  const handler = createAdminOperationsHandler({ auth: f01Auth as any, db: db as any })
+
+  // Add payload construction via production helper
+  const addPayload = prepareAddDocTypePayload({
+    docId: "health_cert",
+    docName: "Health Certificate",
+    docIcon: "📄",
+    docFee: 75,
+    docHeader: "C E R T I F I C A T I O N",
+    docTemplate: "Template content",
+    baseline,
+    effectiveDocTypes: baseline.documentTypes,
+    effectiveDocFees: baseline.documentFees,
+    existingCustomDocs: baseline.customDocumentTypes,
+  })
+
+  assert.equal(addPayload.baseConfig.documentTypes.length, 1)
+  assert.ok(!("barangayCaptainName" in addPayload.updates), "Unrelated fields should not be sent in minimal payload")
   assert.deepEqual(addPayload.changedFields, ["documentTypes", "documentFees", "customDocumentTypes", "templates"])
 
-  const updated = simulateConfigUpdateTransaction(baseline, addPayload)
-  assert.equal(updated.version, 3)
-  assert.equal(updated.documentTypes.includes("Health Certificate"), true)
+  const addRes = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer superadmin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "system.config.update",
+      operationId: "op-f01-add-doc",
+      payload: {
+        updates: addPayload.updates,
+        baseVersion: baseline.version,
+        baseConfig: addPayload.baseConfig,
+        changedFields: addPayload.changedFields,
+      },
+    }),
+  }))
+  assert.equal(addRes.status, 200)
 
-  // Delete payload construction
-  const deletePayload = {
-    documentTypes: updated.documentTypes.filter(d => d !== "Health Certificate"),
-    documentFees: { ...updated.documentFees },
-    customDocumentTypes: [],
-    baseVersion: updated.version,
-    changedFields: ["documentTypes", "documentFees", "customDocumentTypes"],
-  }
-  delete deletePayload.documentFees["Health Certificate"]
+  const storedAfterAdd = db.store.get("systemConfig/global")
+  assert.equal(storedAfterAdd.version, 3)
+  assert.equal(storedAfterAdd.documentTypes.includes("Health Certificate"), true)
 
-  const deletedResult = simulateConfigUpdateTransaction(updated, deletePayload)
-  assert.equal(deletedResult.version, 4)
-  assert.equal(deletedResult.documentTypes.includes("Health Certificate"), false)
-  assert.equal(deletedResult.customDocumentTypes.length, 0)
+  // Delete payload construction via production helper
+  const deletePayload = prepareDeleteDocTypePayload({
+    docName: "Health Certificate",
+    docId: "health_cert",
+    baseline: storedAfterAdd,
+    effectiveDocTypes: storedAfterAdd.documentTypes,
+    effectiveDocFees: storedAfterAdd.documentFees,
+    existingCustomDocs: storedAfterAdd.customDocumentTypes,
+  })
+
+  const deleteRes = await handler(new Request("http://localhost/api/admin/operations", {
+    method: "POST",
+    headers: { Authorization: "Bearer superadmin-tok", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation: "system.config.update",
+      operationId: "op-f01-del-doc",
+      payload: {
+        updates: deletePayload.updates,
+        baseVersion: storedAfterAdd.version,
+        baseConfig: deletePayload.baseConfig,
+        changedFields: deletePayload.changedFields,
+      },
+    }),
+  }))
+  assert.equal(deleteRes.status, 200)
+
+  const storedAfterDelete = db.store.get("systemConfig/global")
+  assert.equal(storedAfterDelete.version, 4)
+  assert.equal(storedAfterDelete.documentTypes.includes("Health Certificate"), false)
+  assert.equal(storedAfterDelete.customDocumentTypes.length, 0)
 })

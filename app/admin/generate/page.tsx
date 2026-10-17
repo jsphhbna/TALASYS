@@ -76,22 +76,24 @@ function GenerateDocumentsContent() {
         }
 
         if (req.requestFor === "other") {
+          const isReprint = Boolean(req.hasGenerated && req.generatedAt)
+          const initialAddress = isReprint && req.issuanceBeneficiaryAddress
+            ? req.issuanceBeneficiaryAddress
+            : (req.confirmedBeneficiaryAddress || req.representedAddress || "")
+          const initialAge = isReprint && req.issuanceBeneficiaryAge !== undefined && req.issuanceBeneficiaryAge !== null
+            ? String(req.issuanceBeneficiaryAge)
+            : (req.confirmedBeneficiaryAge !== undefined
+                ? String(req.confirmedBeneficiaryAge)
+                : (req.representedAge !== undefined ? String(req.representedAge) : ""))
+
           if (loadedRequestIdRef.current !== req.id) {
             loadedRequestIdRef.current = req.id
             isEditingBeneficiaryRef.current = false
-            setBeneficiaryAddressOverride(req.confirmedBeneficiaryAddress || req.representedAddress || "")
-            setBeneficiaryAgeOverride(
-              req.confirmedBeneficiaryAge !== undefined
-                ? String(req.confirmedBeneficiaryAge)
-                : (req.representedAge !== undefined ? String(req.representedAge) : "")
-            )
+            setBeneficiaryAddressOverride(initialAddress)
+            setBeneficiaryAgeOverride(initialAge)
           } else if (!isEditingBeneficiaryRef.current) {
-            setBeneficiaryAddressOverride(req.confirmedBeneficiaryAddress || req.representedAddress || "")
-            setBeneficiaryAgeOverride(
-              req.confirmedBeneficiaryAge !== undefined
-                ? String(req.confirmedBeneficiaryAge)
-                : (req.representedAge !== undefined ? String(req.representedAge) : "")
-            )
+            setBeneficiaryAddressOverride(initialAddress)
+            setBeneficiaryAgeOverride(initialAge)
           }
         }
       }
@@ -128,6 +130,9 @@ function GenerateDocumentsContent() {
     })
     const purpose = matchedReq?.purpose || "_____________"
 
+    // V02: On reprint of an already-issued document, pass original generatedAt timestamp so date_issued reproduces original issuance faithfully
+    const issuanceDate = matchedReq?.generatedAt ? new Date(matchedReq.generatedAt) : undefined
+
     return renderDocumentTemplate(template, {
       name: subject.subjectName,
       address: subject.address,
@@ -135,6 +140,7 @@ function GenerateDocumentsContent() {
       civilStatus: subject.civilStatus,
       purpose,
       barangayName: systemConfig?.barangayName,
+      date: issuanceDate,
     })
   }
 

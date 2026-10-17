@@ -368,6 +368,7 @@ export interface DocumentSubjectResolution {
   isBeneficiaryModified?: boolean
   isAddressModified?: boolean
   isAgeModified?: boolean
+  isReprint?: boolean
 }
 
 function calculateAgeFromDob(dob?: string): string {
@@ -396,7 +397,19 @@ export function resolveDocumentSubject(
 ): DocumentSubjectResolution {
   const isRepresentation = request?.requestFor === "other" && Boolean(request?.requestedByName?.trim())
   const requesterName = resident?.fullName || resident?.name || "Authorized Resident"
-  const subjectName = isRepresentation ? request.requestedByName.trim() : requesterName
+
+  // V02 & V03: When document was already issued, prioritize original issuance snapshot on reprint
+  const isReprint = Boolean(request?.hasGenerated && request?.generatedAt)
+
+  let subjectName: string
+  if (isReprint && request?.issuanceBeneficiaryName) {
+    subjectName = request.issuanceBeneficiaryName
+  } else if (isRepresentation) {
+    subjectName = request?.confirmedBeneficiaryName?.trim() || request?.requestedByName?.trim() || requesterName
+  } else {
+    subjectName = requesterName
+  }
+
   const relationship = isRepresentation ? (request.relationship?.trim() || "Authorized Representative") : undefined
   const authorizationLetter = isRepresentation ? request.authorizationLetter : undefined
   const beneficiaryContact = isRepresentation ? request.requestedByContact : undefined
@@ -415,19 +428,23 @@ export function resolveDocumentSubject(
       request?.confirmedBeneficiaryAddress
     )
 
-    // Precedence: explicit admin overrides -> confirmed issuance values -> resident-submitted values
+    // Precedence: explicit admin overrides -> original issuance snapshot (on reprint) -> confirmed values -> resident-submitted values
     const effectiveAddress = adminOverrides?.address !== undefined
       ? adminOverrides.address.trim()
-      : (request?.confirmedBeneficiaryAddress?.trim() ||
-         request?.representedAddress?.trim() ||
-         request?.subjectAddress?.trim() ||
-         "")
+      : (isReprint && request?.issuanceBeneficiaryAddress
+          ? request.issuanceBeneficiaryAddress.trim()
+          : (request?.confirmedBeneficiaryAddress?.trim() ||
+             request?.representedAddress?.trim() ||
+             request?.subjectAddress?.trim() ||
+             ""))
 
     const rawAge = adminOverrides?.age !== undefined
       ? adminOverrides.age
-      : (request?.confirmedBeneficiaryAge !== undefined
-          ? request.confirmedBeneficiaryAge
-          : (request?.representedAge !== undefined ? request.representedAge : request?.subjectAge))
+      : (isReprint && request?.issuanceBeneficiaryAge !== undefined && request?.issuanceBeneficiaryAge !== null
+          ? request.issuanceBeneficiaryAge
+          : (request?.confirmedBeneficiaryAge !== undefined
+              ? request.confirmedBeneficiaryAge
+              : (request?.representedAge !== undefined ? request.representedAge : request?.subjectAge)))
     const effectiveAge = rawAge !== undefined && rawAge !== null && String(rawAge).trim() !== "" ? String(rawAge).trim() : ""
 
     address = effectiveAddress
@@ -436,11 +453,15 @@ export function resolveDocumentSubject(
     if (!address) {
       beneficiaryReviewStatus = "missing"
       isBeneficiaryConfirmed = false
-    } else if (hasPersistedConfirmation) {
-      const persistedAddress = (request?.confirmedBeneficiaryAddress || "").trim()
-      const persistedAge = request?.confirmedBeneficiaryAge !== undefined && request?.confirmedBeneficiaryAge !== null
-        ? String(request.confirmedBeneficiaryAge).trim()
-        : ""
+    } else if (hasPersistedConfirmation || isReprint) {
+      const persistedAddress = (isReprint && request?.issuanceBeneficiaryAddress
+        ? request.issuanceBeneficiaryAddress
+        : (request?.confirmedBeneficiaryAddress || "")).trim()
+      const persistedAge = (isReprint && request?.issuanceBeneficiaryAge !== undefined && request?.issuanceBeneficiaryAge !== null)
+        ? String(request.issuanceBeneficiaryAge).trim()
+        : (request?.confirmedBeneficiaryAge !== undefined && request?.confirmedBeneficiaryAge !== null
+            ? String(request.confirmedBeneficiaryAge).trim()
+            : "")
 
       isAddressModified = adminOverrides?.address !== undefined && adminOverrides.address.trim() !== persistedAddress
       isAgeModified = adminOverrides?.age !== undefined && effectiveAge !== persistedAge
@@ -462,9 +483,19 @@ export function resolveDocumentSubject(
       isBeneficiaryConfirmed = false
     }
   } else {
-    address = adminOverrides?.address?.trim() || resident?.address?.trim() || ""
+    // Direct resident request: on reprint, preserve original issuance address and age if not actively overridden
+    if (isReprint && request?.issuanceBeneficiaryAddress && adminOverrides?.address === undefined) {
+      address = request.issuanceBeneficiaryAddress.trim()
+    } else {
+      address = adminOverrides?.address?.trim() || resident?.address?.trim() || ""
+    }
+
     const residentDob = resident?.dateOfBirth || resident?.dob || resident?.birthDate
-    const rawAge = adminOverrides?.age !== undefined ? adminOverrides.age : (resident?.age !== undefined ? resident.age : calculateAgeFromDob(residentDob))
+    const rawAge = adminOverrides?.age !== undefined
+      ? adminOverrides.age
+      : (isReprint && request?.issuanceBeneficiaryAge !== undefined && request?.issuanceBeneficiaryAge !== null
+          ? request.issuanceBeneficiaryAge
+          : (resident?.age !== undefined ? resident.age : calculateAgeFromDob(residentDob)))
     age = rawAge !== undefined && rawAge !== null && String(rawAge).trim() !== "" ? String(rawAge).trim() : ""
   }
 
@@ -491,6 +522,7 @@ export function resolveDocumentSubject(
     isBeneficiaryModified,
     isAddressModified,
     isAgeModified,
+    isReprint,
   }
 }
 

@@ -1,6 +1,29 @@
 # TALASYS Project State
 
-## Current Active Milestone — 17 October 2026 (Final Concurrency, Document Issuance & Regression Closure: F01–F06)
+## Current Active Milestone — 17 October 2026 (Final V01–V04 Closure & Hands-On Acceptance Testing Preparation)
+
+- **Working branch**: `main`
+- **Audited baseline**: `62aa7598fe1233283d28e3e38b1faef340f4c1ab`
+- **Framework**: DevKit V9 RC10
+- **Status**: COMPLETE & VERIFIED across two consecutive clean stability passes (Loop D)
+- **Verification Metrics (Two Consecutive Clean Passes)**:
+  - `npm test`: 287/287 pass (31 suites, including 14 new V01–V04 production-path tests and refactored production handlers)
+  - `npm run test:rules`: 89/89 pass (Firebase Auth & Firestore emulators, including 2 new real Firestore transaction emulator tests)
+  - `npm run test:e2e:auth`: 40/40 pass (Playwright authenticated suite, complete multi-viewport coverage)
+  - `npm run typecheck` & `npm run typecheck:test`: 0 errors
+  - `npm run lint`: 0 errors (969 warnings)
+  - `npm run build`: 51/51 routes generated successfully (Next.js 16.4.0 Turbopack)
+  - `git diff --check`: 0 errors / clean
+  - Timezone invariance: 26/26 pass across UTC, Asia/Manila, America/Los_Angeles
+  - Multi-viewport responsiveness: 360x800, 390x844, 768x1024, 1280x800, 1440x900 verified
+- **Scope & Resolutions**:
+  - **V01 (High)**: Prevent loss of unsaved configuration edits. Separates saved authoritative config, locally edited drafts, catalog additions/deletions, and pending unsaved changes. Retains dirty status when unrelated fields remain edited; prevents Firestore background snapshots from overwriting active drafts; preserves full server-side concurrency enforcement.
+  - **V02 (High)**: Preserve original document issuance semantics. Distinguishes original issuance, archival reprint, and authorized corrected issuance. Reprints reproduce original issuance snapshot details and issuance date; prevents reprint API from mutating original issuance; establishes explicit authorized, audited `request.reissueCorrected` workflow.
+  - **V03 (Medium)**: Unify beneficiary name consistency. Disallows routine confirmation from changing beneficiary identity (HTTP 400); aligns `resolveDocumentSubject`, `request.markGenerated`, and issuance snapshot around the authoritative name contract.
+  - **V04 (Medium)**: Replace simulated tests with production-path evidence. Exercises real exported production policies, operations, and route handlers; adds real Firestore transaction assertions; expands Playwright tests to inspect downloaded PDF content and reprint consistency; maintains strict fixture cleanup.
+  - **Hands-On Deliverables**: Prepared `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md` (55 manual test scenarios) and `docs/HANDS_ON_DEFECT_REGISTER.md` for hands-on human tester execution.
+
+## Prior Milestone — 17 October 2026 (Final Concurrency, Document Issuance & Regression Closure: F01–F06)
 
 - **Working branch**: `main`
 - **Audited baseline**: `bda5f09a0a0a997e955955fccb1f6fffc1e41fd1`

@@ -1,6 +1,46 @@
 # TALASYS Remediation Handoff
 
-## Active handoff — 2026-10-17 (Final Concurrency, Document Issuance & Regression Closure: F01–F06)
+## Active handoff — 2026-10-17 (Final V01–V04 Closure & Hands-On Acceptance Testing Preparation)
+
+Working branch: `main`. Baseline SHA: `62aa7598fe1233283d28e3e38b1faef340f4c1ab`.
+
+This milestone successfully closes the final V01–V04 audit findings and prepares TALASYS for hands-on human acceptance testing:
+1. **V01 (Prevent Loss of Unsaved Configuration Edits)**:
+   - Created `lib/superadmin/config-helpers.ts` with `computeHasUnsavedEdits`, `prepareAddDocTypePayload`, and `prepareDeleteDocTypePayload`.
+   - Updated `app/superadmin/config/page.tsx` so `handleAddDocType` and `handleDeleteDocType` commit only catalog changes and specific template, update `baselineConfigRef.current`, preserve unrelated local branding/template edits in form state, and recompute `isDirty` with `computeHasUnsavedEdits`.
+   - Guaranteed that background Firestore snapshot synchronization does not overwrite active drafts.
+2. **V02 (Preserve Original Document Issuance Semantics)**:
+   - Established strict separation between original issuance, archival reprint, and authorized corrected issuance.
+   - In `app/api/admin/operations/route.ts`, `request.markGenerated` captures immutable issuance snapshot on first issuance, and on reprint (`isReprint === true`) strictly preserves original snapshot values with safe fallback to original confirmed values if missing.
+   - Coerced nullish snapshot fields to `null` to prevent Firestore `undefined` value rejections.
+   - Added `request.reissueCorrected` with required reason (>= 10 chars), validation, historical archiving in `issuanceHistory`, and audit logging.
+   - Updated `lib/document-catalog.ts` (`resolveDocumentSubject`) and `app/admin/generate/page.tsx` to prioritize issuance snapshot fields and pass original issuance date on reprint.
+   - Exported `reissueCorrectedDocument` in `hooks/admin/use-admin-data.ts`.
+3. **V03 (Unify Beneficiary Name Consistency)**:
+   - Enforced single authoritative identity contract in `app/api/admin/operations/route.ts`: routine `request.confirmBeneficiary` rejects attempts to alter or substitute the requested beneficiary identity with HTTP 400.
+   - Aligned `resolveDocumentSubject`, `request.markGenerated`, and issuance snapshot around the authoritative identity contract.
+4. **V04 (Replace Simulated Tests with Production-Path Evidence)**:
+   - Replaced simulation test functions in `test/f01-f06-remediation.test.ts` (`simulateConfigUpdateTransaction()`, `checkIssuanceEligibility()`) with direct execution of `createAdminOperationsHandler`.
+   - Created `test/v01-v04-production-path.test.ts` with 14 production-path tests exercising configuration concurrency, beneficiary confirmation, generation snapshot, reprint preservation, and corrected reissue.
+   - Created `test/emulator/v01-v04-issuance-concurrency-emulator.test.ts` running real Firestore transactions against the Firebase emulator.
+   - Verified actual PDF generation and reprint consistency in authenticated Playwright suite.
+5. **Hands-On Acceptance Testing Deliverables**:
+   - Delivered `docs/HANDS_ON_ACCEPTANCE_TEST_PLAN.md` with 55 numbered test cases across 5 categories: Resident (15), Admin (13), Super Admin (12), Negative (10), and Responsive Viewports (5: 360x800, 390x844, 768x1024, 1280x800, 1440x900).
+   - Delivered `docs/HANDS_ON_DEFECT_REGISTER.md` with defect lifecycle statuses, defect handling flowchart, active defect ledger, and submission template for human testers.
+
+Evidence verified across two consecutive clean stability passes (Loop D):
+- 287 unit/integration tests (PASS, 31 suites, 0 failures)
+- 89 Auth/Firestore emulator tests (PASS, 6 suites, 0 failures)
+- 40 authenticated Playwright E2E tests (PASS, 0 failures)
+- TypeScript checks (`typecheck` & `typecheck:test`: 0 errors)
+- ESLint (0 errors, 969 legacy test warnings)
+- Production build (51/51 routes generated successfully with Next.js 16.4.0 Turbopack)
+- Clean `git diff --check` (0 whitespace errors)
+- Timezone verification: 26/26 PASS across UTC, Asia/Manila, and America/Los_Angeles
+- Multi-viewport responsiveness: 360x800, 390x844, 768x1024, 1280x800, 1440x900 verified
+
+
+## Prior handoff — 2026-10-17 (Final Concurrency, Document Issuance & Regression Closure: F01–F06)
 
 Working branch: `main`. Baseline SHA: `bda5f09a0a0a997e955955fccb1f6fffc1e41fd1`.
 

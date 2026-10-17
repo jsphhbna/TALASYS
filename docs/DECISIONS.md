@@ -607,3 +607,34 @@
   - Validation rules are unified across all endpoints.
   - Test suites execute cleanly without leaving lingering records.
   - PDF generation and partial failures are fully verified against real browser downloads.
+
+## ADR-025: Unsaved Configuration State Isolation, Issuance Semantics Preservation, and Production-Path Verification (V01–V04)
+- **Context**:
+  Independent review identified four final findings prior to hands-on acceptance testing:
+  1. **V01 (High)**: Adding or deleting document types unconditionally cleared `isDirty`, allowing subsequent background Firestore snapshot updates to overwrite unrelated unsaved branding, contact, signature, or template changes.
+  2. **V02 (High)**: Document generator used latest confirmed beneficiary details or today's date when reopening an already-issued request, allowing reprinted documents to diverge from the original recorded issuance snapshot.
+  3. **V03 (Medium)**: `request.confirmBeneficiary` accepted an optional confirmed beneficiary name while `resolveDocumentSubject` continued reading `requestedByName`, allowing confirmed identity and document subject to disagree.
+  4. **V04 (Medium)**: Some unit tests simulated production logic via local functions (`simulateConfigUpdateTransaction()`, local `checkIssuanceEligibility()`) rather than executing actual exported production handlers and policies.
+- **Decisions**:
+  1. **Dynamic Dirty State and Draft Isolation (V01)**:
+     - Separate saved authoritative configuration, locally edited draft fields, catalog additions/deletions, and pending unsaved changes in `app/superadmin/config/page.tsx`.
+     - In `handleAddDocType` and `handleDeleteDocType`, commit only catalog fields (`documentTypes`, `documentFees`, `customDocumentTypes`, and the specific document template) and update `baselineConfigRef.current` with only those committed fields.
+     - Recompute dirty state dynamically across all editable fields against the updated baseline; if unrelated edits (branding, contact, signatures, other templates) remain, keep `isDirty` as `true`.
+     - In the Firestore snapshot sync effect, prevent background snapshots from overwriting active drafts when `isDirty` is true.
+     - Preserve version-aware optimistic concurrency enforcement on all server mutations.
+  2. **Strict Preservation of Original Issuance and Explicit Corrected Issuance (V02)**:
+     - Distinguish original issuance, archival reprint, and authorized corrected issuance.
+     - On first generation, record immutable issuance snapshot (`issuanceBeneficiaryName`, `issuanceBeneficiaryAddress`, `issuanceBeneficiaryAge`, `generatedAt`, `issuanceDate`).
+     - On reprint (`hasGenerated === true`), `resolveDocumentSubject` and `request.markGenerated` strictly reproduce original snapshot values and original issuance date; normal reprint cannot silently mutate original issuance.
+     - Introduce explicit authorized, audited `request.reissueCorrected` operation that archives superseded issuance history with correction reasons and audit logging.
+  3. **Unified Authoritative Identity Contract (V03)**:
+     - Disallow routine confirmation from substituting beneficiary identity (`confirmBeneficiary` validates that confirmed name matches requested name).
+     - Align `resolveDocumentSubject`, `request.markGenerated`, and issuance snapshot around the authoritative identity hierarchy.
+  4. **Production-Path Verification (V04)**:
+     - Replace simulation test functions with direct execution of production route handlers (`createAdminOperationsHandler`) and production policies.
+     - Validate PDF download content and reprint consistency in Playwright tests with strict `try...finally` fixture cleanup.
+- **Consequences**:
+  - Super admins can add or delete document types without losing in-progress drafts.
+  - Reprints reliably reproduce original issuance artifacts.
+  - Stored beneficiary names and document subjects cannot disagree.
+  - Tests prove actual production code invariants without simulation drift.

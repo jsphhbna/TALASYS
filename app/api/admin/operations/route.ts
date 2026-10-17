@@ -322,8 +322,13 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
       }
       const { address: confirmedAddress, age: confirmedAge, name: confirmedName, notes: confirmedNotes } = validation.data
 
+      // V03: Prevent routine confirmation from substituting or altering the requested beneficiary identity
+      if (confirmedName && before.requestedByName && confirmedName.trim().toLowerCase() !== before.requestedByName.trim().toLowerCase()) {
+        throw httpError(`Cannot change beneficiary identity during routine confirmation. Confirmed beneficiary name ('${confirmedName}') must match requested beneficiary name ('${before.requestedByName}').`, 400)
+      }
+
       after = {
-        confirmedBeneficiaryName: confirmedName || before.requestedByName || "",
+        confirmedBeneficiaryName: before.requestedByName?.trim() || confirmedName || "",
         confirmedBeneficiaryAddress: confirmedAddress,
         ...(confirmedAge !== undefined ? { confirmedBeneficiaryAge: confirmedAge } : {}),
         beneficiaryReviewStatus: "confirmed",
@@ -362,25 +367,109 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
 
       const isReprint = Boolean(before.hasGenerated && before.generatedAt)
 
+      // V02 & V03: Capture immutable issuance snapshot on first generation; strictly preserve on reprint
+      let issuanceAddress = before.issuanceBeneficiaryAddress || null
+      let issuanceAge = before.issuanceBeneficiaryAge !== undefined && before.issuanceBeneficiaryAge !== null
+        ? before.issuanceBeneficiaryAge
+        : null
+      let issuanceName = before.issuanceBeneficiaryName || null
+
+      if (!isReprint || !issuanceAddress) {
+        if (before.requestFor === "other") {
+          issuanceAddress = issuanceAddress || before.confirmedBeneficiaryAddress || before.representedAddress || null
+          if (issuanceAge === null) {
+            issuanceAge = before.confirmedBeneficiaryAge !== undefined ? before.confirmedBeneficiaryAge : (before.representedAge !== undefined ? before.representedAge : null)
+          }
+          issuanceName = issuanceName || before.confirmedBeneficiaryName || before.requestedByName || null
+        } else {
+          issuanceName = issuanceName || before.residentName || null
+          issuanceAddress = issuanceAddress || before.address || null
+          if (issuanceAge === null) {
+            issuanceAge = before.age !== undefined ? before.age : null
+          }
+          if ((!issuanceAddress || issuanceAge === null) && before.residentId) {
+            const userDoc = await transaction.get(db.collection(COLLECTION_USERS).doc(before.residentId))
+            if (userDoc.exists) {
+              const userData = userDoc.data() || {}
+              if (!issuanceAddress) issuanceAddress = userData.address || null
+              if (issuanceAge === null) issuanceAge = userData.age !== undefined ? userData.age : null
+            }
+          }
+        }
+      }
+
       after = {
         hasGenerated: true,
         generatedAt: before.generatedAt || now,
+        issuanceDate: before.issuanceDate || new Date(now).toISOString(),
         ...(isReprint ? {
           lastReprintedAt: now,
           reprintCount: ((before.reprintCount as number) || 0) + 1,
-        } : {}),
-        // Issuance snapshot: preserve original issuance details if set on first generation, or record authoritative
-        issuanceBeneficiaryAddress: before.issuanceBeneficiaryAddress || (before.requestFor === "other"
-          ? before.confirmedBeneficiaryAddress
-          : (before.address || null)),
-        issuanceBeneficiaryAge: before.issuanceBeneficiaryAge !== undefined && before.issuanceBeneficiaryAge !== null
-          ? before.issuanceBeneficiaryAge
-          : (before.requestFor === "other"
-              ? (before.confirmedBeneficiaryAge !== undefined ? before.confirmedBeneficiaryAge : null)
-              : (before.age !== undefined ? before.age : null)),
-        issuanceBeneficiaryName: before.issuanceBeneficiaryName || (before.requestFor === "other"
-          ? (before.confirmedBeneficiaryName || before.requestedByName || null)
-          : (before.residentName || null)),
+        } : {
+          reprintCount: 0,
+        }),
+        // Issuance snapshot: immutable across normal reprints (V02)
+        issuanceBeneficiaryAddress: issuanceAddress || null,
+        issuanceBeneficiaryAge: issuanceAge !== undefined && issuanceAge !== null ? issuanceAge : null,
+        issuanceBeneficiaryName: issuanceName || null,
+        updatedAt: now,
+      }
+      transaction.update(targetRef, after)
+    } else if (operation === "request.reissueCorrected") {
+      if (["Cancelled", "Rejected"].includes(before.status)) {
+        throw httpError(`Cannot reissue corrected document for request in terminal state '${before.status}'.`, 409)
+      }
+      if (!before.hasGenerated || !before.generatedAt) {
+        throw httpError("Cannot reissue corrected document: Document has not been generated previously. Use standard generation.", 400)
+      }
+      const correctionReason = typeof payload.correctionReason === "string" ? payload.correctionReason.trim() : ""
+      if (correctionReason.length < 10) {
+        throw httpError("Correction reason is required and must be at least 10 characters.", 400)
+      }
+
+      const newAddress = typeof payload.address === "string" ? payload.address.trim() : ""
+      if (!newAddress) {
+        throw httpError("Corrected document requires a valid address.", 400)
+      }
+      if (newAddress.length > 300) {
+        throw httpError("Corrected address exceeds maximum allowed length (300 characters).", 400)
+      }
+
+      let newAge: number | null = null
+      if (payload.age !== undefined && payload.age !== null && String(payload.age).trim() !== "") {
+        const parsedAge = Number(payload.age)
+        if (!Number.isFinite(parsedAge) || !Number.isInteger(parsedAge) || parsedAge < 0 || parsedAge > 130) {
+          throw httpError("Corrected age must be an integer between 0 and 130.", 400)
+        }
+        newAge = parsedAge
+      }
+
+      // Archive current issuance record in issuanceHistory (V02)
+      const priorIssuance = {
+        issuedAt: before.generatedAt,
+        issuanceDate: before.issuanceDate || new Date(before.generatedAt).toISOString(),
+        beneficiaryName: before.issuanceBeneficiaryName || (before.requestFor === "other" ? before.requestedByName : before.residentName),
+        beneficiaryAddress: before.issuanceBeneficiaryAddress || "",
+        beneficiaryAge: before.issuanceBeneficiaryAge ?? null,
+        supersededAt: now,
+        supersededBy: actor.name,
+        supersededByUid: actorUid,
+        correctionReason,
+      }
+
+      const issuanceHistory = [...(Array.isArray(before.issuanceHistory) ? before.issuanceHistory : []), priorIssuance]
+
+      after = {
+        hasGenerated: true,
+        isCorrectedIssuance: true,
+        lastCorrectedAt: now,
+        lastCorrectedBy: actor.name,
+        lastCorrectionReason: correctionReason,
+        issuanceBeneficiaryAddress: newAddress,
+        ...(newAge !== null ? { issuanceBeneficiaryAge: newAge } : {}),
+        confirmedBeneficiaryAddress: newAddress,
+        ...(newAge !== null ? { confirmedBeneficiaryAge: newAge } : {}),
+        issuanceHistory,
         updatedAt: now,
       }
       transaction.update(targetRef, after)
@@ -452,6 +541,11 @@ async function executeFirestoreOperation(db: any, actorUid: string, body: Requir
         const conflictingFields: string[] = []
         for (const field of changedFields) {
           const serverVal = before[field]
+          // If field was not present in baseConfig during version divergence, non-overlapping merge cannot be proven -> conflict (V01)
+          if (!(field in baseConfig)) {
+            conflictingFields.push(field)
+            continue
+          }
           const baseVal = baseConfig[field]
           if (JSON.stringify(serverVal ?? null) !== JSON.stringify(baseVal ?? null)) {
             conflictingFields.push(field)
