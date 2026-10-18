@@ -66,9 +66,11 @@ export function SuperAdminSidebarNav({ onItemClick }: { onItemClick?: () => void
           <Link
             key={item.name}
             href={item.href}
+            title={item.name}
+            aria-label={item.name}
             onClick={(e) => handleNavClick(e, item.href)}
             className={cn(
-              "flex items-center gap-2.5 mx-1.5 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md relative",
+              "flex items-center gap-2 mx-1 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md relative",
               isActive
                 ? "bg-white/10 text-white font-medium"
                 : "text-blue-200/70 hover:text-white hover:bg-white/5 font-medium",
@@ -76,7 +78,7 @@ export function SuperAdminSidebarNav({ onItemClick }: { onItemClick?: () => void
           >
             {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#C5A55A] rounded-r-full" />}
             <Icon className="w-4 h-4 shrink-0" />
-            <span className="truncate whitespace-nowrap">{item.name}</span>
+            <span className="font-medium leading-snug">{item.name}</span>
           </Link>
         )
       })}
@@ -95,12 +97,14 @@ export function SuperAdminSidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex w-[216px] lg:w-[220px] xl:w-[224px] 2xl:w-[232px] shrink-0 min-h-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
+      <aside className="hidden md:flex w-[236px] lg:w-[244px] xl:w-[252px] 2xl:w-[260px] shrink-0 min-h-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
         <SuperAdminSidebarNav />
         <div className="p-2.5 border-t border-white/10 shrink-0">
           <button
             onClick={() => setShowLogoutDialog(true)}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm-minus text-blue-200/60 hover:text-white hover:bg-white/5 rounded-md transition-colors font-medium"
+            title="Sign Out"
+            aria-label="Sign Out"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm-minus text-blue-200/70 hover:text-white hover:bg-white/5 rounded-md transition-colors font-medium"
           >
             <LogOut className="w-4 h-4 shrink-0" />
             <span className="whitespace-nowrap">Sign Out</span>

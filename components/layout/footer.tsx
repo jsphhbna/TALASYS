@@ -5,7 +5,7 @@ import Link from "next/link"
 export function Footer() {
   return (
     <footer className="bg-[#0C2340] dark:bg-slate-800 text-slate-100 py-8 px-6 border-t border-[#1a3a5c]/50" role="contentinfo">
-      <div className="w-full" suppressHydrationWarning>
+      <div className="w-full max-w-7xl 2xl:max-w-[1536px] min-[1920px]:max-w-[1720px] mx-auto" suppressHydrationWarning>
         {/* Footer Content Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" suppressHydrationWarning>
           {/* Brand Section */}

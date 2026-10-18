@@ -18,7 +18,11 @@ export default function ActivityLogs() {
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 15
 
-  const normalizedLogs = useMemo(() => activityLogs.map(normalizeAuditLog), [activityLogs])
+  const normalizedLogs = useMemo(() => {
+    return activityLogs
+      .map(normalizeAuditLog)
+      .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+  }, [activityLogs])
 
   const groupedLogs = normalizedLogs.reduce((acc, log) => {
     const rawAction = log.action || "Other"

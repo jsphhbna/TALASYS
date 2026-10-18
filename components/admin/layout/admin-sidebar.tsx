@@ -133,13 +133,16 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
           return (
             <div key={item.name}>
               <button
+                type="button"
                 onClick={() => setIsDocOpen(v => !v)}
-                className="w-full flex items-center justify-between mx-1.5 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
-                style={{ width: 'calc(100% - 12px)' }}
+                title={item.name}
+                aria-label={item.name}
+                aria-expanded={isDocOpen}
+                className="w-[calc(100%-8px)] flex items-center justify-between mx-1 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md text-blue-200/70 hover:text-white hover:bg-white/5 font-medium text-left"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate whitespace-nowrap">Document Processing</span>
+                  <span className="font-medium leading-snug">{item.name}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 ml-1">
                   {(item.badge ?? 0) > 0 && (
@@ -151,7 +154,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                 </div>
               </button>
               {isDocOpen && (
-                <div className="ml-3 mb-1 border-l border-white/10 pl-1.5">
+                <div className="ml-2.5 mb-1 border-l border-white/10 pl-1.5">
                   {docSubItems.map(sub => {
                     const isSubActive = activePath === sub.href ||
                       (sub.href === "/admin/generate" && activePath.startsWith("/admin/generate")) ||
@@ -164,15 +167,17 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                       <Link
                         key={sub.name}
                         href={sub.href}
+                        title={sub.name}
+                        aria-label={sub.name}
                         onClick={(e) => handleNavClick(e, sub.href)}
-                        className={`flex items-center justify-between mx-1 mb-0.5 px-2.5 py-1.5 text-xs transition-colors rounded-md relative ${
-                          isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5 font-medium"
+                        className={`flex items-center justify-between mx-0.5 mb-0.5 px-2 py-1.5 text-xs transition-colors rounded-md relative ${
+                          isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           {isSubActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-[#C5A55A] rounded-r-full" />}
                           <SubIcon className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate whitespace-nowrap">{sub.name}</span>
+                          <span className="font-medium leading-snug">{sub.name}</span>
                         </div>
                         {subBadge > 0 && (
                           <span className="flex items-center justify-center min-w-[16px] h-[15px] px-1 bg-red-500 text-white text-2xs rounded-full font-bold shrink-0 ml-1">
@@ -192,18 +197,21 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
           return (
             <div key={item.name}>
               <button
+                type="button"
                 onClick={() => setIsResidentsOpen(v => !v)}
-                className="w-full flex items-center justify-between mx-1.5 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
-                style={{ width: 'calc(100% - 12px)' }}
+                title={item.name}
+                aria-label={item.name}
+                aria-expanded={isResidentsOpen}
+                className="w-[calc(100%-8px)] flex items-center justify-between mx-1 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md text-blue-200/70 hover:text-white hover:bg-white/5 font-medium text-left"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate whitespace-nowrap">Resident Management</span>
+                  <span className="font-medium leading-snug">{item.name}</span>
                 </div>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 shrink-0 ml-1 ${isResidentsOpen ? "rotate-180" : ""}`} />
               </button>
               {isResidentsOpen && (
-                <div className="ml-3 mb-1 border-l border-white/10 pl-1.5">
+                <div className="ml-2.5 mb-1 border-l border-white/10 pl-1.5">
                   {residentsSubItems.map(sub => {
                     const isSubActive = activePath === sub.href
                     const SubIcon = sub.icon
@@ -211,14 +219,16 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                       <Link
                         key={sub.name}
                         href={sub.href}
+                        title={sub.name}
+                        aria-label={sub.name}
                         onClick={(e) => handleNavClick(e, sub.href)}
-                        className={`flex items-center gap-2 mx-1 mb-0.5 px-2.5 py-1.5 text-xs transition-colors rounded-md relative ${
-                          isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5 font-medium"
+                        className={`flex items-center gap-2 mx-0.5 mb-0.5 px-2 py-1.5 text-xs transition-colors rounded-md relative ${
+                          isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
                         }`}
                       >
                         {isSubActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-[#C5A55A] rounded-r-full" />}
                         <SubIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate whitespace-nowrap">{sub.name}</span>
+                        <span className="font-medium leading-snug">{sub.name}</span>
                       </Link>
                     )
                   })}
@@ -232,13 +242,16 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
           return (
             <div key={item.name}>
               <button
+                type="button"
                 onClick={() => setIsVerifOpen(v => !v)}
-                className="w-full flex items-center justify-between mx-1.5 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
-                style={{ width: 'calc(100% - 12px)' }}
+                title={item.name}
+                aria-label={item.name}
+                aria-expanded={isVerifOpen}
+                className="w-[calc(100%-8px)] flex items-center justify-between mx-1 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md text-blue-200/70 hover:text-white hover:bg-white/5 font-medium text-left"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate whitespace-nowrap">Verifications</span>
+                  <span className="font-medium leading-snug">{item.name}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 ml-1">
                   {(item.badge ?? 0) > 0 && (
@@ -251,7 +264,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
               </button>
 
               {isVerifOpen && (
-                <div className="ml-3 mb-1 border-l border-white/10 pl-1.5">
+                <div className="ml-2.5 mb-1 border-l border-white/10 pl-1.5">
                   {verifSubItems.map(sub => {
                     const isSubActive = activePath === sub.href
                     const SubIcon = sub.icon
@@ -264,15 +277,17 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
                       <Link
                         key={sub.name}
                         href={sub.href}
+                        title={sub.name}
+                        aria-label={sub.name}
                         onClick={(e) => handleNavClick(e, sub.href)}
-                        className={`flex items-center justify-between mx-1 mb-0.5 px-2.5 py-1.5 text-xs transition-colors rounded-md relative ${
-                          isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/50 hover:text-white hover:bg-white/5 font-medium"
+                        className={`flex items-center justify-between mx-0.5 mb-0.5 px-2 py-1.5 text-xs transition-colors rounded-md relative ${
+                          isSubActive ? "bg-white/10 text-white font-medium" : "text-blue-200/60 hover:text-white hover:bg-white/5 font-medium"
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           {isSubActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-[#C5A55A] rounded-r-full" />}
                           <SubIcon className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate whitespace-nowrap">{sub.name}</span>
+                          <span className="font-medium leading-snug">{sub.name}</span>
                         </div>
                         {subBadge > 0 && (
                           <span className="flex items-center justify-center min-w-[16px] h-[15px] px-1 bg-red-500 text-white text-2xs rounded-full font-bold shrink-0 ml-1">
@@ -292,18 +307,20 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
           <Link
             key={item.name}
             href={item.href}
+            title={item.name}
+            aria-label={item.name}
             onClick={(e) => handleNavClick(e, item.href)}
             className={cn(
-              "flex items-center justify-between mx-1.5 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md relative",
+              "flex items-center justify-between mx-1 mb-0.5 px-2.5 py-2 text-sm-minus transition-colors rounded-md relative",
               isActive
                 ? "bg-white/10 text-white font-medium"
-                : "text-blue-200/60 hover:text-white hover:bg-white/5 font-medium",
+                : "text-blue-200/70 hover:text-white hover:bg-white/5 font-medium",
             )}
           >
             {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#C5A55A] rounded-r-full" />}
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <Icon className="w-4 h-4 shrink-0" />
-              <span className="truncate whitespace-nowrap">{item.name}</span>
+              <span className="font-medium leading-snug">{item.name}</span>
             </div>
             {(item.badge ?? 0) > 0 && (
               <span className="flex items-center justify-center min-w-[18px] h-[16px] px-1 bg-red-500 text-white text-2xs rounded-full font-medium shrink-0 ml-1">
@@ -336,12 +353,14 @@ export function AdminSidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex w-[216px] lg:w-[220px] xl:w-[224px] 2xl:w-[232px] shrink-0 min-h-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
+      <aside className="hidden md:flex w-[236px] lg:w-[244px] xl:w-[252px] 2xl:w-[260px] shrink-0 min-h-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
         <AdminSidebarNav />
         <div className="p-2.5 border-t border-white/10 shrink-0">
           <button
             onClick={() => setShowLogoutDialog(true)}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm-minus text-blue-200/60 hover:text-white hover:bg-white/5 rounded-md transition-colors font-medium"
+            title="Sign Out"
+            aria-label="Sign Out"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm-minus text-blue-200/70 hover:text-white hover:bg-white/5 rounded-md transition-colors font-medium"
           >
             <LogOut className="w-4 h-4 shrink-0" />
             <span className="whitespace-nowrap">Sign Out</span>

@@ -143,7 +143,7 @@ export function ModalOverlay({ isOpen, onClose, children, className, title, styl
     <ModalStackContext.Provider value={effectiveDepth + 1}>
       <div
         className={cn(
-          "fixed inset-0 grid place-items-center overflow-y-auto overscroll-contain bg-black/40 p-4 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200",
+          "fixed inset-0 grid place-items-center overflow-y-auto overscroll-contain bg-black/50 p-4 sm:p-6 animate-in fade-in duration-200",
           className
         )}
         style={{ zIndex: computedZIndex, ...style }}

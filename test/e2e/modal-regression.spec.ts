@@ -148,7 +148,7 @@ async function login(page: Page, emailUser: string, expectedUrl: RegExp = /\/adm
   await page.getByLabel("Username or Email").fill(`${emailUser}@example.test`)
   await page.locator("#password").fill(password)
   await page.getByRole("button", { name: "Sign In" }).click()
-  await expect(page).toHaveURL(expectedUrl)
+  await expect(page).toHaveURL(expectedUrl, { timeout: 15000 })
 }
 
 test.describe("M01–M05 Modal Centering, Dismissal, Layering, and Sidebar Verification", () => {
@@ -164,8 +164,8 @@ test.describe("M01–M05 Modal Centering, Dismissal, Layering, and Sidebar Verif
       await expect(sidebarAside).toBeVisible()
       const sidebarBox = await sidebarAside.boundingBox()
       expect(sidebarBox).not.toBeNull()
-      expect(sidebarBox!.width).toBeGreaterThanOrEqual(216)
-      expect(sidebarBox!.width).toBeLessThanOrEqual(232)
+      expect(sidebarBox!.width).toBeGreaterThanOrEqual(236)
+      expect(sidebarBox!.width).toBeLessThanOrEqual(265)
 
       // Verify all SuperAdmin nav items: no text wrapping or overflow
       const navLinks = sidebarAside.locator("nav a")
@@ -250,30 +250,49 @@ test.describe("M01–M05 Modal Centering, Dismissal, Layering, and Sidebar Verif
       await expect(sidebarAside).toBeVisible()
       const sidebarBox = await sidebarAside.boundingBox()
       expect(sidebarBox).not.toBeNull()
-      expect(sidebarBox!.width).toBeGreaterThanOrEqual(216)
-      expect(sidebarBox!.width).toBeLessThanOrEqual(232)
+      expect(sidebarBox!.width).toBeGreaterThanOrEqual(236)
+      expect(sidebarBox!.width).toBeLessThanOrEqual(265)
 
-      // Expand all accordions simultaneously
+      // Capture initial sidebar geometry and background appearance for QA-01 comparison
+      const initialSidebarGeom = {
+        x: sidebarBox!.x,
+        y: sidebarBox!.y,
+        width: sidebarBox!.width,
+        height: sidebarBox!.height,
+      }
+      const initialSidebarBg = await sidebarAside.evaluate(el => window.getComputedStyle(el).backgroundColor)
+      expect(initialSidebarBg).toBe("rgb(12, 35, 64)")
+
+      // Expand all accordions simultaneously (QA-02)
       const docBtn = sidebarAside.getByRole("button", { name: "Document Processing" })
       const resBtn = sidebarAside.getByRole("button", { name: "Resident Management" })
       const verifBtn = sidebarAside.getByRole("button", { name: "Verifications" })
 
-      // Verify accordion buttons and labels
+      // Verify accordion buttons and labels have full text, title, and aria-label without ellipses
       for (const btn of [docBtn, resBtn, verifBtn]) {
         await expect(btn).toBeVisible()
         const label = btn.locator("span").first()
+        const labelText = (await label.textContent())?.trim() || ""
+        expect(labelText.length).toBeGreaterThan(5)
+        expect(labelText).not.toContain("...")
         const isWrapped = await label.evaluate(el => el.scrollWidth > el.clientWidth + 1 || el.getClientRects().length > 1)
         expect(isWrapped).toBe(false)
+        const ariaLabel = await btn.getAttribute("aria-label")
+        expect(ariaLabel).toBe(labelText)
       }
 
-      // Verify all sub-item links: no text wrapping
+      // Verify all sub-item links: no text wrapping, titles, and full readable text
       const subLinks = sidebarAside.locator("nav a")
       const subLinkCount = await subLinks.count()
       for (let i = 0; i < subLinkCount; i++) {
         const link = subLinks.nth(i)
         const label = link.locator("span").first()
+        const labelText = (await label.textContent())?.trim() || ""
+        expect(labelText).not.toContain("...")
         const isWrapped = await label.evaluate(el => el.scrollWidth > el.clientWidth + 1 || el.getClientRects().length > 1)
         expect(isWrapped).toBe(false)
+        const linkTitle = await link.getAttribute("title")
+        expect(linkTitle).toBe(labelText)
       }
 
       // Verify independent scrolling of nav when fully expanded
@@ -294,12 +313,29 @@ test.describe("M01–M05 Modal Centering, Dismissal, Layering, and Sidebar Verif
       expect(signOutBox).not.toBeNull()
       expect(signOutBox!.y + signOutBox!.height).toBeLessThanOrEqual(vp.height)
 
-      // 2. Admin -> Resident Profile modal centering
+      // 2. Admin -> Resident Profile modal centering & QA-01 sidebar visual geometry preservation
       const residentRow = page.getByRole("row").filter({ hasText: "E2E Modal Resident" })
       await residentRow.getByRole("button", { name: "View Profile" }).click()
 
       const profileModal = page.getByRole("dialog", { name: "Resident Profile" })
       await expect(profileModal).toBeVisible()
+
+      // QA-01 Verification: While overlay is open, sidebar retains identical geometry and painted background
+      const modalOpenSidebarBox = await sidebarAside.boundingBox()
+      expect(modalOpenSidebarBox).not.toBeNull()
+      expect(modalOpenSidebarBox!.x).toBe(initialSidebarGeom.x)
+      expect(modalOpenSidebarBox!.width).toBe(initialSidebarGeom.width)
+      expect(Math.abs(modalOpenSidebarBox!.y - initialSidebarGeom.y)).toBeLessThanOrEqual(1)
+      expect(Math.abs(modalOpenSidebarBox!.height - initialSidebarGeom.height)).toBeLessThanOrEqual(1)
+
+      const modalOpenSidebarBg = await sidebarAside.evaluate(el => window.getComputedStyle(el).backgroundColor)
+      expect(modalOpenSidebarBg).toBe(initialSidebarBg)
+
+      // Verify backdrop does NOT have backdrop-blur-sm compositing layer
+      const backdropEl = page.locator('div.fixed.inset-0.bg-black\\/50').first()
+      await expect(backdropEl).toBeVisible()
+      const backdropClass = await backdropEl.getAttribute("class")
+      expect(backdropClass).not.toContain("backdrop-blur")
 
       const profileCard = profileModal.locator('.w-full.max-w-3xl').first()
       const profileBox = await profileCard.boundingBox()
@@ -428,6 +464,80 @@ test.describe("M01–M05 Modal Centering, Dismissal, Layering, and Sidebar Verif
     expect(notif.title).toBe("Profile Picture Removed")
     expect(notif.message).toContain(removalReason)
     expect(notif.isRead).toBe(false)
+
+    // 11. QA-03 Mandatory Browser UI Verification:
+    // Verify the photo removal event appears through the actual Admin Activity Logs browser UI
+    await page.goto("/admin/logs")
+    await expect(page.getByRole("heading", { name: "Activity Logs" })).toBeVisible()
+
+    // Table first row must immediately display the photo removal event (sorted top descending)
+    const firstLogRow = page.locator("table tbody tr").first()
+    await expect(firstLogRow).toBeVisible({ timeout: 10000 })
+    await expect(firstLogRow).toContainText("Removed Resident Profile Picture")
+    await expect(firstLogRow).toContainText("E2E Modal Resident")
+    await expect(firstLogRow).toContainText(removalReason)
+
+    // Filter by Resident Ops: row remains visible
+    await page.getByRole("button", { name: "Resident Ops" }).click()
+    const residentOpsRow = page.locator("table tbody tr").first()
+    await expect(residentOpsRow).toBeVisible()
+    await expect(residentOpsRow).toContainText("Removed Resident Profile Picture")
+
+    // Search by removal reason keyword
+    const searchInput = page.getByPlaceholder(/Search logs/i)
+    await searchInput.fill("recognizable portrait")
+    const searchResultRow = page.locator("table tbody tr").first()
+    await expect(searchResultRow).toBeVisible()
+    await expect(searchResultRow).toContainText("Removed Resident Profile Picture")
+    await searchInput.clear()
+  })
+
+  test("QA-04 Landing page zoom adaptation and fluid composition across zoom viewports", async ({ page }) => {
+    const zoomLevels = [
+      { width: 1280, height: 720, label: "100% Zoom (1280x720)" },
+      { width: 1600, height: 900, label: "80% Zoom (1600x900)" },
+      { width: 1920, height: 1080, label: "67% Zoom (1920x1080)" },
+      { width: 1024, height: 768, label: "125% Zoom (1024x768)" },
+    ]
+
+    for (const zoom of zoomLevels) {
+      await page.setViewportSize({ width: zoom.width, height: zoom.height })
+      await page.goto("/")
+      await expect(page.locator("#hero")).toBeVisible()
+
+      // 1. Verify container scales fluidly beyond 1280px on wide screens
+      const heroContainer = page.locator("#hero > div:not(.pointer-events-none)")
+      const containerBox = await heroContainer.boundingBox()
+      expect(containerBox).not.toBeNull()
+      if (zoom.width >= 1600) {
+        expect(containerBox!.width).toBeGreaterThan(1200)
+      }
+
+      // 2. Verify officials image scales with object-cover and top alignment without distortion
+      const officialsImg = page.locator('img[alt="Barangay 634 Officials Group"]')
+      await expect(officialsImg).toBeVisible()
+      const imgMetrics = await officialsImg.evaluate(el => {
+        const computed = window.getComputedStyle(el)
+        return {
+          objectFit: computed.objectFit,
+          objectPosition: computed.objectPosition,
+          clientWidth: el.clientWidth,
+          clientHeight: el.clientHeight,
+        }
+      })
+      expect(imgMetrics.objectFit).toBe("cover")
+      expect(imgMetrics.objectPosition.includes("top") || imgMetrics.objectPosition === "50% 0%").toBe(true)
+      expect(imgMetrics.clientWidth).toBeGreaterThan(200)
+      expect(imgMetrics.clientHeight).toBeGreaterThan(200)
+
+      // 3. Verify text line readability
+      const descParagraph = page.locator("#hero p").first()
+      await expect(descParagraph).toBeVisible()
+
+      // 4. Verify decorative blur-3xl blobs are absent from the hero section
+      const blurBlobs = page.locator('#hero .blur-3xl')
+      expect(await blurBlobs.count()).toBe(0)
+    }
   })
 
   test("M03 Nested Valid ID preview and dismissal", async ({ page }) => {

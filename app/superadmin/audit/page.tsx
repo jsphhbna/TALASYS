@@ -39,7 +39,11 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 export default function AuditLogs() {
   const { auditLogs, stats: { auditActionBreakdown, totalAuditLogs }, systemConfig } = useSuperAdminData()
   
-  const normalizedLogs = useMemo(() => auditLogs.map(normalizeAuditLog), [auditLogs])
+  const normalizedLogs = useMemo(() => {
+    return auditLogs
+      .map(normalizeAuditLog)
+      .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+  }, [auditLogs])
   
   const barangayName = systemConfig?.barangayName || "Barangay Sample"
   const municipality = systemConfig?.address || "City of Sample"

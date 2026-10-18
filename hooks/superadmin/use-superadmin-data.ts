@@ -117,10 +117,15 @@ export function useSuperAdminData() {
             setIsLoaded(true)
         }))
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(500)), async () => {
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(500)), async (snapshot) => {
           try {
+            if (snapshot?.docs) {
+              const liveLogs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).map(normalizeAuditLog).sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+              setAuditLogs(liveLogs as unknown as AuditLog[])
+            }
             const allLogs = await fetchOrderedCollectionPages<any>(db, COLLECTION_ACTIVITY_LOGS, "timestamp", 500)
-            setAuditLogs(allLogs.map(normalizeAuditLog) as unknown as AuditLog[])
+            const normalizedSorted = allLogs.map(normalizeAuditLog).sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+            setAuditLogs(normalizedSorted as unknown as AuditLog[])
             checkReady("activityLogs")
           } catch (err: any) {
             console.error("activityLogs pagination error in superadmin hook:", err)

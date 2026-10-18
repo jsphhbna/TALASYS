@@ -19,7 +19,7 @@ export function LandingNavbar() {
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700" style={{ boxShadow: "var(--shadow-sm)" }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-7xl 2xl:max-w-[1536px] min-[1920px]:max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         <div className="flex justify-between items-center h-16">
           
           {/* Logo / Brand */}

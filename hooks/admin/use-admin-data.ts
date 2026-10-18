@@ -232,10 +232,15 @@ export function useAdminData() {
             setDismissedNotificationIds(new Set())
         }
 
-        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(250)), async () => {
+        unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(250)), async (snapshot) => {
           try {
+            if (snapshot?.docs) {
+              const liveLogs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).map(normalizeAuditLog).sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+              setActivityLogs(liveLogs as unknown as ActivityLog[])
+            }
             const allLogs = await fetchOrderedCollectionPages<any>(db, COLLECTION_ACTIVITY_LOGS, "timestamp", 250)
-            setActivityLogs(allLogs.map(normalizeAuditLog) as unknown as ActivityLog[])
+            const normalizedSorted = allLogs.map(normalizeAuditLog).sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+            setActivityLogs(normalizedSorted as unknown as ActivityLog[])
             checkReady("activityLogs")
           } catch (err: any) {
             console.error("activityLogs pagination error:", err)

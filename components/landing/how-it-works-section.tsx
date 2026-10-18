@@ -38,7 +38,7 @@ const steps = [
 export function HowItWorksSection() {
   return (
     <section className="py-20 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800" id="how-it-works">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-7xl 2xl:max-w-[1536px] min-[1920px]:max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100/70 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 text-xs font-semibold tracking-wide uppercase mb-3">
             Simple 5-Step Process

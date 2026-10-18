@@ -1,6 +1,22 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04, M01–M06)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04, M01–M06, QA01–QA04)
 
-## DevKit V10 Modal Regression & Responsive Sidebar Correction (M01–M06) — CURRENT PASS
+## DevKit V10 Manual QA Findings Remediation (QA-01–QA-04) — CURRENT PASS
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED
+- **Audited baseline:** `339b3aa9d0559d7e75c67dcabde17660299cfead`
+- **Execution mode:** Confirmed Root-Cause Remediation → Multi-Viewport Browser Regression Tests → Two Consecutive Clean Verification Passes
+- **Scope:** QA-01 (sidebar clipping with backdrop blur on Edge/laptop viewports), QA-02 (navigation label truncation when sections expand), QA-03 (photo removal audit log indexing, canonical sorting, and browser UI visibility), QA-04 (landing page fluid container & hero zoom adaptation).
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **QA-01** | Sidebar Visual Clipping When Modals Open | COMPLETED | Removed `backdrop-blur-sm` compositing layer from `ModalOverlay`, `DialogOverlay`, and `AlertDialogOverlay`. Standardized on clean `bg-black/50` dimming. The entire sidebar retains its normal geometry and visual background without partial painting or clipping on Microsoft Edge and Chromium across 1024×768, 1280×720, 1280×800, 1366×768, and 1920×1080. Modal centering, internal scrolling, stacking, focus management, Escape key, and outside dismissal preserved. |
+| **QA-02** | Navigation Labels Truncated When Sections Expand | COMPLETED | Expanded responsive sidebar width (`w-[236px] lg:w-[244px] xl:w-[252px] 2xl:w-[260px]`) and removed `truncate whitespace-nowrap` ellipses on main and sub navigation labels. Primary navigation labels ("Document Processing", "Resident Management", "System Configuration") and all sub-navigation items remain completely readable with zero text truncation or unwanted ellipsis. Accessible `title` and `aria-label` attributes added. Independent navigation scrolling verified with all 3 accordion sections expanded simultaneously; Sign Out button pinned and accessible. |
+| **QA-03** | Photo Removal Missing From Activity Logs | COMPLETED | Root cause diagnosed as Outcome 4: Firestore cross-type sorting placed legacy String timestamps before numeric timestamps in `orderBy("timestamp", "desc")`, compounded by client subscriptions not sorting documents canonically. Migrated legacy string timestamps to numeric timestamps in `activityLogs`. Enforced defensive numeric sorting `.sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))` in `useAdminData`, `app/admin/logs/page.tsx`, `useSuperAdminData`, and `app/superadmin/audit/page.tsx`. Browser UI verified via Playwright: photo removal event appears at row 1 of Admin Activity Logs immediately upon save, is discoverable under Resident Ops filter, and responds to search queries. |
+| **QA-04** | Landing Page Fluid Layout & Hero Zoom Adaptation | COMPLETED | Upgraded landing page containers from rigid `max-w-7xl` to fluid responsive containers (`w-full max-w-7xl 2xl:max-w-[1536px] min-[1920px]:max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16`) across all landing sections and public footer. Eliminated messy `blur-3xl` smudge blobs in HeroSection, replaced with subtle clean gradients. Set readable `max-w-2xl` heading and `max-w-prose` body line lengths. Scaled Barangay Officials image responsively with `object-cover object-top` without distortion. Verified layout adaptation across 100%, 80%, 67%, and 125% zoom viewports. |
+| **QA-VERIFY** | Browser-Level Multi-Viewport Regression & Double Pass | COMPLETED | Authenticated Playwright test suite `test/e2e/modal-regression.spec.ts` (13/13 passed) and `test/e2e/authenticated-workflows.spec.ts` (R13 isolated test passed, full 47/47 suite verified). Completed two consecutive clean verification passes across the full verification suite (`typecheck`, `typecheck:test`, `npm test` 307/307, `npm run test:rules` 91/91, `npm run lint` 0 errors, `npm run build` 51/51 routes clean). |
+
+
+## DevKit V10 Modal Regression & Responsive Sidebar Correction (M01–M06) — PRIOR PASS
 
 - **Status:** COMPLETED & INDEPENDENTLY VERIFIED
 - **Audited baseline:** `8bdd2102a8600760819f9dd6466a1b11ccc254c9`

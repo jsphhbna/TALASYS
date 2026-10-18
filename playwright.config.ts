@@ -14,7 +14,9 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER ? undefined : {
-    command: `node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${testPort}`,
+    command: process.env.PLAYWRIGHT_USE_START
+      ? `node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port ${testPort}`
+      : `node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${testPort}`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,
