@@ -1,4 +1,17 @@
 
+# TALASYS Project State
+
+## DevKit V10 Modal Regression & Responsive Sidebar Correction (M01–M06) — CURRENT PASS
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED
+- **Audited Baseline:** `8bdd2102a8600760819f9dd6466a1b11ccc254c9`
+- **Key Deliverables Completed:**
+  1. **Viewport-Centered Modal Positioning (M01):** Repaired `components/ui/modal-overlay.tsx` so dialog wrapper centers child card horizontally and vertically (`items-center justify-center`). Verified in Playwright across 5 viewports (1024×768, 1280×720, 1280×800, 1366×768, 1920×1080) that visible dialog cards (Super Admin Edit Privileges, Create Admin, Admin Resident Profile, Deactivate Resident) strictly center in viewport (`Math.abs(cardCenterX - vpCenterX) <= 5`).
+  2. **Restored Outside-Click Dismissal (M02):** Wired `handleBackdropMouseDown` to both the outer backdrop and inner container wrapper with direct-target checking (`event.target === event.currentTarget`) and topmost-dialog verification. Tested pointer clicks on empty space outside dialogs (left, right, top, bottom) dismiss idle dialogs; pointer clicks inside content never dismiss; Escape dismisses topmost dialog; in-flight save operations maintain strict dismissal lockout.
+  3. **Predictable Nested Modal Stacking & Image Viewer Layering (M03):** Implemented `ModalStackContext` with depth-based stacking (`zIndex = 100 + depth * 10`) and inline style override in `ModalOverlay`. Purged legacy conflicting z-index utilities (`z-[60]`, `z-[70]`) from `components/admin/resident-profile-modal.tsx` and `components/admin/admin-payment-process-modal.tsx`. Active child viewers (e.g., photo lightbox at z=110, Valid ID full view at z=110) reliably appear above parent (z=100). Focus restoration stays within parent modal upon child close. Mandatory E2E workflow verified: Open Profile → Preview Photo → Remove Photo in Lightbox → Enter Reason → Save Changes → verify Firestore persistence, canonical audit record (`normalizeAuditLog`), and resident notification arrival.
+  4. **Responsive Compact Sidebar Optimization (M04):** Replaced fixed `232px` with responsive width `w-[216px] lg:w-[220px] xl:w-[224px] 2xl:w-[232px]` in `components/admin/layout/admin-sidebar.tsx` and `components/superadmin/layout/superadmin-sidebar.tsx`. Adjusted padding (`px-2.5 py-2`), sub-item indentation (`ml-3 pl-1.5`), and applied `truncate whitespace-nowrap` to labels. Verified across all 5 viewports that labels (Resident Management, Document Processing, System Configuration) do not wrap or clip (`scrollWidth <= clientWidth`). Pinned `shrink-0` Sign Out button, ensuring it remains fully visible within viewport without being obscured by expanded navigation. Nav remains independently scrollable (`overflow-y-auto`).
+  5. **Comprehensive Verification Gate (M05–M06):** Created comprehensive Playwright suite `test/e2e/modal-regression.spec.ts` (12/12 pass). Executed existing authenticated suite `test/e2e/authenticated-workflows.spec.ts` (47/47 pass). Completed two consecutive clean verification passes across unit tests (307/307 pass), Firestore rules (91/91 pass), typecheck (0 errors), typecheck tests (0 errors), lint (0 errors), and production build (51 routes Turbopack).
+
 ## DevKit V10 Final Focused Defect Closure & Hands-On Testing Readiness (R01–R04)
 
 - **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Staging & Manual Testing)

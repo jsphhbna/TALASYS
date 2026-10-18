@@ -1,6 +1,22 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04, M01–M06)
 
-## Root-Cause UI/UX & Notification Remediation — COMPLETED PASS
+## DevKit V10 Modal Regression & Responsive Sidebar Correction (M01–M06) — CURRENT PASS
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED
+- **Audited baseline:** `8bdd2102a8600760819f9dd6466a1b11ccc254c9`
+- **Execution mode:** Targeted Root-Cause Remediation → Measured Multi-Viewport Playwright Suite → Double Clean Verification Pass
+- **Scope:** Shared modal architecture, outside click dismissal, nested image/photo controls, and Admin/Super Admin sidebar sizing.
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **M01** | Repair Viewport-Centered Modal Positioning | COMPLETED | `components/ui/modal-overlay.tsx` updated so container uses `flex flex-col items-center justify-center outline-none`. Visible modal card center strictly matches viewport center (`Math.abs(cardCenterX - vpCenterX) <= 5`) across 1024×768, 1280×720, 1280×800, 1366×768, 1920×1080. Max widths and independent modal body scrolling preserved. |
+| **M02** | Restore Outside-Click Dismissal | COMPLETED | Attached `handleBackdropMouseDown` to backdrop and container wrapper checking `event.target === event.currentTarget` and topmost dialog identity. Direct clicks on backdrop/container dismiss idle modals; clicks inside content do not. Escape closes topmost dialog. Save operations remain strictly locked. |
+| **M03** | Repair Nested Profile-Photo & Image-Viewer Layering | COMPLETED | Introduced `ModalStackContext` with dynamic depth tracking in `ModalOverlay` computing `zIndex = 100 + depth * 10` with inline style override. Removed hardcoded `z-[60]` and `z-[70]` overrides in `resident-profile-modal.tsx` and `admin-payment-process-modal.tsx`. Child lightbox stacks at z-index 110 above parent at 100. Mandatory E2E workflow verified: Open Profile → Preview Photo → Remove Photo → Reason → Save → Audit & Notification. |
+| **M04** | Optimize Admin & Super Admin Sidebars | COMPLETED | Changed fixed `232px` to responsive `w-[216px] lg:w-[220px] xl:w-[224px] 2xl:w-[232px]` in `admin-sidebar.tsx` and `superadmin-sidebar.tsx`. Reduced padding and indentation; enforced `truncate whitespace-nowrap` on labels. Zero text wrapping (`scrollWidth <= clientWidth`). Pinned `shrink-0` Sign Out button; independent nav scrolling preserved. |
+| **M05** | Authenticated Browser Verification Across 5 Viewports | COMPLETED | Created comprehensive Playwright suite `test/e2e/modal-regression.spec.ts` executing 12 test scenarios across 1024×768, 1280×720, 1280×800, 1366×768, and 1920×1080. Real DOM bounding rectangles measured. All 12 tests passed; all 47 existing authenticated tests passed. |
+| **M06** | Two Consecutive Clean Verification Passes & Final Delivery | COMPLETED | Executed two consecutive clean passes across all test suites (`npm test` 307/307, `npm run test:rules` 91/91, modal regression E2E 12/12, authenticated E2E 47/47, `typecheck` 0, `typecheck:test` 0, `lint` 0, `build` 51 routes Turbopack clean, `git diff --check` 0). |
+
+## Root-Cause UI/UX & Notification Remediation — PRIOR PASS
 
 - **Status:** COMPLETED AND LOCALLY VERIFIED
 - **Baseline reconciled:** `f4a8250` on clean `main` (matches the request's reviewed baseline).

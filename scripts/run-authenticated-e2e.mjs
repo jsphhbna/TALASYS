@@ -21,7 +21,8 @@ const env = {
   PLAYWRIGHT_PORT: process.env.PLAYWRIGHT_PORT || "3000",
 }
 const firebaseCli = "node_modules/firebase-tools/lib/bin/firebase.js"
-const command = "node node_modules/@playwright/test/cli.js test test/e2e/authenticated-workflows.spec.ts --project=chromium"
+const testArgs = process.argv.slice(2).join(" ")
+const command = `node node_modules/@playwright/test/cli.js test ${testArgs || "test/e2e/authenticated-workflows.spec.ts"} --project=chromium`
 const child = spawn(process.execPath, [firebaseCli, "emulators:exec", "--config", "firebase.e2e.json", "--project", projectId, "--only", "auth,firestore", command], { cwd: process.cwd(), env, stdio: "inherit", shell: false })
 child.on("exit", code => { process.exitCode = code ?? 1 })
 child.on("error", error => { console.error(error); process.exitCode = 1 })

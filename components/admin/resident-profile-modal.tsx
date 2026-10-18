@@ -523,7 +523,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       </Card>
 
       {/* Full Image Modal */}
-      <ModalOverlay isOpen={isFullImageOpen && !!validIdUrl} onClose={() => { if (!isSaving) setIsFullImageOpen(false) }} className="bg-black/90 z-[60]">
+      <ModalOverlay isOpen={isFullImageOpen && !!validIdUrl} onClose={() => { if (!isSaving) setIsFullImageOpen(false) }} className="bg-black/90" title="Valid ID Full View">
         <button 
           onClick={() => { if (!isSaving) setIsFullImageOpen(false) }}
           disabled={isSaving}
@@ -539,7 +539,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
       </ModalOverlay>
 
       {/* Profile Photo Lightbox */}
-      <ModalOverlay isOpen={isPhotoLightboxOpen && !!validIdUrl} onClose={() => { if (!isSaving) setIsPhotoLightboxOpen(false) }} className="bg-black/90 z-[70] flex-col">
+      <ModalOverlay isOpen={isPhotoLightboxOpen && !!validIdUrl} onClose={() => { if (!isSaving) setIsPhotoLightboxOpen(false) }} className="bg-black/90 flex-col" title="Resident Profile Photo">
         <button
           onClick={() => { if (!isSaving) setIsPhotoLightboxOpen(false) }}
           disabled={isSaving}

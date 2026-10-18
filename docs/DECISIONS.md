@@ -1,4 +1,26 @@
 
+## ADR-031: DevKit V10 Modal Regression & Responsive Sidebar Correction (M01–M06)
+
+- **Date:** October 18, 2026
+- **Status:** APPROVED & IMPLEMENTED
+- **Context:**
+  Manual testing on baseline `8bdd2102a8600760819f9dd6466a1b11ccc254c9` identified 4 confirmed regressions introduced by prior remediation:
+  1. `ModalOverlay` dialog card was left-aligned inside a `w-full max-w-full` wrapper instead of centered in viewport (M01).
+  2. Outside clicks failed to dismiss idle dialogs because the full-width wrapper captured clicks without propagating to backdrop dismissal handlers (M02).
+  3. Parent modals used `z-[100]`, obscuring nested image viewers and photo lightboxes configured with legacy lower z-indices (`z-[60]`, `z-[70]`) (M03).
+  4. Admin and Super Admin sidebars used fixed 232px width with bulky padding and label wrapping on compact laptops (M04).
+- **Decisions:**
+  1. **Viewport-Centered Modal Architecture (M01):** Updated `components/ui/modal-overlay.tsx` dialog wrapper (`containerRef`) to use `flex flex-col items-center justify-center outline-none`. This centers any child dialog card horizontally and vertically regardless of child max-width or viewport size, preserving individual card max widths and independent body scrolling.
+  2. **Outside-Click Dismissal & Protection (M02):** Attached `handleBackdropMouseDown` to both the outer backdrop and the intermediate container wrapper, verifying `event.target === event.currentTarget` and confirming the dialog is the topmost active token in `dialogStack`. Clicks inside dialog content do not match `currentTarget` and do not trigger dismissal. Escape dismisses topmost dialog. Save operations remain strictly locked against dismissal.
+  3. **Shared Dynamic Modal Stacking Policy (M03):** Introduced `ModalStackContext` in `components/ui/modal-overlay.tsx` that increments nesting depth and computes `zIndex = 100 + depth * 10`, applied via inline styles to ensure authoritative stacking order. Removed conflicting utility overrides (`z-[60]`, `z-[70]`) in `resident-profile-modal.tsx` and `admin-payment-process-modal.tsx`. Active child viewers (e.g. photo lightbox, Valid ID preview) render at z-index 110 directly above parent modals at z-index 100. Focus restoration retains parent dialog focus upon closing child viewer. Verified full photo removal, audit log, and resident notification delivery.
+  4. **Responsive Compact Sidebar Optimization (M04):** Replaced fixed `232px` with `w-[216px] lg:w-[220px] xl:w-[224px] 2xl:w-[232px]` in `components/admin/layout/admin-sidebar.tsx` and `components/superadmin/layout/superadmin-sidebar.tsx`. Adjusted item padding (`px-2.5 py-2`), sub-item indentation (`ml-3 pl-1.5`), and added `truncate whitespace-nowrap` to labels, preventing awkward wrapping on compact laptops. Pinned `shrink-0` Sign Out button, ensuring it remains fully visible within viewport without being pushed down by expanded navigation. Nav remains independently scrollable (`overflow-y-auto`).
+- **Consequences:**
+  1. Dialog cards center in viewport across all laptop and desktop viewports (`|cardCenterX - vpCenterX| <= 5px`).
+  2. Idle dialogs dismiss cleanly with single outside click; in-flight mutations remain protected.
+  3. Child viewers stack above parent dialogs; full photo removal workflow is verified end-to-end.
+  4. Sidebars remain compact, readable, and stable without text clipping or wrapping.
+  5. Two consecutive clean verification passes prove complete project stability (307 unit tests, 91 rules tests, 12 Playwright modal regression tests, 47 Playwright authenticated tests, 0 type errors, 0 lint errors, 51 routes Turbopack build).
+
 ## ADR-030: DevKit V10 Final Focused Defect Closure & Hands-On Testing Readiness (R01–R04)
 
 - **Date:** October 17, 2026

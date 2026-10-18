@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
@@ -10,24 +10,33 @@ interface ModalOverlayProps {
   children: React.ReactNode
   className?: string
   title?: string
+  style?: React.CSSProperties
 }
 
-const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 let openDialogCount = 0
 let originalHtmlOverflow = ""
 let originalBodyOverflow = ""
 const dialogStack: symbol[] = []
+const dialogContainerMap = new Map<symbol, HTMLElement>()
+
+const ModalStackContext = createContext<number>(0)
 
 /**
- * Viewport-level dialog primitive for the legacy modal callers. It portals out of
- * transformed route containers and keeps scroll/focus ownership with the topmost
- * dialog without re-initialising when a caller recreates its close callback.
+ * Viewport-level dialog primitive for all modal callers.
+ * Portals out of transformed route containers to document.body, enforces stack-aware
+ * z-index layering for nested dialogs, centers the visible dialog card horizontally
+ * and vertically within the viewport, and detects outside clicks in all quadrants
+ * around the dialog content.
  */
-export function ModalOverlay({ isOpen, onClose, children, className, title }: ModalOverlayProps) {
+export function ModalOverlay({ isOpen, onClose, children, className, title, style }: ModalOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const previousActiveElementRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
   const dialogTokenRef = useRef(Symbol("modal-overlay"))
+  const stackDepth = useContext(ModalStackContext)
+  const [dynamicStackIndex, setDynamicStackIndex] = useState(0)
 
   useEffect(() => {
     onCloseRef.current = onClose
@@ -39,6 +48,15 @@ export function ModalOverlay({ isOpen, onClose, children, className, title }: Mo
     previousActiveElementRef.current = document.activeElement as HTMLElement | null
     openDialogCount += 1
     dialogStack.push(dialogTokenRef.current)
+    if (containerRef.current) {
+      dialogContainerMap.set(dialogTokenRef.current, containerRef.current)
+    }
+
+    const currentIdx = dialogStack.indexOf(dialogTokenRef.current)
+    if (currentIdx >= 0) {
+      setDynamicStackIndex(currentIdx)
+    }
+
     if (openDialogCount === 1) {
       originalHtmlOverflow = document.documentElement.style.overflow
       originalBodyOverflow = document.body.style.overflow
@@ -82,6 +100,7 @@ export function ModalOverlay({ isOpen, onClose, children, className, title }: Mo
     return () => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener("keydown", handleKeyDown)
+      dialogContainerMap.delete(dialogTokenRef.current)
       const stackIndex = dialogStack.lastIndexOf(dialogTokenRef.current)
       if (stackIndex >= 0) dialogStack.splice(stackIndex, 1)
       openDialogCount = Math.max(0, openDialogCount - 1)
@@ -89,30 +108,60 @@ export function ModalOverlay({ isOpen, onClose, children, className, title }: Mo
         document.documentElement.style.overflow = originalHtmlOverflow
         document.body.style.overflow = originalBodyOverflow
       }
-      previousActiveElementRef.current?.focus?.()
+
+      // Restore focus: if a parent dialog remains in the stack, keep focus inside it.
+      const remainingTopToken = dialogStack.at(-1)
+      const remainingDialog = remainingTopToken ? dialogContainerMap.get(remainingTopToken) : null
+      const target = previousActiveElementRef.current
+      if (remainingDialog) {
+        if (target && remainingDialog.contains(target) && typeof target.focus === "function") {
+          target.focus()
+        } else {
+          remainingDialog.querySelector<HTMLElement>(FOCUSABLE)?.focus() ?? remainingDialog.focus()
+        }
+      } else if (target && typeof target.focus === "function") {
+        target.focus()
+      }
     }
   }, [isOpen])
 
   if (!isOpen || typeof document === "undefined") return null
 
+  const effectiveDepth = Math.max(stackDepth, dynamicStackIndex)
+  const computedZIndex = 100 + effectiveDepth * 10
+
+  const handleBackdropMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    // Only topmost dialog can receive outside click dismissal
+    if (dialogStack.at(-1) !== dialogTokenRef.current) return
+    // Only direct clicks on backdrop or the container wrapper around content trigger dismissal
+    if (event.target === event.currentTarget) {
+      onCloseRef.current()
+    }
+  }
+
   return createPortal(
-    <div
-      className={cn("fixed inset-0 z-[100] grid place-items-center overflow-y-auto overscroll-contain bg-black/40 p-4 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200", className)}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCloseRef.current()
-      }}
-    >
+    <ModalStackContext.Provider value={effectiveDepth + 1}>
       <div
-        ref={containerRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title || "Dialog Window"}
-        tabIndex={-1}
-        className="my-auto w-full max-w-full max-h-[calc(100dvh-2rem)] outline-none"
+        className={cn(
+          "fixed inset-0 grid place-items-center overflow-y-auto overscroll-contain bg-black/40 p-4 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200",
+          className
+        )}
+        style={{ zIndex: computedZIndex, ...style }}
+        onMouseDown={handleBackdropMouseDown}
       >
-        {children}
+        <div
+          ref={containerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={title || "Dialog Window"}
+          tabIndex={-1}
+          className="my-auto w-full max-w-full flex flex-col items-center justify-center outline-none"
+          onMouseDown={handleBackdropMouseDown}
+        >
+          {children}
+        </div>
       </div>
-    </div>,
+    </ModalStackContext.Provider>,
     document.body,
   )
 }

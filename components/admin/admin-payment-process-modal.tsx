@@ -208,7 +208,8 @@ export function AdminPaymentProcessModal({ isOpen, onClose, request }: AdminPaym
       <ModalOverlay
         isOpen={isLightboxOpen}
         onClose={() => setIsLightboxOpen(false)}
-        className="z-[60] bg-black/90 p-4"
+        className="bg-black/90 p-4"
+        title="Payment Proof Enlarged"
       >
         <div className="relative max-w-4xl w-full h-full flex flex-col items-center justify-center">
           <button

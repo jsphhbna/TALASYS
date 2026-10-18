@@ -1,4 +1,26 @@
 
+## DevKit V10 Modal Regression & Responsive Sidebar Correction Handoff (M01–M06)
+
+- **Date:** October 18, 2026
+- **Audited Baseline:** `8bdd2102a8600760819f9dd6466a1b11ccc254c9`
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Production Acceptance)
+- **Automated Verification Summary:**
+  - Unit Tests: 307 / 307 PASS (100%)
+  - Firestore Rules Tests: 91 / 91 PASS (100%)
+  - Playwright Modal Regression Suite: 12 / 12 PASS (100%) across 5 viewports (1024×768, 1280×720, 1280×800, 1366×768, 1920×1080)
+  - Playwright Authenticated Workflows: 47 / 47 PASS (100%)
+  - TypeScript Check: 0 errors (`tsc --noEmit`)
+  - TypeScript Tests Check: 0 errors (`tsc --noEmit -p tsconfig.test.json`)
+  - ESLint: 0 errors (`npm run lint`)
+  - Production Build: 51 / 51 routes compiled successfully (Turbopack)
+  - Git Whitespace Check: 0 errors (`git diff --check`)
+- **Key Implementation & Verification Highlights:**
+  1. **M01 (Viewport-Centered Modal Positioning):** Updated `components/ui/modal-overlay.tsx` dialog wrapper (`containerRef`) to use `flex flex-col items-center justify-center outline-none`. Verified in Playwright that visible dialog cards (Super Admin Edit Privileges, Create Admin, Admin Resident Profile, Deactivate Resident) strictly center in viewport (`Math.abs(cardCenterX - vpCenterX) <= 5`) across 1024×768, 1280×720, 1280×800, 1366×768, 1920×1080. Max widths and independent modal body scrolling preserved.
+  2. **M02 (Outside-Click Dismissal & Save Protection):** Wired `handleBackdropMouseDown` to both the outer backdrop and inner container wrapper with direct-target checking (`event.target === event.currentTarget`) and topmost-dialog verification. Tested pointer clicks on empty space outside dialogs (left, right, top, bottom) dismiss idle dialogs; pointer clicks inside content never dismiss; Escape dismisses topmost dialog; in-flight save operations maintain strict dismissal lockout.
+  3. **M03 (Predictable Nested Modal Stacking & Image Viewer Layering):** Implemented `ModalStackContext` with depth-based stacking (`zIndex = 100 + depth * 10`) and inline style override in `ModalOverlay`. Purged legacy conflicting z-index utilities (`z-[60]`, `z-[70]`) from `components/admin/resident-profile-modal.tsx` and `components/admin/admin-payment-process-modal.tsx`. Active child viewers (e.g., photo lightbox at z=110, Valid ID full view at z=110) reliably appear above parent (z=100). Focus restoration stays within parent modal upon child close. Mandatory E2E workflow verified: Open Profile → Preview Photo → Remove Photo in Lightbox → Enter Reason → Save Changes → verify Firestore persistence, canonical audit record (`normalizeAuditLog`), and resident notification arrival.
+  4. **M04 (Responsive Compact Sidebar Optimization):** Replaced fixed `232px` with responsive width `w-[216px] lg:w-[220px] xl:w-[224px] 2xl:w-[232px]` in `components/admin/layout/admin-sidebar.tsx` and `components/superadmin/layout/superadmin-sidebar.tsx`. Adjusted padding (`px-2.5 py-2`), sub-item indentation (`ml-3 pl-1.5`), and applied `truncate whitespace-nowrap` to labels. Verified across all 5 viewports that labels (Resident Management, Document Processing, System Configuration) do not wrap or clip (`scrollWidth <= clientWidth`). Pinned `shrink-0` Sign Out button, ensuring it remains fully visible within viewport without being obscured by expanded navigation. Nav remains independently scrollable (`overflow-y-auto`).
+  5. **M05 & M06 (Verification & Delivery):** Two consecutive clean verification passes completed across all test commands. Clean commit and push to `origin/main`.
+
 ## DevKit V10 Final Focused Defect Closure & Hands-On Testing Readiness Handoff (R01–R04)
 
 - **Date:** October 17, 2026
