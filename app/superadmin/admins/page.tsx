@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useSuperAdminData } from "@/hooks/superadmin"
 import { useMounted } from "@/hooks/use-mounted"
 import {
@@ -85,7 +86,6 @@ export default function AdminManagement() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showActionsDropdown, setShowActionsDropdown] = useState<string | null>(null)
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
   const [selectedRole, setSelectedRole] = useState("Select role...")
   const [selectedAdminForEdit, setSelectedAdminForEdit] = useState<string | null>(null)
@@ -131,7 +131,6 @@ export default function AdminManagement() {
     setSelectedAdminForEdit(adminId)
     setRoleError(null)
     setShowEditPrivilegesModal(true)
-    setShowActionsDropdown(null)
   }
 
   const handleResetPassword = (adminId: string, adminName: string) => {
@@ -141,7 +140,6 @@ export default function AdminManagement() {
     setActionError(null)
     setActionMessage(`Send password reset email to ${adminName}?`)
     setShowActionDialog(true)
-    setShowActionsDropdown(null)
   }
 
   const handleLockAccount = (adminId: string, adminName: string, isLocked: boolean) => {
@@ -155,7 +153,6 @@ export default function AdminManagement() {
         : `Are you sure you want to lock ${adminName}'s account? This action can be reversed.`
     )
     setShowActionDialog(true)
-    setShowActionsDropdown(null)
   }
 
   const handleDeleteAccount = (adminId: string, adminName: string) => {
@@ -165,7 +162,6 @@ export default function AdminManagement() {
     setActionError(null)
     setActionMessage(`Are you sure you want to delete ${adminName}'s account? This action is permanent.`)
     setShowActionDialog(true)
-    setShowActionsDropdown(null)
   }
 
   const confirmAction = async () => {
@@ -459,29 +455,23 @@ export default function AdminManagement() {
                     {admin.status === "Locked" ? "Locked" : (admin.isVerified ? "Verified" : "Not Verified")}
                   </div>
                 </div>
-                <div className="col-span-1 relative">
-                  <button
-                    onClick={() => setShowActionsDropdown(showActionsDropdown === admin.id ? null : admin.id)}
-                    className="px-3 py-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800 rounded transition-colors"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <circle cx="8" cy="3" r="1.5" />
-                      <circle cx="8" cy="8" r="1.5" />
-                      <circle cx="8" cy="13" r="1.5" />
-                    </svg>
-                  </button>
-
-                  {showActionsDropdown === admin.id && (
-                    <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg z-10">
-                      <button onClick={() => handleEditPrivileges(admin.id)} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:bg-slate-950">Edit Privileges</button>
-                      <div className="h-px bg-slate-200" />
-                      <button onClick={() => handleResetPassword(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:bg-slate-950">Reset Password</button>
-                      <div className="h-px bg-slate-200" />
-                      <button onClick={() => handleLockAccount(admin.id, admin.name, admin.status === "Locked")} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:bg-slate-950">{admin.status === "Locked" ? "Unlock Account" : "Lock Account"}</button>
-                      <div className="h-px bg-slate-200" />
-                      <button onClick={() => handleDeleteAccount(admin.id, admin.name)} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-slate-50 dark:bg-slate-950">Delete Account</button>
-                    </div>
-                  )}
+                <div className="col-span-1">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button aria-label={`Actions for ${admin.name}`} className="px-3 py-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800 rounded transition-colors">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="3" r="1.5" /><circle cx="8" cy="8" r="1.5" /><circle cx="8" cy="13" r="1.5" /></svg>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="bottom" collisionPadding={12} className="w-48">
+                      <DropdownMenuItem onSelect={() => handleEditPrivileges(admin.id)}>Edit Privileges</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => handleResetPassword(admin.id, admin.name)}>Reset Password</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => handleLockAccount(admin.id, admin.name, admin.status === "Locked")}>{admin.status === "Locked" ? "Unlock Account" : "Lock Account"}</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem variant="destructive" onSelect={() => handleDeleteAccount(admin.id, admin.name)}>Delete Account</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
               </div>

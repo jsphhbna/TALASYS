@@ -7,7 +7,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing"
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore"
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore"
 import { fetchOrderedCollectionPages } from "../../lib/firestore-pagination.ts"
 import { normalizeAuditLog } from "../../lib/security/audit-utils.ts"
 
@@ -62,6 +62,59 @@ test("View Only cannot mutate users, requests, or verifications", async () => {
   await assertFails(updateDoc(doc(db, "users", "resident"), { contactNumber: "tampered" }))
   await assertFails(updateDoc(doc(db, "documentRequests", "existing"), { status: "Approved" }))
   await assertFails(updateDoc(doc(db, "verifications", "pending"), { status: "approved" }))
+})
+
+test("notification dismissals are private per-user state for every staff role", async () => {
+  const viewerDb = environment.authenticatedContext("viewer").firestore()
+  const adminDb = environment.authenticatedContext("full-admin").firestore()
+  const residentDb = environment.authenticatedContext("resident").firestore()
+  const lockedDb = environment.authenticatedContext("locked").firestore()
+  const viewerDismissal = doc(viewerDb, "notificationDismissals", "viewer_shared-notification")
+
+  await assertSucceeds(setDoc(viewerDismissal, {
+    userId: "viewer",
+    notificationId: "shared-notification",
+    dismissedAt: Date.now(),
+  }))
+  await assertSucceeds(updateDoc(viewerDismissal, { dismissedAt: Date.now() + 1 }))
+  await assertFails(updateDoc(viewerDismissal, { notificationId: "another-notification" }))
+  await assertFails(setDoc(doc(viewerDb, "notificationDismissals", "arbitrary-id"), {
+    userId: "viewer",
+    notificationId: "shared-notification",
+    dismissedAt: Date.now(),
+  }))
+
+  for (const staffId of ["verifier", "processor", "resident-manager", "full-admin", "superadmin"]) {
+    const staffDb = environment.authenticatedContext(staffId).firestore()
+    await assertSucceeds(setDoc(doc(staffDb, "notificationDismissals", `${staffId}_shared-notification`), {
+      userId: staffId,
+      notificationId: "shared-notification",
+      dismissedAt: Date.now(),
+    }))
+  }
+
+  await assertFails(getDoc(doc(adminDb, "notificationDismissals", "viewer_shared-notification")))
+  await assertFails(setDoc(doc(adminDb, "notificationDismissals", "forged-viewer-dismissal"), {
+    userId: "viewer",
+    notificationId: "shared-notification",
+    dismissedAt: Date.now(),
+  }))
+  await assertFails(setDoc(doc(residentDb, "notificationDismissals", "resident_shared-notification"), {
+    userId: "resident",
+    notificationId: "shared-notification",
+    dismissedAt: Date.now(),
+  }))
+  await assertFails(setDoc(doc(lockedDb, "notificationDismissals", "locked_shared-notification"), {
+    userId: "locked",
+    notificationId: "shared-notification",
+    dismissedAt: Date.now(),
+  }))
+
+  const ownDismissals = await assertSucceeds(getDocs(query(
+    collection(viewerDb, "notificationDismissals"),
+    where("userId", "==", "viewer"),
+  )))
+  assert.equal(ownDismissals.size, 1)
 })
 
 test("resident direct request creation and forged fee fields are denied", async () => {
@@ -526,7 +579,7 @@ test("Milestone E01: Denied accounts fail closed across all direct Firestore cli
   }))
 })
 
-test("UI04 & P04: View Only is strictly read-only for notifications, and all 12 permission boundaries are enforced", async () => {
+test("UI04 & P04: notification ownership and staff read-only boundaries are enforced", async () => {
   const viewerDb = environment.authenticatedContext("viewer").firestore()
   const fullAdminDb = environment.authenticatedContext("full-admin").firestore()
   const residentDb = environment.authenticatedContext("resident").firestore()
@@ -582,6 +635,7 @@ test("UI04 & P04: View Only is strictly read-only for notifications, and all 12 
 
   // 5. View Only deletes notification -> denied
   await assertFails(deleteDoc(doc(viewerDb, "notifications", "existing-admin-notif")))
+  await assertFails(deleteDoc(doc(fullAdminDb, "notifications", "existing-admin-notif")))
 
   // 6. View Only read access behaves according to policy (can read admin notifications)
   await assertSucceeds(getDoc(doc(viewerDb, "notifications", "existing-admin-notif")))
@@ -647,4 +701,5 @@ test("UI04 & P04: View Only is strictly read-only for notifications, and all 12 
   await assertFails(updateDoc(doc(residentDb, "notifications", "existing-resident-notif"), {
     message: "Resident cannot alter message",
   }))
+  await assertSucceeds(deleteDoc(doc(residentDb, "notifications", "existing-resident-notif")))
 })

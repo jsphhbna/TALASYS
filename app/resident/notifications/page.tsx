@@ -1,13 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuthGuard } from "@/hooks/auth"
 import { useResidentData } from "@/hooks/resident"
 import { ResidentPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
-import { delay } from "@/lib/async-delay"
+import { Button } from "@/components/ui/button"
+import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { toast } from "@/hooks/use-toast"
+import { Bell, Loader2, Trash2 } from "lucide-react"
 
 function formatRelativeTime(createdAt: number): string {
   const now = Date.now()
@@ -27,9 +29,12 @@ function formatRelativeTime(createdAt: number): string {
 
 export default function NotificationsPage() {
   const { isAuthorized, user } = useAuthGuard()
-  const { notifications, markAllNotificationsRead } = useResidentData()
+  const { notifications, markAllNotificationsRead, deleteAllNotifications } = useResidentData()
   const router = useRouter()
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false)
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const deleteAllInFlightRef = useRef(false)
 
   if (!isAuthorized) {
     return null
@@ -57,26 +62,60 @@ export default function NotificationsPage() {
     }
   }
 
+  const handleDeleteAll = async () => {
+    if (deleteAllInFlightRef.current || notifications.length === 0) return
+    deleteAllInFlightRef.current = true
+    setIsDeletingAll(true)
+    try {
+      const deletedCount = await deleteAllNotifications()
+      setShowDeleteAllDialog(false)
+      toast({
+        title: "Notifications deleted",
+        description: `${deletedCount} notification${deletedCount === 1 ? "" : "s"} deleted.`,
+      })
+    } catch (err: any) {
+      console.error("Failed to delete resident notifications:", err)
+      toast({
+        title: "Delete All failed",
+        description: "Your notifications were not fully deleted. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      deleteAllInFlightRef.current = false
+      setIsDeletingAll(false)
+    }
+  }
+
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
   return (
     <ResidentPageShell>
       {/* Page Title */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-[#0C2340] dark:text-blue-50 mb-1 tracking-tight">Notifications</h1>
-        <button
-          onClick={handleMarkAllRead}
-          className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center"
-          disabled={isMarkingAllRead || unreadCount === 0}
-        >
-          <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleMarkAllRead}
+            className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center disabled:opacity-50 disabled:no-underline"
+            disabled={isMarkingAllRead || unreadCount === 0}
+          >
+            <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}
+          </button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowDeleteAllDialog(true)} disabled={isDeletingAll || notifications.length === 0} className="h-8 gap-1.5 text-red-600 hover:text-red-700">
+            <Trash2 className="h-3.5 w-3.5" /> Delete All
+          </Button>
+        </div>
       </div>
 
       {/* Notifications List */}
       <div className="w-full">
           <Card>
-            {notifications.map((notification, index) => {
+            {notifications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <Bell className="w-8 h-8 mb-2 opacity-30" />
+                <p className="text-sm">You have no notifications</p>
+              </div>
+            ) : notifications.map((notification, index) => {
               const relativeTime = formatRelativeTime(notification.createdAt)
               return (
                 <button
@@ -145,6 +184,26 @@ export default function NotificationsPage() {
 
           </Card>
       </div>
+
+      <ModalOverlay isOpen={showDeleteAllDialog} onClose={() => { if (!isDeletingAll) setShowDeleteAllDialog(false) }} title="Delete all notifications">
+        <Card className="w-full max-w-md p-0 shadow-2xl overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+            <h2 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Delete all notifications?</h2>
+          </div>
+          <div className="p-6 space-y-5">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              This permanently deletes all {notifications.length} notification{notifications.length === 1 ? "" : "s"} belonging to your resident account. Audit records are not affected.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowDeleteAllDialog(false)} disabled={isDeletingAll}>Cancel</Button>
+              <Button variant="destructive" onClick={handleDeleteAll} disabled={isDeletingAll || notifications.length === 0}>
+                {isDeletingAll && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isDeletingAll ? "Deleting..." : "Delete All"}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </ModalOverlay>
     </ResidentPageShell>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Loader2, AlertCircle, Undo2 } from "lucide-react"
 import { showToastPreset } from "@/lib/app-toast"
 import { toast } from "@/hooks/use-toast"
@@ -47,10 +47,10 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
 
   // Authoritative dismissal guard preventing any close event while a save is in flight
   const isOperationLocked = isSaving || isSubmittingRef.current
-  const handleSafeClose = () => {
+  const handleSafeClose = useCallback(() => {
     if (isSaving || isSubmittingRef.current) return
     onClose()
-  }
+  }, [isSaving, onClose])
 
   // Reset state when opened/closed and guard async race (#39, R01)
   useEffect(() => {
@@ -215,7 +215,7 @@ export function ResidentProfileModal({ isOpen, onClose, resident, userRole, admi
   const canEdit = userRole === "SuperAdmin" || userRole === "Super Admin" || userRole === "Full Access" || userRole === "admin" || userRole === "Resident Management"
 
   return (
-    <ModalOverlay isOpen={isOpen} onClose={handleSafeClose}>
+    <ModalOverlay isOpen={isOpen} onClose={handleSafeClose} title="Resident Profile">
       <Card onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl p-0 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         {/* Save Error Banner */}
         {saveError && (

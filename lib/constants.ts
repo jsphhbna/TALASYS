@@ -3,6 +3,7 @@
 export const COLLECTION_USERS = "users"
 export const COLLECTION_DOCUMENT_REQUESTS = "documentRequests"
 export const COLLECTION_NOTIFICATIONS = "notifications"
+export const COLLECTION_NOTIFICATION_DISMISSALS = "notificationDismissals"
 export const COLLECTION_VERIFICATIONS = "verifications"
 export const COLLECTION_ACTIVITY_LOGS = "activityLogs"
 export const COLLECTION_SYSTEM_ALERTS = "systemAlerts"

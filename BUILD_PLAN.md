@@ -1,5 +1,24 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04)
 
+## Root-Cause UI/UX & Notification Remediation — COMPLETED PASS
+
+- **Status:** COMPLETED AND LOCALLY VERIFIED
+- **Baseline reconciled:** `f4a8250` on clean `main` (matches the request's reviewed baseline).
+- **Approved scope:** responsive Admin/Super Admin navigation; viewport-level accessible modal architecture and Resident Profile focus stability; authoritative photo-removal audit trace; portaled table action menus; consistent page/modal scrolling; role-safe Delete All notifications; focused authenticated browser/emulator regression evidence.
+- **Explicit exclusions:** deployment, Firestore Rules publication, production-data/account/asset mutation, unrelated redesign/audit. Any optional improvement remains **PENDING**.
+- **Recovery reconciliation:** historic R01–R04 claims are evidence for earlier revisions only. Current static inspection reconfirmed the reported modal root cause: `ModalOverlay` depends on an unstable `onClose`, globally intercepts wheel/touch scrolling, and renders within the transformed `.page-transition` tree.
+
+| Milestone | Scope | Status | Evidence required |
+|---|---|---|---|
+| RC-1 | Trace/reproduce modal, sidebar, menu, scrolling, notification, and audit paths | COMPLETED | Confirmed non-portaled transformed modal, unstable close callback dependency, global scroll interception, and shared-admin deletion risk; confirmed server-side photo audit transaction. |
+| RC-2 | Shared modal/scroll/action-menu architecture plus focused UI fixes | COMPLETED | `ModalOverlay` is a body portal with stack-aware focus/scroll ownership; Resident Profile preserves focus/caret; Admin/Super Admin nav scrolls independently; Resident and Super Admin row actions use collision-aware portaled Radix menus. |
+| RC-3 | Photo audit and per-user notification deletion integrity | COMPLETED | Existing server-authoritative photo-removal transaction reconfirmed; resident bulk delete removes owned source records; staff bulk clear writes deterministic per-user dismissal state and cannot delete shared sources under Rules. |
+| RC-4 | Authenticated browser regression, full verification, checkpoint, commit/push | COMPLETED | 307/307 unit, Firestore Rules suite, 47/47 authenticated Playwright, both type checks, ESLint (0 errors), 51-route build, and diff check passed; recovery/evidence updated. |
+
+**Rollback boundary:** one reversible source/test/document commit; no live state changes.
+
+**Final verification (2026-10-18):** `npm test` PASS (307/307); `npm run test:rules` PASS; `npm run test:e2e:auth` PASS (47/47, isolated Auth/Firestore emulators); `npm run typecheck` PASS; `npm run typecheck:test` PASS; `npm run lint` PASS with 0 errors (pre-existing warning baseline remains); `npm run build` PASS (51 routes); `git diff --check` PASS. No deployment, Rules publication, production-data mutation, or live-provider testing was performed.
+
 ## DevKit V10 Final Focused Defect Closure & Hands-On Testing Readiness (R01–R04) — CURRENT PASS
 
 - **Status**: COMPLETED & INDEPENDENTLY VERIFIED

@@ -431,8 +431,8 @@ test("Resident Management deactivation runs through the typed server operation",
   await login(page, "manager")
   await page.goto("/admin/residents")
   const row = page.getByRole("row").filter({ hasText: "E2E Managed Resident" })
-  await row.getByRole("button").nth(1).click()
-  await page.getByRole("button", { name: "Deactivate Account" }).click()
+  await row.getByRole("button", { name: "Actions for E2E Managed Resident" }).click()
+  await page.getByRole("menuitem", { name: "Deactivate Account" }).click()
   const operationResponse = page.waitForResponse(response => response.url().includes("/api/admin/operations") && response.request().method() === "POST")
   await page.getByRole("button", { name: "Deactivate", exact: true }).click()
   const response = await operationResponse
@@ -2335,5 +2335,269 @@ test("R04: Comprehensive multi-viewport layout measurements across laptop and mo
       }
       await checkLayout(route, vp, shotPath)
     }
+  }
+})
+
+test("RC-2: resident profile preserves focus and caret while every editable field changes", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+  const residentId = "e2e-focus-resident"
+  await db.collection("users").doc(residentId).set({
+    name: "Focus Lifecycle Resident",
+    email: "focus-lifecycle@example.test",
+    role: "resident",
+    status: "Active",
+    isVerified: true,
+    statuses: ["Resident"],
+    address: "1 Stable Focus Street",
+    contactNumber: "09171234567",
+    dateOfBirth: "1990-01-01",
+    profilePicture: `https://res.cloudinary.com/${testCloudName}/image/authenticated/v1/talasys/avatars/focus-resident.jpg`,
+    createdAt: Date.now(),
+  })
+
+  try {
+    await login(page, "manager")
+    await page.goto("/admin/residents")
+    const row = page.getByRole("row").filter({ hasText: "Focus Lifecycle Resident" })
+    const opener = row.getByRole("button", { name: "View Profile" })
+    await opener.click()
+    const modal = page.getByRole("dialog", { name: "Resident Profile" })
+    await modal.getByRole("button", { name: "Edit Profile" }).click()
+
+    const assertCaretAtEnd = async (input: ReturnType<typeof modal.locator>) => {
+      await expect(input).toBeFocused()
+      const caret = await input.evaluate((element: HTMLInputElement) => ({
+        selectionStart: element.selectionStart,
+        length: element.value.length,
+      }))
+      if (caret.selectionStart !== null) expect(caret.selectionStart).toBe(caret.length)
+    }
+
+    const name = modal.locator('input[placeholder="Full Name"]')
+    await name.fill("")
+    await name.pressSequentially("Focus Lifecycle Resident Updated", { delay: 4 })
+    await assertCaretAtEnd(name)
+
+    const birthDate = modal.locator('div:has(> label:text-is("Date of Birth")) input')
+    await birthDate.fill("1991-02-03")
+    await expect(birthDate).toBeFocused()
+
+    const address = modal.locator('div:has(> label:text-is("Address")) input')
+    await address.fill("")
+    await address.pressSequentially("200 A deliberately long address used to verify uninterrupted controlled-input focus", { delay: 3 })
+    await assertCaretAtEnd(address)
+
+    const contact = modal.locator('div:has(> label:text-is("Contact Number")) input')
+    await contact.fill("")
+    await contact.pressSequentially("09181234567", { delay: 4 })
+    await assertCaretAtEnd(contact)
+
+    const email = modal.locator('div:has(> label:text-is("Email Address")) input')
+    await email.fill("")
+    await email.pressSequentially("focus-updated@example.test", { delay: 3 })
+    await assertCaretAtEnd(email)
+
+    await modal.getByRole("button", { name: "Remove Photo" }).click()
+    const reason = modal.getByPlaceholder(/Inappropriate content, not a face/i)
+    const longReason = "The uploaded image is not a clear resident portrait and does not meet the barangay identification standard."
+    await reason.pressSequentially(longReason, { delay: 3 })
+    await assertCaretAtEnd(reason)
+
+    await modal.getByRole("button", { name: "Undo Removal" }).click()
+    await modal.getByRole("button", { name: "Cancel" }).click()
+    await modal.getByLabel("Close modal").click()
+    await expect(modal).not.toBeVisible()
+    await expect(opener).toBeFocused()
+  } finally {
+    await db.collection("users").doc(residentId).delete().catch(() => {})
+  }
+})
+
+test("RC-3: compact staff layouts, portaled action menus, modal scrolling, and generate-page scrolling remain usable", async ({ page }) => {
+  test.setTimeout(120000)
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+  const scrollVerificationId = "e2e-modal-scroll-verification"
+  await db.collection("verifications").doc(scrollVerificationId).set({
+    residentId: "e2e-active-resident",
+    type: "registration",
+    status: "approved",
+    createdAt: Date.now(),
+    documents: Array.from({ length: 6 }, (_, index) => ({
+      name: `Modal Scroll Evidence ${index + 1}`,
+      url: `https://res.cloudinary.com/${testCloudName}/image/authenticated/v1/talasys/proofs/modal-scroll-${index + 1}.jpg`,
+      status: "Valid",
+    })),
+  })
+
+  try {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await login(page, "full")
+  await page.goto("/admin/residents")
+
+  const sidebarGeometry = await page.locator("aside").evaluate(aside => {
+    const nav = aside.querySelector("nav")!
+    const signOut = Array.from(aside.querySelectorAll("button")).find(button => button.textContent?.includes("Sign Out"))!
+    const asideRect = aside.getBoundingClientRect()
+    const signOutRect = signOut.getBoundingClientRect()
+    return {
+      navOverflowY: getComputedStyle(nav).overflowY,
+      asideBottom: asideRect.bottom,
+      signOutBottom: signOutRect.bottom,
+      viewportHeight: innerHeight,
+    }
+  })
+  expect(["auto", "scroll"]).toContain(sidebarGeometry.navOverflowY)
+  expect(sidebarGeometry.asideBottom).toBeLessThanOrEqual(sidebarGeometry.viewportHeight + 1)
+  expect(sidebarGeometry.signOutBottom).toBeLessThanOrEqual(sidebarGeometry.viewportHeight + 1)
+
+  const residentAction = page.locator("tbody tr").last().getByRole("button", { name: /Actions for/ })
+  await residentAction.click()
+  const residentMenu = page.getByRole("menu")
+  await expect(residentMenu).toBeVisible()
+  const residentMenuBox = await residentMenu.boundingBox()
+  expect(residentMenuBox).not.toBeNull()
+  expect(residentMenuBox!.y).toBeGreaterThanOrEqual(0)
+  expect(residentMenuBox!.y + residentMenuBox!.height).toBeLessThanOrEqual(720)
+  await page.keyboard.press("Escape")
+
+  for (const viewport of [{ width: 1024, height: 768 }, { width: 1280, height: 720 }, { width: 1366, height: 768 }]) {
+    await page.setViewportSize(viewport)
+    const profileOpener = page.getByRole("row").filter({ hasText: "E2E Active Resident" }).getByRole("button", { name: "View Profile" })
+    await profileOpener.click()
+    const dialog = page.getByRole("dialog", { name: "Resident Profile" })
+    await expect(dialog).toBeVisible()
+    const geometry = await dialog.evaluate(element => {
+      const rect = element.getBoundingClientRect()
+      const scrollRegion = element.querySelector<HTMLElement>("#resident-modal-scroll")!
+      scrollRegion.scrollTop = scrollRegion.scrollHeight
+      return {
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        viewportWidth: innerWidth,
+        viewportHeight: innerHeight,
+        internalScrollTop: scrollRegion.scrollTop,
+        bodyOverflow: document.body.style.overflow,
+        htmlOverflow: document.documentElement.style.overflow,
+      }
+    })
+    expect(geometry.top).toBeGreaterThanOrEqual(0)
+    expect(geometry.left).toBeGreaterThanOrEqual(0)
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight)
+    expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth)
+    expect(geometry.internalScrollTop).toBeGreaterThan(0)
+    expect(geometry.bodyOverflow).toBe("hidden")
+    expect(geometry.htmlOverflow).toBe("hidden")
+    await dialog.getByLabel("Close modal").click()
+    await expect(dialog).not.toBeVisible()
+    await expect.poll(() => page.evaluate(() => ({ body: document.body.style.overflow, html: document.documentElement.style.overflow }))).toEqual({ body: "", html: "" })
+  }
+
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto("/admin/generate")
+  await expect(page.getByRole("heading", { name: /Generate/i }).first()).toBeVisible()
+  const scrollResult = await page.evaluate(() => {
+    const root = document.scrollingElement as HTMLElement
+    root.scrollTop = root.scrollHeight
+    return { top: root.scrollTop, height: root.scrollHeight, client: root.clientHeight }
+  })
+  expect(scrollResult.height).toBeGreaterThan(scrollResult.client)
+  expect(scrollResult.top).toBeGreaterThan(0)
+
+  await login(page, "super", true, /\/superadmin\/dashboard/)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto("/superadmin/admins")
+  const adminAction = page.getByRole("button", { name: /Actions for/ }).last()
+  await adminAction.click()
+  const adminMenu = page.getByRole("menu")
+  await expect(adminMenu).toBeVisible()
+  const adminMenuBox = await adminMenu.boundingBox()
+  expect(adminMenuBox).not.toBeNull()
+  expect(adminMenuBox!.y).toBeGreaterThanOrEqual(0)
+  expect(adminMenuBox!.y + adminMenuBox!.height).toBeLessThanOrEqual(720)
+  } finally {
+    await db.collection("verifications").doc(scrollVerificationId).delete().catch(() => {})
+  }
+})
+
+test("RC-4: Delete All is per-staff dismissal but permanent owner deletion for residents", async ({ page }) => {
+  const app = getApps().find(candidate => candidate.name === "e2e-seed")!
+  const db = getFirestore(app)
+  const suffix = Date.now()
+  const sharedId = `e2e-shared-delete-all-${suffix}`
+  const residentId = `e2e-resident-delete-all-${suffix}`
+  const otherResidentId = `e2e-other-resident-notification-${suffix}`
+  const auditId = `e2e-delete-all-audit-${suffix}`
+
+  await db.collection("notifications").doc(sharedId).set({
+    targetId: "admin",
+    type: "info",
+    title: "Per-user dismissal proof",
+    message: "This shared notification must remain visible to other staff.",
+    timestamp: "Just now",
+    isRead: false,
+    createdAt: Date.now(),
+  })
+  await db.collection("notifications").doc(residentId).set({
+    targetId: "e2e-active-resident",
+    type: "info",
+    title: "Resident deletion proof",
+    message: "This resident-owned notification should be physically deleted.",
+    timestamp: "Just now",
+    isRead: false,
+    createdAt: Date.now(),
+  })
+  await db.collection("notifications").doc(otherResidentId).set({
+    targetId: "e2e-profile-resident",
+    type: "info",
+    title: "Other resident boundary proof",
+    message: "This notification belongs to another resident.",
+    timestamp: "Just now",
+    isRead: false,
+    createdAt: Date.now(),
+  })
+  await db.collection("activityLogs").doc(auditId).set({
+    action: "notification.deleteAll.acceptance",
+    targetId: "e2e-active-resident",
+    timestamp: Date.now(),
+  })
+
+  try {
+    await login(page, "full")
+    await page.goto("/admin/notifications")
+    await expect(page.getByText("Per-user dismissal proof")).toBeVisible()
+    await page.getByRole("button", { name: "Delete All" }).first().click()
+    const staffDialog = page.getByRole("dialog", { name: "Delete all notifications" })
+    await staffDialog.getByRole("button", { name: "Delete All" }).click()
+    await expect(page.getByText("Notifications cleared", { exact: true })).toBeVisible()
+    await expect(page.getByText("Per-user dismissal proof")).not.toBeVisible()
+    expect((await db.collection("notifications").doc(sharedId).get()).exists).toBe(true)
+    expect((await db.collection("notificationDismissals").doc(`e2e-full_${sharedId}`).get()).exists).toBe(true)
+
+    await login(page, "viewer")
+    await page.goto("/admin/notifications")
+    await expect(page.getByText("Per-user dismissal proof")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Delete All" }).first()).toBeEnabled()
+
+    await login(page, "active-resident", true, /\/resident\/dashboard/)
+    await page.goto("/resident/notifications")
+    await expect(page.getByText("Resident deletion proof")).toBeVisible()
+    await page.getByRole("button", { name: "Delete All" }).first().click()
+    const residentDialog = page.getByRole("dialog", { name: "Delete all notifications" })
+    await residentDialog.getByRole("button", { name: "Delete All" }).click()
+    await expect(page.getByText("Notifications deleted", { exact: true })).toBeVisible()
+    await expect(page.getByText("Resident deletion proof")).not.toBeVisible()
+    expect((await db.collection("notifications").doc(residentId).get()).exists).toBe(false)
+    expect((await db.collection("notifications").doc(otherResidentId).get()).exists).toBe(true)
+    expect((await db.collection("activityLogs").doc(auditId).get()).exists).toBe(true)
+  } finally {
+    await db.collection("notifications").doc(sharedId).delete().catch(() => {})
+    await db.collection("notifications").doc(residentId).delete().catch(() => {})
+    await db.collection("notifications").doc(otherResidentId).delete().catch(() => {})
+    await db.collection("activityLogs").doc(auditId).delete().catch(() => {})
+    await db.collection("notificationDismissals").doc(`e2e-full_${sharedId}`).delete().catch(() => {})
   }
 })

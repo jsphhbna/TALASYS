@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { db, auth } from "@/lib/firebase"
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc, addDoc, getCountFromServer, limit } from "firebase/firestore"
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, addDoc, getCountFromServer, limit } from "firebase/firestore"
 import { callAdminOperation, updateResidentIdentity } from "@/lib/admin/client-operation"
 import type {
     AdminResident,
@@ -16,6 +16,7 @@ import {
     COLLECTION_VERIFICATIONS,
     COLLECTION_DOCUMENT_REQUESTS,
     COLLECTION_NOTIFICATIONS,
+    COLLECTION_NOTIFICATION_DISMISSALS,
     COLLECTION_ACTIVITY_LOGS,
     COLOR_ADMIN_BLUE,
     COLOR_ADMIN_GREEN,
@@ -23,8 +24,10 @@ import {
     COLOR_ADMIN_AMBER,
 } from "@/lib/constants"
 import { useAuth } from "@/lib/auth"
+import { isAnyAdminRole } from "@/lib/auth/auth-types"
 import { normalizeAuditLog } from "@/lib/security/audit-utils"
 import { fetchOrderedCollectionPages } from "@/lib/firestore-pagination"
+import { dismissSharedNotificationsForUser } from "@/lib/notifications/notification-dismissal"
 
 export function useAdminData() {
     const [residents, setResidents] = useState<AdminResident[]>([])
@@ -32,7 +35,8 @@ export function useAdminData() {
     const [rejectedVerifications, setRejectedVerifications] = useState<PendingVerification[]>([])
     const [deniedVerifications, setDeniedVerifications] = useState<PendingVerification[]>([])
     const [documentRequests, setDocumentRequests] = useState<AdminDocumentRequest[]>([])
-    const [notifications, setNotifications] = useState<AdminNotification[]>([])
+    const [sourceNotifications, setSourceNotifications] = useState<AdminNotification[]>([])
+    const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(new Set())
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
     const [isLoaded, setIsLoaded] = useState(false)
     const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({})
@@ -59,6 +63,17 @@ export function useAdminData() {
 
     const { user } = useAuth()
     const userCreatedAt = user?.createdAt || 0
+    const notifications = useMemo(
+        () => sourceNotifications.filter(notification => !dismissedNotificationIds.has(notification.id)),
+        [dismissedNotificationIds, sourceNotifications],
+    )
+
+    useEffect(() => {
+        setStats(previous => ({
+            ...previous,
+            unreadNotifications: notifications.filter(notification => !notification.isRead).length,
+        }))
+    }, [notifications])
 
     useEffect(() => {
         const unsubscribeFunctions: (() => void)[] = []
@@ -194,14 +209,28 @@ export function useAdminData() {
             }
             
             adminNotifications.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-            setNotifications(adminNotifications)
-            setStats(prev => ({ ...prev, unreadNotifications: adminNotifications.filter(notification => !notification.isRead).length }))
+            setSourceNotifications(adminNotifications)
             checkReady("notifications")
         }, (err) => {
             console.error("notifications snapshot error:", err)
             setSourceErrors(previous => ({ ...previous, notifications: err.message || "Failed to load notifications" }))
             setIsLoaded(true)
         }))
+
+        if (user?.id && isAnyAdminRole(user.role)) {
+            unsubscribeFunctions.push(onSnapshot(
+                query(collection(db, COLLECTION_NOTIFICATION_DISMISSALS), where("userId", "==", user.id)),
+                snapshot => {
+                    setDismissedNotificationIds(new Set(snapshot.docs.map(snapshotDoc => String(snapshotDoc.data().notificationId || ""))))
+                },
+                err => {
+                    console.error("notification dismissals snapshot error:", err)
+                    setSourceErrors(previous => ({ ...previous, notificationDismissals: err.message || "Failed to load notification preferences" }))
+                },
+            ))
+        } else {
+            setDismissedNotificationIds(new Set())
+        }
 
         unsubscribeFunctions.push(onSnapshot(query(collection(db, COLLECTION_ACTIVITY_LOGS), orderBy("timestamp", "desc"), limit(250)), async () => {
           try {
@@ -220,7 +249,7 @@ export function useAdminData() {
         }))
 
         return () => unsubscribeFunctions.forEach(unsubscribe => unsubscribe())
-    }, [userCreatedAt, refreshCounter])
+    }, [user?.id, user?.role, userCreatedAt, refreshCounter])
 
     const refresh = useCallback(() => {
         setSourceErrors({})
@@ -397,8 +426,13 @@ export function useAdminData() {
             )
         }, [notifications]),
         deleteNotification: useCallback(async (id: string) => {
-            await deleteDoc(doc(db, COLLECTION_NOTIFICATIONS, id))
-        }, []),
+            if (!user?.id || !isAnyAdminRole(user.role)) throw new Error("You are not authorized to dismiss this notification.")
+            await dismissSharedNotificationsForUser(db, user.id, [id])
+        }, [user?.id, user?.role]),
+        deleteAllNotifications: useCallback(async () => {
+            if (!user?.id || !isAnyAdminRole(user.role)) throw new Error("You are not authorized to dismiss notifications.")
+            return dismissSharedNotificationsForUser(db, user.id, notifications.map(notification => notification.id))
+        }, [notifications, user?.id, user?.role]),
 
         // Activity Logs
         addActivityLog: useCallback(async (input: Omit<ActivityLog, "id" | "time">) => {

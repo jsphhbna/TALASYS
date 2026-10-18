@@ -501,3 +501,22 @@ test("FX-05 & FX-06: Public footer and landing page content assertions", async (
   assert.ok(!howItWorksSource.includes("Download your verified document directly from your resident portal"), "Unsupported direct resident portal download claim must be removed")
   assert.ok(!howItWorksSource.includes("dry seal at the Barangay Hall"), "Step 5 must not require dry-seal claiming exclusively")
 })
+
+test("RC-1: shared modal is portaled, callback-stable, and does not globally cancel dialog scrolling", async () => {
+  const fs = await import("node:fs")
+  const source = fs.readFileSync("components/ui/modal-overlay.tsx", "utf-8")
+  assert.ok(source.includes("createPortal("), "Dialogs must render at the document body, outside transformed route containers")
+  assert.ok(source.includes("document.body,"), "Modal portal target must be the viewport document body")
+  assert.ok(source.includes("}, [isOpen])"), "Focus/scroll lifecycle must not reset merely because onClose changes identity")
+  assert.ok(!source.includes('addEventListener("wheel"'), "Dialog scrolling must not be cancelled by a global wheel handler")
+  assert.ok(!source.includes('mainStage.style.overflow'), "Modal lifecycle must not overwrite page-scroll ownership")
+})
+
+test("RC-1: staff sidebars preserve a scrollable navigation region above Sign Out", async () => {
+  const fs = await import("node:fs")
+  for (const sourcePath of ["components/admin/layout/admin-sidebar.tsx", "components/superadmin/layout/superadmin-sidebar.tsx"]) {
+    const source = fs.readFileSync(sourcePath, "utf-8")
+    assert.ok(source.includes("min-h-0 py-3 flex-1 overflow-y-auto overscroll-contain"))
+    assert.ok(source.includes("h-[calc(100vh-4rem)] sticky top-16 flex-col"))
+  }
+})

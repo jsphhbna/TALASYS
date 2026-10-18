@@ -44,6 +44,16 @@
 
 # TALASYS Project State
 
+## Current recovery checkpoint — 18 October 2026
+
+- **Reconciled baseline:** `f4a8250` on `main`; `origin` points to `jsphhbna/TALASYS`.
+- **Status:** Root-Cause UI/UX & Notification Remediation COMPLETED AND LOCALLY VERIFIED.
+- **Implemented:** shared body-portaled, stack-aware modal focus/scroll architecture; stable Resident Profile editing and focus restoration; scrollable compact Admin/Super Admin navigation; collision-aware portaled Resident/Super Admin row menus; Super Admin notification navigation; role-aware Delete All with permanent resident-owned deletion and per-user staff dismissal state; Firestore ownership enforcement and bounded 200-write batches.
+- **Audit boundary:** profile photo removal continues through the pre-existing typed server transaction that writes canonical audit and resident notification evidence. Delete All never deletes activity logs.
+- **Verified:** 307/307 unit tests; Firestore Rules/emulator suite; 47/47 authenticated Playwright workflows; application and test TypeScript; ESLint with 0 errors; production build across 51 routes; whitespace check. Browser evidence covers 1024x768, 1280x720, and 1366x768 modal geometry, focus/caret continuity, scroll restoration, compact sidebars, last-row menus, `/admin/generate` scrolling, and cross-user notification isolation.
+- **Operational boundary:** no deployment, Firestore Rules publication, production data/account/asset mutation, or live-provider security testing was performed. Host/mobile/AppSec production validation remains a user-operated stage.
+- **Recovery utility note:** the legacy `v9_record_checkpoint.py` could not append its own bundle because this repository does not contain the root-level `PROJECT_STATE.md`/manifest layout it requires; the canonical `docs/PROJECT_STATE.md`, `BUILD_PLAN.md`, and `docs/EVIDENCE_LEDGER.md` were updated directly instead.
+
 ## Current Active Milestone — 17 October 2026 (DevKit V10 Comprehensive System Reliability & UI/UX Modernization: UX-A01–UX-N01)
 
 - **Working branch**: `main`

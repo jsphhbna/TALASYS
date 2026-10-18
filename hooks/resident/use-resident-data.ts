@@ -24,6 +24,7 @@ import {
   COLLECTION_SYSTEM_CONFIG,
   SYSTEM_CONFIG_DOCUMENT_ID,
 } from "@/lib/constants"
+import { deleteOwnedNotifications } from "@/lib/notifications/notification-dismissal"
 
 export function useResidentData() {
   const { user } = useAuth()
@@ -529,6 +530,11 @@ export function useResidentData() {
     )
   }, [residentId, notifications])
 
+  const deleteAllNotifications = useCallback(async () => {
+    if (!residentId) throw new Error("You must be signed in to delete notifications.")
+    return deleteOwnedNotifications(db, notifications.map(notification => notification.id))
+  }, [residentId, notifications])
+
   const saveProfilePicture = useCallback(
     async (profilePicture: string) => {
       if (!residentId) return null
@@ -584,6 +590,7 @@ export function useResidentData() {
     requestProfileEdit,
     requestReactivation,
     markAllNotificationsRead,
+    deleteAllNotifications,
     saveProfilePicture,
     refresh,
     cancelRequest,

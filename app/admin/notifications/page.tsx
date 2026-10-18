@@ -1,15 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAdminData } from "@/hooks/admin"
-import { Bell, UserPlus, Clock, FileText, Mail } from "lucide-react"
+import { Bell, UserPlus, Clock, FileText, Mail, Loader2, Trash2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth"
-import { canManageNotificationsRole } from "@/lib/auth/auth-types"
+import { canManageNotificationsRole, isAnyAdminRole } from "@/lib/auth/auth-types"
 
 function formatRelativeTime(createdAt: number): string {
   if (!createdAt) return "Just now"
@@ -31,13 +31,17 @@ function formatRelativeTime(createdAt: number): string {
 export default function Notifications() {
   const { user } = useAuth()
   const canManage = canManageNotificationsRole(user?.role)
-  const { notifications: adminNotifications, markAllNotificationsRead, markNotificationRead, addNotification, residents } = useAdminData()
+  const { notifications: adminNotifications, markAllNotificationsRead, markNotificationRead, deleteAllNotifications, addNotification, residents } = useAdminData()
   const [activeFilter, setActiveFilter] = useState("all")
   const [selectedNotification, setSelectedNotification] = useState<any>(null)
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
   const [broadcastMessage, setBroadcastMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false)
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const deleteAllInFlightRef = useRef(false)
+  const canDismiss = isAnyAdminRole(user?.role)
 
   const unreadCount = adminNotifications.filter(n => !n.isRead).length
 
@@ -95,6 +99,30 @@ export default function Notifications() {
       })
     } finally {
       setIsMarkingAllRead(false)
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    if (!canDismiss || deleteAllInFlightRef.current || adminNotifications.length === 0) return
+    deleteAllInFlightRef.current = true
+    setIsDeletingAll(true)
+    try {
+      const deletedCount = await deleteAllNotifications()
+      setShowDeleteAllDialog(false)
+      toast({
+        title: "Notifications cleared",
+        description: `${deletedCount} notification${deletedCount === 1 ? "" : "s"} removed from your view.`,
+      })
+    } catch (err: any) {
+      console.error("Failed to clear admin notification view:", err)
+      toast({
+        title: "Delete All failed",
+        description: "Your notifications were not fully cleared. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      deleteAllInFlightRef.current = false
+      setIsDeletingAll(false)
     }
   }
 
@@ -193,8 +221,8 @@ export default function Notifications() {
 
 
       {/* Filter Tabs */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-6">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {filters.map((filter) => (
             <button
               key={filter.id}
@@ -206,15 +234,29 @@ export default function Notifications() {
             </button>
           ))}
         </div>
-        {canManage && (
-          <button
-            onClick={handleMarkAllRead}
-            disabled={isMarkingAllRead || unreadCount === 0}
-            className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center disabled:opacity-50 disabled:no-underline"
-          >
-            <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {canManage && (
+            <button
+              onClick={handleMarkAllRead}
+              disabled={isMarkingAllRead || unreadCount === 0}
+              className="text-xs-plus text-[#0C2340] dark:text-blue-50 font-medium hover:underline flex gap-1 items-center disabled:opacity-50 disabled:no-underline"
+            >
+              <span>✓✓</span> {isMarkingAllRead ? "Marking..." : "Mark all as read"}
+            </button>
+          )}
+          {canDismiss && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteAllDialog(true)}
+              disabled={isDeletingAll || adminNotifications.length === 0}
+              className="h-8 gap-1.5 text-red-600 hover:text-red-700"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete All
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Notifications List */}
@@ -307,7 +349,7 @@ export default function Notifications() {
 
       {/* Detail Dialog */}
       {showPreviewDialog && selectedNotification && (
-        <ModalOverlay isOpen={true} onClose={() => setShowPreviewDialog(false)}>
+        <ModalOverlay isOpen={true} onClose={() => setShowPreviewDialog(false)} title="Notification Details">
           <Card className="w-full max-w-lg p-0 shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Notification Details</h3>
@@ -342,6 +384,26 @@ export default function Notifications() {
           </Card>
         </ModalOverlay>
       )}
+
+      <ModalOverlay isOpen={showDeleteAllDialog} onClose={() => { if (!isDeletingAll) setShowDeleteAllDialog(false) }} title="Delete all notifications">
+        <Card className="w-full max-w-md p-0 shadow-2xl overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+            <h2 className="text-lg font-bold text-[#0C2340] dark:text-blue-50">Delete all notifications?</h2>
+          </div>
+          <div className="p-6 space-y-5">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              This clears all {adminNotifications.length} notification{adminNotifications.length === 1 ? "" : "s"} from your view only. Other staff members keep their own notification history.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowDeleteAllDialog(false)} disabled={isDeletingAll}>Cancel</Button>
+              <Button variant="destructive" onClick={handleDeleteAll} disabled={isDeletingAll || adminNotifications.length === 0}>
+                {isDeletingAll && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isDeletingAll ? "Deleting..." : "Delete All"}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </ModalOverlay>
     </AdminPageShell>
   )
 }

@@ -127,7 +127,7 @@ export function AdminSidebarNav({ onItemClick }: { onItemClick?: () => void } = 
   }
 
   return (
-    <nav className="py-3 flex-1 overflow-y-auto">
+    <nav className="min-h-0 py-3 flex-1 overflow-y-auto overscroll-contain">
           {navigation.map((item) => {
             const isActive = activePath === item.href
             const isVerifItem = item.href === "/admin/verifications"
@@ -345,7 +345,7 @@ export function AdminSidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
+      <aside className="hidden md:flex w-[232px] shrink-0 min-h-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
         <AdminSidebarNav />
         <div className="p-3 border-t border-white/10">
           <button

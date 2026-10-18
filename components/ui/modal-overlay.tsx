@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
 interface ModalOverlayProps {
@@ -11,130 +12,107 @@ interface ModalOverlayProps {
   title?: string
 }
 
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+let openDialogCount = 0
+let originalHtmlOverflow = ""
+let originalBodyOverflow = ""
+const dialogStack: symbol[] = []
+
+/**
+ * Viewport-level dialog primitive for the legacy modal callers. It portals out of
+ * transformed route containers and keeps scroll/focus ownership with the topmost
+ * dialog without re-initialising when a caller recreates its close callback.
+ */
 export function ModalOverlay({ isOpen, onClose, children, className, title }: ModalOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const previousActiveElementRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  const dialogTokenRef = useRef(Symbol("modal-overlay"))
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!isOpen) return
 
-    // Save previous active element for return focus
     previousActiveElementRef.current = document.activeElement as HTMLElement | null
-
-    // Lock ALL background scrolling when modal is open.
-    const preventScroll = (e: Event) => {
-      const target = e.target as HTMLElement
-      const scrollable = target.closest('.overflow-y-auto, .overflow-auto, .modal-scroll-container')
-      if (scrollable) return
-      e.preventDefault()
+    openDialogCount += 1
+    dialogStack.push(dialogTokenRef.current)
+    if (openDialogCount === 1) {
+      originalHtmlOverflow = document.documentElement.style.overflow
+      originalBodyOverflow = document.body.style.overflow
+      document.documentElement.style.overflow = "hidden"
+      document.body.style.overflow = "hidden"
     }
 
-    document.addEventListener("wheel", preventScroll, { passive: false })
-    document.addEventListener("touchmove", preventScroll, { passive: false })
-
-    const originalHtmlOverflow = document.documentElement.style.overflow
-    const originalBodyOverflow = document.body.style.overflow
-    document.documentElement.style.overflow = "hidden"
-    document.body.style.overflow = "hidden"
-    const mainStage = document.getElementById("main-scroll-stage")
-    if (mainStage) mainStage.style.overflow = "hidden"
-
-    // Escape key listener & Focus Trap
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (dialogStack.at(-1) !== dialogTokenRef.current) return
       if (e.key === "Escape") {
+        e.preventDefault()
         e.stopPropagation()
-        onClose()
+        onCloseRef.current()
         return
       }
-
-      if (e.key === "Tab" && containerRef.current) {
-        const focusableElements = containerRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        )
-        if (focusableElements.length === 0) {
-          e.preventDefault()
-          return
-        }
-
-        const firstElement = focusableElements[0]
-        const lastElement = focusableElements[focusableElements.length - 1]
-
-        if (e.shiftKey) {
-          if (document.activeElement === firstElement || !containerRef.current.contains(document.activeElement)) {
-            e.preventDefault()
-            lastElement.focus()
-          }
-        } else {
-          if (document.activeElement === lastElement || !containerRef.current.contains(document.activeElement)) {
-            e.preventDefault()
-            firstElement.focus()
-          }
-        }
+      if (e.key !== "Tab" || !containerRef.current) return
+      const focusable = Array.from(containerRef.current.querySelectorAll<HTMLElement>(FOCUSABLE))
+      if (focusable.length === 0) {
+        e.preventDefault()
+        containerRef.current.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && (document.activeElement === first || !containerRef.current.contains(document.activeElement))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (document.activeElement === last || !containerRef.current.contains(document.activeElement))) {
+        e.preventDefault()
+        first.focus()
       }
     }
 
     document.addEventListener("keydown", handleKeyDown)
-
-    // Initial focus: focus first interactive element or dialog container
-    const timer = setTimeout(() => {
-      if (containerRef.current) {
-        const firstFocusable = containerRef.current.querySelector<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        )
-        if (firstFocusable) {
-          firstFocusable.focus()
-        } else {
-          containerRef.current.focus()
-        }
-      }
-    }, 50)
+    const focusFrame = requestAnimationFrame(() => {
+      const dialog = containerRef.current
+      if (!dialog || dialogStack.at(-1) !== dialogTokenRef.current || dialog.contains(document.activeElement)) return
+      dialog.querySelector<HTMLElement>(FOCUSABLE)?.focus() ?? dialog.focus()
+    })
 
     return () => {
-      clearTimeout(timer)
-      document.removeEventListener("wheel", preventScroll)
-      document.removeEventListener("touchmove", preventScroll)
+      cancelAnimationFrame(focusFrame)
       document.removeEventListener("keydown", handleKeyDown)
-
-      document.documentElement.style.overflow = originalHtmlOverflow
-      document.body.style.overflow = originalBodyOverflow
-      if (mainStage) mainStage.style.overflow = ""
-
-      // Return focus to trigger element
-      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === "function") {
-        previousActiveElementRef.current.focus()
+      const stackIndex = dialogStack.lastIndexOf(dialogTokenRef.current)
+      if (stackIndex >= 0) dialogStack.splice(stackIndex, 1)
+      openDialogCount = Math.max(0, openDialogCount - 1)
+      if (openDialogCount === 0) {
+        document.documentElement.style.overflow = originalHtmlOverflow
+        document.body.style.overflow = originalBodyOverflow
       }
+      previousActiveElementRef.current?.focus?.()
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
-  if (!isOpen) return null
+  if (!isOpen || typeof document === "undefined") return null
 
-  return (
-    <div 
-      className={cn(
-        "fixed inset-0 z-50 bg-black/40 backdrop-blur-sm overflow-y-auto overscroll-none modal-scroll-container animate-in fade-in duration-200",
-        className
-      )}
-      onMouseDown={(e) => { 
-        if (e.target === e.currentTarget) {
-          onClose()
-        }
+  return createPortal(
+    <div
+      className={cn("fixed inset-0 z-[100] grid place-items-center overflow-y-auto overscroll-contain bg-black/40 p-4 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200", className)}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCloseRef.current()
       }}
     >
-      <div 
+      <div
         ref={containerRef}
         role="dialog"
         aria-modal="true"
         aria-label={title || "Dialog Window"}
         tabIndex={-1}
-        className="min-h-full flex items-center justify-center p-4 py-10 outline-none"
-        onMouseDown={(e) => { 
-          if (e.target === e.currentTarget) {
-            onClose()
-          }
-        }}
+        className="my-auto w-full max-w-full max-h-[calc(100dvh-2rem)] outline-none"
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

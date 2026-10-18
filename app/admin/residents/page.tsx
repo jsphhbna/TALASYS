@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth"
 import dynamic from 'next/dynamic'
 import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { DataLoadError } from "@/components/admin/data-load-error"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 const ResidentProfileModal = dynamic(
   () => import('@/components/admin/resident-profile-modal').then(mod => mod.ResidentProfileModal),
@@ -28,7 +29,6 @@ export default function ResidentManagement() {
   const [selectedStatus, setSelectedStatus] = useState("all")
   const [selectedGender, setSelectedGender] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [showActionsMenu, setShowActionsMenu] = useState<string | null>(null)
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
   const [showActivateDialog, setShowActivateDialog] = useState(false)
@@ -279,31 +279,31 @@ export default function ResidentManagement() {
                     </span>
                 </td>
                 <td className="px-6 py-3.5 text-right">
-                  <div className="flex items-center justify-end gap-2 relative">
+                  <div className="flex items-center justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => { setSelectedResident(resident); setShowViewDialog(true) }} className="h-6 text-2xs bg-transparent hover:bg-[#0C2340] hover:text-white transition-colors">View Profile</Button>
                     {user?.role !== "View Only" && (
-                      <>
-                        <button onClick={() => setShowActionsMenu(showActionsMenu === resident.id ? null : resident.id)} className="w-6 h-6 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-100 dark:bg-slate-800">
-                          <span className="text-slate-600 dark:text-slate-400">⋮</span>
-                        </button>
-                        {showActionsMenu === resident.id && (
-                          <div className="absolute right-0 top-8 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10">
-                            {resident.status === "Deleted" || (resident as any).registrationDenied ? (
-                              <div className="px-4 py-2 text-2xs text-slate-400 italic">Account Inactive</div>
-                            ) : resident.status === "Expired" ? (
-                              <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowActivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-emerald-600">Activate Account</button>
-                            ) : (
-                              <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowDeactivateDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-amber-600">Deactivate Account</button>
-                            )}
-                            {resident.status !== "Deleted" && (
-                              <>
-                                <div className="border-t border-slate-200 dark:border-slate-700" />
-                                <button onClick={() => { setSelectedResident(resident); setOperationError(null); setShowDeleteDialog(true); setShowActionsMenu(null) }} className="w-full px-4 py-2 text-xs-plus text-left hover:bg-slate-50 dark:bg-slate-950 text-red-600">Delete Resident</button>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button aria-label={`Actions for ${resident.name}`} className="w-6 h-6 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <span aria-hidden="true" className="text-slate-600 dark:text-slate-400">⋮</span>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" side="bottom" collisionPadding={12} className="w-44">
+                          {resident.status === "Deleted" || (resident as any).registrationDenied ? (
+                            <DropdownMenuItem disabled>Account Inactive</DropdownMenuItem>
+                          ) : resident.status === "Expired" ? (
+                            <DropdownMenuItem onSelect={() => { setSelectedResident(resident); setOperationError(null); setShowActivateDialog(true) }} className="text-emerald-600">Activate Account</DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onSelect={() => { setSelectedResident(resident); setOperationError(null); setShowDeactivateDialog(true) }} className="text-amber-600">Deactivate Account</DropdownMenuItem>
+                          )}
+                          {resident.status !== "Deleted" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem variant="destructive" onSelect={() => { setSelectedResident(resident); setOperationError(null); setShowDeleteDialog(true) }}>Delete Resident</DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 </td>

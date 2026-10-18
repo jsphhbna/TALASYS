@@ -295,14 +295,30 @@ service cloud.firestore {
         )
       );
 
-      // Deletes (P04):
-      // - View Only is denied all deletes.
-      // - Operational Admins can delete admin-targeted notifications.
-      // - Residents can delete their own notifications.
-      allow delete: if (
-        (canManageNotifications() && (resource.data.targetId == 'admin' || resource.data.targetId == request.auth.uid)) ||
-        (isResident() && resource.data.targetId == request.auth.uid)
-      );
+      // Shared staff notifications are never physically deleted by a client;
+      // staff clear only their own notificationDismissals view state below.
+      // Residents may permanently delete only notifications they own.
+      allow delete: if isResident() && resource.data.targetId == request.auth.uid;
+    }
+
+    // Per-user view state for shared staff notifications. The shared source
+    // notification remains intact for every other staff account.
+    match /notificationDismissals/{dismissalId} {
+      allow read: if isAnyAdmin() && resource.data.userId == request.auth.uid;
+      allow create: if isAnyAdmin() &&
+        request.resource.data.userId == request.auth.uid &&
+        dismissalId == request.auth.uid + '_' + request.resource.data.notificationId &&
+        request.resource.data.keys().hasOnly(['userId', 'notificationId', 'dismissedAt']) &&
+        request.resource.data.notificationId is string &&
+        request.resource.data.notificationId.size() > 0 &&
+        request.resource.data.dismissedAt is int;
+      allow update: if isAnyAdmin() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.notificationId == resource.data.notificationId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedAt']) &&
+        request.resource.data.dismissedAt is int;
+      allow delete: if isAnyAdmin() && resource.data.userId == request.auth.uid;
     }
 
     // ==============================================================
