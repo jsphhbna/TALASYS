@@ -1,6 +1,17 @@
-# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04, M01–M06, QA01–QA04)
+# TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04, M01–M06, QA01–QA04, BLUR-01)
 
-## DevKit V10 Manual QA Findings Remediation (QA-01–QA-04) — CURRENT PASS
+## DevKit V10 Modal Background Blur Restoration (BLUR-01) — CURRENT PASS
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED
+- **Audited baseline:** `779f020a1af2f4450049c1f6c5dc1b42adc47040`
+- **Execution mode:** Architectural Root-Cause Remediation → Multi-Browser & Multi-Viewport Regression Testing → Two Consecutive Clean Verification Passes
+- **Scope:** Shared modal backdrop blur restoration across `ModalOverlay`, `DialogOverlay`, and `AlertDialogOverlay` with compositor layer isolation on Admin, Super Admin, and Resident sidebars.
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **BLUR-01** | Unified Backdrop Blur Restoration with Compositor Isolation | COMPLETED | Restored subtle `backdrop-blur-sm` (4px blur) across custom `ModalOverlay`, Radix `DialogOverlay`, and Radix `AlertDialogOverlay`. Resolved the Edge/Chromium sidebar clipping defect by: 1) Decoupling `ModalOverlay` into a dedicated background backdrop layer (`[data-slot="modal-overlay-backdrop"]`) and a transparent scrolling/centering container; 2) Giving `<aside>` elements in Admin, Super Admin, and Resident sidebars `z-20 isolate` to establish an isolated stacking context and dedicated GPU raster tile; 3) Scoping scroll lock strictly to `document.body.style.overflow = "hidden"` to preserve the root scrolling coordinator; 4) Adding `motion-reduce:backdrop-blur-none` for accessibility. Verified on Chromium and Microsoft Edge across 1024×768, 1280×720, 1280×800, 1366×768, and 1920×1080 (16/16 passed on both). Two consecutive clean verification passes completed. |
+
+## DevKit V10 Manual QA Findings Remediation (QA-01–QA-04) — PRIOR PASS
 
 - **Status:** COMPLETED & INDEPENDENTLY VERIFIED
 - **Audited baseline:** `339b3aa9d0559d7e75c67dcabde17660299cfead`

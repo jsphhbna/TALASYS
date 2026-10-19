@@ -27,16 +27,17 @@ const env = {
   NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT: "8180",
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: projectId,
   NEXT_PUBLIC_FIREBASE_API_KEY: "AIzaSyB00000000000000000000000000000000",
-  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "talasys-test-cloud",
-  NEXT_PUBLIC_CLOUDINARY_API_KEY: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || "talasys-test-key",
-  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "talasys-test-secret-123456789",
+  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || localEnv.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "talasys-test-cloud",
+  NEXT_PUBLIC_CLOUDINARY_API_KEY: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || localEnv.NEXT_PUBLIC_CLOUDINARY_API_KEY || "talasys-test-key",
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || localEnv.CLOUDINARY_API_SECRET || "talasys-test-secret-123456789",
   PORT: process.env.PORT || "3005",
   PLAYWRIGHT_PORT: process.env.PLAYWRIGHT_PORT || "3005",
   PLAYWRIGHT_USE_START: process.env.PLAYWRIGHT_USE_START || "true",
 }
 const firebaseCli = "node_modules/firebase-tools/lib/bin/firebase.js"
 const testArgs = process.argv.slice(2).join(" ")
-const command = `node node_modules/@playwright/test/cli.js test ${testArgs || "test/e2e/authenticated-workflows.spec.ts"} --project=chromium`
+const projectFlag = testArgs.includes("--project") ? "" : "--project=chromium"
+const command = `node node_modules/@playwright/test/cli.js test ${testArgs || "test/e2e/authenticated-workflows.spec.ts"} ${projectFlag}`.trim()
 const child = spawn(process.execPath, [firebaseCli, "emulators:exec", "--config", "firebase.e2e.json", "--project", projectId, "--only", "auth,firestore", command], { cwd: process.cwd(), env, stdio: "inherit", shell: false })
 child.on("exit", code => { process.exitCode = code ?? 1 })
 child.on("error", error => { console.error(error); process.exitCode = 1 })

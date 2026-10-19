@@ -64,7 +64,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
+      <aside className="hidden md:flex w-[232px] shrink-0 bg-[#0C2340] dark:bg-slate-800 z-20 isolate h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
         <nav className="flex-1 pt-5 overflow-y-auto">
           <div className="flex items-center px-4 mb-3">
             <p className="text-xs font-bold tracking-wider text-blue-200/50 dark:text-slate-400/70 uppercase mr-3">Main Menu</p>

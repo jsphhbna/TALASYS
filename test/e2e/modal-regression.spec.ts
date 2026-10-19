@@ -331,13 +331,24 @@ test.describe("M01–M05 Modal Centering, Dismissal, Layering, and Sidebar Verif
       const modalOpenSidebarBg = await sidebarAside.evaluate(el => window.getComputedStyle(el).backgroundColor)
       expect(modalOpenSidebarBg).toBe(initialSidebarBg)
 
-      // Verify backdrop does NOT have backdrop-blur-sm compositing layer
-      const backdropEl = page.locator('div.fixed.inset-0.bg-black\\/50').first()
+      // Verify backdrop has backdrop-blur-sm compositing layer and computed blur
+      const backdropEl = page.locator('[data-slot="modal-overlay-backdrop"]').first()
       await expect(backdropEl).toBeVisible()
       const backdropClass = await backdropEl.getAttribute("class")
-      expect(backdropClass).not.toContain("backdrop-blur")
+      expect(backdropClass).toContain("backdrop-blur-sm")
+      const computedBackdropBlur = await backdropEl.evaluate(el => {
+        const style = window.getComputedStyle(el)
+        return style.backdropFilter || (style as any).webkitBackdropFilter || ""
+      })
+      expect(computedBackdropBlur).toContain("blur")
 
+      // Verify modal content remains sharp (no backdrop-filter on card itself)
       const profileCard = profileModal.locator('.w-full.max-w-3xl').first()
+      const profileCardBlur = await profileCard.evaluate(el => {
+        const style = window.getComputedStyle(el)
+        return style.backdropFilter || (style as any).webkitBackdropFilter || "none"
+      })
+      expect(profileCardBlur).toBe("none")
       const profileBox = await profileCard.boundingBox()
       expect(profileBox).not.toBeNull()
       const profileCenterX = profileBox!.x + profileBox!.width / 2
@@ -583,5 +594,115 @@ test.describe("M01–M05 Modal Centering, Dismissal, Layering, and Sidebar Verif
     await idFullModal.locator('button:has-text("✕")').click()
     await expect(idFullModal).not.toBeVisible()
     await expect(profileModal).toBeVisible()
+  })
+
+  test("Radix Dialog backdrop blur and sidebar stability (Sign Out dialog)", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await login(page, "full", /\/admin\/dashboard/)
+
+    const sidebarAside = page.locator('aside[role="navigation"]')
+    await expect(sidebarAside).toBeVisible()
+    const initialSidebarBox = await sidebarAside.boundingBox()
+    expect(initialSidebarBox).not.toBeNull()
+
+    // Click Sign Out in sidebar to trigger Radix Dialog
+    const signOutBtn = sidebarAside.getByRole("button", { name: "Sign Out" })
+    await signOutBtn.click()
+
+    // Radix DialogOverlay has data-slot="dialog-overlay"
+    const dialogOverlay = page.locator('[data-slot="dialog-overlay"]').first()
+    await expect(dialogOverlay).toBeVisible()
+
+    const overlayClass = await dialogOverlay.getAttribute("class")
+    expect(overlayClass).toContain("backdrop-blur-sm")
+
+    const computedBlur = await dialogOverlay.evaluate(el => {
+      const style = window.getComputedStyle(el)
+      return style.backdropFilter || (style as any).webkitBackdropFilter || ""
+    })
+    expect(computedBlur).toContain("blur")
+
+    // Radix DialogContent has data-slot="dialog-content" and sharp content
+    const dialogContent = page.locator('[data-slot="dialog-content"]').first()
+    await expect(dialogContent).toBeVisible()
+    const contentBlur = await dialogContent.evaluate(el => {
+      const style = window.getComputedStyle(el)
+      return style.backdropFilter || (style as any).webkitBackdropFilter || "none"
+    })
+    expect(contentBlur).toBe("none")
+
+    // Sidebar remains fully visible and intact behind the overlay
+    const openSidebarBox = await sidebarAside.boundingBox()
+    expect(openSidebarBox).not.toBeNull()
+    expect(openSidebarBox!.x).toBe(initialSidebarBox!.x)
+    expect(openSidebarBox!.width).toBe(initialSidebarBox!.width)
+
+    // Cancel dismisses the dialog
+    await page.getByRole("button", { name: "Cancel" }).click()
+    await expect(dialogContent).not.toBeVisible()
+    await expect(dialogOverlay).not.toBeVisible()
+  })
+
+  test("Radix AlertDialog backdrop blur and content sharpness (Resident Danger Zone)", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await login(page, "modal-resident", /\/resident\/dashboard/)
+    await page.goto("/resident/profile")
+    await expect(page.getByRole("heading", { name: "Danger Zone" })).toBeVisible()
+
+    // Click Delete Account to open Radix AlertDialog
+    const deleteBtn = page.getByRole("button", { name: "Delete Account" })
+    await deleteBtn.click()
+
+    // AlertDialogOverlay has data-slot="alert-dialog-overlay"
+    const alertOverlay = page.locator('[data-slot="alert-dialog-overlay"]').first()
+    await expect(alertOverlay).toBeVisible()
+
+    const overlayClass = await alertOverlay.getAttribute("class")
+    expect(overlayClass).toContain("backdrop-blur-sm")
+
+    const computedBlur = await alertOverlay.evaluate(el => {
+      const style = window.getComputedStyle(el)
+      return style.backdropFilter || (style as any).webkitBackdropFilter || ""
+    })
+    expect(computedBlur).toContain("blur")
+
+    // AlertDialogContent has data-slot="alert-dialog-content" and sharp content
+    const alertContent = page.locator('[data-slot="alert-dialog-content"]').first()
+    await expect(alertContent).toBeVisible()
+    const contentBlur = await alertContent.evaluate(el => {
+      const style = window.getComputedStyle(el)
+      return style.backdropFilter || (style as any).webkitBackdropFilter || "none"
+    })
+    expect(contentBlur).toBe("none")
+
+    // Cancel button dismisses AlertDialog
+    await page.getByRole("button", { name: "Cancel" }).click()
+    await expect(alertContent).not.toBeVisible()
+    await expect(alertOverlay).not.toBeVisible()
+  })
+
+  test("Reduced motion disables backdrop blur effect gracefully", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await login(page, "full", /\/admin\/dashboard/)
+    await page.goto("/admin/residents")
+
+    const residentRow = page.getByRole("row").filter({ hasText: "E2E Modal Resident" })
+    await residentRow.getByRole("button", { name: "View Profile" }).click()
+
+    const profileModal = page.getByRole("dialog", { name: "Resident Profile" })
+    await expect(profileModal).toBeVisible()
+
+    const backdropEl = page.locator('[data-slot="modal-overlay-backdrop"]').first()
+    await expect(backdropEl).toBeVisible()
+
+    const computedBackdropBlur = await backdropEl.evaluate(el => {
+      const style = window.getComputedStyle(el)
+      return style.backdropFilter || (style as any).webkitBackdropFilter || "none"
+    })
+    expect(computedBackdropBlur === "none" || computedBackdropBlur === "").toBe(true)
+
+    await profileModal.getByLabel("Close modal").click()
+    await expect(profileModal).not.toBeVisible()
   })
 })

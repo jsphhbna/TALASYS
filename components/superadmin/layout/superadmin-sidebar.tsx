@@ -97,7 +97,7 @@ export function SuperAdminSidebar() {
 
   return (
     <>
-      <aside className="hidden md:flex w-[236px] lg:w-[244px] xl:w-[252px] 2xl:w-[260px] shrink-0 min-h-0 bg-[#0C2340] dark:bg-slate-800 h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
+      <aside className="hidden md:flex w-[236px] lg:w-[244px] xl:w-[252px] 2xl:w-[260px] shrink-0 min-h-0 bg-[#0C2340] dark:bg-slate-800 z-20 isolate h-[calc(100vh-4rem)] sticky top-16 flex-col" role="navigation">
         <SuperAdminSidebarNav />
         <div className="p-2.5 border-t border-white/10 shrink-0">
           <button

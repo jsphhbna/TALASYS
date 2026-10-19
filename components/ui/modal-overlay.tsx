@@ -16,7 +16,6 @@ interface ModalOverlayProps {
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 let openDialogCount = 0
-let originalHtmlOverflow = ""
 let originalBodyOverflow = ""
 const dialogStack: symbol[] = []
 const dialogContainerMap = new Map<symbol, HTMLElement>()
@@ -58,9 +57,7 @@ export function ModalOverlay({ isOpen, onClose, children, className, title, styl
     }
 
     if (openDialogCount === 1) {
-      originalHtmlOverflow = document.documentElement.style.overflow
       originalBodyOverflow = document.body.style.overflow
-      document.documentElement.style.overflow = "hidden"
       document.body.style.overflow = "hidden"
     }
 
@@ -105,7 +102,6 @@ export function ModalOverlay({ isOpen, onClose, children, className, title, styl
       if (stackIndex >= 0) dialogStack.splice(stackIndex, 1)
       openDialogCount = Math.max(0, openDialogCount - 1)
       if (openDialogCount === 0) {
-        document.documentElement.style.overflow = originalHtmlOverflow
         document.body.style.overflow = originalBodyOverflow
       }
 
@@ -142,23 +138,38 @@ export function ModalOverlay({ isOpen, onClose, children, className, title, styl
   return createPortal(
     <ModalStackContext.Provider value={effectiveDepth + 1}>
       <div
-        className={cn(
-          "fixed inset-0 grid place-items-center overflow-y-auto overscroll-contain bg-black/50 p-4 sm:p-6 animate-in fade-in duration-200",
-          className
-        )}
+        className="fixed inset-0"
         style={{ zIndex: computedZIndex, ...style }}
-        onMouseDown={handleBackdropMouseDown}
       >
+        {/* Dedicated backdrop layer for background dimming and blur without scroll container clipping */}
         <div
-          ref={containerRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label={title || "Dialog Window"}
-          tabIndex={-1}
-          className="my-auto w-full max-w-full flex flex-col items-center justify-center outline-none"
+          data-slot="modal-overlay-backdrop"
+          className={cn(
+            "fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-200",
+            "motion-reduce:backdrop-blur-none",
+            "animate-in fade-in",
+            className
+          )}
+          aria-hidden="true"
+          onMouseDown={handleBackdropMouseDown}
+        />
+
+        {/* Scrollable container for dialog centering, outside dismissal, and internal scrolling */}
+        <div
+          className="fixed inset-0 grid place-items-center overflow-y-auto overscroll-contain p-4 sm:p-6"
           onMouseDown={handleBackdropMouseDown}
         >
-          {children}
+          <div
+            ref={containerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title || "Dialog Window"}
+            tabIndex={-1}
+            className="my-auto w-full max-w-full flex flex-col items-center justify-center outline-none"
+            onMouseDown={handleBackdropMouseDown}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </ModalStackContext.Provider>,
