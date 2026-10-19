@@ -300,7 +300,7 @@ test("R09: resident cannot delete pending registration verifications, while prof
   await assertSucceeds(deleteDoc(doc(otherResidentDb, "verifications", "rejected-profile-edit")))
 })
 
-test("A07 resident payment submission preserves paid, waived, and terminal request states", async () => {
+test("SEC-F02: Direct client SDK updates to payment fields are strictly denied by Firestore rules", async () => {
   await environment.withSecurityRulesDisabled(async context => {
     const db = context.firestore()
     for (const [id, status, paymentStatus] of [
@@ -311,16 +311,29 @@ test("A07 resident payment submission preserves paid, waived, and terminal reque
       ["completed-request", "Completed", "unpaid"],
       ["legitimate-unpaid", "On Process", "unpaid"],
       ["cash-unpaid", "On Process", "unpaid"],
+      ["pending-cancel-test", "Pending", "unpaid"],
     ]) await setDoc(doc(db, "documentRequests", id), { residentId: "resident", status, paymentStatus })
   })
   const residentDb = environment.authenticatedContext("resident").firestore()
-  const payment = { paymentStatus: "pending_verification", paymentMethod: "gcash", gcashRefNumber: "REF-1", gcashScreenshotUrl: "protected", paymentSubmittedAt: 1 }
-  for (const id of ["paid-request", "waived-request", "cancelled-request", "rejected-request", "completed-request"]) {
-    await assertFails(updateDoc(doc(residentDb, "documentRequests", id), payment))
-  }
-  await assertSucceeds(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), payment))
 
-  // SEC-02: Resident cannot submit payment using another resident's receipt URL -> denied
+  // Client SDK payment submission attempts MUST FAIL (SEC-F02 requires server endpoint POST /api/resident/requests/pay)
+  const gcashPayment = {
+    paymentStatus: "pending_verification",
+    paymentMethod: "gcash",
+    gcashRefNumber: "REF-VALID",
+    gcashScreenshotUrl: "https://res.cloudinary.com/talasys-cloud/image/authenticated/s--xyz--/v1/talasys/receipts/resident/receipt.jpg",
+    paymentSubmittedAt: 1,
+  }
+  await assertFails(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), gcashPayment))
+
+  const cashPayment = {
+    paymentStatus: "pending_verification",
+    paymentMethod: "cash",
+    paymentSubmittedAt: 1,
+  }
+  await assertFails(updateDoc(doc(residentDb, "documentRequests", "cash-unpaid"), cashPayment))
+
+  // Forged receipt URL payment attempt fails
   const forgedPayment = {
     paymentStatus: "pending_verification",
     paymentMethod: "gcash",
@@ -330,33 +343,12 @@ test("A07 resident payment submission preserves paid, waived, and terminal reque
   }
   await assertFails(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), forgedPayment))
 
-  // SEC-02: Resident cannot submit cash payment with screenshot URL or ref number -> denied
-  const invalidCashPayment = {
-    paymentStatus: "pending_verification",
-    paymentMethod: "cash",
-    gcashRefNumber: "REF-1",
-    gcashScreenshotUrl: "https://res.cloudinary.com/talasys-cloud/image/authenticated/s--xyz--/v1/talasys/receipts/resident/receipt.jpg",
-    paymentSubmittedAt: 1,
-  }
-  await assertFails(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), invalidCashPayment))
-
-  // SEC-02: Resident CAN submit payment with their own authenticated receipt URL -> succeeds
-  const validOwnPayment = {
-    paymentStatus: "pending_verification",
-    paymentMethod: "gcash",
-    gcashRefNumber: "REF-VALID",
-    gcashScreenshotUrl: "https://res.cloudinary.com/talasys-cloud/image/authenticated/s--xyz--/v1/talasys/receipts/resident/receipt.jpg",
-    paymentSubmittedAt: 1,
-  }
-  await assertSucceeds(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), validOwnPayment))
-
-  // SEC-02: Resident CAN submit cash payment with clean parameters on unpaid request -> succeeds
-  const validCashPayment = {
-    paymentStatus: "pending_verification",
-    paymentMethod: "cash",
-    paymentSubmittedAt: 1,
-  }
-  await assertSucceeds(updateDoc(doc(residentDb, "documentRequests", "cash-unpaid"), validCashPayment))
+  // Only cancellation transition by resident on Pending requests is allowed via client SDK
+  await assertSucceeds(updateDoc(doc(residentDb, "documentRequests", "pending-cancel-test"), {
+    status: "Cancelled",
+    cancelledAt: 1,
+    statusTimestamps: { cancelled: 1 },
+  }))
 })
 
 test("clients cannot write authoritative audit evidence or telemetry", async () => {

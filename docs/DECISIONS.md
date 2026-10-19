@@ -1,4 +1,23 @@
 
+## ADR-032: Post-Audit Security Hardening & Zero-Regression Verification (SEC-F01–SEC-F03)
+
+- **Date:** October 19, 2026
+- **Status:** APPROVED & IMPLEMENTED
+- **Context:**
+  Following external code review of baseline `6e9a02a4ce9194b34736f1906c06042451f98219`, three residual security and architecture concerns were identified:
+  1. **SEC-F01**: `lib/firebase.ts` used port detection heuristics (`window.location.port === "3005"`, `PORT === "3005"`) to activate emulator routing, which conflated network port with execution mode and risked unintended emulator connection or bypass.
+  2. **SEC-F02**: `firestore.rules` permitted client SDK updates to `documentRequests` payment fields (`paymentStatus`, `gcashScreenshotUrl`, `gcashRefNumber`) under loose regex matching, which lacked server-authoritative verification of asset existence and ownership in `mediaRegistry`.
+  3. **SEC-F03**: `app/api/cloudinary/sign/route.ts` used unverified token/ticket headers to partition rate limits when client IP was "Unknown", allowing attackers to cycle invalid credentials and allocate arbitrary rate-limit buckets.
+- **Decisions:**
+  1. **Explicit Controlled E2E Execution Contract (SEC-F01):** Purged all port 3005 heuristics. Established an explicit execution contract: emulators are activated only when `TALASYS_E2E_MODE === "true"` (server) or `window.__TALASYS_E2E_CONFIG__` (browser) is present. Injected this configuration into the browser layout conditionally via a script tag during E2E runs. Bound Cloudinary bypass strictly to `TALASYS_E2E_MODE === "true"` and `FIRESTORE_EMULATOR_HOST`.
+  2. **Authoritative Payment Boundary & Firestore Rules Lockdown (SEC-F02):** Created `POST /api/resident/requests/pay` route to serve as the single authoritative payment mutation boundary. The endpoint verifies caller Firebase ID token, checks resident account status, verifies document request ownership and lifecycle eligibility (`Pending`, `Approved`, `On Process`), enforces method rules, and performs strict `mediaRegistry` asset lookup (`publicId.startsWith('talasys/receipts/<callerUid>/')`, `ownerUid === callerUid`, `folder === 'talasys/receipts'`). In live mode, verifies asset existence with Cloudinary. Transitions request to `paymentStatus: "pending_verification"` and creates admin notification inside a Firestore transaction. In `firestore.rules`, revoked all client SDK payment updates on `documentRequests`, restricting client update permission strictly to cancellation of own Pending requests.
+  3. **Two-Phase Rate Limiting with Cryptographic Attribution (SEC-F03):** Refactored `app/api/cloudinary/sign/route.ts` to two-phase rate limiting. Phase 1 applies per-IP (30/min) or shared pre-auth bucket (`sign:unknown_ip`, 60/min) before authentication. Phase 2 applies per-identity quotas (`sign:user:<callerUid>`, 30/min; `sign:ticket:<nonce>`, 10/min) strictly after cryptographic verification via `auth.verifyIdToken` or `consumeRegistrationTicket`.
+- **Consequences:**
+  1. No heuristic inference of testing environment; production and test environments are strictly separated.
+  2. Direct client SDK updates to payment fields are blocked by Firestore security rules; payment transitions and evidence verification are server-authoritative.
+  3. Attackers cannot cycle unverified credentials to bypass rate limits.
+  4. Two consecutive clean verification passes prove complete system stability (309/309 unit tests, 101/101 emulator rules, 47/47 authenticated Playwright E2E tests, 16/16 Edge modal tests, 16/16 Mobile modal tests, 0 typecheck errors, 0 lint errors, 52/52 Next.js production routes build).
+
 ## ADR-031: DevKit V10 Modal Regression & Responsive Sidebar Correction (M01–M06)
 
 - **Date:** October 18, 2026

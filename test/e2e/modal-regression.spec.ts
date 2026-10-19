@@ -129,6 +129,14 @@ test.beforeAll(async () => {
 })
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(window as any).__TALASYS_E2E_CONFIG__ = {
+      projectId: "talasys-e2e",
+      authUrl: "http://127.0.0.1:9199",
+      firestoreHost: "127.0.0.1",
+      firestorePort: 8180,
+    }
+  })
   const app = getApps().find(candidate => candidate.name === "e2e-seed") || initializeApp({ projectId }, "e2e-seed")
   const db = getFirestore(app)
   await db.collection("users").doc("e2e-full").update({ role: "Full Access" }).catch(() => {})

@@ -30,12 +30,14 @@ const env = {
   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || localEnv.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "talasys-test-cloud",
   NEXT_PUBLIC_CLOUDINARY_API_KEY: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || localEnv.NEXT_PUBLIC_CLOUDINARY_API_KEY || "talasys-test-key",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || localEnv.CLOUDINARY_API_SECRET || "talasys-test-secret-123456789",
+  TALASYS_E2E_MODE: "true",
+  NEXT_PUBLIC_TALASYS_E2E_MODE: "true",
   PORT: process.env.PORT || "3005",
   PLAYWRIGHT_PORT: process.env.PLAYWRIGHT_PORT || "3005",
   PLAYWRIGHT_USE_START: process.env.PLAYWRIGHT_USE_START || "true",
 }
 const firebaseCli = "node_modules/firebase-tools/lib/bin/firebase.js"
-const testArgs = process.argv.slice(2).join(" ")
+const testArgs = process.argv.slice(2).map(arg => (arg.includes(" ") || arg.includes("|")) ? `"${arg}"` : arg).join(" ")
 const projectFlag = testArgs.includes("--project") ? "" : "--project=chromium"
 const command = `node node_modules/@playwright/test/cli.js test ${testArgs || "test/e2e/authenticated-workflows.spec.ts"} ${projectFlag}`.trim()
 const child = spawn(process.execPath, [firebaseCli, "emulators:exec", "--config", "firebase.e2e.json", "--project", projectId, "--only", "auth,firestore", command], { cwd: process.cwd(), env, stdio: "inherit", shell: false })

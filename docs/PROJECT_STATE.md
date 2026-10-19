@@ -1,7 +1,17 @@
 
 # TALASYS Project State
 
-## DevKit V10 Final Deep-Dive Audit, Root-Cause Remediation & Zero-Regression Cleanup — CURRENT PASS
+## DevKit V10 Post-Audit Security Hardening & Final Regression Verification (SEC-F01–SEC-F03) — CURRENT PASS
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED
+- **Audited Baseline:** `6e9a02a4ce9194b34736f1906c06042451f98219`
+- **Key Deliverables Completed:**
+  1. **SEC-F01 (Controlled Explicit E2E Execution Contract):** In `lib/firebase.ts`, removed all port-based heuristics (`window.location.port === "3005"`, `PORT === "3005"`, `PLAYWRIGHT_PORT === "3005"`). In `app/layout.tsx`, injected `window.__TALASYS_E2E_CONFIG__` conditionally when `TALASYS_E2E_MODE === "true"`. In `app/api/media/claim/route.ts`, Cloudinary bypass strictly requires explicit E2E mode alongside emulator host.
+  2. **SEC-F02 (Authoritative Payment Evidence Ownership & Rules Lockdown):** Created `POST /api/resident/requests/pay` route (`app/api/resident/requests/pay/route.ts`) validating ID token, caller ownership of document request, request lifecycle eligibility, cash vs GCash method constraints, and enforcing caller asset ownership in `mediaRegistry` (`ownerUid === callerUid`, `folder === 'talasys/receipts'`). In `firestore.rules`, completely removed client-side payment mutations on `documentRequests`; clients can only perform cancellation on their own Pending requests. Updated `hooks/resident/use-resident-data.ts` to dispatch payments to the authoritative endpoint. Created 10 emulator tests in `test/emulator/payment-evidence-authorization.test.ts`.
+  3. **SEC-F03 (Two-Phase Rate Limiting with Cryptographic Attribution):** In `app/api/cloudinary/sign/route.ts`, implemented two-phase rate limiting. Phase 1 limits by client IP (30/min) or shared `sign:unknown_ip` (60/min) when IP is Unknown. Phase 2 allocates per-identity quotas only after verifying Firebase ID token or consuming registration ticket. Rotating invalid tokens or tickets cannot bypass rate limits. Created unit tests in `test/cloudinary-sign-rate-limit.test.ts`.
+  4. **Double Clean Verification Pass:** Passed two consecutive full verification runs across all test suites (309/309 unit tests, 101/101 emulator rules tests, 47/47 authenticated Playwright E2E tests, 16/16 Edge modal tests, 16/16 mobile modal tests, 0 typecheck errors, 0 lint errors, 52/52 routes build).
+
+## DevKit V10 Final Deep-Dive Audit, Root-Cause Remediation & Zero-Regression Cleanup — PRIOR PASS
 
 - **Status:** COMPLETED & INDEPENDENTLY VERIFIED
 - **Audited Baseline:** `8aeaedbc9b967e36efd990685dce63f016d1316d`

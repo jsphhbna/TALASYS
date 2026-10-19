@@ -41,21 +41,15 @@ export function createCloudinarySignHandler(injected?: { auth?: any; db?: any })
     const registrationTicket = body.ticket || req.headers.get("x-registration-ticket")
 
     const ip = extractClientIp(req)
-    // SEC-03: Avoid shared Unknown IP denial of service. When IP is unverified/Unknown,
-    // isolate rate limiting buckets by bearer token hash or registration ticket prefix.
-    const rateLimitKey = ip !== "Unknown"
-      ? `sign:${ip}`
-      : (authHeader
-          ? `sign:auth:${crypto.createHash("sha256").update(authHeader).digest("hex").slice(0, 16)}`
-          : (registrationTicket
-              ? `sign:ticket:${String(registrationTicket).slice(0, 16)}`
-              : `sign:unknown`))
+    // Phase 1: Pre-auth / IP-level rate limiting
+    const preAuthLimit = ip !== "Unknown"
+      ? rateLimit(`sign:ip:${ip}`, 30, 60 * 1000)
+      : rateLimit("sign:unknown_ip", 60, 60 * 1000)
 
-    const { success, resetTime } = rateLimit(rateLimitKey, 30, 60 * 1000)
-    if (!success) {
+    if (!preAuthLimit.success) {
       return NextResponse.json(
         { error: "Too many upload requests. Please wait before retrying." },
-        { status: 429, headers: { "X-RateLimit-Reset": resetTime.toString() } }
+        { status: 429, headers: { "X-RateLimit-Reset": preAuthLimit.resetTime.toString() } }
       )
     }
 
@@ -102,6 +96,15 @@ export function createCloudinarySignHandler(injected?: { auth?: any; db?: any })
 
         callerType = callerRole === "resident" ? "resident" : "admin"
       }
+
+      // Phase 2: Post-auth identity rate limit for authenticated user
+      const userLimit = rateLimit(`sign:user:${callerUid}`, 30, 60 * 1000)
+      if (!userLimit.success) {
+        return NextResponse.json(
+          { error: "Too many upload requests for this account. Please wait before retrying." },
+          { status: 429, headers: { "X-RateLimit-Reset": userLimit.resetTime.toString() } }
+        )
+      }
     } 
     // 2. Alternatively, authenticate via single-use registration ticket for new residents (#51)
     else if (registrationTicket) {
@@ -114,6 +117,15 @@ export function createCloudinarySignHandler(injected?: { auth?: any; db?: any })
       }
       callerType = "registration-applicant"
       registrationTicketNonce = verifiedTicket.nonce
+
+      // Phase 2: Post-ticket identity rate limit for verified ticket
+      const ticketLimit = rateLimit(`sign:ticket:${verifiedTicket.nonce}`, 10, 60 * 1000)
+      if (!ticketLimit.success) {
+        return NextResponse.json(
+          { error: "Too many upload requests for this registration ticket. Please wait before retrying." },
+          { status: 429, headers: { "X-RateLimit-Reset": ticketLimit.resetTime.toString() } }
+        )
+      }
     }
 
     // Reject unauthenticated requests

@@ -24,6 +24,12 @@ function httpError(message: string, status: number) {
 }
 
 export function createCloudinaryAssetVerifier() {
+  const isE2E = process.env.TALASYS_E2E_MODE === "true" && Boolean(process.env.FIRESTORE_EMULATOR_HOST)
+  if (isE2E) {
+    return async (_asset: RegistrationAssetIdentity) => {
+      return
+    }
+  }
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || ""
   const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY || ""
   const apiSecret = process.env.CLOUDINARY_API_SECRET || ""
@@ -32,12 +38,6 @@ export function createCloudinaryAssetVerifier() {
   }
   cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true })
   return async (asset: RegistrationAssetIdentity) => {
-    if (
-      (cloudName === "talasys-test-cloud" || process.env.GCLOUD_PROJECT === "talasys-e2e" || process.env.FIREBASE_PROJECT_ID === "talasys-e2e") &&
-      (process.env.FIRESTORE_EMULATOR_HOST || process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true")
-    ) {
-      return
-    }
     let result: any
     try {
       result = await cloudinary.api.resource(asset.publicId, {

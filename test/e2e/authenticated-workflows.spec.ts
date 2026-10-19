@@ -353,6 +353,14 @@ test.afterAll(async () => {
 })
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(window as any).__TALASYS_E2E_CONFIG__ = {
+      projectId: "talasys-e2e",
+      authUrl: "http://127.0.0.1:9199",
+      firestoreHost: "127.0.0.1",
+      firestorePort: 8180,
+    }
+  })
   await page.route("https://res.cloudinary.com/**", async route => {
     await route.fulfill({
       status: 200,
@@ -1263,6 +1271,9 @@ test("Milestone E02: Active open resident session is authoritatively revoked in 
 
   // 2. Open the resident's authenticated application session
   const residentContext = await browser.newContext()
+  await residentContext.addInitScript(() => {
+    (window as any).__TALASYS_E2E_CONFIG__ = { enabled: true }
+  })
   const residentPage = await residentContext.newPage()
   await residentPage.goto("/auth/login")
   await residentPage.getByLabel("Username or Email").fill(liveEmail)
@@ -2468,6 +2479,15 @@ test("RC-3: compact staff layouts, portaled action menus, modal scrolling, and g
     await profileOpener.click()
     const dialog = page.getByRole("dialog", { name: "Resident Profile" })
     await expect(dialog).toBeVisible()
+    await expect(dialog.getByText("Modal Scroll Evidence 1")).toBeVisible()
+    await expect.poll(async () => {
+      return await dialog.evaluate(element => {
+        const scrollRegion = element.querySelector<HTMLElement>("#resident-modal-scroll")
+        if (!scrollRegion) return 0
+        scrollRegion.scrollTop = scrollRegion.scrollHeight
+        return scrollRegion.scrollTop
+      })
+    }).toBeGreaterThan(0)
     const geometry = await dialog.evaluate(element => {
       const rect = element.getBoundingClientRect()
       const scrollRegion = element.querySelector<HTMLElement>("#resident-modal-scroll")!

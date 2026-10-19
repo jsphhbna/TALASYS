@@ -164,51 +164,17 @@ service cloud.firestore {
       allow create: if false;
 
       // Updates:
-      // - Document Processing / Full Admin can update everything.
-      // - Residents can only perform validated transitions (#26, #56):
-      //   1. Cancel a Pending request: status -> 'Cancelled'
-      //   2. Submit Payment: paymentStatus -> 'pending_verification'
+      // - Administrative request updates are performed authoritatively by server operations.
+      // - SEC-F02: Payment submissions are strictly server-authoritative via POST /api/resident/requests/pay.
+      // - Residents can ONLY update their own Pending requests to Cancelled (Cancellation transition).
       allow update: if (
         isAuthenticated() &&
         isActiveAccount() &&
         resource.data.residentId == request.auth.uid &&
         request.resource.data.residentId == resource.data.residentId &&
-        (
-          // Case 1: Cancellation transition
-          (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'statusTimestamps']) &&
-            resource.data.status == 'Pending' &&
-            request.resource.data.status == 'Cancelled'
-          ) ||
-          // Case 2: Payment submission transition
-          (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'paymentStatus', 'paymentMethod', 'gcashRefNumber', 'gcashScreenshotUrl', 'paymentSubmittedAt'
-            ]) &&
-            (!('paymentStatus' in resource.data) || resource.data.paymentStatus in ['unpaid', 'pending_verification']) &&
-            request.resource.data.get('paymentStatus', '') == 'pending_verification' &&
-            resource.data.status in ['Pending', 'Approved', 'On Process'] &&
-            request.resource.data.get('paymentMethod', '') in ['gcash', 'cash'] &&
-            (
-              (
-                request.resource.data.get('paymentMethod', '') == 'cash' &&
-                request.resource.data.get('gcashScreenshotUrl', '') == '' &&
-                request.resource.data.get('gcashRefNumber', '') == ''
-              ) ||
-              (
-                request.resource.data.get('paymentMethod', '') == 'gcash' &&
-                request.resource.data.get('gcashRefNumber', '') is string &&
-                request.resource.data.get('gcashRefNumber', '').size() > 0 &&
-                request.resource.data.get('gcashScreenshotUrl', '') is string &&
-                (
-                  request.resource.data.get('gcashScreenshotUrl', '') == '' ||
-                  request.resource.data.get('gcashScreenshotUrl', '') == 'protected' ||
-                  request.resource.data.get('gcashScreenshotUrl', '').matches('.*talasys/receipts/' + request.auth.uid + '/.*')
-                )
-              )
-            )
-          )
-        )
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'statusTimestamps']) &&
+        resource.data.status == 'Pending' &&
+        request.resource.data.status == 'Cancelled'
       );
 
       // Deletions:

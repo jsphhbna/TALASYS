@@ -37,8 +37,25 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const isE2E = process.env.TALASYS_E2E_MODE === "true" || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "talasys-e2e" || process.env.FIREBASE_PROJECT_ID === "talasys-e2e"
+
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {isE2E && (
+          <script
+            id="__talasys_e2e_config"
+            dangerouslySetInnerHTML={{
+              __html: `window.__TALASYS_E2E_CONFIG__ = ${JSON.stringify({
+                projectId: "talasys-e2e",
+                authUrl: process.env.NEXT_PUBLIC_AUTH_EMULATOR_URL || "http://127.0.0.1:9199",
+                firestoreHost: process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || "127.0.0.1",
+                firestorePort: Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || 8180),
+              })};`,
+            }}
+          />
+        )}
+      </head>
       <body suppressHydrationWarning className={`font-sans antialiased flex flex-col min-h-screen`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>

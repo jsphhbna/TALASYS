@@ -13,15 +13,27 @@ export const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-const isE2EBrowser = typeof window !== "undefined" && window.location.port === "3005";
+interface TalasysE2EConfig {
+  projectId: string;
+  authUrl: string;
+  firestoreHost: string;
+  firestorePort: number;
+}
+
+declare global {
+  interface Window {
+    __TALASYS_E2E_CONFIG__?: TalasysE2EConfig;
+  }
+}
+
+const e2eBrowserConfig = typeof window !== "undefined" ? window.__TALASYS_E2E_CONFIG__ : undefined;
 const isE2EServer = Boolean(
-  process.env.PORT === "3005" ||
-  process.env.PLAYWRIGHT_PORT === "3005" ||
+  process.env.TALASYS_E2E_MODE === "true" ||
   process.env.FIREBASE_PROJECT_ID === "talasys-e2e" ||
   process.env.GCLOUD_PROJECT === "talasys-e2e" ||
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "talasys-e2e"
 );
-const isE2E = isE2EBrowser || isE2EServer;
+const isE2E = Boolean(e2eBrowserConfig || isE2EServer);
 
 const isConfigValid = Boolean(
   firebaseConfig.apiKey && 
@@ -33,8 +45,8 @@ const isConfigValid = Boolean(
 const effectiveConfig = isE2E
   ? {
       apiKey: "AIzaSyB00000000000000000000000000000000",
-      projectId: "talasys-e2e",
-      authDomain: "talasys-e2e.firebaseapp.com",
+      projectId: e2eBrowserConfig?.projectId || "talasys-e2e",
+      authDomain: `${e2eBrowserConfig?.projectId || "talasys-e2e"}.firebaseapp.com`,
     }
   : isConfigValid
   ? firebaseConfig
@@ -54,9 +66,9 @@ const emulatorGlobal = globalThis as typeof globalThis & { __talasysFirebaseEmul
 const shouldConnectEmulators = typeof window !== "undefined" && (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" || isE2E);
 
 if (shouldConnectEmulators && !emulatorGlobal.__talasysFirebaseEmulatorsConnected) {
-  const authUrl = process.env.NEXT_PUBLIC_AUTH_EMULATOR_URL || (isE2E ? "http://127.0.0.1:9199" : "http://127.0.0.1:9099");
-  const host = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || "127.0.0.1";
-  const port = Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || (isE2E ? 8180 : 8080));
+  const authUrl = e2eBrowserConfig?.authUrl || process.env.NEXT_PUBLIC_AUTH_EMULATOR_URL || (isE2E ? "http://127.0.0.1:9199" : "http://127.0.0.1:9099");
+  const host = e2eBrowserConfig?.firestoreHost || process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || "127.0.0.1";
+  const port = Number(e2eBrowserConfig?.firestorePort || process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || (isE2E ? 8180 : 8080));
   connectAuthEmulator(auth, authUrl, { disableWarnings: true });
   connectFirestoreEmulator(db, host, port);
   emulatorGlobal.__talasysFirebaseEmulatorsConnected = true;

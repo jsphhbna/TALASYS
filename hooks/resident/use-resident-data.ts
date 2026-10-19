@@ -232,40 +232,39 @@ export function useResidentData() {
           throw new Error("Payment screenshot must be an authenticated asset owned by this resident.")
         }
       }
+
+      const token = await auth.currentUser?.getIdToken()
+      if (!token) {
+        throw new Error("You must be signed in to submit payment.")
+      }
+
       try {
-        await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, requestId), {
-          paymentStatus: "pending_verification",
-          paymentMethod: method,
-          ...(method === "gcash" ? {
-            gcashRefNumber: data.gcashRefNumber?.trim() || "",
-            gcashScreenshotUrl: data.gcashScreenshotUrl || "",
-          } : {}),
-          paymentSubmittedAt: Date.now()
+        const res = await fetch("/api/resident/requests/pay", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            requestId,
+            paymentMethod: method,
+            gcashRefNumber: data.gcashRefNumber?.trim(),
+            gcashScreenshotUrl: data.gcashScreenshotUrl,
+          }),
         })
-        try {
-          await addDoc(collection(db, COLLECTION_NOTIFICATIONS), {
-            targetId: "admin",
-            type: "info",
-            title: "Payment Submitted",
-            message: `${user?.name || "A resident"} submitted a ${method === "gcash" ? "GCash" : "Cash"} payment for review.`,
-            timestamp: "Just now",
-            isRead: false,
-            createdAt: Date.now(),
-            residentName: user?.name,
-            actionUrl: "/admin/requests/payments"
-          })
-        } catch (notifError) {
-          console.warn("Payment updated successfully but failed to create admin notification:", notifError)
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}))
+          throw new Error(errBody.error || "Failed to submit payment.")
         }
+
+        return await res.json()
       } catch (error: any) {
         console.error("Error submitting payment for request (id:", requestId, "):", error)
-        if (error?.code === "permission-denied") {
-          throw new Error("Payment submission not allowed for this request status.")
-        }
         throw new Error(error?.message || "Failed to submit payment.")
       }
     },
-    [residentId, user]
+    [residentId]
   )
 
   const isSubmittingProfileEditRef = useRef(false)

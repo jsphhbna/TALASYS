@@ -1,4 +1,25 @@
 
+## DevKit V10 Post-Audit Security Hardening & Final Regression Verification Handoff (SEC-F01–SEC-F03)
+
+- **Date:** October 19, 2026
+- **Audited Baseline:** `6e9a02a4ce9194b34736f1906c06042451f98219`
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Production Acceptance)
+- **Automated Verification Summary:**
+  - Unit Tests: 309 / 309 PASS (100% across 32 test suites)
+  - Firestore Emulator Security Rules Tests: 101 / 101 PASS (100%)
+  - Playwright Authenticated Workflows (Chromium): 47 / 47 PASS (100%)
+  - Playwright Modal Regression Suite (Microsoft Edge): 16 / 16 PASS (100%)
+  - Playwright Modal Regression Suite (Mobile Chromium): 16 / 16 PASS (100%)
+  - TypeScript Check (`tsc --noEmit`): 0 errors
+  - TypeScript Tests Check (`tsc --noEmit -p tsconfig.test.json`): 0 errors
+  - ESLint (`npm run lint`): 0 errors
+  - Production Build (`next build`): 52 / 52 routes compiled successfully (Turbopack)
+- **Key Implementation & Verification Highlights:**
+  1. **SEC-F01 (Controlled Explicit E2E Execution Contract):** In `lib/firebase.ts`, removed all port-based heuristics (`window.location.port === "3005"`, `PORT === "3005"`, `PLAYWRIGHT_PORT === "3005"`). In `app/layout.tsx`, injected `window.__TALASYS_E2E_CONFIG__` conditionally when `TALASYS_E2E_MODE === "true"`. In `app/api/media/claim/route.ts`, Cloudinary bypass strictly requires explicit E2E mode alongside emulator host.
+  2. **SEC-F02 (Authoritative Payment Evidence Ownership & Rules Lockdown):** Created `POST /api/resident/requests/pay` route (`app/api/resident/requests/pay/route.ts`) validating ID token, caller ownership of document request, request lifecycle eligibility, cash vs GCash method constraints, and enforcing caller asset ownership in `mediaRegistry` (`ownerUid === callerUid`, `folder === 'talasys/receipts'`). In `firestore.rules`, completely removed client-side payment mutations on `documentRequests`; clients can only perform cancellation on their own Pending requests. Updated `hooks/resident/use-resident-data.ts` to dispatch payments to the authoritative endpoint. Created 10 emulator tests in `test/emulator/payment-evidence-authorization.test.ts`.
+  3. **SEC-F03 (Two-Phase Rate Limiting with Cryptographic Attribution):** In `app/api/cloudinary/sign/route.ts`, implemented two-phase rate limiting. Phase 1 limits by client IP (30/min) or shared `sign:unknown_ip` (60/min) when IP is Unknown. Phase 2 allocates per-identity quotas only after verifying Firebase ID token or consuming registration ticket. Rotating invalid tokens or tickets cannot bypass rate limits. Created unit tests in `test/cloudinary-sign-rate-limit.test.ts`.
+  4. **Double Clean Verification Pass:** Passed two consecutive full verification runs across all test suites.
+
 ## DevKit V10 Final Deep-Dive Audit Remediation & Zero-Regression Cleanup Handoff
 
 - **Date:** October 19, 2026
