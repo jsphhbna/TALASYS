@@ -1,4 +1,30 @@
 
+## DevKit V10 Final Payment Security Hardening, Idempotency & Release Readiness Handoff (SEC-F04 & SEC-F05)
+
+- **Date:** October 20, 2026
+- **Audited Baseline:** `b72e49a95a8e2dd4084469c8aa64d23aaad40f04`
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Production Deployment)
+- **Automated Verification Summary:**
+  - Unit Tests: 310 / 310 PASS (100% across 32 test suites)
+  - Firestore Emulator Security Rules Tests: 113 / 113 PASS (100% across 13 test suites)
+  - Playwright Authenticated Workflows (Chromium): 47 / 47 PASS (100%)
+  - Playwright Modal Regression Suite (Microsoft Edge): 16 / 16 PASS (100%)
+  - Playwright Modal Regression Suite (Mobile Chromium): 16 / 16 PASS (100%)
+  - TypeScript Check (`tsc --noEmit`): 0 errors
+  - TypeScript Tests Check (`tsc --noEmit -p tsconfig.test.json`): 0 errors
+  - ESLint (`npm run lint`): 0 errors
+  - Production Build (`next build`): 52 / 52 routes compiled successfully (Turbopack)
+  - Git Diff Check (`git diff --check`): 0 whitespace or formatting errors
+- **Key Implementation Highlights:**
+  1. **SEC-F04 (Full Payment Media Identity Validation):** Enforced strict Cloudinary URL structure validation (host `res.cloudinary.com`, matching `cloudName`, `resourceType: "image"`, `deliveryType: "authenticated"`, and namespace `talasys/receipts/<callerUid>/`). Rejects path traversal (`..` or `//`). Validates authoritative document in `mediaRegistry` requiring `cloudName`, `publicId`, `resourceType: "image"`, `deliveryType: "authenticated"`, `folder: "talasys/receipts"`, `ownerUid: callerUid`, `status === "claimed"`, and unexpired reservation (`Date.now() <= expiresAt`). Verifies live asset with Cloudinary provider verifier. Preserves optional screenshot support for GCash and Cash. Verified by 8 emulator tests in `test/emulator/payment-evidence-authorization.test.ts`.
+  2. **SEC-F05 (Payment Idempotency & Notification Deduplication):** In `app/api/resident/requests/pay/route.ts`, implemented `paymentOperations` transaction tracking with `paymentOperationDocumentId(callerUid, requestId, operationId)` and `payloadHash`. Identical retry returns 200 with `idempotent: true` and creates no duplicate notification; conflicting payload returns 409 conflict. Admin notifications use deterministic document ID `pay_${operationDocId}`. Requests in `paid` or `waived` status cannot be overwritten (400). Legitimate corrections while in `pending_verification` succeed. Client read/write to `paymentOperations` locked down in `firestore.rules`. `hooks/resident/use-resident-data.ts` generates client UUID idempotency keys. Verified by 6 emulator tests in `test/emulator/payment-evidence-authorization.test.ts` and rules tests in `test/emulator/firestore-rules.test.ts`.
+  3. **Ledger Alignment:** Synchronized `test/cloudinary-sign-rate-limit.test.ts` test count with `docs/EVIDENCE_LEDGER.md` (exactly 3 tests, adding invalid registration ticket rate limit and single-use tests).
+  4. **Release Readiness Runbook:**
+     - **Order of Operations:** 1) Deploy Next.js web application to hosting provider so `POST /api/resident/requests/pay` is live and serving traffic; 2) Deploy `firestore.rules` to Firebase Cloud Firestore. If done in reverse, clients could be blocked from writing payment updates before the API endpoint is available.
+     - **Rollback Procedure:** In the event of an operational regression, revert `firestore.rules` to the previous version first, then redeploy the previous hosting release.
+     - **Environment Variable Checklist:** Verify `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` (or `NEXT_PUBLIC_CLOUDINARY_API_KEY`), `CLOUDINARY_API_SECRET`, and `FIREBASE_ADMIN_*` service account credentials are configured in the production environment.
+  5. **Double Clean Verification Pass:** Passed two consecutive full verification runs across all test suites.
+
 ## DevKit V10 Post-Audit Security Hardening & Final Regression Verification Handoff (SEC-F01–SEC-F03)
 
 - **Date:** October 19, 2026

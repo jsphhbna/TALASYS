@@ -1,4 +1,25 @@
 
+## ADR-033: Final Payment Security Hardening, Idempotency & Release Readiness (SEC-F04 & SEC-F05)
+
+- **Date:** October 20, 2026
+- **Status:** APPROVED & IMPLEMENTED
+- **Context:**
+  Following implementation of SEC-F01–SEC-F03 on baseline `b72e49a95a8e2dd4084469c8aa64d23aaad40f04`, two residual security and operational concerns were identified in the payment pipeline:
+  1. **SEC-F04**: The payment endpoint verified receipt publicId and ownerUid in `mediaRegistry` but did not validate the full canonical Cloudinary identity (URL hostname, matching `cloudName`, `resourceType: "image"`, `deliveryType: "authenticated"`, path traversal defense, and unexpired reservation timestamp). Furthermore, screenshot optionality needed formal preservation for cash and screenshot-less GCash submissions.
+  2. **SEC-F05**: Payment submissions lacked server-side idempotency tracking, allowing concurrent or replayed network requests to generate duplicate administrative notifications and risk race conditions. Requests already marked `paid` or `waived` could potentially be overwritten.
+- **Decisions:**
+  1. **Canonical Payment Media Identity Validation (SEC-F04):** In `app/api/resident/requests/pay/route.ts`, enforced strict Cloudinary URL structure validation (host `res.cloudinary.com`, matching `cloudName`, `resourceType: "image"`, `deliveryType: "authenticated"`, and namespace `talasys/receipts/<callerUid>/`). Rejects path traversal (`..` or `//`). Validates authoritative document in `mediaRegistry` requiring `cloudName`, `publicId`, `resourceType: "image"`, `deliveryType: "authenticated"`, `folder: "talasys/receipts"`, `ownerUid: callerUid`, `status === "claimed"`, and unexpired reservation (`Date.now() <= expiresAt`). Verifies live asset with Cloudinary provider verifier. Preserves optional screenshot support for GCash and Cash.
+  2. **Payment Idempotency & Deterministic Notification Deduplication (SEC-F05):** In `app/api/resident/requests/pay/route.ts`, implemented `paymentOperations` transaction tracking with `paymentOperationDocumentId(callerUid, requestId, operationId)` and `payloadHash`. Identical retry returns 200 with `idempotent: true` and creates no duplicate notification; conflicting payload returns 409 conflict. Admin notifications use deterministic document ID `pay_${operationDocId}`. Requests in `paid` or `waived` status cannot be overwritten (400). Legitimate corrections while in `pending_verification` succeed. Client read/write to `paymentOperations` locked down in `firestore.rules`. `hooks/resident/use-resident-data.ts` generates client UUID idempotency keys.
+  3. **Ledger Consistency Alignment:** Added third test to `test/cloudinary-sign-rate-limit.test.ts` asserting that rotating invalid registration tickets cannot evade IP rate limiting (429 on 31st request) and verifying single-use ticket consumption. File test count and ledger claim now match exactly at 3 tests.
+  4. **Release Readiness Runbook:**
+     - **Order of Operations:** 1) Deploy Next.js web application to hosting provider so `POST /api/resident/requests/pay` is live and serving traffic; 2) Deploy `firestore.rules` to Firebase Cloud Firestore. If done in reverse, clients could be blocked from writing payment updates before the API endpoint is available.
+     - **Rollback Procedure:** In the event of an operational regression, revert `firestore.rules` to the previous version first, then redeploy the previous hosting release.
+     - **Environment Variable Checklist:** Verify `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` (or `NEXT_PUBLIC_CLOUDINARY_API_KEY`), `CLOUDINARY_API_SECRET`, and `FIREBASE_ADMIN_*` service account credentials are configured in the production environment.
+- **Consequences:**
+  1. Attackers cannot use forged Cloudinary URLs, raw files, unauthenticated delivery, or expired reservations for payment proof.
+  2. Network retries and replayed submissions cannot trigger duplicate admin notifications or inconsistent state.
+  3. Two consecutive clean verification passes prove complete system stability (310/310 unit tests, 113/113 emulator rules, 47/47 authenticated Playwright E2E tests, 16/16 Edge modal tests, 16/16 Mobile modal tests, 0 typecheck errors, 0 lint errors, 52/52 Next.js production routes build, 0 git diff check errors).
+
 ## ADR-032: Post-Audit Security Hardening & Zero-Regression Verification (SEC-F01–SEC-F03)
 
 - **Date:** October 19, 2026

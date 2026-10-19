@@ -1,7 +1,18 @@
 
 # TALASYS Project State
 
-## DevKit V10 Post-Audit Security Hardening & Final Regression Verification (SEC-F01–SEC-F03) — CURRENT PASS
+## DevKit V10 Final Payment Security Hardening, Idempotency & Release Readiness (SEC-F04 & SEC-F05) — CURRENT PASS
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED
+- **Audited Baseline:** `b72e49a95a8e2dd4084469c8aa64d23aaad40f04`
+- **Key Deliverables Completed:**
+  1. **SEC-F04 (Full Payment Media Identity Validation):** In `app/api/resident/requests/pay/route.ts`, enforced strict Cloudinary URL structure validation (host `res.cloudinary.com`, matching `cloudName`, `resourceType: "image"`, `deliveryType: "authenticated"`, and namespace `talasys/receipts/<callerUid>/`). Rejects path traversal (`..` or `//`). Validates authoritative document in `mediaRegistry` requiring `cloudName`, `publicId`, `resourceType: "image"`, `deliveryType: "authenticated"`, `folder: "talasys/receipts"`, `ownerUid: callerUid`, `status === "claimed"`, and unexpired reservation (`Date.now() <= expiresAt`). Verifies live asset with Cloudinary provider verifier. Preserves optional screenshot support for GCash and Cash. Verified by 8 emulator tests in `test/emulator/payment-evidence-authorization.test.ts`.
+  2. **SEC-F05 (Payment Idempotency & Notification Deduplication):** In `app/api/resident/requests/pay/route.ts`, implemented `paymentOperations` transaction tracking with `paymentOperationDocumentId(callerUid, requestId, operationId)` and `payloadHash`. Identical retry returns 200 with `idempotent: true` and creates no duplicate notification; conflicting payload returns 409 conflict. Admin notifications use deterministic document ID `pay_${operationDocId}`. Requests in `paid` or `waived` status cannot be overwritten (400). Legitimate corrections while in `pending_verification` succeed. Client read/write to `paymentOperations` locked down in `firestore.rules`. `hooks/resident/use-resident-data.ts` generates client UUID idempotency keys. Verified by 6 emulator tests in `test/emulator/payment-evidence-authorization.test.ts` and rules tests in `test/emulator/firestore-rules.test.ts`.
+  3. **Ledger Consistency Alignment:** Added third test to `test/cloudinary-sign-rate-limit.test.ts` asserting that rotating invalid registration tickets cannot evade IP rate limiting (429 on 31st request) and verifying single-use ticket consumption. File test count and ledger claim now match exactly at 3 tests.
+  4. **Release Readiness Runbook:** Documented zero-downtime deployment order of operations: 1) Deploy Next.js application to hosting platform; 2) Deploy `firestore.rules` to Firebase. Documented rollback sequence (revert rules first, then rollback application) and environment variable inventory.
+  5. **Double Clean Verification Pass:** Passed two consecutive full verification runs across all test suites (310/310 unit tests, 113/113 emulator rules tests, 47/47 authenticated Playwright E2E tests, 16/16 Edge modal tests, 16/16 mobile modal tests, 0 typecheck errors, 0 lint errors, 52/52 routes build, 0 git diff check errors).
+
+## DevKit V10 Post-Audit Security Hardening & Final Regression Verification (SEC-F01–SEC-F03) — PRIOR PASS
 
 - **Status:** COMPLETED & INDEPENDENTLY VERIFIED
 - **Audited Baseline:** `6e9a02a4ce9194b34736f1906c06042451f98219`

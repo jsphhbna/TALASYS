@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from "cloudinary"
+import crypto from "node:crypto"
 import { NextResponse } from "next/server.js"
 import { adminAuth, adminDb } from "../../../../../lib/firebase-admin.ts"
 import { COLLECTION_DOCUMENT_REQUESTS, COLLECTION_NOTIFICATIONS } from "../../../../../lib/constants.ts"
@@ -13,6 +14,25 @@ type PayHandlerDependencies = {
 
 function httpError(message: string, status: number) {
   return Object.assign(new Error(message), { status })
+}
+
+export function paymentOperationDocumentId(callerUid: string, requestId: string, operationId: string): string {
+  return crypto.createHash("sha256").update(`${callerUid}:${requestId}:${operationId}`).digest("hex")
+}
+
+export function paymentPayloadHash(params: {
+  requestId: string
+  paymentMethod: string
+  gcashRefNumber: string
+  gcashScreenshotUrl: string
+}): string {
+  const canonical = {
+    requestId: params.requestId,
+    paymentMethod: params.paymentMethod,
+    gcashRefNumber: params.gcashRefNumber,
+    gcashScreenshotUrl: params.gcashScreenshotUrl,
+  }
+  return crypto.createHash("sha256").update(JSON.stringify(canonical)).digest("hex")
 }
 
 export function createDefaultCloudinaryAssetVerifier() {
@@ -37,10 +57,16 @@ export function createDefaultCloudinaryAssetVerifier() {
         resource_type: "image",
         type: deliveryType,
       })
-      if (!result || result.public_id !== publicId) {
+      if (
+        !result ||
+        result.public_id !== publicId ||
+        result.resource_type !== "image" ||
+        result.type !== deliveryType
+      ) {
         throw httpError("The uploaded payment screenshot could not be verified on Cloudinary.", 404)
       }
     } catch (err: any) {
+      if (err?.status === 404 || err?.status === 400 || err?.status === 403) throw err
       const httpCode = err?.error?.http_code || err?.status
       if (httpCode === 404 || err?.message?.toLowerCase().includes("not found")) {
         throw httpError("The uploaded payment screenshot does not exist on Cloudinary.", 404)
@@ -132,44 +158,132 @@ export function createResidentPayHandler(injected?: PayHandlerDependencies) {
         if (gcashScreenshotUrl && typeof gcashScreenshotUrl === "string" && gcashScreenshotUrl.trim() !== "") {
           sanitizedScreenshotUrl = gcashScreenshotUrl.trim()
 
-          const parsed = parseCloudinaryAsset(sanitizedScreenshotUrl)
-          const expectedFolder = `talasys/receipts/${callerUid}`
-
-          if (!parsed.publicId.startsWith(`${expectedFolder}/`)) {
-            throw httpError("Payment screenshot must be an authenticated asset owned by this resident.", 403)
+          // 1. URL host and scheme validation
+          if (!/^https?:\/\/res\.cloudinary\.com\//i.test(sanitizedScreenshotUrl)) {
+            throw httpError("Payment screenshot must be a valid Cloudinary asset URL.", 400)
           }
 
+          if (!cloudName) {
+            throw httpError("Cloudinary verification service is not configured.", 503)
+          }
+
+          const parsed = parseCloudinaryAsset(sanitizedScreenshotUrl)
+
+          // 2. Cloudinary account matching
+          if (!parsed.cloudName || parsed.cloudName !== cloudName) {
+            throw httpError("Payment screenshot cloud account does not match the configured provider.", 403)
+          }
+
+          // 3. Resource type matching
+          if (parsed.resourceType !== "image") {
+            throw httpError("Payment screenshot must be an image resource.", 400)
+          }
+
+          // 4. Delivery type matching
           if (parsed.deliveryType !== "authenticated") {
             throw httpError("Payment screenshot must use authenticated delivery.", 400)
           }
 
-          // Authoritative verification against mediaRegistry
-          const effectiveCloud = cloudName || parsed.cloudName || ""
-          const assetRegistryKey = mediaRegistryDocumentId(effectiveCloud, "image", parsed.publicId)
+          // 5. Public ID namespace & path traversal check
+          const expectedPrefix = `talasys/receipts/${callerUid}/`
+          if (!parsed.publicId.startsWith(expectedPrefix)) {
+            throw httpError("Payment screenshot must be an authenticated asset owned by this resident.", 403)
+          }
+          if (parsed.publicId.includes("..") || parsed.publicId.includes("//")) {
+            throw httpError("Malformed public ID in payment screenshot.", 400)
+          }
+
+          // 6. Authoritative verification against mediaRegistry
+          const assetRegistryKey = mediaRegistryDocumentId(cloudName, "image", parsed.publicId)
           const registryDoc = await db.collection("mediaRegistry").doc(assetRegistryKey).get()
 
           if (!registryDoc.exists) {
             throw httpError("Payment receipt asset is not registered in the media registry.", 404)
           }
 
-          const registryData = registryDoc.data() || {}
-          if (registryData.ownerUid !== callerUid) {
+          const reg = registryDoc.data() || {}
+          if (reg.cloudName !== cloudName) {
+            throw httpError("Payment receipt asset cloud name mismatch in media registry.", 403)
+          }
+          if (reg.publicId !== parsed.publicId) {
+            throw httpError("Payment receipt asset public ID mismatch in media registry.", 400)
+          }
+          if (reg.resourceType !== "image") {
+            throw httpError("Payment receipt asset resource type mismatch in media registry.", 400)
+          }
+          if (reg.deliveryType !== "authenticated") {
+            throw httpError("Payment receipt asset delivery type mismatch in media registry.", 400)
+          }
+          if (reg.folder !== "talasys/receipts") {
+            throw httpError("Payment receipt asset folder mismatch in media registry.", 400)
+          }
+          if (reg.ownerUid !== callerUid) {
             throw httpError("Payment receipt asset is not owned by the authenticated resident.", 403)
           }
-          if (registryData.folder !== "talasys/receipts") {
-            throw httpError("Payment receipt asset folder mismatch.", 400)
+
+          // 7. Status and expiration validation
+          if (reg.status !== "claimed") {
+            throw httpError("Payment receipt asset is not in a valid claimed status.", 403)
+          }
+          if (Number.isFinite(reg.expiresAt) && Date.now() > Number(reg.expiresAt)) {
+            throw httpError("Payment receipt asset reservation has expired.", 410)
           }
 
-          // In live non-E2E environments, verify asset existence with Cloudinary
+          // 8. Live provider verification uses validated canonical identity
           const verifyAsset = injected?.verifyCloudinaryAsset || createDefaultCloudinaryAssetVerifier()
           await verifyAsset(parsed.publicId, parsed.deliveryType)
         }
       }
 
-      // Execute atomic transaction on documentRequests and notifications
+      // Extract or derive operation identity (SEC-F05)
+      const candidateKey = body.idempotencyKey || body.operationId
+      let operationId: string
+      if (candidateKey !== undefined && candidateKey !== null && String(candidateKey).trim() !== "") {
+        const trimmedKey = String(candidateKey).trim()
+        if (!/^[A-Za-z0-9_-]{16,80}$/.test(trimmedKey)) {
+          throw httpError("A valid idempotencyKey or operationId (16-80 alphanumeric characters, hyphens, or underscores) is required.", 400)
+        }
+        operationId = trimmedKey
+      } else {
+        const contentDigest = crypto.createHash("sha256").update(
+          [callerUid, requestId.trim(), paymentMethod, sanitizedGcashRef, sanitizedScreenshotUrl].join(":")
+        ).digest("hex").slice(0, 32)
+        operationId = `pay_${contentDigest}`
+      }
+
+      const payloadHash = paymentPayloadHash({
+        requestId: requestId.trim(),
+        paymentMethod,
+        gcashRefNumber: sanitizedGcashRef,
+        gcashScreenshotUrl: sanitizedScreenshotUrl,
+      })
+
+      const operationDocId = paymentOperationDocumentId(callerUid, requestId.trim(), operationId)
+      const operationRef = db.collection("paymentOperations").doc(operationDocId)
+      const notifRef = db.collection(COLLECTION_NOTIFICATIONS).doc(`pay_${operationDocId}`)
       const requestRef = db.collection(COLLECTION_DOCUMENT_REQUESTS).doc(requestId.trim())
 
       const result = await db.runTransaction(async (transaction: any) => {
+        // 1. Check existing payment operation for idempotency
+        const opDoc = await transaction.get(operationRef)
+        if (opDoc.exists) {
+          const existingOp = opDoc.data() || {}
+          if (existingOp.payloadHash !== payloadHash) {
+            throw httpError("This payment operation was already submitted with different payment details.", 409)
+          }
+          if (existingOp.status === "completed") {
+            return {
+              success: true,
+              requestId: requestId.trim(),
+              paymentStatus: "pending_verification",
+              paymentMethod,
+              idempotent: true,
+            }
+          }
+          throw httpError("Payment operation is in an incomplete state.", 409)
+        }
+
+        // 2. Fetch document request
         const reqDoc = await transaction.get(requestRef)
         if (!reqDoc.exists) {
           throw httpError("Document request not found.", 404)
@@ -185,9 +299,15 @@ export function createResidentPayHandler(injected?: PayHandlerDependencies) {
           throw httpError(`Payment submission is not permitted for requests in status: ${reqData.status}.`, 400)
         }
 
-        const currentPaymentStatus = reqData.paymentStatus
-        if (currentPaymentStatus && !["unpaid", "pending_verification"].includes(currentPaymentStatus)) {
-          throw httpError(`This request is not eligible for payment submission (current payment status: ${currentPaymentStatus}).`, 400)
+        // Avoid overwriting a payment already confirmed as paid or waived
+        if (reqData.paymentStatus === "paid") {
+          throw httpError("This request is not eligible for payment submission: already paid and verified.", 400)
+        }
+        if (reqData.paymentStatus === "waived") {
+          throw httpError("This request is not eligible for payment submission: fees waived and does not require payment.", 400)
+        }
+        if (reqData.paymentStatus && !["unpaid", "pending_verification"].includes(reqData.paymentStatus)) {
+          throw httpError(`This request is not eligible for payment submission (current payment status: ${reqData.paymentStatus}).`, 400)
         }
 
         const now = Date.now()
@@ -197,12 +317,26 @@ export function createResidentPayHandler(injected?: PayHandlerDependencies) {
           paymentSubmittedAt: now,
           gcashRefNumber: paymentMethod === "gcash" ? sanitizedGcashRef : "",
           gcashScreenshotUrl: paymentMethod === "gcash" ? sanitizedScreenshotUrl : "",
+          lastPaymentOperationId: operationId,
         }
 
         transaction.update(requestRef, updatePayload)
 
-        // Atomically create admin notification
-        const notifRef = db.collection(COLLECTION_NOTIFICATIONS).doc()
+        // Record operation record in paymentOperations
+        transaction.set(operationRef, {
+          operationId,
+          callerUid,
+          requestId: requestId.trim(),
+          paymentMethod,
+          gcashRefNumber: paymentMethod === "gcash" ? sanitizedGcashRef : "",
+          gcashScreenshotUrl: paymentMethod === "gcash" ? sanitizedScreenshotUrl : "",
+          payloadHash,
+          status: "completed",
+          notificationId: notifRef.id,
+          createdAt: now,
+        })
+
+        // Atomically create admin notification with deterministic ID
         transaction.set(notifRef, {
           targetId: "admin",
           type: "info",
@@ -213,6 +347,8 @@ export function createResidentPayHandler(injected?: PayHandlerDependencies) {
           createdAt: now,
           residentName: callerData.name || "Resident",
           actionUrl: "/admin/requests/payments",
+          operationId,
+          requestId: requestId.trim(),
         })
 
         return {
@@ -220,6 +356,7 @@ export function createResidentPayHandler(injected?: PayHandlerDependencies) {
           requestId: requestId.trim(),
           paymentStatus: "pending_verification",
           paymentMethod,
+          idempotent: false,
         }
       })
 

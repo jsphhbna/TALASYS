@@ -222,7 +222,11 @@ export function useResidentData() {
   )
 
   const submitPayment = useCallback(
-    async (requestId: string, method: "gcash" | "cash", data: { gcashRefNumber?: string; gcashScreenshotUrl?: string }) => {
+    async (
+      requestId: string,
+      method: "gcash" | "cash",
+      data: { gcashRefNumber?: string; gcashScreenshotUrl?: string; idempotencyKey?: string }
+    ) => {
       if (!residentId) throw new Error("Resident authentication required.")
       if (method === "gcash") {
         if (!data.gcashRefNumber?.trim()) {
@@ -238,6 +242,12 @@ export function useResidentData() {
         throw new Error("You must be signed in to submit payment.")
       }
 
+      const idempotencyKey =
+        data.idempotencyKey ||
+        (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `pay_${Date.now()}_${Math.random().toString(36).slice(2, 18)}`)
+
       try {
         const res = await fetch("/api/resident/requests/pay", {
           method: "POST",
@@ -250,6 +260,7 @@ export function useResidentData() {
             paymentMethod: method,
             gcashRefNumber: data.gcashRefNumber?.trim(),
             gcashScreenshotUrl: data.gcashScreenshotUrl,
+            idempotencyKey,
           }),
         })
 

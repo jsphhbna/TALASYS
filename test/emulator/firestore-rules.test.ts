@@ -166,6 +166,8 @@ test("Auth-only identities cannot author initial registration state", async () =
     targetId: "admin", type: "registration", title: "forged",
   }))
   await assertFails(setDoc(doc(db, "registrationOperations", "forged"), { status: "completed" }))
+  await assertFails(setDoc(doc(db, "paymentOperations", "forged"), { status: "completed" }))
+  await assertFails(getDoc(doc(db, "paymentOperations", "forged")))
 })
 
 test("direct client registration resubmission is denied in favor of server-authoritative route", async () => {
