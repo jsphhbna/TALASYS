@@ -13,6 +13,16 @@ export const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
+const isE2EBrowser = typeof window !== "undefined" && window.location.port === "3005";
+const isE2EServer = Boolean(
+  process.env.PORT === "3005" ||
+  process.env.PLAYWRIGHT_PORT === "3005" ||
+  process.env.FIREBASE_PROJECT_ID === "talasys-e2e" ||
+  process.env.GCLOUD_PROJECT === "talasys-e2e" ||
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "talasys-e2e"
+);
+const isE2E = isE2EBrowser || isE2EServer;
+
 const isConfigValid = Boolean(
   firebaseConfig.apiKey && 
   firebaseConfig.apiKey.startsWith("AIzaSy") &&
@@ -20,7 +30,13 @@ const isConfigValid = Boolean(
 );
 
 // Fallback configuration strictly for static prerendering when live environment credentials are unset
-const effectiveConfig = isConfigValid
+const effectiveConfig = isE2E
+  ? {
+      apiKey: "AIzaSyB00000000000000000000000000000000",
+      projectId: "talasys-e2e",
+      authDomain: "talasys-e2e.firebaseapp.com",
+    }
+  : isConfigValid
   ? firebaseConfig
   : {
       apiKey: "AIzaSyB00000000000000000000000000000000",
@@ -34,11 +50,16 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-const emulatorGlobal = globalThis as typeof globalThis & { __talasysFirebaseEmulatorsConnected?: boolean }
-if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" && !emulatorGlobal.__talasysFirebaseEmulatorsConnected) {
-  connectAuthEmulator(auth, process.env.NEXT_PUBLIC_AUTH_EMULATOR_URL || "http://127.0.0.1:9099", { disableWarnings: true })
-  connectFirestoreEmulator(db, process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || "127.0.0.1", Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || "8080"))
-  emulatorGlobal.__talasysFirebaseEmulatorsConnected = true
+const emulatorGlobal = globalThis as typeof globalThis & { __talasysFirebaseEmulatorsConnected?: boolean };
+const shouldConnectEmulators = typeof window !== "undefined" && (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" || isE2E);
+
+if (shouldConnectEmulators && !emulatorGlobal.__talasysFirebaseEmulatorsConnected) {
+  const authUrl = process.env.NEXT_PUBLIC_AUTH_EMULATOR_URL || (isE2E ? "http://127.0.0.1:9199" : "http://127.0.0.1:9099");
+  const host = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || "127.0.0.1";
+  const port = Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || (isE2E ? 8180 : 8080));
+  connectAuthEmulator(auth, authUrl, { disableWarnings: true });
+  connectFirestoreEmulator(db, host, port);
+  emulatorGlobal.__talasysFirebaseEmulatorsConnected = true;
 }
 
 export default app;

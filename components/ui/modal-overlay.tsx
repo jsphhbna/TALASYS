@@ -17,6 +17,7 @@ const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 let openDialogCount = 0
 let originalBodyOverflow = ""
+let originalHtmlOverflow = ""
 const dialogStack: symbol[] = []
 const dialogContainerMap = new Map<symbol, HTMLElement>()
 
@@ -58,7 +59,9 @@ export function ModalOverlay({ isOpen, onClose, children, className, title, styl
 
     if (openDialogCount === 1) {
       originalBodyOverflow = document.body.style.overflow
+      originalHtmlOverflow = document.documentElement.style.overflow
       document.body.style.overflow = "hidden"
+      document.documentElement.style.overflow = "hidden"
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -103,6 +106,7 @@ export function ModalOverlay({ isOpen, onClose, children, className, title, styl
       openDialogCount = Math.max(0, openDialogCount - 1)
       if (openDialogCount === 0) {
         document.body.style.overflow = originalBodyOverflow
+        document.documentElement.style.overflow = originalHtmlOverflow
       }
 
       // Restore focus: if a parent dialog remains in the stack, keep focus inside it.

@@ -36,18 +36,28 @@ export function createCloudinarySignHandler(injected?: { auth?: any; db?: any })
       return NextResponse.json({ error: "Server configuration error: Missing Cloudinary secret." }, { status: 500 })
     }
 
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
+    const body = await req.json().catch(() => ({}))
+    const registrationTicket = body.ticket || req.headers.get("x-registration-ticket")
+
     const ip = extractClientIp(req)
-    const { success, resetTime } = rateLimit(`sign:${ip}`, 30, 60 * 1000)
+    // SEC-03: Avoid shared Unknown IP denial of service. When IP is unverified/Unknown,
+    // isolate rate limiting buckets by bearer token hash or registration ticket prefix.
+    const rateLimitKey = ip !== "Unknown"
+      ? `sign:${ip}`
+      : (authHeader
+          ? `sign:auth:${crypto.createHash("sha256").update(authHeader).digest("hex").slice(0, 16)}`
+          : (registrationTicket
+              ? `sign:ticket:${String(registrationTicket).slice(0, 16)}`
+              : `sign:unknown`))
+
+    const { success, resetTime } = rateLimit(rateLimitKey, 30, 60 * 1000)
     if (!success) {
       return NextResponse.json(
         { error: "Too many upload requests. Please wait before retrying." },
         { status: 429, headers: { "X-RateLimit-Reset": resetTime.toString() } }
       )
     }
-
-    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
-    const body = await req.json().catch(() => ({}))
-    const registrationTicket = body.ticket || req.headers.get("x-registration-ticket")
 
     let callerType: "admin" | "resident" | "registration-applicant" | null = null
     let callerRole: string | null = null
@@ -224,7 +234,7 @@ export function createCloudinarySignHandler(injected?: { auth?: any; db?: any })
       folder: targetFolder,
       publicId,
       type,
-      apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+      apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY,
       ...(claimToken ? { claimToken } : {})
     })
   } catch (error: any) {

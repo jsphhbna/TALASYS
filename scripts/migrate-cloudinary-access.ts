@@ -322,7 +322,7 @@ async function saveManifest(path: string, manifest: MigrationManifest) {
 export async function runCloudinaryMigrationCli() {
   loadOperatorEnv()
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
-  const apiKey = process.env.CLOUDINARY_API_KEY
+  const apiKey = process.env.CLOUDINARY_API_KEY || process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY
   const apiSecret = process.env.CLOUDINARY_API_SECRET
   if (!cloudName || !apiKey || !apiSecret) throw new Error("Missing Cloudinary cloud name/API key/API secret")
   const firestore = await createFirestoreAdapter()

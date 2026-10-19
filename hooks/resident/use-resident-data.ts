@@ -224,12 +224,20 @@ export function useResidentData() {
   const submitPayment = useCallback(
     async (requestId: string, method: "gcash" | "cash", data: { gcashRefNumber?: string; gcashScreenshotUrl?: string }) => {
       if (!residentId) throw new Error("Resident authentication required.")
+      if (method === "gcash") {
+        if (!data.gcashRefNumber?.trim()) {
+          throw new Error("A valid GCash reference number is required.")
+        }
+        if (data.gcashScreenshotUrl && !data.gcashScreenshotUrl.includes(`/talasys/receipts/${residentId}/`)) {
+          throw new Error("Payment screenshot must be an authenticated asset owned by this resident.")
+        }
+      }
       try {
         await updateDoc(doc(db, COLLECTION_DOCUMENT_REQUESTS, requestId), {
           paymentStatus: "pending_verification",
           paymentMethod: method,
           ...(method === "gcash" ? {
-            gcashRefNumber: data.gcashRefNumber || "",
+            gcashRefNumber: data.gcashRefNumber?.trim() || "",
             gcashScreenshotUrl: data.gcashScreenshotUrl || "",
           } : {}),
           paymentSubmittedAt: Date.now()

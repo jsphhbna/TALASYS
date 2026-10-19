@@ -310,6 +310,7 @@ test("A07 resident payment submission preserves paid, waived, and terminal reque
       ["rejected-request", "Rejected", "unpaid"],
       ["completed-request", "Completed", "unpaid"],
       ["legitimate-unpaid", "On Process", "unpaid"],
+      ["cash-unpaid", "On Process", "unpaid"],
     ]) await setDoc(doc(db, "documentRequests", id), { residentId: "resident", status, paymentStatus })
   })
   const residentDb = environment.authenticatedContext("resident").firestore()
@@ -318,6 +319,44 @@ test("A07 resident payment submission preserves paid, waived, and terminal reque
     await assertFails(updateDoc(doc(residentDb, "documentRequests", id), payment))
   }
   await assertSucceeds(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), payment))
+
+  // SEC-02: Resident cannot submit payment using another resident's receipt URL -> denied
+  const forgedPayment = {
+    paymentStatus: "pending_verification",
+    paymentMethod: "gcash",
+    gcashRefNumber: "REF-FORGED",
+    gcashScreenshotUrl: "https://res.cloudinary.com/talasys-cloud/image/authenticated/s--xyz--/v1/talasys/receipts/other-user/receipt.jpg",
+    paymentSubmittedAt: 1,
+  }
+  await assertFails(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), forgedPayment))
+
+  // SEC-02: Resident cannot submit cash payment with screenshot URL or ref number -> denied
+  const invalidCashPayment = {
+    paymentStatus: "pending_verification",
+    paymentMethod: "cash",
+    gcashRefNumber: "REF-1",
+    gcashScreenshotUrl: "https://res.cloudinary.com/talasys-cloud/image/authenticated/s--xyz--/v1/talasys/receipts/resident/receipt.jpg",
+    paymentSubmittedAt: 1,
+  }
+  await assertFails(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), invalidCashPayment))
+
+  // SEC-02: Resident CAN submit payment with their own authenticated receipt URL -> succeeds
+  const validOwnPayment = {
+    paymentStatus: "pending_verification",
+    paymentMethod: "gcash",
+    gcashRefNumber: "REF-VALID",
+    gcashScreenshotUrl: "https://res.cloudinary.com/talasys-cloud/image/authenticated/s--xyz--/v1/talasys/receipts/resident/receipt.jpg",
+    paymentSubmittedAt: 1,
+  }
+  await assertSucceeds(updateDoc(doc(residentDb, "documentRequests", "legitimate-unpaid"), validOwnPayment))
+
+  // SEC-02: Resident CAN submit cash payment with clean parameters on unpaid request -> succeeds
+  const validCashPayment = {
+    paymentStatus: "pending_verification",
+    paymentMethod: "cash",
+    paymentSubmittedAt: 1,
+  }
+  await assertSucceeds(updateDoc(doc(residentDb, "documentRequests", "cash-unpaid"), validCashPayment))
 })
 
 test("clients cannot write authoritative audit evidence or telemetry", async () => {
@@ -648,6 +687,41 @@ test("UI04 & P04: notification ownership and staff read-only boundaries are enfo
     type: "alert",
     title: "Urgent Inquiry",
     message: "Permitted inquiry from resident",
+    createdAt: Date.now(),
+  }))
+
+  // SEC-01: Resident creates Admin notification with unsafe protocol or external actionUrl -> denied
+  await assertFails(setDoc(doc(residentDb, "notifications", "resident-xss-action-url"), {
+    targetId: "admin",
+    type: "info",
+    title: "Malicious Link",
+    message: "Click here",
+    actionUrl: "javascript:alert(1)",
+    createdAt: Date.now(),
+  }))
+  await assertFails(setDoc(doc(residentDb, "notifications", "resident-phishing-action-url"), {
+    targetId: "admin",
+    type: "info",
+    title: "Phishing Link",
+    message: "Log in here",
+    actionUrl: "https://evil.example.com/steal-creds",
+    createdAt: Date.now(),
+  }))
+  // SEC-01: Resident creates Admin notification with permitted internal actionUrl -> succeeds
+  await assertSucceeds(setDoc(doc(residentDb, "notifications", "resident-payment-action-url"), {
+    targetId: "admin",
+    type: "info",
+    title: "Payment Submitted",
+    message: "Payment submitted for review",
+    actionUrl: "/admin/requests/payments",
+    createdAt: Date.now(),
+  }))
+  await assertSucceeds(setDoc(doc(residentDb, "notifications", "resident-verification-action-url"), {
+    targetId: "admin",
+    type: "reactivation",
+    title: "Reactivation Requested",
+    message: "Account reactivation requested",
+    actionUrl: "/admin/verifications",
     createdAt: Date.now(),
   }))
 

@@ -231,7 +231,7 @@ export function createMediaViewHandler(injected?: { auth?: any; db?: any }) {
       }
     }
 
-    // Generate genuine time-limited signed Cloudinary delivery URL (#52)
+    // Generate genuine cryptographically signed Cloudinary delivery URL (#52)
     const { deliveryUrl, expiresAt } = generateSignedDeliveryUrl(
       target,
       cloudName,

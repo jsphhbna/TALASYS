@@ -1,6 +1,33 @@
 # TALASYS Audit Findings Remediation Build Plan (A01–A18, R01–R14, F01–F18, UI01–UI19, P01–P07, R01–R07, F01–F06, V01–V04, MT01–MT03, UX-A01–UX-N01, FX-01–FX-07, R01–R04, M01–M06, QA01–QA04, BLUR-01)
 
-## DevKit V10 Modal Background Blur Restoration (BLUR-01) — CURRENT PASS
+## DevKit V10 Final Deep-Dive Audit, Root-Cause Remediation & Zero-Regression Cleanup (SEC-01–SEC-04, CFG-01, MAINT-01–MAINT-03) — CURRENT PASS
+
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED
+- **Audited baseline:** `8aeaedbc9b967e36efd990685dce63f016d1316d`
+- **Execution mode:** Evidence-Driven Audit → Root-Cause Security & Config Remediation → Automated Regressions → Conservative Cleanup → Double Clean Verification Pass
+- **Scope:**
+  - **SEC-01**: Restricted resident-created admin notification action URLs to strict internal route allowlist in `firestore.rules`; hardened client routing in `app/admin/notifications/page.tsx` with allowlist check and `router.push`.
+  - **SEC-02**: Enforced payment method integrity and receipt asset caller-ownership in `firestore.rules` (Case 2 updates); added client-side validation guard in `submitPayment`.
+  - **CFG-01**: Documented and harmonized fallback for `CLOUDINARY_API_KEY` across `.env.example`, `lib/constants.ts`, server signing (`app/api/cloudinary/sign/route.ts`), claim verification (`app/api/media/claim/route.ts`), and migration scripts.
+  - **SEC-03**: Partitioned Cloudinary signing rate-limiting keys by auth hash or ticket nonce when client IP is "Unknown", preventing cross-client DoS.
+  - **SEC-04**: Truthfully documented cryptographic signature lifetime semantics in `app/api/media/view/route.ts` and `lib/security/media-auth.ts`.
+  - **BLUR-01 & RC-3**: Restored modal backdrop blur and dual overflow locking (`htmlOverflow` & `bodyOverflow`) in `components/ui/modal-overlay.tsx`.
+  - **E2E-CFG**: Isolated E2E client and server project resolution to `talasys-e2e` in `lib/firebase.ts` and `app/api/media/claim/route.ts`.
+  - **MAINT-01–MAINT-03**: Audited local stores and verified `lib/resident/local-storage-store.ts` and master stores are active; removed transient `temp_user_prompt.txt`; preserved all active dependencies.
+  - **VERIFY**: Two consecutive clean verification passes across unit (307/307), emulator rules (91/91), authenticated Playwright E2E (47/47), Edge modal regression (16/16), Mobile Chromium modal regression (16/16), TypeScript typecheck (0 errors), ESLint (0 errors), and Next.js production build (51/51 routes).
+
+| Milestone | Scope | Status | Acceptance Criteria & Verification Invariant |
+|---|---|---|---|
+| **SEC-01** | Untrusted Notification Action URL Sanitization & Allowlist | COMPLETED | In `firestore.rules`, resident-created admin notifications are strictly restricted to `actionUrl in ['/admin/verifications', '/admin/requests/payments', '/admin/requests']`. In `app/admin/notifications/page.tsx`, incoming `actionUrl` is validated against an allowlist and navigated via `router.push(url)` rather than `window.location.href = url`, preventing open redirect and DOM XSS attacks. Verified by unit & emulator tests in `test/emulator/firestore-rules.test.ts`. |
+| **SEC-02** | Payment Evidence Integrity & Asset Ownership Validation | COMPLETED | In `firestore.rules`, Case 2 payment submission transitions enforce: 1) `paymentMethod in ['gcash', 'cash']`; 2) for `cash`, `gcashScreenshotUrl` and `gcashRefNumber` must be empty; 3) for `gcash`, `gcashRefNumber` must be a valid non-empty string and `gcashScreenshotUrl` must belong to caller (`.*talasys/receipts/' + request.auth.uid + '/.*`). In `hooks/resident/use-resident-data.ts`, client-side validation prevents invalid submissions before dispatch. Verified by security rules regression tests in `test/emulator/firestore-rules.test.ts`. |
+| **CFG-01** | Cloudinary API Key Config Fallback Harmonization | COMPLETED | Documented `NEXT_PUBLIC_CLOUDINARY_API_KEY` in `.env.example`; added defensive fallback `(process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY || "")` across `lib/constants.ts`, `app/api/cloudinary/sign/route.ts`, `app/api/media/claim/route.ts`, and `scripts/migrate-cloudinary-access.ts`. Prevents silent 503 provider unavailability when either variable name is populated. |
+| **SEC-03** | Cloudinary Signing Rate-Limit IP Attribution & Partitioning | COMPLETED | In `app/api/cloudinary/sign/route.ts`, when client IP cannot be determined (`ip === "Unknown"`), the rate-limiting key is partitioned using authenticated user ID hash or registration ticket nonce instead of a shared global bucket (`sign:Unknown`), preventing denial-of-service against unauthenticated or proxied applicants. |
+| **SEC-04** | Signed Media URL Lifetime Truthfulness & Documentation | COMPLETED | Accurately documented in `app/api/media/view/route.ts` and `lib/security/media-auth.ts` that authenticated Cloudinary delivery URLs use cryptographic signature verification (`s--...--`), returning `expiresAt: null, timeLimited: false` without fabricating expiration claims in the absence of a separate token authentication key. |
+| **MAINT-01** | Store Usage & Preservation Audit | COMPLETED | Audited all local stores. Verified that `lib/resident/local-storage-store.ts` contains the active `registerResidentAccount` submission workflow for `app/auth/register/page.tsx`, and `lib/master-store.ts` / `lib/admin/admin-store.ts` / `lib/superadmin/superadmin-store.ts` supply active types and initialization methods across auth context and hooks. All preserved intact without regressions. |
+| **MAINT-02** | Zero-Regression Clean Repository Cleanup | COMPLETED | Removed transient scratch prompt `temp_user_prompt.txt`. Preserved all required dependencies in `package.json`. No dead or broken references introduced. |
+| **DOUBLE-PASS** | Two Consecutive Clean Multi-Browser Verification Passes | COMPLETED | Verified two consecutive clean passes across all test suites: 307/307 unit tests, 91/91 emulator security rules tests, 47/47 authenticated Playwright E2E tests (Chromium), 16/16 modal regression E2E tests (Microsoft Edge), 16/16 modal regression E2E tests (Mobile Chromium), 0 TypeScript errors, 0 ESLint errors, and 51/51 Next.js production routes build. |
+
+## DevKit V10 Modal Background Blur Restoration (BLUR-01) — PRIOR PASS
 
 - **Status:** COMPLETED & INDEPENDENTLY VERIFIED
 - **Audited baseline:** `779f020a1af2f4450049c1f6c5dc1b42adc47040`

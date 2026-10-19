@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { ModalOverlay } from "@/components/ui/modal-overlay"
 import { AdminPageShell } from "@/components/layout/page-shells"
 import { Card } from "@/components/ui/card"
@@ -10,6 +11,12 @@ import { Bell, UserPlus, Clock, FileText, Mail, Loader2, Trash2 } from "lucide-r
 import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth"
 import { canManageNotificationsRole, isAnyAdminRole } from "@/lib/auth/auth-types"
+
+const ALLOWED_ADMIN_ROUTES = ["/admin/verifications", "/admin/requests/payments", "/admin/requests"] as const
+
+function isAllowedAdminRoute(url?: string | null): url is typeof ALLOWED_ADMIN_ROUTES[number] {
+  return typeof url === "string" && (ALLOWED_ADMIN_ROUTES as readonly string[]).includes(url)
+}
 
 function formatRelativeTime(createdAt: number): string {
   if (!createdAt) return "Just now"
@@ -29,6 +36,7 @@ function formatRelativeTime(createdAt: number): string {
 }
 
 export default function Notifications() {
+  const router = useRouter()
   const { user } = useAuth()
   const canManage = canManageNotificationsRole(user?.role)
   const { notifications: adminNotifications, markAllNotificationsRead, markNotificationRead, deleteAllNotifications, addNotification, residents } = useAdminData()
@@ -336,8 +344,16 @@ export default function Notifications() {
                   </p>
                   <p className="text-2xs text-slate-400">{formatRelativeTime(notification.createdAt)}</p>
                 </div>
-                {notification.actionUrl && !notification.isRead && (
-                  <Button size="sm" className="h-7 px-4 text-2xs bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]">
+                {isAllowedAdminRoute(notification.actionUrl) && !notification.isRead && (
+                  <Button
+                    onClick={() => {
+                      if (isAllowedAdminRoute(notification.actionUrl)) {
+                        router.push(notification.actionUrl)
+                      }
+                    }}
+                    size="sm"
+                    className="h-7 px-4 text-2xs bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
+                  >
                     {notification.type === "expiring" ? "View List" : "Review"}
                   </Button>
                 )}
@@ -372,9 +388,13 @@ export default function Notifications() {
                   <p className="text-2xs text-slate-400">{selectedNotification.timestamp}</p>
                 </div>
               </div>
-              {selectedNotification.actionUrl && (
+              {isAllowedAdminRoute(selectedNotification.actionUrl) && (
                 <Button
-                  onClick={() => { window.location.href = selectedNotification.actionUrl }}
+                  onClick={() => {
+                    if (isAllowedAdminRoute(selectedNotification.actionUrl)) {
+                      router.push(selectedNotification.actionUrl)
+                    }
+                  }}
                   className="w-full h-10 bg-[#0C2340] dark:bg-slate-800 hover:bg-[#0a1c33]"
                 >
                   {selectedNotification.type === "expiring" ? "View List" : "Review"}

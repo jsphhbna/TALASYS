@@ -186,8 +186,27 @@ service cloud.firestore {
               'paymentStatus', 'paymentMethod', 'gcashRefNumber', 'gcashScreenshotUrl', 'paymentSubmittedAt'
             ]) &&
             (!('paymentStatus' in resource.data) || resource.data.paymentStatus in ['unpaid', 'pending_verification']) &&
-            request.resource.data.paymentStatus == 'pending_verification' &&
-            resource.data.status in ['Pending', 'Approved', 'On Process']
+            request.resource.data.get('paymentStatus', '') == 'pending_verification' &&
+            resource.data.status in ['Pending', 'Approved', 'On Process'] &&
+            request.resource.data.get('paymentMethod', '') in ['gcash', 'cash'] &&
+            (
+              (
+                request.resource.data.get('paymentMethod', '') == 'cash' &&
+                request.resource.data.get('gcashScreenshotUrl', '') == '' &&
+                request.resource.data.get('gcashRefNumber', '') == ''
+              ) ||
+              (
+                request.resource.data.get('paymentMethod', '') == 'gcash' &&
+                request.resource.data.get('gcashRefNumber', '') is string &&
+                request.resource.data.get('gcashRefNumber', '').size() > 0 &&
+                request.resource.data.get('gcashScreenshotUrl', '') is string &&
+                (
+                  request.resource.data.get('gcashScreenshotUrl', '') == '' ||
+                  request.resource.data.get('gcashScreenshotUrl', '') == 'protected' ||
+                  request.resource.data.get('gcashScreenshotUrl', '').matches('.*talasys/receipts/' + request.auth.uid + '/.*')
+                )
+              )
+            )
           )
         )
       );
@@ -274,7 +293,11 @@ service cloud.firestore {
         (
           isResident() &&
           request.resource.data.targetId == 'admin' &&
-          request.resource.data.type in ['info', 'alert', 'reactivation']
+          request.resource.data.type in ['info', 'alert', 'reactivation'] &&
+          (
+            !('actionUrl' in request.resource.data) ||
+            request.resource.data.actionUrl in ['/admin/verifications', '/admin/requests/payments', '/admin/requests']
+          )
         ) ||
         canManageNotifications()
       );

@@ -1,4 +1,30 @@
 
+## DevKit V10 Final Deep-Dive Audit Remediation & Zero-Regression Cleanup Handoff
+
+- **Date:** October 19, 2026
+- **Audited Baseline:** `8aeaedbc9b967e36efd990685dce63f016d1316d`
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (Ready for Production Acceptance)
+- **Automated Verification Summary:**
+  - Unit Tests: 307 / 307 PASS (100% across 31 test suites)
+  - Firestore Emulator Security Rules Tests: 91 / 91 PASS (100%)
+  - Playwright Authenticated Workflows (Chromium): 47 / 47 PASS (100%)
+  - Playwright Modal Regression Suite (Microsoft Edge): 16 / 16 PASS (100%)
+  - Playwright Modal Regression Suite (Mobile Chromium): 16 / 16 PASS (100%)
+  - TypeScript Check (`tsc --noEmit`): 0 errors
+  - TypeScript Tests Check (`tsc --noEmit -p tsconfig.test.json`): 0 errors
+  - ESLint (`npm run lint`): 0 errors
+  - Production Build (`next build`): 51 / 51 routes compiled successfully (Turbopack)
+- **Key Implementation & Verification Highlights:**
+  1. **SEC-01 (Notification Action URL Allowlist & Router Hardening):** In `firestore.rules`, restricted resident-created admin notification `actionUrl` strictly to `['/admin/verifications', '/admin/requests/payments', '/admin/requests']`. In `app/admin/notifications/page.tsx`, incoming notification `actionUrl` is validated against an allowlist and dispatched using Next.js `router.push(url)` instead of `window.location.href = url`, preventing arbitrary external navigation and DOM XSS attacks.
+  2. **SEC-02 (Payment Evidence Integrity & Caller Asset Ownership):** In `firestore.rules`, Case 2 payment submission updates enforce: `paymentMethod in ['gcash', 'cash']`; for cash payments, `gcashScreenshotUrl` and `gcashRefNumber` must be empty; for GCash payments, `gcashRefNumber` must be a valid non-empty string and `gcashScreenshotUrl` must belong to caller (`.*talasys/receipts/' + request.auth.uid + '/.*`). In `hooks/resident/use-resident-data.ts`, client-side pre-submission validation blocks forged or incomplete payment requests.
+  3. **CFG-01 (Cloudinary API Key Configuration Harmonization):** Documented `NEXT_PUBLIC_CLOUDINARY_API_KEY` in `.env.example`; implemented fallback `(process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY || "")` across `lib/constants.ts`, `app/api/cloudinary/sign/route.ts`, `app/api/media/claim/route.ts`, and `scripts/migrate-cloudinary-access.ts`. Prevents 503 provider unavailability due to variable naming discrepancies.
+  4. **SEC-03 (Cloudinary Signing Rate-Limit Partitioning on Unknown IP):** In `app/api/cloudinary/sign/route.ts`, partitioned rate-limiting bucket by caller authenticated UID hash (`sign:auth:<hash>`) or registration ticket nonce (`sign:ticket:<nonce>`) when client IP is "Unknown", preventing global bucket starvation and cross-applicant denial of service.
+  5. **SEC-04 (Signed Media Delivery Lifetime Semantics):** Accurately documented in `app/api/media/view/route.ts` and `lib/security/media-auth.ts` that authenticated Cloudinary delivery URLs use cryptographic signature verification (`s--...--`), returning `expiresAt: null, timeLimited: false` without fabricating expiration claims in the absence of a separate token authentication key.
+  6. **BLUR-01 & RC-3 (Modal Backdrop Blur & Dual Overflow Locking):** Maintained restored `backdrop-blur-sm` (4px blur) and `z-20 isolate` on staff sidebars; locked and restored both `document.body.style.overflow` and `document.documentElement.style.overflow` in `components/ui/modal-overlay.tsx`. Verified on Microsoft Edge and Chromium across all standard viewports.
+  7. **E2E Environment Project Isolation:** Updated `lib/firebase.ts` and `app/api/media/claim/route.ts` to strictly bind to `talasys-e2e` and bypass external Cloudinary calls during emulator runs, guaranteeing zero cross-project Firestore mismatches.
+  8. **MAINT-01–MAINT-02 (Store Preservation & Repository Cleanup):** Audited local stores; verified that `lib/resident/local-storage-store.ts` contains active `registerResidentAccount` and master stores provide core types; removed transient scratch prompt `temp_user_prompt.txt`; preserved all required dependencies.
+  9. **Double Clean Verification Pass:** Passed two consecutive full verification runs across all test suites.
+
 ## DevKit V10 Modal Regression & Responsive Sidebar Correction Handoff (M01–M06)
 
 - **Date:** October 18, 2026
